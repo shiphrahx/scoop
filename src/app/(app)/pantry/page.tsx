@@ -1,18 +1,23 @@
 import Link from "next/link";
+import GroceryScan from "./GroceryScan";
 import PantryForm from "./PantryForm";
 import PantryList from "./PantryList";
 import { createClient } from "@/lib/supabase/server";
+import { hasApiKey } from "@/lib/queries";
 import type { PantryItem } from "@/lib/types";
 
 export default async function PantryPage() {
   const supabase = await createClient();
 
-  const { data } = await supabase
-    .from("pantry_items")
-    .select(
-      "id, name, off_barcode, quantity, kcal_100g, protein_100g, carbs_100g, fat_100g",
-    )
-    .order("created_at", { ascending: false });
+  const [{ data }, connected] = await Promise.all([
+    supabase
+      .from("pantry_items")
+      .select(
+        "id, name, off_barcode, quantity, kcal_100g, protein_100g, carbs_100g, fat_100g",
+      )
+      .order("created_at", { ascending: false }),
+    hasApiKey(),
+  ]);
 
   const items = (data as PantryItem[]) ?? [];
 
@@ -30,6 +35,16 @@ export default async function PantryPage() {
       </div>
 
       <PantryList items={items} />
+      {connected ? (
+        <GroceryScan />
+      ) : (
+        <Link
+          href="/me"
+          className="rounded-3xl border border-dashed border-black/15 p-5 text-center text-sm text-black/50 active:scale-[0.99] dark:border-white/20 dark:text-white/50"
+        >
+          📸 Connect your Anthropic key in Me to scan groceries into the pantry.
+        </Link>
+      )}
       <PantryForm />
     </main>
   );
