@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import type { FoodSource } from "@/lib/types";
 
 export interface LogFoodInput {
   name: string;
@@ -10,6 +11,7 @@ export interface LogFoodInput {
   protein_g: number;
   carbs_g: number;
   fat_g: number;
+  source?: FoodSource;
 }
 
 export async function logFood(input: LogFoodInput) {
@@ -22,7 +24,7 @@ export async function logFood(input: LogFoodInput) {
   const { error } = await supabase.from("food_logs").insert({
     user_id: user.id,
     name: input.name,
-    source: "manual",
+    source: input.source ?? "manual",
     grams: input.grams,
     kcal: input.kcal,
     protein_g: input.protein_g,

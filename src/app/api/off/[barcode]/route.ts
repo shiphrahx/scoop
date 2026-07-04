@@ -5,7 +5,7 @@ import { lookupBarcode } from "@/lib/off";
 // scan to turn a number into a name + macros.
 export async function GET(
   _req: Request,
-  ctx: RouteContext<"/api/off/[barcode]">,
+  ctx: { params: Promise<{ barcode: string }> },
 ) {
   const { barcode } = await ctx.params;
 
