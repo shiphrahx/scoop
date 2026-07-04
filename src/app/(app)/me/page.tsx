@@ -1,15 +1,21 @@
+import ApiKeySettings from "./ApiKeySettings";
 import SignOutButton from "@/components/SignOutButton";
+import { hasApiKey } from "@/lib/queries";
 
-export default function MePage() {
+export default async function MePage() {
+  const connected = await hasApiKey();
+
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-4 px-5 text-center">
-      <span className="text-5xl" aria-hidden>
-        🙂
-      </span>
-      <h1 className="text-2xl font-extrabold">Me</h1>
-      <p className="text-sm text-black/50 dark:text-white/50">
-        Profile and settings coming soon.
-      </p>
+    <main className="flex flex-1 flex-col items-center gap-6 px-5 pt-8 pb-6">
+      <div className="flex flex-col items-center gap-1 text-center">
+        <span className="text-5xl" aria-hidden>
+          🙂
+        </span>
+        <h1 className="text-2xl font-extrabold">Me</h1>
+      </div>
+
+      <ApiKeySettings connected={connected} />
+
       <SignOutButton />
     </main>
   );

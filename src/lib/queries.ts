@@ -56,6 +56,24 @@ export async function getTodayConsumed(): Promise<Macros> {
   );
 }
 
+// True when the user has saved an Anthropic key (the key itself never leaves
+// the server — we only report whether one exists).
+export async function hasApiKey(): Promise<boolean> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const { data } = await supabase
+    .from("users")
+    .select("anthropic_api_key")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  return Boolean((data as { anthropic_api_key: string | null } | null)?.anthropic_api_key);
+}
+
 export async function getLatestWeight(): Promise<number | null> {
   const supabase = await createClient();
   const { data } = await supabase
