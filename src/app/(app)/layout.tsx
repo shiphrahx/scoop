@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import BottomNav from "@/components/BottomNav";
 import { createClient } from "@/lib/supabase/server";
+import { getProfile } from "@/lib/queries";
 
 // Shared shell for every signed-in screen: content area + bottom nav.
 // Middleware already gates these routes; this is a second guard for safety.
@@ -16,6 +17,12 @@ export default async function AppLayout({
 
   if (!user) {
     redirect("/login");
+  }
+
+  // New users must finish onboarding before reaching the app.
+  const profile = await getProfile();
+  if (!profile?.onboarded_at) {
+    redirect("/onboarding");
   }
 
   return (
