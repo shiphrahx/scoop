@@ -95,6 +95,20 @@ export default async function HomePage() {
           <span className="text-3xl">⚖️</span>
           Log weight
         </Link>
+        <Link
+          href="/batches"
+          className="flex flex-col items-center gap-1 rounded-2xl bg-black/5 py-5 font-bold active:scale-95 dark:bg-white/10"
+        >
+          <span className="text-3xl">🍲</span>
+          Batches
+        </Link>
+        <Link
+          href="/pantry"
+          className="flex flex-col items-center gap-1 rounded-2xl bg-black/5 py-5 font-bold active:scale-95 dark:bg-white/10"
+        >
+          <span className="text-3xl">🥫</span>
+          Pantry
+        </Link>
       </section>
     </main>
   );
