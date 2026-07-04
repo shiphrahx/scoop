@@ -1,0 +1,41 @@
+-- Reset a user back to a first-time state so you can re-test onboarding.
+-- Run in the Supabase SQL Editor. Replace the email everywhere below with the
+-- account you sign in with.
+--
+-- The auth.users row is left alone (you stay able to sign in). Deleting the
+-- public.users row cascades to weights, measurements, food_logs, and
+-- daily_targets (on delete cascade, see 0001_phase2_schema.sql). Onboarding is
+-- gated on users.onboarded_at being null (app/(app)/layout.tsx), so a wiped or
+-- cleared profile sends you back through the flow.
+--
+-- Choose ONE option.
+
+-- ===========================================================================
+-- OPTION A (default): full wipe. Deletes the profile row and everything that
+-- hangs off it. Next visit runs onboarding from scratch. Truest first-time test.
+-- ===========================================================================
+delete from public.users
+where email = 'lisa.shiphrah@gmail.com';
+
+-- ===========================================================================
+-- OPTION B: keep the profile row, just clear preferences + the onboarded flag
+-- and the data onboarding seeds. Comment out OPTION A above, uncomment this.
+-- ===========================================================================
+-- update public.users
+-- set diet_type      = 'regular',
+--     allergies      = '{}',
+--     dislikes       = '{}',
+--     goal           = 'lose',
+--     goal_pace      = 'steady',
+--     activity_level = 'moderate',
+--     height_cm      = null,
+--     sex            = null,
+--     birth_year     = null,
+--     onboarded_at   = null,
+--     updated_at     = now()
+-- where email = 'lisa.shiphrah@gmail.com';
+--
+-- delete from public.weights       where user_id in (select id from public.users where email = 'lisa.shiphrah@gmail.com');
+-- delete from public.measurements  where user_id in (select id from public.users where email = 'lisa.shiphrah@gmail.com');
+-- delete from public.daily_targets where user_id in (select id from public.users where email = 'lisa.shiphrah@gmail.com');
+-- delete from public.food_logs     where user_id in (select id from public.users where email = 'lisa.shiphrah@gmail.com');
