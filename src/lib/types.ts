@@ -86,3 +86,41 @@ export interface OffProduct {
   carbs_100g: number;
   fat_100g: number;
 }
+
+// One line of a parsed recipe.
+export interface RecipeIngredient {
+  name: string;
+  quantity: string; // free text as written, e.g. "200 g" or "2 cloves"
+}
+
+// A recipe read by AI from a URL or screenshot. Macros are for the whole
+// recipe as written (divide by servings for one plate).
+export interface Recipe extends Macros {
+  id: string;
+  name: string;
+  source_url: string | null;
+  servings: number;
+  ingredients: RecipeIngredient[];
+}
+
+// A single grocery item the AI read out of a screenshot (macros per 100 g,
+// estimated from the model's knowledge — 0 when unknown).
+export interface GroceryItem {
+  name: string;
+  kcal_100g: number;
+  protein_100g: number;
+  carbs_100g: number;
+  fat_100g: number;
+}
+
+// One dish the AI suggests from the pantry that fits the user's diet and
+// remaining macros for the day.
+export interface MealSuggestion {
+  name: string;
+  uses: string[]; // pantry item names it draws on
+  why: string; // one plain-language line
+  kcal: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+}
