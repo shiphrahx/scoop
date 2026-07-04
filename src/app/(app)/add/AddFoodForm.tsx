@@ -3,7 +3,7 @@
 import { useState } from "react";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import type { OffProduct } from "@/lib/types";
-import { logFood } from "./actions";
+import { logFood, saveFavourite } from "./actions";
 
 const empty = {
   name: "",
@@ -67,6 +67,24 @@ export default function AddFoodForm() {
       setNote(`Found: ${p.name} — set your grams.`);
     } catch {
       setNote("Lookup failed. Enter it by hand.");
+    }
+  }
+
+  async function saveUsual() {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      await saveFavourite({
+        name: form.name.trim(),
+        grams: form.grams ? Number(form.grams) : null,
+        kcal: Number(form.kcal) || 0,
+        protein_g: Number(form.protein_g) || 0,
+        carbs_g: Number(form.carbs_g) || 0,
+        fat_g: Number(form.fat_g) || 0,
+      });
+      setNote(`Saved "${form.name.trim()}" to My usual.`);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -146,6 +164,14 @@ export default function AddFoodForm() {
         className="mt-2 w-full rounded-2xl bg-green-500 px-6 py-4 text-lg font-bold text-white shadow-lg transition active:scale-95 disabled:opacity-50"
       >
         {saving ? "Adding…" : "Add to today"}
+      </button>
+
+      <button
+        onClick={saveUsual}
+        disabled={saving || !form.name.trim()}
+        className="w-full rounded-2xl px-6 py-3 text-sm font-bold text-green-600 active:scale-95 disabled:opacity-40 dark:text-green-400"
+      >
+        ⭐ Save as usual
       </button>
 
       {scanning && (

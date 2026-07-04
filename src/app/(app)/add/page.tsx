@@ -1,6 +1,8 @@
 import AddFoodForm from "./AddFoodForm";
 import DeleteFoodButton from "./DeleteFoodButton";
+import Favourites from "./Favourites";
 import { createClient } from "@/lib/supabase/server";
+import type { Favourite } from "@/lib/types";
 
 interface FoodLogRow {
   id: string;
@@ -16,17 +18,26 @@ export default async function AddPage() {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
 
-  const { data } = await supabase
-    .from("food_logs")
-    .select("id, name, kcal, protein_g, carbs_g, fat_g")
-    .gte("logged_at", start.toISOString())
-    .order("logged_at", { ascending: false });
+  const [{ data: logData }, { data: favData }] = await Promise.all([
+    supabase
+      .from("food_logs")
+      .select("id, name, kcal, protein_g, carbs_g, fat_g")
+      .gte("logged_at", start.toISOString())
+      .order("logged_at", { ascending: false }),
+    supabase
+      .from("favourites")
+      .select("id, name, grams, kcal, protein_g, carbs_g, fat_g")
+      .order("created_at", { ascending: false }),
+  ]);
 
-  const logs = (data as FoodLogRow[]) ?? [];
+  const logs = (logData as FoodLogRow[]) ?? [];
+  const favourites = (favData as Favourite[]) ?? [];
 
   return (
     <main className="flex flex-1 flex-col gap-6 px-5 pt-8 pb-6">
       <h1 className="text-2xl font-extrabold">Log food</h1>
+
+      <Favourites items={favourites} />
 
       <AddFoodForm />
 
