@@ -36,3 +36,53 @@ export interface Macros {
 export interface DailyTargets extends Macros {
   week_start: string;
 }
+
+// A saved "my usual" item — logged to today's food with one tap.
+export interface Favourite extends Macros {
+  id: string;
+  name: string;
+  grams: number | null;
+}
+
+// Something the user has in the kitchen. Macros are stored per 100 g, the way
+// Open Food Facts reports them. off_barcode is null for hand-entered items.
+export interface PantryItem {
+  id: string;
+  name: string;
+  off_barcode: string | null;
+  quantity: number;
+  kcal_100g: number;
+  protein_100g: number;
+  carbs_100g: number;
+  fat_100g: number;
+}
+
+// One pack that went into a batch cook.
+export interface SourcePack {
+  name: string;
+  grams: number;
+  kcal: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+}
+
+// A batch cook: totals for the whole pot, plus how much is left. Macros per
+// gram = total macro / total_cooked_g.
+export interface Batch extends Macros {
+  id: string;
+  name: string;
+  source_packs: SourcePack[];
+  total_cooked_g: number;
+  remaining_g: number;
+}
+
+// What Open Food Facts gives us back for a scanned barcode (per 100 g).
+export interface OffProduct {
+  barcode: string;
+  name: string;
+  kcal_100g: number;
+  protein_100g: number;
+  carbs_100g: number;
+  fat_100g: number;
+}
