@@ -79,6 +79,17 @@ You need this before local sign-in works.
 
 Restart `npm run dev` after editing `.env.local`.
 
+## Database migrations
+
+The app tables live in [`supabase/migrations`](./supabase/migrations). Apply
+them before running Phase 2 features:
+
+- **Supabase SQL Editor:** open each `.sql` file in order and run it.
+- Or with the Supabase CLI: `supabase db push`.
+
+`0001_phase2_schema.sql` creates `users`, `weights`, `measurements`,
+`food_logs` and `daily_targets`, all row-level-secured to the signed-in user.
+
 ## Deploy to Vercel
 
 1. Push this repo to GitHub.
