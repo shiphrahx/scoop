@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # Scoop — Project Guide for Claude Code
 
 This file tells you (Claude Code) what Scoop is and how to build it.
