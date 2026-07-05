@@ -1,36 +1,14 @@
+import Link from "next/link";
 import { getCoachData } from "@/lib/queries";
-import {
-  ApplyTargetsButton,
-  AppleIngest,
-  DevSeed,
-  FitbitButton,
-} from "./Controls";
+import { ApplyTargetsButton } from "./Controls";
 
-// Turn the ?fitbit= result of the OAuth round-trip into a one-line banner.
-const FITBIT_NOTES: Record<string, string> = {
-  connected: "Fitbit connected 🎉 Tap sync to pull your data.",
-  denied: "Fitbit connection was cancelled.",
-  error: "Something went wrong connecting Fitbit. Try again.",
-};
-
-export default async function CoachPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ fitbit?: string }>;
-}) {
-  const [{ fitbit }, data] = await Promise.all([searchParams, getCoachData()]);
+export default async function CoachPage() {
+  const data = await getCoachData();
   const { review, current } = data;
-  const note = fitbit ? FITBIT_NOTES[fitbit] : null;
 
   return (
     <main className="flex flex-1 flex-col gap-8 px-5 pt-8 pb-6">
-      <h1 className="text-2xl font-extrabold">The Coach</h1>
-
-      {note && (
-        <p className="rounded-2xl bg-green-500/10 px-4 py-3 text-sm font-semibold text-green-700 dark:text-green-400">
-          {note}
-        </p>
-      )}
+      <h1 className="text-3xl font-black">The Coach</h1>
 
       {/* Weekly review */}
       <section className="sc-card flex flex-col gap-4 p-5">
@@ -75,9 +53,12 @@ export default async function CoachPage({
           Recent activity
         </h2>
         {data.activity.length === 0 ? (
-          <p className="rounded-2xl border-2 border-dashed border-[var(--border)] p-5 text-center text-sm text-[var(--muted)]">
-            No activity yet. Connect Fitbit or your Apple Watch below.
-          </p>
+          <Link
+            href="/me"
+            className="block rounded-2xl border-2 border-dashed border-[var(--border)] p-5 text-center text-sm text-[var(--muted)] active:scale-[0.99]"
+          >
+            No activity yet. Connect Fitbit or your Apple Watch in Settings →
+          </Link>
         ) : (
           <ul className="sc-card flex flex-col divide-y divide-[var(--border)] p-2">
             {data.activity.map((a) => (
@@ -99,22 +80,14 @@ export default async function CoachPage({
         )}
       </section>
 
-      {process.env.NODE_ENV !== "production" && <DevSeed />}
-
-      {/* Connect data sources */}
-      <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-extrabold uppercase tracking-wide text-[var(--muted)]">
-          Fitbit
-        </h2>
-        <FitbitButton connected={data.fitbitConnected} />
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-extrabold uppercase tracking-wide text-[var(--muted)]">
-          Apple Watch
-        </h2>
-        <AppleIngest initialToken={data.appleIngestToken} />
-      </section>
+      <Link
+        href="/me"
+        className="sc-card flex items-center gap-3 p-4 text-sm font-extrabold transition active:scale-[0.98]"
+      >
+        <span className="text-2xl">⚙️</span>
+        Devices &amp; goals
+        <span className="ml-auto text-[var(--muted)]">›</span>
+      </Link>
     </main>
   );
 }

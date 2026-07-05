@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   const cookieState = request.cookies.get("fitbit_oauth_state")?.value;
 
   const fail = (reason: string) =>
-    NextResponse.redirect(`${origin}/coach?fitbit=${reason}`);
+    NextResponse.redirect(`${origin}/me?fitbit=${reason}`);
 
   if (params.get("error")) return fail("denied");
   if (!code || !state || state !== cookieState) return fail("error");
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
   );
   if (error) return fail("error");
 
-  const res = NextResponse.redirect(`${origin}/coach?fitbit=connected`);
+  const res = NextResponse.redirect(`${origin}/me?fitbit=connected`);
   res.cookies.delete("fitbit_oauth_state");
   return res;
 }
