@@ -1,26 +1,94 @@
 @import "tailwindcss";
 
+/* Scoop design language — friendly, rounded, high-contrast, lots of green.
+   Tuned to feel like a game you tap through, not a spreadsheet. */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f6faf6; /* barely-there mint tint */
+  --surface: #ffffff; /* cards sit on top of the tint */
+  --foreground: #12241a;
+  --muted: #5b6b60;
+  --border: rgba(18, 36, 26, 0.1);
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-nunito);
   --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0a0f0c;
+    --surface: #141a16;
+    --foreground: #e8f0ea;
+    --muted: #9fb0a4;
+    --border: rgba(232, 240, 234, 0.12);
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Headings carry the playful weight. */
+h1,
+h2 {
+  letter-spacing: -0.02em;
+}
+
+/* Reusable pieces so every screen shares one look. */
+@layer components {
+  /* A rounded panel that reads as raised off the tinted background. */
+  .sc-card {
+    border-radius: 1.5rem;
+    background: var(--surface);
+    box-shadow:
+      0 1px 2px rgba(18, 36, 26, 0.06),
+      0 8px 24px -12px rgba(18, 36, 26, 0.18);
+  }
+
+  /* The Duolingo signature: a chunky button with a solid bottom edge that
+     "presses down" when tapped. */
+  .sc-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 1rem;
+    font-weight: 800;
+    padding: 0.9rem 1.25rem;
+    transition:
+      transform 0.06s ease,
+      box-shadow 0.06s ease,
+      filter 0.15s ease;
+    box-shadow: 0 4px 0 0 var(--btn-edge, transparent);
+  }
+  .sc-btn:active {
+    transform: translateY(4px);
+    box-shadow: 0 0 0 0 var(--btn-edge, transparent);
+  }
+  .sc-btn:disabled {
+    opacity: 0.55;
+  }
+
+  .sc-btn-primary {
+    background: #22c55e;
+    color: #fff;
+    --btn-edge: #15803d;
+  }
+  .sc-btn-soft {
+    background: color-mix(in srgb, #22c55e 12%, transparent);
+    color: #15803d;
+    --btn-edge: color-mix(in srgb, #22c55e 30%, transparent);
+  }
+  .sc-btn-neutral {
+    background: color-mix(in srgb, var(--foreground) 6%, transparent);
+    color: var(--foreground);
+    --btn-edge: color-mix(in srgb, var(--foreground) 14%, transparent);
+  }
 }
