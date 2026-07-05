@@ -79,6 +79,23 @@ export default async function HomePage() {
         </section>
       )}
 
+      {/* The Coach */}
+      <Link
+        href="/coach"
+        className="flex items-center gap-4 rounded-3xl border border-black/10 p-5 active:scale-95 dark:border-white/15"
+      >
+        <span className="text-3xl">🧑‍🏫</span>
+        <div>
+          <p className="font-bold">The Coach</p>
+          <p className="text-sm text-black/50 dark:text-white/50">
+            Weekly review · connect Fitbit / Apple Watch
+          </p>
+        </div>
+        <span className="ml-auto text-2xl text-black/30 dark:text-white/30">
+          ›
+        </span>
+      </Link>
+
       {/* Quick actions */}
       <section className="grid grid-cols-2 gap-3">
         <Link
