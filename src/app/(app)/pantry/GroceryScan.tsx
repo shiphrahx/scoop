@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { ReceiptText, Check, Square } from "lucide-react";
 import { readImageFile } from "@/lib/image";
 import type { GroceryItem } from "@/lib/types";
 import { addGroceryItems, scanGroceries } from "./actions";
@@ -56,7 +57,7 @@ export default function GroceryScan() {
 
   return (
     <section className="flex flex-col gap-3 sc-card p-5">
-      <h2 className="text-lg font-bold">Scan groceries</h2>
+      <h2 className="text-lg font-semibold">Scan groceries</h2>
 
       <input
         ref={fileRef}
@@ -73,14 +74,14 @@ export default function GroceryScan() {
       <button
         onClick={() => fileRef.current?.click()}
         disabled={busy}
-        className="flex items-center justify-center gap-2 rounded-2xl border-2 border-green-500 px-6 py-4 text-lg font-bold text-green-600 active:scale-95 disabled:opacity-50 dark:text-green-400"
+        className="sc-btn sc-btn-soft py-4 text-lg"
       >
-        <span className="text-2xl">🧾</span>
+        <ReceiptText size={22} />
         {busy && !items ? "Reading…" : "Photo of your shop"}
       </button>
 
       {note && (
-        <p className="text-center text-sm font-medium text-black/60 dark:text-white/60">
+        <p className="text-center text-sm font-medium text-[var(--muted)]">
           {note}
         </p>
       )}
@@ -92,21 +93,35 @@ export default function GroceryScan() {
               <li key={i}>
                 <button
                   onClick={() => toggle(i)}
-                  className={`flex w-full items-center justify-between gap-3 rounded-2xl border-2 px-4 py-3 text-left active:scale-[0.99] ${
+                  className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition active:scale-[0.99] ${
                     chosen.has(i)
-                      ? "border-green-500 bg-green-500/10"
-                      : "border-black/10"
+                      ? "border-transparent"
+                      : "border-[var(--border)] bg-white/40"
                   }`}
+                  style={
+                    chosen.has(i)
+                      ? { background: "rgba(20,184,166,0.14)" }
+                      : undefined
+                  }
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-semibold">
                       {it.name}
                     </span>
-                    <span className="text-xs text-black/50 dark:text-white/50">
+                    <span className="text-xs text-[var(--muted)]">
                       {Math.round(it.kcal_100g)} kcal / 100g
                     </span>
                   </span>
-                  <span className="text-lg">{chosen.has(i) ? "✅" : "⬜"}</span>
+                  {chosen.has(i) ? (
+                    <span
+                      className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-white"
+                      style={{ background: "var(--grad-primary)" }}
+                    >
+                      <Check size={15} strokeWidth={3} />
+                    </span>
+                  ) : (
+                    <Square size={22} className="shrink-0 text-[var(--muted)]" />
+                  )}
                 </button>
               </li>
             ))}

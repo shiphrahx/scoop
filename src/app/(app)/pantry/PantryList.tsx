@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { Minus, Plus } from "lucide-react";
 import type { PantryItem } from "@/lib/types";
 import { setPantryQuantity } from "./actions";
 
@@ -8,7 +9,7 @@ import { setPantryQuantity } from "./actions";
 export default function PantryList({ items }: { items: PantryItem[] }) {
   if (items.length === 0) {
     return (
-      <p className="text-sm text-black/40 dark:text-white/40">
+      <p className="text-sm text-[var(--muted)]">
         Pantry is empty. Scan a barcode to add something.
       </p>
     );
@@ -30,10 +31,10 @@ function PantryRow({ item }: { item: PantryItem }) {
     startTransition(() => setPantryQuantity(item.id, item.quantity + delta));
 
   return (
-    <li className="flex items-center justify-between gap-3 sc-card px-4 py-3">
+    <li className="sc-card flex items-center justify-between gap-3 px-4 py-3">
       <div className="min-w-0">
         <p className="truncate font-semibold">{item.name}</p>
-        <p className="text-xs text-black/50 dark:text-white/50">
+        <p className="text-xs text-[var(--muted)]">
           {Math.round(item.kcal_100g)} kcal / 100g
         </p>
       </div>
@@ -43,20 +44,20 @@ function PantryRow({ item }: { item: PantryItem }) {
           onClick={() => step(-1)}
           disabled={pending}
           aria-label="One fewer"
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-black/5 text-xl font-bold active:scale-90 disabled:opacity-40 dark:bg-white/10"
+          className="grid h-9 w-9 place-items-center rounded-full bg-[rgba(15,23,42,0.05)] active:scale-90 disabled:opacity-40"
         >
-          −
+          <Minus size={18} />
         </button>
-        <span className="w-6 text-center font-bold tabular-nums">
+        <span className="w-6 text-center font-semibold tabular-nums">
           {item.quantity}
         </span>
         <button
           onClick={() => step(1)}
           disabled={pending}
           aria-label="One more"
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-black/5 text-xl font-bold active:scale-90 disabled:opacity-40 dark:bg-white/10"
+          className="grid h-9 w-9 place-items-center rounded-full bg-[rgba(15,23,42,0.05)] active:scale-90 disabled:opacity-40"
         >
-          +
+          <Plus size={18} />
         </button>
       </div>
     </li>

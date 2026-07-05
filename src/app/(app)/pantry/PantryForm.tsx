@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ScanBarcode } from "lucide-react";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import type { OffProduct } from "@/lib/types";
 import { addPantryItem } from "./actions";
@@ -73,20 +74,20 @@ export default function PantryForm() {
 
   return (
     <section className="flex flex-col gap-3 sc-card p-5">
-      <h2 className="text-lg font-bold">Add to pantry</h2>
+      <h2 className="text-lg font-semibold">Add to pantry</h2>
 
       <button
         onClick={() => {
           setNote(null);
           setScanning(true);
         }}
-        className="flex items-center justify-center gap-2 rounded-2xl border-2 border-green-500 px-6 py-4 text-lg font-bold text-green-600 active:scale-95 dark:text-green-400"
+        className="sc-btn sc-btn-soft py-4 text-lg"
       >
-        <span className="text-2xl">📷</span> Scan barcode
+        <ScanBarcode size={22} /> Scan barcode
       </button>
 
       {note && (
-        <p className="text-center text-sm font-medium text-black/60 dark:text-white/60">
+        <p className="text-center text-sm font-medium text-[var(--muted)]">
           {note}
         </p>
       )}
@@ -95,10 +96,10 @@ export default function PantryForm() {
         value={form.name}
         onChange={(e) => set("name", e.target.value)}
         placeholder="Item name"
-        className="rounded-2xl border-2 border-black/10 px-4 py-3 text-lg outline-none focus:border-green-500 dark:bg-transparent"
+        className="sc-input text-lg"
       />
 
-      <p className="text-xs text-black/50 dark:text-white/50">Per 100g</p>
+      <p className="text-xs text-[var(--muted)]">Per 100g</p>
       <div className="grid grid-cols-2 gap-3">
         <Field
           label="Calories"
@@ -151,7 +152,7 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-1 text-sm">
-      <span className="text-black/50 dark:text-white/50">{label}</span>
+      <span className="text-[var(--muted)]">{label}</span>
       <input
         type="number"
         inputMode="decimal"
@@ -159,7 +160,7 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="0"
-        className="rounded-xl border-2 border-black/10 px-3 py-2 text-lg outline-none focus:border-green-500 dark:bg-transparent"
+        className="sc-input text-lg"
       />
     </label>
   );
