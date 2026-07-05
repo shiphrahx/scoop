@@ -34,7 +34,10 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   const isPublic =
-    pathname.startsWith("/login") || pathname.startsWith("/auth");
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/auth") ||
+    // Health Auto Export posts here with a per-user token, not a session.
+    pathname.startsWith("/api/ingest");
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
