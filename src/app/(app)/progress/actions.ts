@@ -23,6 +23,7 @@ export async function logWeight(weightKg: number) {
 }
 
 export interface MeasurementInput {
+  chest_cm: number | null;
   waist_cm: number | null;
   arms_cm: number | null;
   thighs_cm: number | null;

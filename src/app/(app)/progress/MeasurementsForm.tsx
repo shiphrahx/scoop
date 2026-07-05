@@ -4,6 +4,7 @@ import { useState } from "react";
 import { logMeasurements } from "./actions";
 
 const fields = [
+  { key: "chest_cm", label: "Chest" },
   { key: "waist_cm", label: "Waist" },
   { key: "arms_cm", label: "Arms" },
   { key: "thighs_cm", label: "Thighs" },
@@ -18,6 +19,7 @@ export default function MeasurementsForm({
   initial: Partial<Record<Key, number>>;
 }) {
   const [values, setValues] = useState<Record<Key, string>>({
+    chest_cm: initial.chest_cm?.toString() ?? "",
     waist_cm: initial.waist_cm?.toString() ?? "",
     arms_cm: initial.arms_cm?.toString() ?? "",
     thighs_cm: initial.thighs_cm?.toString() ?? "",
@@ -31,6 +33,7 @@ export default function MeasurementsForm({
     setSaved(false);
     try {
       await logMeasurements({
+        chest_cm: values.chest_cm ? Number(values.chest_cm) : null,
         waist_cm: values.waist_cm ? Number(values.waist_cm) : null,
         arms_cm: values.arms_cm ? Number(values.arms_cm) : null,
         thighs_cm: values.thighs_cm ? Number(values.thighs_cm) : null,

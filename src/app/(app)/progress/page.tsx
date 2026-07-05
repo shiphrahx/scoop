@@ -8,6 +8,7 @@ interface WeightRow {
 }
 
 interface MeasurementRow {
+  chest_cm: number | null;
   waist_cm: number | null;
   arms_cm: number | null;
   thighs_cm: number | null;
@@ -25,7 +26,7 @@ export default async function ProgressPage() {
       .limit(7),
     supabase
       .from("measurements")
-      .select("waist_cm, arms_cm, thighs_cm, hips_cm")
+      .select("chest_cm, waist_cm, arms_cm, thighs_cm, hips_cm")
       .order("date", { ascending: false })
       .limit(1)
       .maybeSingle(),
@@ -36,6 +37,7 @@ export default async function ProgressPage() {
   const latestMeasurement: MeasurementRow = (measurementData as
     | MeasurementRow
     | null) ?? {
+    chest_cm: null,
     waist_cm: null,
     arms_cm: null,
     thighs_cm: null,
@@ -74,6 +76,7 @@ export default async function ProgressPage() {
         </h2>
         <MeasurementsForm
           initial={{
+            chest_cm: latestMeasurement.chest_cm ?? undefined,
             waist_cm: latestMeasurement.waist_cm ?? undefined,
             arms_cm: latestMeasurement.arms_cm ?? undefined,
             thighs_cm: latestMeasurement.thighs_cm ?? undefined,
