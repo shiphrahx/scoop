@@ -1,13 +1,14 @@
 import type { Metadata, Viewport } from "next";
-import { Nunito, Geist_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
-// Nunito — rounded and friendly, the Duolingo-ish feel we're after.
-const nunito = Nunito({
-  variable: "--font-nunito",
+// Plus Jakarta Sans — clean, modern, premium. Two weights: regular + semibold,
+// with 700 reserved for the big stat numbers.
+const jakarta = Plus_Jakarta_Sans({
+  variable: "--font-jakarta",
   subsets: ["latin"],
-  weight: ["400", "600", "700", "800", "900"],
+  weight: ["400", "600", "700"],
 });
 
 const geistMono = Geist_Mono({
@@ -31,7 +32,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#22c55e",
+  themeColor: "#eef4f3",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -45,9 +46,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${nunito.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${jakarta.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <div className="sc-bg" aria-hidden />
         {children}
         <ServiceWorkerRegister />
       </body>

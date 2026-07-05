@@ -1,94 +1,232 @@
 @import "tailwindcss";
 
-/* Scoop design language — friendly, rounded, high-contrast, lots of green.
-   Tuned to feel like a game you tap through, not a spreadsheet. */
+/* ============================================================
+   Scoop design system — light, airy, frosted glass.
+   A premium health coach: teal→blue gradients, violet accent,
+   green means progress. One place for every token; reuse it.
+   Light theme only — no dark mode.
+   ============================================================ */
 
 :root {
-  --background: #f6faf6; /* barely-there mint tint */
-  --surface: #ffffff; /* cards sit on top of the tint */
-  --foreground: #12241a;
-  --muted: #5b6b60;
-  --border: rgba(18, 36, 26, 0.1);
+  /* Surface + text */
+  --background: #eef4f3; /* cool near-white */
+  --foreground: #0f172a; /* slate ink */
+  --muted: #64748b; /* secondary text */
+  --border: rgba(15, 23, 42, 0.08);
+
+  /* Gradient family — reuse these stops everywhere */
+  --g-green: #22c55e; /* health / progress */
+  --g-teal: #14b8a6;
+  --g-blue: #3b82f6;
+  --accent: #8b5cf6; /* violet, used sparingly */
+
+  /* Named gradients */
+  --grad-primary: linear-gradient(135deg, #22c55e 0%, #14b8a6 100%);
+  --grad-cool: linear-gradient(135deg, #14b8a6 0%, #3b82f6 100%);
+  --grad-progress: conic-gradient(
+    from 220deg,
+    #22c55e 0deg,
+    #14b8a6 140deg,
+    #3b82f6 300deg,
+    #22c55e 360deg
+  );
+
+  /* Glass */
+  --glass-bg: rgba(255, 255, 255, 0.6);
+  --glass-bg-solid: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(255, 255, 255, 0.7);
+  --glass-blur: 20px;
+
+  /* Shape + depth */
+  --radius: 20px;
+  --radius-lg: 26px;
+  --radius-sm: 14px;
+  --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04),
+    0 18px 40px -24px rgba(15, 23, 42, 0.28);
+  --shadow-glow: 0 18px 40px -18px rgba(20, 184, 166, 0.55);
 }
 
 @theme inline {
   --color-background: var(--background);
-  --color-surface: var(--surface);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-nunito);
+  --color-muted: var(--muted);
+  --font-sans: var(--font-jakarta);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0f0c;
-    --surface: #141a16;
-    --foreground: #e8f0ea;
-    --muted: #9fb0a4;
-    --border: rgba(232, 240, 234, 0.12);
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Headings carry the playful weight. */
 h1,
-h2 {
+h2,
+h3 {
   letter-spacing: -0.02em;
+  font-weight: 600;
 }
 
-/* Reusable pieces so every screen shares one look. */
+/* Faint pastel blobs behind everything — never loud. */
+.sc-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.sc-bg::before,
+.sc-bg::after {
+  content: "";
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.5;
+}
+.sc-bg::before {
+  width: 42vw;
+  height: 42vw;
+  top: -8vw;
+  right: -6vw;
+  background: radial-gradient(circle, rgba(20, 184, 166, 0.5), transparent 70%);
+}
+.sc-bg::after {
+  width: 38vw;
+  height: 38vw;
+  bottom: -10vw;
+  left: -8vw;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.4), transparent 70%);
+}
+
 @layer components {
-  /* A rounded panel that reads as raised off the tinted background. */
+  /* Frosted panel — the workhorse surface. */
   .sc-card {
-    border-radius: 1.5rem;
-    background: var(--surface);
-    box-shadow:
-      0 1px 2px rgba(18, 36, 26, 0.06),
-      0 8px 24px -12px rgba(18, 36, 26, 0.18);
+    border-radius: var(--radius);
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-soft);
   }
 
-  /* The Duolingo signature: a chunky button with a solid bottom edge that
-     "presses down" when tapped. */
+  /* Slightly more opaque glass for dense/text-heavy panels. */
+  .sc-card-solid {
+    border-radius: var(--radius);
+    background: var(--glass-bg-solid);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-soft);
+  }
+
+  /* Buttons — big, soft, tappable. Primary carries the gradient. */
   .sc-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    border-radius: 1rem;
-    font-weight: 800;
-    padding: 0.9rem 1.25rem;
-    transition:
-      transform 0.06s ease,
-      box-shadow 0.06s ease,
-      filter 0.15s ease;
-    box-shadow: 0 4px 0 0 var(--btn-edge, transparent);
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    padding: 0.85rem 1.25rem;
+    line-height: 1;
+    transition: transform 0.12s ease, box-shadow 0.2s ease, filter 0.2s ease;
   }
   .sc-btn:active {
-    transform: translateY(4px);
-    box-shadow: 0 0 0 0 var(--btn-edge, transparent);
+    transform: scale(0.97);
   }
   .sc-btn:disabled {
-    opacity: 0.55;
+    opacity: 0.5;
+    pointer-events: none;
   }
 
   .sc-btn-primary {
-    background: #22c55e;
+    background: var(--grad-primary);
     color: #fff;
-    --btn-edge: #15803d;
+    box-shadow: var(--shadow-glow);
   }
+  .sc-btn-primary:hover {
+    filter: brightness(1.04);
+  }
+
   .sc-btn-soft {
-    background: color-mix(in srgb, #22c55e 12%, transparent);
-    color: #15803d;
-    --btn-edge: color-mix(in srgb, #22c55e 30%, transparent);
+    background: rgba(20, 184, 166, 0.12);
+    color: #0f766e;
+    border: 1px solid rgba(20, 184, 166, 0.2);
   }
+
   .sc-btn-neutral {
-    background: color-mix(in srgb, var(--foreground) 6%, transparent);
+    background: rgba(255, 255, 255, 0.6);
     color: var(--foreground);
-    --btn-edge: color-mix(in srgb, var(--foreground) 14%, transparent);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+  }
+
+  /* Pill chip — used for choose-from-tiles and tags. */
+  .sc-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: 9999px;
+    padding: 0.5rem 0.95rem;
+    font-weight: 500;
+    font-size: 0.875rem;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid var(--glass-border);
+    color: var(--foreground);
+    transition: transform 0.12s ease, background 0.2s ease;
+  }
+  .sc-chip[data-active="true"] {
+    background: var(--grad-primary);
+    color: #fff;
+    border-color: transparent;
+  }
+
+  /* Gradient text for accent numbers/labels. */
+  .sc-grad-text {
+    background: var(--grad-cool);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+/* Inputs — quiet, glassy, generous. Typing is the fallback, not the star. */
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+.sc-input {
+  width: 100%;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--border);
+  padding: 0.8rem 1rem;
+  font-size: 1rem;
+  color: var(--foreground);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.sc-input:focus {
+  outline: none;
+  border-color: var(--g-teal);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
+}
+.sc-input::placeholder {
+  color: var(--muted);
+}
+
+/* Visible keyboard focus everywhere. */
+:focus-visible {
+  outline: 2px solid var(--g-teal);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }
