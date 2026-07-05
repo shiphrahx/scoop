@@ -1,6 +1,28 @@
 "use client";
 
 import { useState } from "react";
+import {
+  ChevronLeft,
+  Minus,
+  Plus,
+  X,
+  Utensils,
+  ScanBarcode,
+  Sparkles,
+  Drumstick,
+  Salad,
+  Sprout,
+  Armchair,
+  Footprints,
+  Bike,
+  Dumbbell,
+  Trophy,
+  Turtle,
+  Flame,
+  Venus,
+  Mars,
+  type LucideIcon,
+} from "lucide-react";
 import { saveOnboarding, type OnboardingInput } from "./actions";
 import type {
   ActivityLevel,
@@ -105,15 +127,18 @@ export default function OnboardingFlow() {
         <div className="mb-6 flex items-center gap-3">
           <button
             onClick={back}
-            className="text-2xl text-[var(--muted)]"
+            className="text-[var(--muted)] transition active:scale-90"
             aria-label="Back"
           >
-            ‹
+            <ChevronLeft size={26} />
           </button>
-          <div className="h-3.5 flex-1 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
+          <div className="h-3 flex-1 overflow-hidden rounded-full bg-[rgba(15,23,42,0.08)]">
             <div
-              className="h-full rounded-full bg-green-500 transition-all duration-500 ease-out"
-              style={{ width: `${(step / (total - 1)) * 100}%` }}
+              className="h-full rounded-full transition-all duration-500 ease-out"
+              style={{
+                width: `${(step / (total - 1)) * 100}%`,
+                background: "var(--grad-primary)",
+              }}
             />
           </div>
         </div>
@@ -125,9 +150,9 @@ export default function OnboardingFlow() {
         <Choice
           title="How do you eat?"
           options={[
-            { value: "regular", label: "Everything", icon: "🍗" },
-            { value: "vegetarian", label: "Vegetarian", icon: "🥦" },
-            { value: "vegan", label: "Vegan", icon: "🌱" },
+            { value: "regular", label: "Everything", icon: Drumstick },
+            { value: "vegetarian", label: "Vegetarian", icon: Salad },
+            { value: "vegan", label: "Vegan", icon: Sprout },
           ]}
           selected={state.diet_type}
           onPick={(v) => {
@@ -173,31 +198,31 @@ export default function OnboardingFlow() {
             {
               value: "sedentary",
               label: "Mostly sitting",
-              icon: "🪑",
+              icon: Armchair,
               desc: "Desk job, little or no exercise",
             },
             {
               value: "light",
               label: "Lightly active",
-              icon: "🚶",
+              icon: Footprints,
               desc: "Light exercise 1–3 days a week",
             },
             {
               value: "moderate",
               label: "Active",
-              icon: "🏃",
+              icon: Bike,
               desc: "Moderate exercise 3–5 days a week",
             },
             {
               value: "active",
               label: "Very active",
-              icon: "💪",
+              icon: Dumbbell,
               desc: "Hard exercise 6–7 days a week",
             },
             {
               value: "very_active",
               label: "Athlete",
-              icon: "🏆",
+              icon: Trophy,
               desc: "Hard training twice a day or a physical job",
             },
           ]}
@@ -217,19 +242,19 @@ export default function OnboardingFlow() {
             {
               value: "gentle",
               label: "Gentle & steady",
-              icon: "🐢",
+              icon: Turtle,
               desc: "About 0.25 kg (½ lb) a week",
             },
             {
               value: "steady",
               label: "Standard",
-              icon: "🚶",
+              icon: Footprints,
               desc: "About 0.5 kg (1 lb) a week",
             },
             {
               value: "aggressive",
               label: "Push hard",
-              icon: "🔥",
+              icon: Flame,
               desc: "About 0.75 kg (1½ lb) a week",
             },
           ]}
@@ -246,8 +271,8 @@ export default function OnboardingFlow() {
           title="Sex (for the maths)"
           hint="Used only to estimate your calorie needs."
           options={[
-            { value: "female", label: "Female", icon: "♀️" },
-            { value: "male", label: "Male", icon: "♂️" },
+            { value: "female", label: "Female", icon: Venus },
+            { value: "male", label: "Male", icon: Mars },
           ]}
           selected={state.sex}
           onPick={(v) => {
@@ -302,28 +327,40 @@ export default function OnboardingFlow() {
 
 // First thing a brand-new user sees — a plain-words pitch, then one button in.
 function Welcome({ onStart }: { onStart: () => void }) {
-  const points = [
-    { icon: "🍦", text: "We tell you the portion to eat — no food searching." },
-    { icon: "📸", text: "Scan a barcode or a grocery photo to log in a tap." },
-    { icon: "🧑‍🏫", text: "A coach adjusts your targets from your real results." },
+  const points: { icon: LucideIcon; text: string }[] = [
+    { icon: Utensils, text: "We tell you the portion to eat — no food searching." },
+    { icon: ScanBarcode, text: "Scan a barcode or a grocery photo to log in a tap." },
+    { icon: Sparkles, text: "A coach adjusts your targets from your real results." },
   ];
   return (
     <section className="flex flex-1 flex-col">
       <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
-        <span className="text-7xl" aria-hidden>
-          🍦
+        <span
+          className="grid h-24 w-24 place-items-center rounded-[2rem] text-white"
+          style={{ background: "var(--grad-primary)", boxShadow: "var(--shadow-glow)" }}
+          aria-hidden
+        >
+          <span className="text-6xl font-bold">S</span>
         </span>
-        <h1 className="text-3xl font-black">Welcome to Scoop</h1>
+        <h1 className="text-3xl font-semibold">Welcome to Scoop</h1>
         <p className="max-w-xs text-[var(--muted)]">
           Let&apos;s set up your plan. Takes about a minute — mostly tapping.
         </p>
         <ul className="mt-2 flex w-full flex-col gap-3 text-left">
-          {points.map((p) => (
-            <li key={p.text} className="sc-card flex items-center gap-3 p-4">
-              <span className="text-2xl">{p.icon}</span>
-              <span className="text-sm font-bold">{p.text}</span>
-            </li>
-          ))}
+          {points.map((p) => {
+            const Icon = p.icon;
+            return (
+              <li key={p.text} className="sc-card flex items-center gap-3 p-4">
+                <span
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
+                  style={{ background: "rgba(20,184,166,0.12)", color: "#0f766e" }}
+                >
+                  <Icon size={20} />
+                </span>
+                <span className="text-sm font-medium">{p.text}</span>
+              </li>
+            );
+          })}
         </ul>
       </div>
       <div className="mt-auto pt-8">
@@ -342,40 +379,48 @@ function Choice({
 }: {
   title: string;
   hint?: string;
-  options: { value: string; label: string; icon: string; desc?: string }[];
+  options: { value: string; label: string; icon: LucideIcon; desc?: string }[];
   selected?: string;
   onPick: (value: string) => void;
 }) {
   return (
     <section className="flex flex-1 flex-col">
-      <h1 className="text-2xl font-extrabold">{title}</h1>
+      <h1 className="text-2xl font-semibold">{title}</h1>
       {hint && (
-        <p className="mb-6 mt-1 text-sm text-black/50 dark:text-white/50">
-          {hint}
-        </p>
+        <p className="mb-6 mt-1 text-sm text-[var(--muted)]">{hint}</p>
       )}
       <div className={`flex flex-col gap-3 ${hint ? "" : "mt-6"}`}>
-        {options.map((o) => (
-          <button
-            key={o.value}
-            onClick={() => onPick(o.value)}
-            className={`flex items-center gap-4 rounded-2xl border-2 px-5 py-4 text-left transition active:scale-95 ${
-              selected === o.value
-                ? "border-green-500 bg-green-50 dark:bg-green-500/10"
-                : "border-black/10 dark:border-white/15"
-            }`}
-          >
-            <span className="text-3xl">{o.icon}</span>
-            <span className="flex flex-col">
-              <span className="text-lg font-bold">{o.label}</span>
-              {o.desc && (
-                <span className="text-sm text-black/50 dark:text-white/50">
-                  {o.desc}
-                </span>
-              )}
-            </span>
-          </button>
-        ))}
+        {options.map((o) => {
+          const Icon = o.icon;
+          const active = selected === o.value;
+          return (
+            <button
+              key={o.value}
+              onClick={() => onPick(o.value)}
+              className={`flex items-center gap-4 rounded-2xl border px-5 py-4 text-left transition active:scale-95 ${
+                active ? "border-transparent" : "border-[var(--border)] bg-white/40"
+              }`}
+              style={active ? { background: "rgba(20,184,166,0.14)" } : undefined}
+            >
+              <span
+                className="grid h-12 w-12 shrink-0 place-items-center rounded-xl"
+                style={
+                  active
+                    ? { background: "var(--grad-primary)", color: "#fff" }
+                    : { background: "rgba(15,23,42,0.05)", color: "#0f766e" }
+                }
+              >
+                <Icon size={22} />
+              </span>
+              <span className="flex flex-col">
+                <span className="text-lg font-semibold">{o.label}</span>
+                {o.desc && (
+                  <span className="text-sm text-[var(--muted)]">{o.desc}</span>
+                )}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </section>
   );
@@ -410,17 +455,15 @@ function Chips({
 
   return (
     <section className="flex flex-1 flex-col">
-      <h1 className="text-2xl font-extrabold">{title}</h1>
-      <p className="mb-6 mt-1 text-sm text-black/50 dark:text-white/50">
-        {hint}
-      </p>
+      <h1 className="text-2xl font-semibold">{title}</h1>
+      <p className="mb-6 mt-1 text-sm text-[var(--muted)]">{hint}</p>
 
       <div className="flex flex-wrap gap-2">
         {options.map((o) => (
           <Chip key={o} label={o} on={selected.includes(o)} onClick={() => onToggle(o)} />
         ))}
         {extras.map((o) => (
-          <Chip key={o} label={`${o} ✕`} on onClick={() => onToggle(o)} />
+          <Chip key={o} label={o} on removable onClick={() => onToggle(o)} />
         ))}
       </div>
 
@@ -436,12 +479,12 @@ function Chips({
             }
           }}
           placeholder={`Other — ${customPlaceholder}`}
-          className="flex-1 rounded-full border-2 border-black/10 px-4 py-2 outline-none focus:border-green-500 dark:border-white/15 dark:bg-transparent"
+          className="sc-input flex-1 rounded-full"
         />
         <button
           onClick={addCustom}
           disabled={!custom.trim()}
-          className="rounded-full bg-black/10 px-5 py-2 font-bold active:scale-95 disabled:opacity-40 dark:bg-white/15"
+          className="sc-btn sc-btn-neutral rounded-full px-5"
         >
           Add
         </button>
@@ -457,22 +500,18 @@ function Chips({
 function Chip({
   label,
   on,
+  removable,
   onClick,
 }: {
   label: string;
   on: boolean;
+  removable?: boolean;
   onClick: () => void;
 }) {
   return (
-    <button
-      onClick={onClick}
-      className={`rounded-full border-2 px-4 py-2 font-semibold transition active:scale-95 ${
-        on
-          ? "border-green-500 bg-green-500 text-white"
-          : "border-black/10 dark:border-white/15"
-      }`}
-    >
+    <button onClick={onClick} data-active={on} className="sc-chip active:scale-95">
       {label}
+      {removable && <X size={14} />}
     </button>
   );
 }
@@ -507,7 +546,7 @@ function Stepper({
   const clamp = (v: number) => Math.min(max, Math.max(min, v));
   return (
     <section className="flex flex-1 flex-col">
-      <h1 className="mb-8 text-2xl font-extrabold">{title}</h1>
+      <h1 className="mb-8 text-2xl font-semibold">{title}</h1>
       <StepperRow
         onMinus={() => onChange(clamp(value - step))}
         onPlus={() => onChange(clamp(value + step))}
@@ -521,7 +560,7 @@ function Stepper({
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-8 w-full accent-green-500"
+        className="mt-8 w-full accent-[#14b8a6]"
       />
       <div className="mt-auto pt-8">
         <NextButton onClick={onNext} label={nextLabel} disabled={nextDisabled} />
@@ -591,10 +630,10 @@ function MeasureStepper({
 
   return (
     <section className="flex flex-1 flex-col">
-      <h1 className="mb-6 text-2xl font-extrabold">{title}</h1>
+      <h1 className="mb-6 text-2xl font-semibold">{title}</h1>
 
       {/* unit toggle */}
-      <div className="mx-auto mb-8 flex rounded-full bg-black/5 p-1 dark:bg-white/10">
+      <div className="mx-auto mb-8 flex rounded-full bg-[rgba(15,23,42,0.05)] p-1">
         <UnitTab on={!imperial} label={metricLabel} onClick={() => setImperial(false)} />
         <UnitTab on={imperial} label={imperialLabel} onClick={() => setImperial(true)} />
       </div>
@@ -613,7 +652,7 @@ function MeasureStepper({
         step={0.1}
         value={valueMetric}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-8 w-full accent-green-500"
+        className="mt-8 w-full accent-[#14b8a6]"
       />
 
       <div className="mt-auto pt-8">
@@ -635,9 +674,12 @@ function UnitTab({
   return (
     <button
       onClick={onClick}
-      className={`rounded-full px-5 py-1.5 text-sm font-bold transition ${
-        on ? "bg-green-500 text-white shadow" : "text-black/50 dark:text-white/50"
-      }`}
+      className="rounded-full px-5 py-1.5 text-sm font-semibold transition"
+      style={
+        on
+          ? { background: "var(--grad-primary)", color: "#fff" }
+          : { color: "var(--muted)" }
+      }
     >
       {label}
     </button>
@@ -659,23 +701,21 @@ function StepperRow({
     <div className="flex items-center justify-center gap-6">
       <button
         onClick={onMinus}
-        className="h-14 w-14 rounded-full bg-black/5 text-3xl font-bold active:scale-90 dark:bg-white/10"
+        className="grid h-14 w-14 place-items-center rounded-full bg-[rgba(15,23,42,0.05)] active:scale-90"
         aria-label="Decrease"
       >
-        −
+        <Minus size={24} />
       </button>
       <div className="text-center">
-        <div className="text-5xl font-extrabold tabular-nums">{big}</div>
-        {unit && (
-          <div className="text-sm text-black/50 dark:text-white/50">{unit}</div>
-        )}
+        <div className="text-5xl font-bold tabular-nums">{big}</div>
+        {unit && <div className="text-sm text-[var(--muted)]">{unit}</div>}
       </div>
       <button
         onClick={onPlus}
-        className="h-14 w-14 rounded-full bg-black/5 text-3xl font-bold active:scale-90 dark:bg-white/10"
+        className="grid h-14 w-14 place-items-center rounded-full bg-[rgba(15,23,42,0.05)] active:scale-90"
         aria-label="Increase"
       >
-        +
+        <Plus size={24} />
       </button>
     </div>
   );

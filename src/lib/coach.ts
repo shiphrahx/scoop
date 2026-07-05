@@ -133,7 +133,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       changed: false,
       changeKg: null,
       changePct: null,
-      headline: "Keep going 💪",
+      headline: "Keep going",
       detail:
         "Log your weight for another week and I'll review your targets against your trend.",
     };
@@ -151,7 +151,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       changed: false,
       changeKg,
       changePct,
-      headline: `Down ${lostText} — bang on 🎯`,
+      headline: `Down ${lostText} — bang on`,
       detail: `That's a healthy ${(changePct * 100).toFixed(
         1,
       )}% of your bodyweight this week. Keeping your targets exactly where they are.`,
@@ -180,7 +180,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       changed: false,
       changeKg,
       changePct,
-      headline: "Scale flat, waist down 📏",
+      headline: "Scale flat, waist down",
       detail: `The scale barely moved but your waist is down ${Math.abs(
         waistDeltaCm,
       ).toFixed(
