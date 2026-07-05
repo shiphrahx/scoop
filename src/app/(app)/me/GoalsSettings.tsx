@@ -4,24 +4,26 @@ import { useState, useTransition } from "react";
 import { saveGoals, type GoalsInput } from "./actions";
 import type { ActivityLevel, DietType, GoalPace } from "@/lib/types";
 
-const DIET: { value: DietType; label: string; icon: string }[] = [
+type Option<T> = { value: T; label: string; icon: string; desc?: string };
+
+const DIET: Option<DietType>[] = [
   { value: "regular", label: "Everything", icon: "🍗" },
   { value: "vegetarian", label: "Vegetarian", icon: "🥦" },
   { value: "vegan", label: "Vegan", icon: "🌱" },
 ];
 
-const ACTIVITY: { value: ActivityLevel; label: string; icon: string }[] = [
-  { value: "sedentary", label: "Mostly sitting", icon: "🪑" },
-  { value: "light", label: "Lightly active", icon: "🚶" },
-  { value: "moderate", label: "Active", icon: "🏃" },
-  { value: "active", label: "Very active", icon: "💪" },
-  { value: "very_active", label: "Athlete", icon: "🏆" },
+const ACTIVITY: Option<ActivityLevel>[] = [
+  { value: "sedentary", label: "Mostly sitting", icon: "🪑", desc: "Desk job, little or no exercise" },
+  { value: "light", label: "Lightly active", icon: "🚶", desc: "Light exercise 1–3 days a week" },
+  { value: "moderate", label: "Active", icon: "🏃", desc: "Moderate exercise 3–5 days a week" },
+  { value: "active", label: "Very active", icon: "💪", desc: "Hard exercise 6–7 days a week" },
+  { value: "very_active", label: "Athlete", icon: "🏆", desc: "Hard training twice a day or a physical job" },
 ];
 
-const PACE: { value: GoalPace; label: string; icon: string }[] = [
-  { value: "gentle", label: "Gentle (~0.25 kg/wk)", icon: "🐢" },
-  { value: "steady", label: "Standard (~0.5 kg/wk)", icon: "🚶" },
-  { value: "aggressive", label: "Push hard (~0.75 kg/wk)", icon: "🔥" },
+const PACE: Option<GoalPace>[] = [
+  { value: "gentle", label: "Gentle & steady", icon: "🐢", desc: "About 0.25 kg (½ lb) a week" },
+  { value: "steady", label: "Standard", icon: "🚶", desc: "About 0.5 kg (1 lb) a week" },
+  { value: "aggressive", label: "Push hard", icon: "🔥", desc: "About 0.75 kg (1½ lb) a week" },
 ];
 
 export default function GoalsSettings({ initial }: { initial: GoalsInput }) {
@@ -73,7 +75,7 @@ function Row<T extends string>({
   onPick,
 }: {
   label: string;
-  options: { value: T; label: string; icon: string }[];
+  options: Option<T>[];
   value: T;
   onPick: (v: T) => void;
 }) {
@@ -94,7 +96,14 @@ function Row<T extends string>({
             }`}
           >
             <span className="text-xl">{o.icon}</span>
-            {o.label}
+            <span className="flex flex-col">
+              <span>{o.label}</span>
+              {o.desc && (
+                <span className="text-sm font-medium text-[var(--muted)]">
+                  {o.desc}
+                </span>
+              )}
+            </span>
           </button>
         ))}
       </div>
