@@ -22,11 +22,11 @@ export default async function BatchesPage() {
         <Link
           href="/"
           aria-label="Back"
-          className="text-xl text-black/40 dark:text-white/40"
+          className="text-2xl text-[var(--muted)]"
         >
           ←
         </Link>
-        <h1 className="text-2xl font-extrabold">Batch cooking</h1>
+        <h1 className="text-3xl font-black">Batch cooking</h1>
       </div>
 
       <BatchList batches={batches} />

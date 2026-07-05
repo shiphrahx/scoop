@@ -35,30 +35,28 @@ export default async function AddPage() {
 
   return (
     <main className="flex flex-1 flex-col gap-6 px-5 pt-8 pb-6">
-      <h1 className="text-2xl font-extrabold">Log food</h1>
+      <h1 className="text-3xl font-black">Log food</h1>
 
       <Favourites items={favourites} />
 
       <AddFoodForm />
 
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-black/50 dark:text-white/50">
+        <h2 className="mb-3 text-sm font-extrabold uppercase tracking-wide text-[var(--muted)]">
           Today
         </h2>
         {logs.length === 0 ? (
-          <p className="text-sm text-black/40 dark:text-white/40">
-            Nothing logged yet.
-          </p>
+          <p className="text-sm text-[var(--muted)]">Nothing logged yet.</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {logs.map((log) => (
               <li
                 key={log.id}
-                className="flex items-center justify-between gap-3 rounded-2xl border border-black/10 px-4 py-3 dark:border-white/15"
+                className="sc-card flex items-center justify-between gap-3 px-4 py-3"
               >
                 <div className="min-w-0">
-                  <p className="truncate font-semibold">{log.name}</p>
-                  <p className="text-xs text-black/50 dark:text-white/50">
+                  <p className="truncate font-extrabold">{log.name}</p>
+                  <p className="text-xs text-[var(--muted)]">
                     {Math.round(log.kcal)} kcal · P{Math.round(log.protein_g)} C
                     {Math.round(log.carbs_g)} F{Math.round(log.fat_g)}
                   </p>

@@ -15,14 +15,14 @@ export default async function PlanPage() {
 
   return (
     <main className="flex flex-1 flex-col gap-6 px-5 pt-8 pb-6">
-      <h1 className="text-2xl font-extrabold">Plan a meal</h1>
+      <h1 className="text-3xl font-black">Plan a meal</h1>
 
       {connected ? (
         <PlanMeal hasPantry={(count ?? 0) > 0} />
       ) : (
         <Link
           href="/me"
-          className="rounded-3xl border border-dashed border-black/15 p-5 text-center text-sm text-black/50 active:scale-[0.99] dark:border-white/20 dark:text-white/50"
+          className="rounded-3xl border-2 border-dashed border-[var(--border)] p-5 text-center text-sm text-[var(--muted)] active:scale-[0.99]"
         >
           🔑 Connect your Anthropic key in Me to get meal ideas from your pantry.
         </Link>
@@ -30,12 +30,12 @@ export default async function PlanPage() {
 
       <Link
         href="/plan/recipe"
-        className="flex items-center justify-between gap-3 rounded-2xl border border-black/10 px-5 py-4 font-bold active:scale-[0.99] dark:border-white/15"
+        className="sc-card flex items-center justify-between gap-3 px-5 py-4 font-extrabold transition active:scale-[0.99]"
       >
         <span className="flex items-center gap-3">
           <span className="text-2xl">📖</span> Import a recipe
         </span>
-        <span className="text-black/30 dark:text-white/30">→</span>
+        <span className="text-[var(--muted)]">→</span>
       </Link>
     </main>
   );

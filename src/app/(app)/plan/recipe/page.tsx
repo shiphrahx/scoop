@@ -31,11 +31,11 @@ export default async function RecipePage() {
         <Link
           href="/plan"
           aria-label="Back"
-          className="text-xl text-black/40 dark:text-white/40"
+          className="text-2xl text-[var(--muted)]"
         >
           ←
         </Link>
-        <h1 className="text-2xl font-extrabold">Recipes</h1>
+        <h1 className="text-3xl font-black">Recipes</h1>
       </div>
 
       {connected ? (
@@ -43,7 +43,7 @@ export default async function RecipePage() {
       ) : (
         <Link
           href="/me"
-          className="rounded-3xl border border-dashed border-black/15 p-5 text-center text-sm text-black/50 active:scale-[0.99] dark:border-white/20 dark:text-white/50"
+          className="rounded-3xl border-2 border-dashed border-[var(--border)] p-5 text-center text-sm text-[var(--muted)] active:scale-[0.99]"
         >
           🔑 Connect your Anthropic key in Me to import recipes.
         </Link>
