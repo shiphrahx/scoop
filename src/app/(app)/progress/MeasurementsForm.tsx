@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Check } from "lucide-react";
 import { logMeasurements } from "./actions";
 
 const fields = [
@@ -50,7 +51,7 @@ export default function MeasurementsForm({
       <div className="grid grid-cols-2 gap-3">
         {fields.map((f) => (
           <label key={f.key} className="flex flex-col gap-1 text-sm">
-            <span className="font-bold text-[var(--muted)]">
+            <span className="font-semibold text-[var(--muted)]">
               {f.label} (cm)
             </span>
             <input
@@ -62,7 +63,7 @@ export default function MeasurementsForm({
                 setValues((v) => ({ ...v, [f.key]: e.target.value }))
               }
               placeholder="0"
-              className="rounded-xl border-2 border-black/10 px-3 py-2 text-lg outline-none focus:border-green-500 dark:border-white/15 dark:bg-transparent"
+              className="sc-input text-lg"
             />
           </label>
         ))}
@@ -73,7 +74,15 @@ export default function MeasurementsForm({
         disabled={saving}
         className="sc-btn sc-btn-primary w-full py-4 text-lg"
       >
-        {saving ? "Saving…" : saved ? "Saved ✓" : "Save measurements"}
+        {saving ? (
+          "Saving…"
+        ) : saved ? (
+          <>
+            <Check size={18} /> Saved
+          </>
+        ) : (
+          "Save measurements"
+        )}
       </button>
     </div>
   );

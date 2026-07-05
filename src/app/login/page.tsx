@@ -25,10 +25,13 @@ export default function LoginPage() {
   return (
     <main className="flex flex-1 flex-col items-center justify-center gap-10 px-6 text-center">
       <div className="flex flex-col items-center gap-3">
-        <span className="flex h-24 w-24 items-center justify-center rounded-[2rem] bg-green-500 text-6xl shadow-[0_6px_0_0_#15803d]">
-          🍦
+        <span
+          className="grid h-24 w-24 place-items-center rounded-[2rem] text-white"
+          style={{ background: "var(--grad-primary)", boxShadow: "var(--shadow-glow)" }}
+        >
+          <span className="text-6xl font-bold">S</span>
         </span>
-        <h1 className="mt-2 text-5xl font-black tracking-tight">Scoop</h1>
+        <h1 className="mt-2 text-5xl font-semibold tracking-tight">Scoop</h1>
         <p className="max-w-xs text-lg text-[var(--muted)]">
           Your portion coach. We tell you what to eat to hit your macros.
         </p>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Minus, Plus, Check } from "lucide-react";
 import { logWeight } from "./actions";
 
 // One-tap weigh-in: pre-filled with the last weight, nudge with ± then Save.
@@ -28,23 +29,23 @@ export default function WeightLogger({ last }: { last: number | null }) {
       <div className="flex items-center justify-center gap-6">
         <button
           onClick={() => nudge(-0.1)}
-          className="h-12 w-12 rounded-full bg-black/5 text-2xl font-black active:scale-90 dark:bg-white/10"
+          className="grid h-12 w-12 place-items-center rounded-full bg-[rgba(15,23,42,0.05)] active:scale-90"
           aria-label="Decrease"
         >
-          −
+          <Minus size={22} />
         </button>
         <div className="text-center">
-          <span className="text-5xl font-black tabular-nums">
+          <span className="text-5xl font-bold tabular-nums">
             {value.toFixed(1)}
           </span>
           <span className="ml-1 text-lg text-[var(--muted)]">kg</span>
         </div>
         <button
           onClick={() => nudge(0.1)}
-          className="h-12 w-12 rounded-full bg-black/5 text-2xl font-black active:scale-90 dark:bg-white/10"
+          className="grid h-12 w-12 place-items-center rounded-full bg-[rgba(15,23,42,0.05)] active:scale-90"
           aria-label="Increase"
         >
-          +
+          <Plus size={22} />
         </button>
       </div>
 
@@ -53,7 +54,15 @@ export default function WeightLogger({ last }: { last: number | null }) {
         disabled={saving}
         className="sc-btn sc-btn-primary w-full py-4 text-lg"
       >
-        {saving ? "Saving…" : saved ? "Saved ✓" : "Log today's weight"}
+        {saving ? (
+          "Saving…"
+        ) : saved ? (
+          <>
+            <Check size={18} /> Saved
+          </>
+        ) : (
+          "Log today's weight"
+        )}
       </button>
     </div>
   );
