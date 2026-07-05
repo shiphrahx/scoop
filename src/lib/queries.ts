@@ -176,6 +176,35 @@ export async function getCoachData(): Promise<CoachData> {
   };
 }
 
+// Recent weigh-ins, oldest→newest, for the dashboard trend chart.
+export async function getWeightHistory(
+  days = 30,
+): Promise<{ date: string; weight_kg: number }[]> {
+  const supabase = await createClient();
+  const cut = isoDay(new Date(Date.now() - (days - 1) * DAY_MS));
+  const { data } = await supabase
+    .from("weights")
+    .select("date, weight_kg")
+    .gte("date", cut)
+    .order("date", { ascending: true });
+  return ((data as { date: string; weight_kg: number }[]) ?? []).map((r) => ({
+    date: r.date,
+    weight_kg: Number(r.weight_kg),
+  }));
+}
+
+// Recent activity (steps / burn / sleep), oldest→newest, for the charts.
+export async function getActivityHistory(days = 14): Promise<Activity[]> {
+  const supabase = await createClient();
+  const cut = isoDay(new Date(Date.now() - (days - 1) * DAY_MS));
+  const { data } = await supabase
+    .from("activity")
+    .select("date, steps, workout_kcal, sleep_hours, source")
+    .gte("date", cut)
+    .order("date", { ascending: true });
+  return (data as Activity[]) ?? [];
+}
+
 export async function getLatestWeight(): Promise<number | null> {
   const supabase = await createClient();
   const { data } = await supabase

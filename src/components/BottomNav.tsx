@@ -2,33 +2,28 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { bottomNav } from "@/components/nav-items";
 
-const items = [
-  { href: "/", label: "Home", icon: "🏠" },
-  { href: "/plan", label: "Plan", icon: "🍽️" },
-  { href: "/add", label: "Add", icon: "➕", center: true },
-  { href: "/progress", label: "Progress", icon: "📈" },
-  { href: "/me", label: "Me", icon: "🙂" },
-] as const;
-
+// Mobile-only tab bar. Hidden on desktop, where the sidebar takes over.
 export default function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="sticky bottom-0 z-10 border-t border-[var(--border)] bg-[var(--surface)]/90 backdrop-blur">
+    <nav className="sticky bottom-0 z-10 border-t border-[var(--border)] bg-[rgba(255,255,255,0.7)] backdrop-blur-xl lg:hidden">
       <ul className="mx-auto flex max-w-md items-end justify-around px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
-        {items.map((item) => {
+        {bottomNav.map((item) => {
           const active = pathname === item.href;
+          const Icon = item.icon;
 
-          if ("center" in item && item.center) {
+          if (item.center) {
             return (
               <li key={item.href}>
                 <Link
                   href={item.href}
                   aria-label={item.label}
-                  className="flex h-16 w-16 -translate-y-4 items-center justify-center rounded-full bg-green-500 text-3xl text-white shadow-[0_5px_0_0_#15803d] transition active:translate-y-[-14px] active:shadow-[0_0_0_0_#15803d]"
+                  className="sc-btn-primary flex h-16 w-16 -translate-y-4 items-center justify-center rounded-full"
                 >
-                  {item.icon}
+                  <Icon size={28} strokeWidth={2.5} />
                 </Link>
               </li>
             );
@@ -38,13 +33,14 @@ export default function BottomNav() {
             <li key={item.href}>
               <Link
                 href={item.href}
-                className={`flex w-16 flex-col items-center gap-0.5 rounded-2xl py-1.5 text-xs font-extrabold transition ${
+                className={`flex w-16 flex-col items-center gap-1 rounded-2xl py-1.5 text-xs font-medium transition ${
                   active
-                    ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                    ? "text-[var(--g-teal)]"
                     : "text-[var(--muted)]"
                 }`}
+                style={active ? { color: "#0f766e" } : undefined}
               >
-                <span className="text-2xl">{item.icon}</span>
+                <Icon size={24} strokeWidth={active ? 2.5 : 2} />
                 {item.label}
               </Link>
             </li>

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import BottomNav from "@/components/BottomNav";
+import Sidebar from "@/components/Sidebar";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/queries";
 
@@ -26,9 +27,15 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col">
-      <div className="flex flex-1 flex-col">{children}</div>
-      <BottomNav />
+    <div className="mx-auto flex min-h-full w-full max-w-7xl flex-1 lg:gap-2 lg:px-4">
+      <Sidebar />
+      {/* Mobile keeps the phone-width column; desktop lets content go wide. */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="mx-auto flex w-full max-w-md flex-1 flex-col lg:max-w-none">
+          {children}
+        </div>
+        <BottomNav />
+      </div>
     </div>
   );
 }
