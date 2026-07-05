@@ -30,7 +30,7 @@ function PantryRow({ item }: { item: PantryItem }) {
     startTransition(() => setPantryQuantity(item.id, item.quantity + delta));
 
   return (
-    <li className="flex items-center justify-between gap-3 rounded-2xl border border-black/10 px-4 py-3 dark:border-white/15">
+    <li className="flex items-center justify-between gap-3 sc-card px-4 py-3">
       <div className="min-w-0">
         <p className="truncate font-semibold">{item.name}</p>
         <p className="text-xs text-black/50 dark:text-white/50">

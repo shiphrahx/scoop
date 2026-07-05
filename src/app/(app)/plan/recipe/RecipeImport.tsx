@@ -93,7 +93,7 @@ export default function RecipeImport({ remainingKcal }: { remainingKcal: number 
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-3xl border border-black/10 p-5 dark:border-white/15">
+    <section className="flex flex-col gap-3 sc-card p-5">
       <h2 className="text-lg font-bold">Import a recipe</h2>
 
       <div className="flex gap-2">
@@ -102,7 +102,7 @@ export default function RecipeImport({ remainingKcal }: { remainingKcal: number 
           onChange={(e) => setUrl(e.target.value)}
           placeholder="Paste a recipe link"
           inputMode="url"
-          className="min-w-0 flex-1 rounded-2xl border-2 border-black/10 px-4 py-3 outline-none focus:border-green-500 dark:border-white/15 dark:bg-transparent"
+          className="min-w-0 flex-1 rounded-2xl border-2 border-black/10 px-4 py-3 outline-none focus:border-green-500 dark:bg-transparent"
         />
         <button
           onClick={fromUrl}

@@ -24,7 +24,7 @@ export default function ApiKeySettings({ connected }: { connected: boolean }) {
   }
 
   return (
-    <section className="flex w-full flex-col gap-3 rounded-3xl border border-black/10 p-5 text-left dark:border-white/15">
+    <section className="flex w-full flex-col gap-3 sc-card p-5 text-left">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold">AI features</h2>
         <span
@@ -60,7 +60,7 @@ export default function ApiKeySettings({ connected }: { connected: boolean }) {
             onChange={(e) => setKey(e.target.value)}
             placeholder="sk-ant-…"
             autoComplete="off"
-            className="rounded-2xl border-2 border-black/10 px-4 py-3 outline-none focus:border-green-500 dark:border-white/15 dark:bg-transparent"
+            className="rounded-2xl border-2 border-black/10 px-4 py-3 outline-none focus:border-green-500 dark:bg-transparent"
           />
           {error && <p className="text-sm text-rose-500">{error}</p>}
           <button

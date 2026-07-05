@@ -33,7 +33,7 @@ export default function PlanMeal({ hasPantry }: { hasPantry: boolean }) {
       <button
         onClick={suggest}
         disabled={loading}
-        className="flex items-center justify-center gap-2 rounded-2xl bg-green-500 px-6 py-4 text-lg font-bold text-white shadow-lg active:scale-95 disabled:opacity-50"
+        className="flex items-center justify-center gap-2 sc-btn sc-btn-primary py-4 text-lg"
       >
         <span className="text-2xl">✨</span>
         {loading ? "Thinking…" : meals ? "New ideas" : "Suggest a meal"}
@@ -56,7 +56,7 @@ export default function PlanMeal({ hasPantry }: { hasPantry: boolean }) {
           {meals.map((m, i) => (
             <li
               key={i}
-              className="flex flex-col gap-2 rounded-2xl border border-black/10 p-4 dark:border-white/15"
+              className="flex flex-col gap-2 sc-card p-4"
             >
               <p className="text-lg font-bold">{m.name}</p>
               <p className="text-sm text-black/60 dark:text-white/60">{m.why}</p>

@@ -55,7 +55,7 @@ export default function GroceryScan() {
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-3xl border border-black/10 p-5 dark:border-white/15">
+    <section className="flex flex-col gap-3 sc-card p-5">
       <h2 className="text-lg font-bold">Scan groceries</h2>
 
       <input
@@ -95,7 +95,7 @@ export default function GroceryScan() {
                   className={`flex w-full items-center justify-between gap-3 rounded-2xl border-2 px-4 py-3 text-left active:scale-[0.99] ${
                     chosen.has(i)
                       ? "border-green-500 bg-green-500/10"
-                      : "border-black/10 dark:border-white/15"
+                      : "border-black/10"
                   }`}
                 >
                   <span className="min-w-0">
@@ -115,7 +115,7 @@ export default function GroceryScan() {
           <button
             onClick={addChosen}
             disabled={busy || chosen.size === 0}
-            className="w-full rounded-2xl bg-green-500 px-6 py-4 text-lg font-bold text-white shadow-lg active:scale-95 disabled:opacity-50"
+            className="w-full sc-btn sc-btn-primary py-4 text-lg"
           >
             {busy ? "Adding…" : `Add ${chosen.size} to pantry`}
           </button>

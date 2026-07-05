@@ -20,7 +20,7 @@ export default function SavedRecipes({ recipes }: { recipes: Recipe[] }) {
           return (
             <li
               key={r.id}
-              className="flex items-center justify-between gap-3 rounded-2xl border border-black/10 px-4 py-3 dark:border-white/15"
+              className="flex items-center justify-between gap-3 sc-card px-4 py-3"
             >
               <div className="min-w-0">
                 <p className="truncate font-semibold">{r.name}</p>

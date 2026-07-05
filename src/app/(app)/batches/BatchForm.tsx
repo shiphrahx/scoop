@@ -116,14 +116,14 @@ export default function BatchForm() {
   }
 
   return (
-    <section className="flex flex-col gap-4 rounded-3xl border border-black/10 p-5 dark:border-white/15">
+    <section className="flex flex-col gap-4 sc-card p-5">
       <h2 className="text-lg font-bold">New batch</h2>
 
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Batch name (e.g. Sunday chilli)"
-        className="rounded-2xl border-2 border-black/10 px-4 py-3 text-lg outline-none focus:border-green-500 dark:border-white/15 dark:bg-transparent"
+        className="rounded-2xl border-2 border-black/10 px-4 py-3 text-lg outline-none focus:border-green-500 dark:bg-transparent"
       />
 
       {/* Packs added so far */}
@@ -172,7 +172,7 @@ export default function BatchForm() {
           value={draft.name}
           onChange={(e) => setField("name", e.target.value)}
           placeholder="Pack name"
-          className="rounded-xl border-2 border-black/10 px-4 py-2 outline-none focus:border-green-500 dark:border-white/15 dark:bg-transparent"
+          className="rounded-xl border-2 border-black/10 px-4 py-2 outline-none focus:border-green-500 dark:bg-transparent"
         />
 
         <div className="grid grid-cols-2 gap-2">
@@ -220,7 +220,7 @@ export default function BatchForm() {
           value={totalCooked}
           onChange={(e) => setTotalCooked(e.target.value)}
           placeholder="e.g. 1800"
-          className="rounded-xl border-2 border-black/10 px-4 py-2 text-lg outline-none focus:border-green-500 dark:border-white/15 dark:bg-transparent"
+          className="rounded-xl border-2 border-black/10 px-4 py-2 text-lg outline-none focus:border-green-500 dark:bg-transparent"
         />
       </label>
 
@@ -236,7 +236,7 @@ export default function BatchForm() {
         disabled={
           saving || !name.trim() || packs.length === 0 || !totalCooked
         }
-        className="w-full rounded-2xl bg-green-500 px-6 py-4 text-lg font-bold text-white shadow-lg active:scale-95 disabled:opacity-50"
+        className="w-full sc-btn sc-btn-primary py-4 text-lg"
       >
         {saving ? "Saving…" : "Save batch"}
       </button>
@@ -270,7 +270,7 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="0"
-        className="rounded-lg border-2 border-black/10 px-3 py-2 text-base outline-none focus:border-green-500 dark:border-white/15 dark:bg-transparent"
+        className="rounded-lg border-2 border-black/10 px-3 py-2 text-base outline-none focus:border-green-500 dark:bg-transparent"
       />
     </label>
   );

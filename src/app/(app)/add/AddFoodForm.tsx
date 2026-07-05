@@ -161,7 +161,7 @@ export default function AddFoodForm() {
       <button
         onClick={submit}
         disabled={saving || !form.name.trim()}
-        className="mt-2 w-full rounded-2xl bg-green-500 px-6 py-4 text-lg font-bold text-white shadow-lg transition active:scale-95 disabled:opacity-50"
+        className="mt-2 w-full sc-btn sc-btn-primary py-4 text-lg"
       >
         {saving ? "Adding…" : "Add to today"}
       </button>

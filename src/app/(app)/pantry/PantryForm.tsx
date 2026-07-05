@@ -72,7 +72,7 @@ export default function PantryForm() {
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-3xl border border-black/10 p-5 dark:border-white/15">
+    <section className="flex flex-col gap-3 sc-card p-5">
       <h2 className="text-lg font-bold">Add to pantry</h2>
 
       <button
@@ -95,7 +95,7 @@ export default function PantryForm() {
         value={form.name}
         onChange={(e) => set("name", e.target.value)}
         placeholder="Item name"
-        className="rounded-2xl border-2 border-black/10 px-4 py-3 text-lg outline-none focus:border-green-500 dark:border-white/15 dark:bg-transparent"
+        className="rounded-2xl border-2 border-black/10 px-4 py-3 text-lg outline-none focus:border-green-500 dark:bg-transparent"
       />
 
       <p className="text-xs text-black/50 dark:text-white/50">Per 100g</p>
@@ -125,7 +125,7 @@ export default function PantryForm() {
       <button
         onClick={add}
         disabled={saving || !form.name.trim()}
-        className="mt-1 w-full rounded-2xl bg-green-500 px-6 py-4 text-lg font-bold text-white shadow-lg active:scale-95 disabled:opacity-50"
+        className="mt-1 w-full sc-btn sc-btn-primary py-4 text-lg"
       >
         {saving ? "Adding…" : "Add item"}
       </button>
@@ -159,7 +159,7 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="0"
-        className="rounded-xl border-2 border-black/10 px-3 py-2 text-lg outline-none focus:border-green-500 dark:border-white/15 dark:bg-transparent"
+        className="rounded-xl border-2 border-black/10 px-3 py-2 text-lg outline-none focus:border-green-500 dark:bg-transparent"
       />
     </label>
   );

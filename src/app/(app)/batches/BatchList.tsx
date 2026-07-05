@@ -34,7 +34,7 @@ function BatchCard({ batch }: { batch: Batch }) {
   const per100 = total > 0 ? (Number(batch.kcal) / total) * 100 : 0;
 
   return (
-    <li className="flex flex-col gap-3 rounded-2xl border border-black/10 p-4 dark:border-white/15">
+    <li className="flex flex-col gap-3 sc-card p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-lg font-bold">{batch.name}</p>
@@ -69,7 +69,7 @@ function BatchCard({ batch }: { batch: Batch }) {
           value={grams}
           onChange={(e) => setGrams(e.target.value)}
           placeholder="grams"
-          className="w-28 rounded-xl border-2 border-black/10 px-3 py-2 text-lg outline-none focus:border-green-500 dark:border-white/15 dark:bg-transparent"
+          className="w-28 rounded-xl border-2 border-black/10 px-3 py-2 text-lg outline-none focus:border-green-500 dark:bg-transparent"
         />
         <button
           disabled={pending || !grams || remaining <= 0}
