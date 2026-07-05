@@ -47,19 +47,19 @@ export default async function ProgressPage() {
       <h1 className="text-2xl font-extrabold">Progress</h1>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold text-black/50 dark:text-white/50">
+        <h2 className="text-sm font-extrabold uppercase tracking-wide text-[var(--muted)]">
           Daily weight
         </h2>
         <WeightLogger last={last} />
         {weights.length > 0 && (
-          <ul className="flex flex-col gap-1 px-1">
+          <ul className="sc-card flex flex-col divide-y divide-[var(--border)] p-2">
             {weights.map((w) => (
               <li
                 key={w.date}
-                className="flex justify-between text-sm text-black/60 dark:text-white/60"
+                className="flex justify-between px-3 py-2 text-sm text-[var(--muted)]"
               >
                 <span>{w.date}</span>
-                <span className="font-semibold tabular-nums">
+                <span className="font-extrabold tabular-nums text-[var(--foreground)]">
                   {Number(w.weight_kg).toFixed(1)} kg
                 </span>
               </li>
@@ -69,7 +69,7 @@ export default async function ProgressPage() {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold text-black/50 dark:text-white/50">
+        <h2 className="text-sm font-extrabold uppercase tracking-wide text-[var(--muted)]">
           Weekly measurements
         </h2>
         <MeasurementsForm

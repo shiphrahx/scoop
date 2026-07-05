@@ -43,11 +43,11 @@ export default function MeasurementsForm({
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-3xl border border-black/10 p-5 dark:border-white/15">
+    <div className="sc-card flex flex-col gap-4 p-5">
       <div className="grid grid-cols-2 gap-3">
         {fields.map((f) => (
           <label key={f.key} className="flex flex-col gap-1 text-sm">
-            <span className="text-black/50 dark:text-white/50">
+            <span className="font-bold text-[var(--muted)]">
               {f.label} (cm)
             </span>
             <input
@@ -68,7 +68,7 @@ export default function MeasurementsForm({
       <button
         onClick={save}
         disabled={saving}
-        className="w-full rounded-2xl bg-green-500 px-6 py-4 text-lg font-bold text-white shadow-lg transition active:scale-95 disabled:opacity-60"
+        className="sc-btn sc-btn-primary w-full py-4 text-lg"
       >
         {saving ? "Saving…" : saved ? "Saved ✓" : "Save measurements"}
       </button>

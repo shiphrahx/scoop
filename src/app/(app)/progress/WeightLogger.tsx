@@ -24,26 +24,24 @@ export default function WeightLogger({ last }: { last: number | null }) {
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-3xl border border-black/10 p-5 dark:border-white/15">
+    <div className="sc-card flex flex-col gap-4 p-5">
       <div className="flex items-center justify-center gap-6">
         <button
           onClick={() => nudge(-0.1)}
-          className="h-12 w-12 rounded-full bg-black/5 text-2xl font-bold active:scale-90 dark:bg-white/10"
+          className="h-12 w-12 rounded-full bg-black/5 text-2xl font-black active:scale-90 dark:bg-white/10"
           aria-label="Decrease"
         >
           −
         </button>
         <div className="text-center">
-          <span className="text-5xl font-extrabold tabular-nums">
+          <span className="text-5xl font-black tabular-nums">
             {value.toFixed(1)}
           </span>
-          <span className="ml-1 text-lg text-black/50 dark:text-white/50">
-            kg
-          </span>
+          <span className="ml-1 text-lg text-[var(--muted)]">kg</span>
         </div>
         <button
           onClick={() => nudge(0.1)}
-          className="h-12 w-12 rounded-full bg-black/5 text-2xl font-bold active:scale-90 dark:bg-white/10"
+          className="h-12 w-12 rounded-full bg-black/5 text-2xl font-black active:scale-90 dark:bg-white/10"
           aria-label="Increase"
         >
           +
@@ -53,7 +51,7 @@ export default function WeightLogger({ last }: { last: number | null }) {
       <button
         onClick={save}
         disabled={saving}
-        className="w-full rounded-2xl bg-green-500 px-6 py-4 text-lg font-bold text-white shadow-lg transition active:scale-95 disabled:opacity-60"
+        className="sc-btn sc-btn-primary w-full py-4 text-lg"
       >
         {saving ? "Saving…" : saved ? "Saved ✓" : "Log today's weight"}
       </button>
