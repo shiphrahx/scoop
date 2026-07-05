@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Scoop is light-theme only. Re-bind the `dark:` variant to a class that is
+   never applied, so no `dark:` utility ever activates from the OS setting. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ============================================================
    Scoop design system — light, airy, frosted glass.
    A premium health coach: teal→blue gradients, violet accent,
