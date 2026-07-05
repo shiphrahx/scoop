@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { applyReview, generateAppleToken, syncFitbit } from "./actions";
+import {
+  applyReview,
+  clearMockActivity,
+  generateAppleToken,
+  seedSampleData,
+  syncFitbit,
+} from "./actions";
 
 // Save the reviewed target as next week's plan.
 export function ApplyTargetsButton({ changed }: { changed: boolean }) {
@@ -75,6 +81,45 @@ export function FitbitButton({ connected }: { connected: boolean }) {
           {msg}
         </p>
       )}
+    </div>
+  );
+}
+
+// Stand-in for the Fitbit/Apple integrations while they aren't wired up:
+// fills two weeks of activity + a weight trend so the Coach is usable.
+export function DevSeed() {
+  const [busy, setBusy] = useState<"seed" | "clear" | null>(null);
+
+  const run = (which: "seed" | "clear", fn: () => Promise<void>) => async () => {
+    setBusy(which);
+    try {
+      await fn();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2 rounded-2xl border-2 border-dashed border-[var(--border)] p-3">
+      <p className="text-xs text-[var(--muted)]">
+        Dev only — no Fitbit/Apple yet. Fill sample data to try the Coach.
+      </p>
+      <div className="flex gap-2">
+        <button
+          onClick={run("seed", seedSampleData)}
+          disabled={busy !== null}
+          className="sc-btn sc-btn-neutral flex-1 py-3 text-sm"
+        >
+          {busy === "seed" ? "Filling…" : "Add sample data"}
+        </button>
+        <button
+          onClick={run("clear", clearMockActivity)}
+          disabled={busy !== null}
+          className="sc-btn sc-btn-neutral py-3 text-sm"
+        >
+          {busy === "clear" ? "…" : "Clear"}
+        </button>
+      </div>
     </div>
   );
 }

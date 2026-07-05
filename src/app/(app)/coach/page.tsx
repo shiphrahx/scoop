@@ -1,5 +1,10 @@
 import { getCoachData } from "@/lib/queries";
-import { ApplyTargetsButton, AppleIngest, FitbitButton } from "./Controls";
+import {
+  ApplyTargetsButton,
+  AppleIngest,
+  DevSeed,
+  FitbitButton,
+} from "./Controls";
 
 // Turn the ?fitbit= result of the OAuth round-trip into a one-line banner.
 const FITBIT_NOTES: Record<string, string> = {
@@ -93,6 +98,8 @@ export default async function CoachPage({
           </ul>
         )}
       </section>
+
+      {process.env.NODE_ENV !== "production" && <DevSeed />}
 
       {/* Connect data sources */}
       <section className="flex flex-col gap-3">

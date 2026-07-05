@@ -96,6 +96,68 @@ export async function syncFitbit() {
   revalidatePath("/");
 }
 
+// --- Sample data (stand-in until Fitbit/Apple are wired up) -----------------
+// Seeds the last 2 weeks of activity so the Coach and its weekly review have
+// something to chew on. Marked source 'manual' so real device data never
+// overwrites it and clearMockActivity() can remove only this.
+export async function seedSampleData() {
+  const { supabase, user } = await requireUser();
+  const now = Date.now();
+  const stamp = new Date().toISOString();
+  const rand = (lo: number, hi: number) => lo + Math.random() * (hi - lo);
+
+  const activityRows = Array.from({ length: 14 }, (_, i) => ({
+    user_id: user.id,
+    date: isoDay(new Date(now - i * DAY_MS)),
+    steps: Math.round(rand(5500, 12500)),
+    workout_kcal: Math.round(rand(120, 520)),
+    sleep_hours: Math.round(rand(5.8, 8.2) * 10) / 10,
+    source: "manual",
+    updated_at: stamp,
+  }));
+  const { error: aErr } = await supabase
+    .from("activity")
+    .upsert(activityRows, { onConflict: "user_id,date" });
+  if (aErr) throw new Error(aErr.message);
+
+  // A gentle downward weight trend (today lightest) so the review has a real
+  // this-week-vs-last-week comparison. ignoreDuplicates protects real weigh-ins.
+  const base = 82;
+  const weightRows = Array.from({ length: 14 }, (_, i) => ({
+    user_id: user.id,
+    date: isoDay(new Date(now - i * DAY_MS)),
+    weight_kg: Math.round((base + i * 0.12 + rand(-0.2, 0.2)) * 10) / 10,
+  }));
+  await supabase
+    .from("weights")
+    .upsert(weightRows, { onConflict: "user_id,date", ignoreDuplicates: true });
+
+  // Two waist points 13 days apart so the "scale flat, waist down" path is
+  // demoable too. Also non-destructive.
+  await supabase.from("measurements").upsert(
+    [
+      { user_id: user.id, date: isoDay(new Date(now - 13 * DAY_MS)), waist_cm: 90 },
+      { user_id: user.id, date: isoDay(new Date(now)), waist_cm: 88.4 },
+    ],
+    { onConflict: "user_id,date", ignoreDuplicates: true },
+  );
+
+  revalidatePath("/coach");
+  revalidatePath("/");
+}
+
+// Remove only the seeded activity (leaves real device data and weigh-ins).
+export async function clearMockActivity() {
+  const { supabase, user } = await requireUser();
+  const { error } = await supabase
+    .from("activity")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("source", "manual");
+  if (error) throw new Error(error.message);
+  revalidatePath("/coach");
+}
+
 // Mint (or rotate) the secret token Health Auto Export uses to post data.
 export async function generateAppleToken(): Promise<string> {
   const { supabase, user } = await requireUser();
