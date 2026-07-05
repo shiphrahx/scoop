@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { Camera, Minus, Plus } from "lucide-react";
 import type { ParsedRecipe } from "@/lib/ai";
 import { readImageFile } from "@/lib/image";
 import {
@@ -86,7 +87,7 @@ export default function RecipeImport({ remainingKcal }: { remainingKcal: number 
       await logRecipeServings(recipe, servings);
       setRecipe(null);
       setUrl("");
-      setNote("Logged to today 🎉");
+      setNote("Logged to today.");
     } finally {
       setBusy(false);
     }
@@ -94,7 +95,7 @@ export default function RecipeImport({ remainingKcal }: { remainingKcal: number 
 
   return (
     <section className="flex flex-col gap-3 sc-card p-5">
-      <h2 className="text-lg font-bold">Import a recipe</h2>
+      <h2 className="text-lg font-semibold">Import a recipe</h2>
 
       <div className="flex gap-2">
         <input
@@ -102,12 +103,12 @@ export default function RecipeImport({ remainingKcal }: { remainingKcal: number 
           onChange={(e) => setUrl(e.target.value)}
           placeholder="Paste a recipe link"
           inputMode="url"
-          className="min-w-0 flex-1 rounded-2xl border-2 border-black/10 px-4 py-3 outline-none focus:border-green-500 dark:bg-transparent"
+          className="sc-input min-w-0 flex-1"
         />
         <button
           onClick={fromUrl}
           disabled={busy || !url.trim()}
-          className="shrink-0 rounded-2xl bg-green-500 px-5 py-3 font-bold text-white active:scale-95 disabled:opacity-50"
+          className="sc-btn sc-btn-primary shrink-0"
         >
           Import
         </button>
@@ -127,21 +128,21 @@ export default function RecipeImport({ remainingKcal }: { remainingKcal: number 
       <button
         onClick={() => fileRef.current?.click()}
         disabled={busy}
-        className="rounded-2xl border-2 border-green-500 px-6 py-3 font-bold text-green-600 active:scale-95 disabled:opacity-50 dark:text-green-400"
+        className="sc-btn sc-btn-soft"
       >
-        📷 Screenshot instead
+        <Camera size={20} /> Screenshot instead
       </button>
 
       {note && (
-        <p className="text-center text-sm font-medium text-black/60 dark:text-white/60">
+        <p className="text-center text-sm font-medium text-[var(--muted)]">
           {note}
         </p>
       )}
 
       {recipe && perServing && (
-        <div className="flex flex-col gap-3 rounded-2xl bg-black/5 p-4 dark:bg-white/10">
-          <p className="text-lg font-bold">{recipe.name}</p>
-          <p className="text-xs text-black/50 dark:text-white/50">
+        <div className="flex flex-col gap-3 rounded-2xl bg-[rgba(15,23,42,0.04)] p-4">
+          <p className="text-lg font-semibold">{recipe.name}</p>
+          <p className="text-xs text-[var(--muted)]">
             Makes {recipe.servings} · per serving{" "}
             {Math.round(perServing.kcal)} kcal · P
             {Math.round(perServing.protein_g)} C{Math.round(perServing.carbs_g)}{" "}
@@ -153,7 +154,7 @@ export default function RecipeImport({ remainingKcal }: { remainingKcal: number 
               {recipe.ingredients.map((ing, i) => (
                 <li key={i} className="flex justify-between gap-3">
                   <span className="min-w-0 truncate">{ing.name}</span>
-                  <span className="shrink-0 text-black/50 dark:text-white/50">
+                  <span className="shrink-0 text-[var(--muted)]">
                     {ing.quantity}
                   </span>
                 </li>
@@ -167,19 +168,19 @@ export default function RecipeImport({ remainingKcal }: { remainingKcal: number 
               <button
                 onClick={() => setServings((s) => Math.max(1, s - 1))}
                 aria-label="One fewer"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-black/10 text-xl font-bold active:scale-90 dark:bg-white/15"
+                className="grid h-9 w-9 place-items-center rounded-full bg-[rgba(15,23,42,0.06)] active:scale-90"
               >
-                −
+                <Minus size={18} />
               </button>
-              <span className="w-6 text-center font-bold tabular-nums">
+              <span className="w-6 text-center font-semibold tabular-nums">
                 {servings}
               </span>
               <button
                 onClick={() => setServings((s) => s + 1)}
                 aria-label="One more"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-black/10 text-xl font-bold active:scale-90 dark:bg-white/15"
+                className="grid h-9 w-9 place-items-center rounded-full bg-[rgba(15,23,42,0.06)] active:scale-90"
               >
-                +
+                <Plus size={18} />
               </button>
             </div>
           </div>
@@ -188,14 +189,14 @@ export default function RecipeImport({ remainingKcal }: { remainingKcal: number 
             <button
               onClick={save}
               disabled={busy}
-              className="flex-1 rounded-2xl border-2 border-green-500 px-4 py-3 font-bold text-green-600 active:scale-95 disabled:opacity-50 dark:text-green-400"
+              className="sc-btn sc-btn-soft flex-1"
             >
               Save recipe
             </button>
             <button
               onClick={log}
               disabled={busy}
-              className="flex-1 rounded-2xl bg-green-500 px-4 py-3 font-bold text-white active:scale-95 disabled:opacity-50"
+              className="sc-btn sc-btn-primary flex-1"
             >
               Log {servings}
             </button>

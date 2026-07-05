@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowLeft, KeyRound } from "lucide-react";
 import RecipeImport from "./RecipeImport";
 import SavedRecipes from "./SavedRecipes";
 import { createClient } from "@/lib/supabase/server";
@@ -26,16 +27,16 @@ export default async function RecipePage() {
     : 0;
 
   return (
-    <main className="flex flex-1 flex-col gap-6 px-5 pt-8 pb-6">
+    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-5 pt-8 pb-6 lg:px-8">
       <div className="flex items-center gap-3">
         <Link
           href="/plan"
           aria-label="Back"
-          className="text-2xl text-[var(--muted)]"
+          className="text-[var(--muted)] transition active:scale-90"
         >
-          ←
+          <ArrowLeft size={24} />
         </Link>
-        <h1 className="text-3xl font-black">Recipes</h1>
+        <h1 className="text-3xl font-semibold">Recipes</h1>
       </div>
 
       {connected ? (
@@ -43,9 +44,16 @@ export default async function RecipePage() {
       ) : (
         <Link
           href="/me"
-          className="rounded-3xl border-2 border-dashed border-[var(--border)] p-5 text-center text-sm text-[var(--muted)] active:scale-[0.99]"
+          className="sc-card flex items-center gap-3 p-5 text-sm text-[var(--muted)] transition active:scale-[0.99]"
         >
-          🔑 Connect your Anthropic key in Me to import recipes.
+          <span
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl"
+            style={{ background: "rgba(20,184,166,0.12)", color: "#0f766e" }}
+          >
+            <KeyRound size={20} />
+          </span>
+          Connect your AI key in Settings to import recipes from a link or a
+          screenshot.
         </Link>
       )}
 
