@@ -169,7 +169,7 @@ export function AppleIngest({ initialToken }: { initialToken: string | null }) {
         In the Health Auto Export app, add a REST API automation that POSTs to
         this URL. Keep it secret.
       </p>
-      <code className="block break-all rounded-2xl bg-black/5 p-3 text-xs dark:bg-white/10">
+      <code className="block break-all rounded-2xl bg-[rgba(15,23,42,0.05)] p-3 text-xs">
         {url}
       </code>
       <div className="flex gap-2">
