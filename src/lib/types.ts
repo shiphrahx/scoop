@@ -10,6 +10,7 @@ export type ActivityLevel =
   | "very_active";
 export type GoalPace = "gentle" | "steady" | "aggressive";
 export type FoodSource = "batch" | "barcode" | "recipe" | "manual";
+export type ActivitySource = "fitbit" | "apple" | "manual";
 
 export interface Profile {
   id: string;
@@ -111,6 +112,16 @@ export interface GroceryItem {
   protein_100g: number;
   carbs_100g: number;
   fat_100g: number;
+}
+
+// One day of activity, from Fitbit (pulled) or Apple Health Auto Export
+// (pushed). Any field can be null when that source didn't report it.
+export interface Activity {
+  date: string;
+  steps: number | null;
+  workout_kcal: number | null;
+  sleep_hours: number | null;
+  source: ActivitySource;
 }
 
 // One dish the AI suggests from the pantry that fits the user's diet and
