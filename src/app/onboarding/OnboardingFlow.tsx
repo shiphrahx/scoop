@@ -58,6 +58,7 @@ export default function OnboardingFlow() {
   });
 
   const steps = [
+    "welcome",
     "diet",
     "allergies",
     "dislikes",
@@ -99,26 +100,26 @@ export default function OnboardingFlow() {
 
   return (
     <main className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col px-5 pb-8 pt-6">
-      {/* progress */}
-      <div className="mb-6 flex items-center gap-3">
-        {step > 0 ? (
+      {/* progress — hidden on the welcome intro */}
+      {step > 0 && (
+        <div className="mb-6 flex items-center gap-3">
           <button
             onClick={back}
-            className="text-2xl text-black/40 dark:text-white/40"
+            className="text-2xl text-[var(--muted)]"
             aria-label="Back"
           >
             ‹
           </button>
-        ) : (
-          <span className="w-6" />
-        )}
-        <div className="h-3 flex-1 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
-          <div
-            className="h-full rounded-full bg-green-500 transition-all"
-            style={{ width: `${((step + 1) / total) * 100}%` }}
-          />
+          <div className="h-3.5 flex-1 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
+            <div
+              className="h-full rounded-full bg-green-500 transition-all duration-500 ease-out"
+              style={{ width: `${(step / (total - 1)) * 100}%` }}
+            />
+          </div>
         </div>
-      </div>
+      )}
+
+      {current === "welcome" && <Welcome onStart={next} />}
 
       {current === "diet" && (
         <Choice
@@ -296,6 +297,39 @@ export default function OnboardingFlow() {
         />
       )}
     </main>
+  );
+}
+
+// First thing a brand-new user sees — a plain-words pitch, then one button in.
+function Welcome({ onStart }: { onStart: () => void }) {
+  const points = [
+    { icon: "🍦", text: "We tell you the portion to eat — no food searching." },
+    { icon: "📸", text: "Scan a barcode or a grocery photo to log in a tap." },
+    { icon: "🧑‍🏫", text: "A coach adjusts your targets from your real results." },
+  ];
+  return (
+    <section className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+        <span className="text-7xl" aria-hidden>
+          🍦
+        </span>
+        <h1 className="text-3xl font-black">Welcome to Scoop</h1>
+        <p className="max-w-xs text-[var(--muted)]">
+          Let&apos;s set up your plan. Takes about a minute — mostly tapping.
+        </p>
+        <ul className="mt-2 flex w-full flex-col gap-3 text-left">
+          {points.map((p) => (
+            <li key={p.text} className="sc-card flex items-center gap-3 p-4">
+              <span className="text-2xl">{p.icon}</span>
+              <span className="text-sm font-bold">{p.text}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="mt-auto pt-8">
+        <NextButton onClick={onStart} label="Let's go" />
+      </div>
+    </section>
   );
 }
 
@@ -660,7 +694,7 @@ function NextButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="w-full rounded-2xl bg-green-500 px-6 py-4 text-lg font-bold text-white shadow-lg transition active:scale-95 disabled:opacity-60"
+      className="sc-btn sc-btn-primary w-full py-4 text-lg"
     >
       {label}
     </button>
