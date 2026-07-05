@@ -36,21 +36,21 @@ export default async function HomePage() {
       {targets ? (
         <>
           {/* Calories left */}
-          <section className="rounded-3xl bg-green-500 px-6 py-8 text-center text-white shadow-lg">
-            <p className="text-sm font-semibold uppercase tracking-wide opacity-80">
+          <section className="rounded-3xl bg-gradient-to-br from-green-400 to-green-600 px-6 py-8 text-center text-white shadow-[0_12px_30px_-10px_rgba(34,197,94,0.7)]">
+            <p className="text-sm font-extrabold uppercase tracking-wider opacity-90">
               Calories left
             </p>
-            <p className="mt-1 text-6xl font-extrabold tabular-nums">
+            <p className="mt-1 text-7xl font-black tabular-nums">
               {kcalLeft}
             </p>
-            <p className="mt-1 text-sm opacity-80">
+            <p className="mt-1 text-sm font-semibold opacity-90">
               of {Math.round(targets.kcal)} kcal · {Math.round(consumed.kcal)}{" "}
               eaten
             </p>
           </section>
 
           {/* Macros left */}
-          <section className="flex flex-col gap-4 rounded-3xl border border-black/10 p-5 dark:border-white/15">
+          <section className="sc-card flex flex-col gap-4 p-5">
             <MacroBar
               label="Protein"
               consumed={consumed.protein_g}
@@ -72,8 +72,8 @@ export default async function HomePage() {
           </section>
         </>
       ) : (
-        <section className="rounded-3xl border border-dashed border-black/10 p-8 text-center dark:border-white/15">
-          <p className="text-sm text-black/50 dark:text-white/50">
+        <section className="rounded-3xl border-2 border-dashed border-[var(--border)] p-8 text-center">
+          <p className="text-sm text-[var(--muted)]">
             No target yet. Finish onboarding to see your macros.
           </p>
         </section>
@@ -82,46 +82,44 @@ export default async function HomePage() {
       {/* The Coach */}
       <Link
         href="/coach"
-        className="flex items-center gap-4 rounded-3xl border border-black/10 p-5 active:scale-95 dark:border-white/15"
+        className="sc-card flex items-center gap-4 p-5 transition active:scale-[0.98]"
       >
         <span className="text-3xl">🧑‍🏫</span>
         <div>
-          <p className="font-bold">The Coach</p>
-          <p className="text-sm text-black/50 dark:text-white/50">
+          <p className="font-extrabold">The Coach</p>
+          <p className="text-sm text-[var(--muted)]">
             Weekly review · connect Fitbit / Apple Watch
           </p>
         </div>
-        <span className="ml-auto text-2xl text-black/30 dark:text-white/30">
-          ›
-        </span>
+        <span className="ml-auto text-2xl text-[var(--muted)]">›</span>
       </Link>
 
       {/* Quick actions */}
       <section className="grid grid-cols-2 gap-3">
         <Link
           href="/add"
-          className="flex flex-col items-center gap-1 rounded-2xl bg-black/5 py-5 font-bold active:scale-95 dark:bg-white/10"
+          className="sc-card flex flex-col items-center gap-1 py-5 font-extrabold transition active:scale-95"
         >
           <span className="text-3xl">🍽️</span>
           Log food
         </Link>
         <Link
           href="/progress"
-          className="flex flex-col items-center gap-1 rounded-2xl bg-black/5 py-5 font-bold active:scale-95 dark:bg-white/10"
+          className="sc-card flex flex-col items-center gap-1 py-5 font-extrabold transition active:scale-95"
         >
           <span className="text-3xl">⚖️</span>
           Log weight
         </Link>
         <Link
           href="/batches"
-          className="flex flex-col items-center gap-1 rounded-2xl bg-black/5 py-5 font-bold active:scale-95 dark:bg-white/10"
+          className="sc-card flex flex-col items-center gap-1 py-5 font-extrabold transition active:scale-95"
         >
           <span className="text-3xl">🍲</span>
           Batches
         </Link>
         <Link
           href="/pantry"
-          className="flex flex-col items-center gap-1 rounded-2xl bg-black/5 py-5 font-bold active:scale-95 dark:bg-white/10"
+          className="sc-card flex flex-col items-center gap-1 py-5 font-extrabold transition active:scale-95"
         >
           <span className="text-3xl">🥫</span>
           Pantry

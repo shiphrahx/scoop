@@ -25,11 +25,11 @@ export default function LoginPage() {
   return (
     <main className="flex flex-1 flex-col items-center justify-center gap-10 px-6 text-center">
       <div className="flex flex-col items-center gap-3">
-        <span className="text-6xl" aria-hidden>
+        <span className="flex h-24 w-24 items-center justify-center rounded-[2rem] bg-green-500 text-6xl shadow-[0_6px_0_0_#15803d]">
           🍦
         </span>
-        <h1 className="text-4xl font-extrabold tracking-tight">Scoop</h1>
-        <p className="max-w-xs text-lg text-black/60 dark:text-white/60">
+        <h1 className="mt-2 text-5xl font-black tracking-tight">Scoop</h1>
+        <p className="max-w-xs text-lg text-[var(--muted)]">
           Your portion coach. We tell you what to eat to hit your macros.
         </p>
       </div>
@@ -37,7 +37,7 @@ export default function LoginPage() {
       <button
         onClick={signInWithGoogle}
         disabled={loading}
-        className="flex w-full max-w-xs items-center justify-center gap-3 rounded-2xl bg-green-500 px-6 py-4 text-lg font-bold text-white shadow-lg transition active:scale-95 disabled:opacity-60"
+        className="sc-btn sc-btn-primary w-full max-w-xs py-4 text-lg"
       >
         {loading ? "Opening Google…" : "Continue with Google"}
       </button>
