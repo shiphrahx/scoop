@@ -36,6 +36,9 @@ export async function updateSession(request: NextRequest) {
   const isPublic =
     pathname.startsWith("/login") ||
     pathname.startsWith("/auth") ||
+    // PWA install files must be reachable without a session.
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/sw.js" ||
     // Health Auto Export posts here with a per-user token, not a session.
     pathname.startsWith("/api/ingest");
 
