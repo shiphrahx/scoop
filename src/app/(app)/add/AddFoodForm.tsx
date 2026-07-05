@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ScanBarcode, Star } from "lucide-react";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import type { OffProduct } from "@/lib/types";
 import { logFood, saveFavourite } from "./actions";
@@ -116,13 +117,13 @@ export default function AddFoodForm() {
           setNote(null);
           setScanning(true);
         }}
-        className="flex items-center justify-center gap-2 rounded-2xl border-2 border-green-500 px-6 py-4 text-lg font-bold text-green-600 active:scale-95 dark:text-green-400"
+        className="sc-btn sc-btn-soft py-4 text-lg"
       >
-        <span className="text-2xl">📷</span> Scan barcode
+        <ScanBarcode size={22} /> Scan barcode
       </button>
 
       {note && (
-        <p className="text-center text-sm font-medium text-black/60 dark:text-white/60">
+        <p className="text-center text-sm font-medium text-[var(--muted)]">
           {note}
         </p>
       )}
@@ -131,7 +132,7 @@ export default function AddFoodForm() {
         value={form.name}
         onChange={(e) => set("name", e.target.value)}
         placeholder="What did you eat?"
-        className="rounded-2xl border-2 border-black/10 px-4 py-3 text-lg outline-none focus:border-green-500 dark:border-white/15 dark:bg-transparent"
+        className="sc-input text-lg"
       />
 
       <div className="grid grid-cols-2 gap-3">
@@ -169,9 +170,10 @@ export default function AddFoodForm() {
       <button
         onClick={saveUsual}
         disabled={saving || !form.name.trim()}
-        className="w-full rounded-2xl px-6 py-3 text-sm font-bold text-green-600 active:scale-95 disabled:opacity-40 dark:text-green-400"
+        className="sc-btn w-full py-3 text-sm font-semibold text-[var(--g-teal)] active:scale-95 disabled:opacity-40"
+        style={{ color: "#0f766e" }}
       >
-        ⭐ Save as usual
+        <Star size={16} /> Save as usual
       </button>
 
       {scanning && (
@@ -195,7 +197,7 @@ function NumberField({
 }) {
   return (
     <label className="flex flex-col gap-1 text-sm">
-      <span className="text-black/50 dark:text-white/50">{label}</span>
+      <span className="text-[var(--muted)]">{label}</span>
       <input
         type="number"
         inputMode="decimal"
@@ -203,7 +205,7 @@ function NumberField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="0"
-        className="rounded-xl border-2 border-black/10 px-3 py-2 text-lg outline-none focus:border-green-500 dark:border-white/15 dark:bg-transparent"
+        className="sc-input text-lg"
       />
     </label>
   );

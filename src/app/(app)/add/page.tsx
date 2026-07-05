@@ -34,15 +34,15 @@ export default async function AddPage() {
   const favourites = (favData as Favourite[]) ?? [];
 
   return (
-    <main className="flex flex-1 flex-col gap-6 px-5 pt-8 pb-6">
-      <h1 className="text-3xl font-black">Log food</h1>
+    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-5 pt-8 pb-6 lg:px-8">
+      <h1 className="text-3xl font-semibold">Log food</h1>
 
       <Favourites items={favourites} />
 
       <AddFoodForm />
 
       <section>
-        <h2 className="mb-3 text-sm font-extrabold uppercase tracking-wide text-[var(--muted)]">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
           Today
         </h2>
         {logs.length === 0 ? (
@@ -55,7 +55,7 @@ export default async function AddPage() {
                 className="sc-card flex items-center justify-between gap-3 px-4 py-3"
               >
                 <div className="min-w-0">
-                  <p className="truncate font-extrabold">{log.name}</p>
+                  <p className="truncate font-semibold">{log.name}</p>
                   <p className="text-xs text-[var(--muted)]">
                     {Math.round(log.kcal)} kcal · P{Math.round(log.protein_g)} C
                     {Math.round(log.carbs_g)} F{Math.round(log.fat_g)}

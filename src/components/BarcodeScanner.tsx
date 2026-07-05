@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import type { IScannerControls } from "@zxing/browser";
 
@@ -69,9 +70,9 @@ export default function BarcodeScanner({
         <button
           onClick={onClose}
           aria-label="Close scanner"
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-xl text-white active:scale-90"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-white active:scale-90"
         >
-          ✕
+          <X size={22} />
         </button>
       </div>
     </div>
