@@ -22,7 +22,7 @@ export function ApplyTargetsButton({ changed }: { changed: boolean }) {
     <button
       onClick={apply}
       disabled={saving || saved}
-      className="w-full rounded-2xl bg-green-500 px-6 py-4 text-lg font-bold text-white shadow-lg transition active:scale-95 disabled:opacity-60"
+      className="sc-btn sc-btn-primary w-full py-4 text-lg"
     >
       {saved
         ? "Set for next week ✓"
@@ -42,10 +42,7 @@ export function FitbitButton({ connected }: { connected: boolean }) {
 
   if (!connected) {
     return (
-      <a
-        href="/api/fitbit/authorize"
-        className="block w-full rounded-2xl bg-black/5 px-6 py-4 text-center text-lg font-bold active:scale-95 dark:bg-white/10"
-      >
+      <a href="/api/fitbit/authorize" className="sc-btn sc-btn-soft w-full py-4 text-lg">
         Connect Fitbit
       </a>
     );
@@ -69,12 +66,12 @@ export function FitbitButton({ connected }: { connected: boolean }) {
       <button
         onClick={sync}
         disabled={syncing}
-        className="w-full rounded-2xl bg-black/5 px-6 py-4 text-lg font-bold active:scale-95 disabled:opacity-60 dark:bg-white/10"
+        className="sc-btn sc-btn-neutral w-full py-4 text-lg"
       >
         {syncing ? "Syncing…" : "Sync last 7 days"}
       </button>
       {msg && (
-        <p className="text-center text-sm text-black/60 dark:text-white/60">
+        <p className="text-center text-sm text-[var(--muted)]">
           {msg}
         </p>
       )}
@@ -114,7 +111,7 @@ export function AppleIngest({ initialToken }: { initialToken: string | null }) {
       <button
         onClick={make}
         disabled={busy}
-        className="w-full rounded-2xl bg-black/5 px-6 py-4 text-lg font-bold active:scale-95 disabled:opacity-60 dark:bg-white/10"
+        className="sc-btn sc-btn-neutral w-full py-4 text-lg"
       >
         {busy ? "Generating…" : "Set up Apple Watch"}
       </button>
@@ -123,7 +120,7 @@ export function AppleIngest({ initialToken }: { initialToken: string | null }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-sm text-black/60 dark:text-white/60">
+      <p className="text-sm text-[var(--muted)]">
         In the Health Auto Export app, add a REST API automation that POSTs to
         this URL. Keep it secret.
       </p>
@@ -131,16 +128,13 @@ export function AppleIngest({ initialToken }: { initialToken: string | null }) {
         {url}
       </code>
       <div className="flex gap-2">
-        <button
-          onClick={copy}
-          className="flex-1 rounded-2xl bg-black/5 px-4 py-3 font-bold active:scale-95 dark:bg-white/10"
-        >
+        <button onClick={copy} className="sc-btn sc-btn-neutral flex-1 py-3">
           {copied ? "Copied ✓" : "Copy URL"}
         </button>
         <button
           onClick={make}
           disabled={busy}
-          className="rounded-2xl bg-black/5 px-4 py-3 font-bold active:scale-95 disabled:opacity-60 dark:bg-white/10"
+          className="sc-btn sc-btn-neutral py-3"
         >
           {busy ? "…" : "New token"}
         </button>

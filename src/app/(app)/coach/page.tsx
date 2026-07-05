@@ -28,12 +28,12 @@ export default async function CoachPage({
       )}
 
       {/* Weekly review */}
-      <section className="flex flex-col gap-4 rounded-3xl border border-black/10 p-5 dark:border-white/15">
-        <h2 className="text-sm font-semibold text-black/50 dark:text-white/50">
+      <section className="sc-card flex flex-col gap-4 p-5">
+        <h2 className="text-sm font-extrabold uppercase tracking-wide text-[var(--muted)]">
           This week&apos;s review
         </h2>
-        <p className="text-xl font-extrabold">{review.headline}</p>
-        <p className="text-black/70 dark:text-white/70">{review.detail}</p>
+        <p className="text-2xl font-black">{review.headline}</p>
+        <p className="text-[var(--muted)]">{review.detail}</p>
 
         {current && (
           <div className="flex items-end justify-between rounded-2xl bg-black/5 p-4 dark:bg-white/10">
@@ -66,19 +66,19 @@ export default async function CoachPage({
 
       {/* Recent activity */}
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold text-black/50 dark:text-white/50">
+        <h2 className="text-sm font-extrabold uppercase tracking-wide text-[var(--muted)]">
           Recent activity
         </h2>
         {data.activity.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-black/10 p-5 text-center text-sm text-black/50 dark:border-white/15 dark:text-white/50">
+          <p className="rounded-2xl border-2 border-dashed border-[var(--border)] p-5 text-center text-sm text-[var(--muted)]">
             No activity yet. Connect Fitbit or your Apple Watch below.
           </p>
         ) : (
-          <ul className="flex flex-col gap-1">
+          <ul className="sc-card flex flex-col divide-y divide-[var(--border)] p-2">
             {data.activity.map((a) => (
               <li
                 key={a.date}
-                className="flex justify-between gap-2 text-sm text-black/60 dark:text-white/60"
+                className="flex justify-between gap-2 px-3 py-2 text-sm text-[var(--muted)]"
               >
                 <span>{a.date}</span>
                 <span className="flex gap-3 tabular-nums">
@@ -96,14 +96,14 @@ export default async function CoachPage({
 
       {/* Connect data sources */}
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold text-black/50 dark:text-white/50">
+        <h2 className="text-sm font-extrabold uppercase tracking-wide text-[var(--muted)]">
           Fitbit
         </h2>
         <FitbitButton connected={data.fitbitConnected} />
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold text-black/50 dark:text-white/50">
+        <h2 className="text-sm font-extrabold uppercase tracking-wide text-[var(--muted)]">
           Apple Watch
         </h2>
         <AppleIngest initialToken={data.appleIngestToken} />
