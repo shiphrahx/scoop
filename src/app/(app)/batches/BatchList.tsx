@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { X } from "lucide-react";
 import type { Batch } from "@/lib/types";
 import { deleteBatch, eatFromBatch } from "./actions";
 
@@ -9,7 +10,7 @@ import { deleteBatch, eatFromBatch } from "./actions";
 export default function BatchList({ batches }: { batches: Batch[] }) {
   if (batches.length === 0) {
     return (
-      <p className="text-sm text-black/40 dark:text-white/40">
+      <p className="text-sm text-[var(--muted)]">
         No batches yet. Cook once, log it here, eat all week.
       </p>
     );
@@ -34,11 +35,11 @@ function BatchCard({ batch }: { batch: Batch }) {
   const per100 = total > 0 ? (Number(batch.kcal) / total) * 100 : 0;
 
   return (
-    <li className="flex flex-col gap-3 sc-card p-4">
+    <li className="sc-card flex flex-col gap-3 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-lg font-bold">{batch.name}</p>
-          <p className="text-xs text-black/50 dark:text-white/50">
+          <p className="truncate text-lg font-semibold">{batch.name}</p>
+          <p className="text-xs text-[var(--muted)]">
             {Math.round(remaining)}g left of {Math.round(total)}g ·{" "}
             {Math.round(per100)} kcal / 100g
           </p>
@@ -47,17 +48,17 @@ function BatchCard({ batch }: { batch: Batch }) {
           onClick={() => startTransition(() => deleteBatch(batch.id))}
           disabled={pending}
           aria-label="Delete batch"
-          className="shrink-0 text-xl text-black/30 active:scale-90 disabled:opacity-40 dark:text-white/30"
+          className="shrink-0 text-[var(--muted)] active:scale-90 disabled:opacity-40"
         >
-          ✕
+          <X size={20} />
         </button>
       </div>
 
       {/* Remaining bar */}
-      <div className="h-2 w-full overflow-hidden rounded-full bg-black/10 dark:bg-white/15">
+      <div className="h-2.5 w-full overflow-hidden rounded-full bg-[rgba(15,23,42,0.06)]">
         <div
-          className="h-full rounded-full bg-green-500"
-          style={{ width: `${pct}%` }}
+          className="h-full rounded-full"
+          style={{ width: `${pct}%`, background: "var(--grad-primary)" }}
         />
       </div>
 
@@ -69,7 +70,7 @@ function BatchCard({ batch }: { batch: Batch }) {
           value={grams}
           onChange={(e) => setGrams(e.target.value)}
           placeholder="grams"
-          className="w-28 rounded-xl border-2 border-black/10 px-3 py-2 text-lg outline-none focus:border-green-500 dark:bg-transparent"
+          className="sc-input w-28 text-lg"
         />
         <button
           disabled={pending || !grams || remaining <= 0}
@@ -79,7 +80,7 @@ function BatchCard({ batch }: { batch: Batch }) {
               setGrams("");
             })
           }
-          className="flex-1 rounded-xl bg-green-500 px-4 py-2 font-bold text-white active:scale-95 disabled:opacity-40"
+          className="sc-btn sc-btn-primary flex-1"
         >
           {remaining <= 0 ? "All gone" : "Eat this"}
         </button>

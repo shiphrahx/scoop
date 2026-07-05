@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import BatchForm from "./BatchForm";
 import BatchList from "./BatchList";
 import { createClient } from "@/lib/supabase/server";
@@ -17,16 +18,16 @@ export default async function BatchesPage() {
   const batches = (data as Batch[]) ?? [];
 
   return (
-    <main className="flex flex-1 flex-col gap-6 px-5 pt-8 pb-6">
+    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-5 pt-8 pb-6 lg:px-8">
       <div className="flex items-center gap-3">
         <Link
           href="/"
           aria-label="Back"
-          className="text-2xl text-[var(--muted)]"
+          className="text-[var(--muted)] transition active:scale-90"
         >
-          ←
+          <ArrowLeft size={24} />
         </Link>
-        <h1 className="text-3xl font-black">Batch cooking</h1>
+        <h1 className="text-3xl font-semibold">Batch cooking</h1>
       </div>
 
       <BatchList batches={batches} />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ScanBarcode, Plus, X } from "lucide-react";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import type { OffProduct, SourcePack } from "@/lib/types";
 import { createBatch } from "./actions";
@@ -109,7 +110,7 @@ export default function BatchForm() {
       setName("");
       setPacks([]);
       setTotalCooked("");
-      setNote("Batch saved 🎉");
+      setNote("Batch saved.");
     } finally {
       setSaving(false);
     }
@@ -117,13 +118,13 @@ export default function BatchForm() {
 
   return (
     <section className="flex flex-col gap-4 sc-card p-5">
-      <h2 className="text-lg font-bold">New batch</h2>
+      <h2 className="text-lg font-semibold">New batch</h2>
 
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Batch name (e.g. Sunday chilli)"
-        className="rounded-2xl border-2 border-black/10 px-4 py-3 text-lg outline-none focus:border-green-500 dark:bg-transparent"
+        className="sc-input text-lg"
       />
 
       {/* Packs added so far */}
@@ -132,18 +133,18 @@ export default function BatchForm() {
           {packs.map((p, i) => (
             <li
               key={i}
-              className="flex items-center justify-between gap-3 rounded-2xl bg-black/5 px-4 py-2 dark:bg-white/10"
+              className="flex items-center justify-between gap-3 rounded-2xl bg-[rgba(15,23,42,0.04)] px-4 py-2"
             >
               <span className="min-w-0 truncate font-semibold">{p.name}</span>
-              <span className="shrink-0 text-xs text-black/50 dark:text-white/50">
+              <span className="shrink-0 text-xs text-[var(--muted)]">
                 {p.grams}g · {Math.round(p.kcal)} kcal
               </span>
               <button
                 onClick={() => setPacks((ps) => ps.filter((_, j) => j !== i))}
                 aria-label="Remove pack"
-                className="shrink-0 text-black/30 active:scale-90 dark:text-white/30"
+                className="shrink-0 text-[var(--muted)] active:scale-90"
               >
-                ✕
+                <X size={18} />
               </button>
             </li>
           ))}
@@ -151,19 +152,19 @@ export default function BatchForm() {
       )}
 
       {/* Draft pack editor */}
-      <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-black/15 p-4 dark:border-white/20">
+      <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-[var(--border)] p-4">
         <button
           onClick={() => {
             setNote(null);
             setScanning(true);
           }}
-          className="flex items-center justify-center gap-2 rounded-xl border-2 border-green-500 px-4 py-3 font-bold text-green-600 active:scale-95 dark:text-green-400"
+          className="sc-btn sc-btn-soft"
         >
-          <span className="text-xl">📷</span> Scan a pack
+          <ScanBarcode size={20} /> Scan a pack
         </button>
 
         {note && (
-          <p className="text-center text-sm font-medium text-black/60 dark:text-white/60">
+          <p className="text-center text-sm font-medium text-[var(--muted)]">
             {note}
           </p>
         )}
@@ -172,7 +173,7 @@ export default function BatchForm() {
           value={draft.name}
           onChange={(e) => setField("name", e.target.value)}
           placeholder="Pack name"
-          className="rounded-xl border-2 border-black/10 px-4 py-2 outline-none focus:border-green-500 dark:bg-transparent"
+          className="sc-input"
         />
 
         <div className="grid grid-cols-2 gap-2">
@@ -202,15 +203,15 @@ export default function BatchForm() {
         <button
           onClick={addPack}
           disabled={!draft.name.trim()}
-          className="rounded-xl bg-black/5 px-4 py-2 font-bold active:scale-95 disabled:opacity-40 dark:bg-white/10"
+          className="sc-btn sc-btn-neutral"
         >
-          + Add pack
+          <Plus size={18} /> Add pack
         </button>
       </div>
 
       {/* Cooked weight + create */}
       <label className="flex flex-col gap-1 text-sm">
-        <span className="text-black/50 dark:text-white/50">
+        <span className="text-[var(--muted)]">
           Total cooked weight (g)
         </span>
         <input
@@ -220,12 +221,12 @@ export default function BatchForm() {
           value={totalCooked}
           onChange={(e) => setTotalCooked(e.target.value)}
           placeholder="e.g. 1800"
-          className="rounded-xl border-2 border-black/10 px-4 py-2 text-lg outline-none focus:border-green-500 dark:bg-transparent"
+          className="sc-input text-lg"
         />
       </label>
 
       {packs.length > 0 && (
-        <p className="text-sm text-black/50 dark:text-white/50">
+        <p className="text-sm text-[var(--muted)]">
           {packs.length} pack{packs.length > 1 ? "s" : ""} · {totals.grams}g raw
           · {Math.round(totals.kcal)} kcal total
         </p>
@@ -262,7 +263,7 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-1 text-xs">
-      <span className="text-black/50 dark:text-white/50">{label}</span>
+      <span className="text-[var(--muted)]">{label}</span>
       <input
         type="number"
         inputMode="decimal"
@@ -270,7 +271,7 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="0"
-        className="rounded-lg border-2 border-black/10 px-3 py-2 text-base outline-none focus:border-green-500 dark:bg-transparent"
+        className="sc-input text-base"
       />
     </label>
   );
