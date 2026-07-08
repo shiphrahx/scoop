@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import GroceryScan from "./GroceryScan";
+import InvoiceImport from "./InvoiceImport";
 import ListImport from "./ListImport";
 import PantryForm from "./PantryForm";
 import PantryList from "./PantryList";
@@ -39,6 +40,7 @@ export default async function PantryPage() {
       <PantryList items={items} />
       <PantryForm />
       <ListImport />
+      <InvoiceImport />
       <GroceryScan connected={connected} />
     </main>
   );
