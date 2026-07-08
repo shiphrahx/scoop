@@ -55,3 +55,30 @@ Empty state: dashed-border card reading "No data yet".
 - Empty / loading / error states are first-class: use a card + muted text, not a blank screen.
 - Respect `prefers-reduced-motion` (handled globally in `globals.css`).
 - Never introduce a `dark:` style — the variant is rebound to an unused class on purpose.
+
+## Screen & component inventory (design-system coverage)
+
+Every route below and its loading / empty / error states use the system above
+(`.sc-*` classes + palette tokens, line icons, no emojis).
+
+Routes (`src/app/`):
+- [x] `login/`
+- [x] `onboarding/` (multi-step flow)
+- [x] `(app)/` home — `home/MobileHome`, `home/DesktopDashboard`
+- [x] `(app)/add/` — form, favourites, delete
+- [x] `(app)/plan/` — carb/protein tiles, suggestions (empty: "add pantry items")
+- [x] `(app)/plan/recipe/` — import (link keyless / screenshot gated), saved recipes
+- [x] `(app)/pantry/` — list/edit, barcode, list import, invoice import, screenshot (gated), matcher
+- [x] `(app)/batches/`
+- [x] `(app)/progress/` — weight + measurements, charts
+- [x] `(app)/coach/` — weekly review, activity list (empty: connect devices)
+- [x] `(app)/me/` — goals, devices (Fitbit/Apple), API key
+
+Shared components (`src/components/`):
+- [x] `BottomNav`, `Sidebar`, `nav-items`
+- [x] `Charts`, `ProgressRing`, `MacroBar` — colours from palette tokens
+- [x] `BarcodeScanner` — full-screen camera (intentionally dark; not a glass surface)
+- [x] `SignOutButton`, `ServiceWorkerRegister`
+
+States handled: empty (pantry, suggestions, activity, charts "No data yet"),
+loading (notes + spinners), error (thrown messages surfaced in each card's note).
