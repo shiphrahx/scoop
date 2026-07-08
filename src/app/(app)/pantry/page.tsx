@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, KeyRound } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import GroceryScan from "./GroceryScan";
 import PantryForm from "./PantryForm";
 import PantryList from "./PantryList";
@@ -36,23 +36,8 @@ export default async function PantryPage() {
       </div>
 
       <PantryList items={items} />
-      {connected ? (
-        <GroceryScan />
-      ) : (
-        <Link
-          href="/me"
-          className="sc-card flex items-center gap-3 p-5 text-sm text-[var(--muted)] transition active:scale-[0.99]"
-        >
-          <span
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl"
-            style={{ background: "rgba(20,184,166,0.12)", color: "#0f766e" }}
-          >
-            <KeyRound size={20} />
-          </span>
-          Connect your AI key in Settings to scan groceries into the pantry.
-        </Link>
-      )}
       <PantryForm />
+      <GroceryScan connected={connected} />
     </main>
   );
 }

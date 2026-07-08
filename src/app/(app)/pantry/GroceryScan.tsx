@@ -1,14 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
-import { ReceiptText, Check, Square } from "lucide-react";
+import { ReceiptText, Check, Square, KeyRound } from "lucide-react";
 import { readImageFile } from "@/lib/image";
 import type { GroceryItem } from "@/lib/types";
 import { addGroceryItems, scanGroceries } from "./actions";
 
 // Take a photo / pick a screenshot of groceries → AI reads the items → user
-// ticks the ones to keep → they land in the pantry.
-export default function GroceryScan() {
+// ticks the ones to keep → they land in the pantry. This is the ONLY pantry
+// import that needs the user's own key, so the key prompt lives here — barcode,
+// manual, and file imports all work without one.
+export default function GroceryScan({ connected }: { connected: boolean }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<GroceryItem[] | null>(null);
   const [chosen, setChosen] = useState<Set<number>>(new Set());
@@ -73,12 +76,21 @@ export default function GroceryScan() {
 
       <button
         onClick={() => fileRef.current?.click()}
-        disabled={busy}
+        disabled={busy || !connected}
         className="sc-btn sc-btn-soft py-4 text-lg"
       >
         <ReceiptText size={22} />
         {busy && !items ? "Reading…" : "Photo of your shop"}
       </button>
+
+      {!connected && (
+        <Link
+          href="/me"
+          className="flex items-center justify-center gap-1.5 text-center text-sm text-[var(--muted)]"
+        >
+          <KeyRound size={14} /> Connect your key to read a photo of your shop.
+        </Link>
+      )}
 
       {note && (
         <p className="text-center text-sm font-medium text-[var(--muted)]">
