@@ -56,6 +56,29 @@ export interface PantryItem {
   protein_100g: number;
   carbs_100g: number;
   fat_100g: number;
+  pack_size_g: number | null;
+}
+
+// A raw line parsed from an import source (PDF invoice, pasted list, or a
+// grocery screenshot) before we've matched it to a food. quantity is how many
+// packs; unit is free text as written ("kg", "x2") or null.
+export interface ImportedItem {
+  name: string;
+  quantity: number;
+  unit: string | null;
+}
+
+// One Open Food Facts search hit offered to the user as a match for an
+// ImportedItem. Macros are per 100 g; pack_size_g comes from OFF "quantity".
+export interface OffCandidate {
+  code: string | null;
+  name: string;
+  brand: string | null;
+  kcal_100g: number;
+  protein_100g: number;
+  carbs_100g: number;
+  fat_100g: number;
+  pack_size_g: number | null;
 }
 
 // One pack that went into a batch cook.
