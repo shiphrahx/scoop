@@ -96,6 +96,36 @@ export async function setPantryQuantity(id: string, quantity: number) {
   revalidatePath("/pantry");
 }
 
+export interface PantryPatch {
+  name: string;
+  kcal_100g: number;
+  protein_100g: number;
+  carbs_100g: number;
+  fat_100g: number;
+  pack_size_g: number | null;
+}
+
+// Edit an item's name, per-100g macros, and pack size.
+export async function updatePantryItem(id: string, patch: PantryPatch) {
+  const { supabase } = await requireUser();
+  if (!patch.name.trim()) throw new Error("Name can't be empty.");
+
+  const { error } = await supabase
+    .from("pantry_items")
+    .update({
+      name: patch.name.trim(),
+      kcal_100g: Math.max(0, patch.kcal_100g) || 0,
+      protein_100g: Math.max(0, patch.protein_100g) || 0,
+      carbs_100g: Math.max(0, patch.carbs_100g) || 0,
+      fat_100g: Math.max(0, patch.fat_100g) || 0,
+      pack_size_g: patch.pack_size_g,
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/pantry");
+}
+
 export async function deletePantryItem(id: string) {
   const { supabase } = await requireUser();
   const { error } = await supabase.from("pantry_items").delete().eq("id", id);
