@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import GroceryScan from "./GroceryScan";
+import ListImport from "./ListImport";
 import PantryForm from "./PantryForm";
 import PantryList from "./PantryList";
 import { createClient } from "@/lib/supabase/server";
@@ -37,6 +38,7 @@ export default async function PantryPage() {
 
       <PantryList items={items} />
       <PantryForm />
+      <ListImport />
       <GroceryScan connected={connected} />
     </main>
   );
