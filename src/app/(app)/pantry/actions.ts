@@ -144,24 +144,3 @@ export async function scanGroceries(
   return parseGroceryImage(base64, mediaType);
 }
 
-// Add the items the user picked from a scan to their pantry.
-export async function addGroceryItems(items: GroceryItem[]) {
-  const { supabase, user } = await requireUser();
-  if (items.length === 0) return;
-
-  const rows = items.map((it) => ({
-    user_id: user.id,
-    name: it.name,
-    off_barcode: null,
-    quantity: 1,
-    kcal_100g: it.kcal_100g,
-    protein_100g: it.protein_100g,
-    carbs_100g: it.carbs_100g,
-    fat_100g: it.fat_100g,
-  }));
-
-  const { error } = await supabase.from("pantry_items").insert(rows);
-  if (error) throw new Error(error.message);
-
-  revalidatePath("/pantry");
-}
