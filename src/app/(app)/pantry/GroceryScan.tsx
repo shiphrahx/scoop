@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { ReceiptText, Check, Square, KeyRound } from "lucide-react";
 import { readImageFile } from "@/lib/image";
-import type { GroceryItem } from "@/lib/types";
-import { addGroceryItems, scanGroceries } from "./actions";
+import type { GroceryItem, ImportedItem, OffCandidate } from "@/lib/types";
+import { scanGroceries } from "./actions";
+import MatchItems from "./MatchItems";
 
 // Take a photo / pick a screenshot of groceries → AI reads the items → user
 // ticks the ones to keep → they land in the pantry. This is the ONLY pantry
@@ -17,6 +18,12 @@ export default function GroceryScan({ connected }: { connected: boolean }) {
   const [chosen, setChosen] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // Once the user confirms which items to keep, hand them to the shared matcher
+  // to resolve macros from Open Food Facts (the model's estimate is the fallback).
+  const [matching, setMatching] = useState<{
+    items: ImportedItem[];
+    fallbacks: (OffCandidate | null)[];
+  } | null>(null);
 
   async function onPick(file: File) {
     setNote("Reading your groceries…");
@@ -45,17 +52,40 @@ export default function GroceryScan({ connected }: { connected: boolean }) {
     });
   }
 
-  async function addChosen() {
+  function confirmChosen() {
     if (!items) return;
-    setBusy(true);
-    try {
-      await addGroceryItems(items.filter((_, i) => chosen.has(i)));
-      setItems(null);
-      setChosen(new Set());
-      setNote(null);
-    } finally {
-      setBusy(false);
-    }
+    const picked = items.filter((_, i) => chosen.has(i));
+    setMatching({
+      items: picked.map((it) => ({ name: it.name, quantity: 1, unit: null })),
+      // The model's per-100g estimate, used only if OFF finds no match.
+      fallbacks: picked.map((it) => ({
+        code: null,
+        name: it.name,
+        brand: "estimated",
+        kcal_100g: it.kcal_100g,
+        protein_100g: it.protein_100g,
+        carbs_100g: it.carbs_100g,
+        fat_100g: it.fat_100g,
+        pack_size_g: null,
+      })),
+    });
+    setItems(null);
+    setChosen(new Set());
+    setNote(null);
+  }
+
+  if (matching) {
+    return (
+      <MatchItems
+        items={matching.items}
+        fallbacks={matching.fallbacks}
+        onSaved={() => {
+          setMatching(null);
+          setNote("Added to pantry.");
+        }}
+        onCancel={() => setMatching(null)}
+      />
+    );
   }
 
   return (
@@ -140,11 +170,11 @@ export default function GroceryScan({ connected }: { connected: boolean }) {
           </ul>
 
           <button
-            onClick={addChosen}
+            onClick={confirmChosen}
             disabled={busy || chosen.size === 0}
             className="w-full sc-btn sc-btn-primary py-4 text-lg"
           >
-            {busy ? "Adding…" : `Add ${chosen.size} to pantry`}
+            {`Match ${chosen.size} to foods`}
           </button>
         </>
       )}

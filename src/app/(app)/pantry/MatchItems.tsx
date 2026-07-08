@@ -21,10 +21,14 @@ type Row = {
 
 export default function MatchItems({
   items,
+  fallbacks,
   onSaved,
   onCancel,
 }: {
   items: ImportedItem[];
+  // Optional per-item macro estimate (aligned by index) used when Open Food
+  // Facts has no match — e.g. the vision model's guess from a screenshot (#5).
+  fallbacks?: (OffCandidate | null)[];
   onSaved: () => void;
   onCancel: () => void;
 }) {
@@ -45,18 +49,24 @@ export default function MatchItems({
     Promise.all(items.map((it) => matchCandidates(it.name))).then((all) => {
       if (!live) return;
       setRows((prev) =>
-        prev.map((r, i) => ({
-          ...r,
-          loading: false,
-          candidates: all[i],
-          chosen: all[i][0] ?? null,
-        })),
+        prev.map((r, i) => {
+          // Offer OFF hits plus the estimate (if any) as a selectable option.
+          const fb = fallbacks?.[i] ?? null;
+          const candidates = fb ? [...all[i], fb] : all[i];
+          return {
+            ...r,
+            loading: false,
+            candidates,
+            // Prefer a real OFF match; otherwise fall back to the estimate.
+            chosen: all[i][0] ?? fb,
+          };
+        }),
       );
     });
     return () => {
       live = false;
     };
-  }, [items]);
+  }, [items, fallbacks]);
 
   const patch = (i: number, next: Partial<Row>) =>
     setRows((prev) => prev.map((r, j) => (j === i ? { ...r, ...next } : r)));
