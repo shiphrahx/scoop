@@ -21,6 +21,14 @@ hard-code palette values in components.
 - `--g-blue` `#3b82f6`
 - `--accent` `#8b5cf6` — violet, sparingly (e.g. exercise-burn bars)
 
+**Tints, fills, accent inks** (derived from the palette; use instead of inline rgba/hex)
+- `--tint-teal` — selection / badge background
+- `--tint-green` — positive / saved background
+- `--fill-soft` — subtle surface fill (rows, panels)
+- `--fill` — control fill (steppers, progress tracks)
+- `--ink-teal` — dark teal accent text
+- `--ink-green` — positive accent text
+
 **Named gradients**
 - `--grad-primary` green→teal — primary buttons, hero fills
 - `--grad-cool` teal→blue — accent text/numbers
