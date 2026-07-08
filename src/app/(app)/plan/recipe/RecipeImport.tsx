@@ -155,7 +155,7 @@ export default function RecipeImport({
       )}
 
       {recipe && perServing && (
-        <div className="flex flex-col gap-3 rounded-2xl bg-[rgba(15,23,42,0.04)] p-4">
+        <div className="flex flex-col gap-3 rounded-2xl bg-[var(--fill-soft)] p-4">
           <p className="text-lg font-semibold">{recipe.name}</p>
           <p className="text-xs text-[var(--muted)]">
             Makes {recipe.servings} · per serving{" "}
@@ -183,7 +183,7 @@ export default function RecipeImport({
               <button
                 onClick={() => setServings((s) => Math.max(1, s - 1))}
                 aria-label="One fewer"
-                className="grid h-9 w-9 place-items-center rounded-full bg-[rgba(15,23,42,0.06)] active:scale-90"
+                className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] active:scale-90"
               >
                 <Minus size={18} />
               </button>
@@ -193,7 +193,7 @@ export default function RecipeImport({
               <button
                 onClick={() => setServings((s) => s + 1)}
                 aria-label="One more"
-                className="grid h-9 w-9 place-items-center rounded-full bg-[rgba(15,23,42,0.06)] active:scale-90"
+                className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] active:scale-90"
               >
                 <Plus size={18} />
               </button>

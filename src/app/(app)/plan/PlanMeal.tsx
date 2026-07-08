@@ -84,7 +84,7 @@ export default function PlanMeal({ pantry }: { pantry: string[] }) {
               <p className="text-sm text-[var(--muted)]">{m.why}</p>
 
               {m.portions.length > 0 && (
-                <ul className="flex flex-col gap-1 rounded-2xl bg-[rgba(15,23,42,0.03)] p-3 text-sm">
+                <ul className="flex flex-col gap-1 rounded-2xl bg-[var(--fill-soft)] p-3 text-sm">
                   {m.portions.map((p, pi) => (
                     <li key={pi} className="flex justify-between gap-3">
                       <span className="min-w-0 truncate">{p.name}</span>
@@ -148,12 +148,12 @@ function TilePicker({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2 text-sm font-semibold text-[var(--muted)]">
-        <span className="grid h-5 w-5 place-items-center rounded-full bg-[rgba(20,184,166,0.14)] text-xs text-[#0f766e]">
+        <span className="grid h-5 w-5 place-items-center rounded-full bg-[var(--tint-teal)] text-xs text-[var(--ink-teal)]">
           {step}
         </span>
         {label}
         {selected && (
-          <span className="ml-auto inline-flex items-center gap-1 text-[#0f766e]">
+          <span className="ml-auto inline-flex items-center gap-1 text-[var(--ink-teal)]">
             {selected} <ArrowRight size={14} />
           </span>
         )}

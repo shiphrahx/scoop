@@ -26,7 +26,7 @@ export default async function PlanPage() {
         >
           <span
             className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl"
-            style={{ background: "rgba(20,184,166,0.12)", color: "#0f766e" }}
+            style={{ background: "var(--tint-teal)", color: "var(--ink-teal)" }}
           >
             <KeyRound size={20} />
           </span>
@@ -41,7 +41,7 @@ export default async function PlanPage() {
         <span className="flex items-center gap-3">
           <span
             className="grid h-10 w-10 place-items-center rounded-2xl"
-            style={{ background: "rgba(20,184,166,0.12)", color: "#0f766e" }}
+            style={{ background: "var(--tint-teal)", color: "var(--ink-teal)" }}
           >
             <BookOpen size={20} />
           </span>
