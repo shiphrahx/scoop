@@ -22,6 +22,7 @@ export interface PantryInput {
   protein_100g: number;
   carbs_100g: number;
   fat_100g: number;
+  pack_size_g?: number | null;
 }
 
 export async function addPantryItem(input: PantryInput) {
@@ -36,10 +37,45 @@ export async function addPantryItem(input: PantryInput) {
     protein_100g: input.protein_100g,
     carbs_100g: input.carbs_100g,
     fat_100g: input.fat_100g,
+    pack_size_g: input.pack_size_g ?? null,
   });
   if (error) throw new Error(error.message);
 
   revalidatePath("/pantry");
+}
+
+// Save a batch of items the user confirmed in the import matcher (#6). Each row
+// carries the macros + pack size of the chosen Open Food Facts match (or zeros
+// when the user kept it unmatched), plus how many packs they have.
+export async function addMatchedItems(items: PantryInput[]) {
+  const { supabase, user } = await requireUser();
+  const rows = items
+    .filter((it) => it.name.trim())
+    .map((it) => ({
+      user_id: user.id,
+      name: it.name.trim(),
+      off_barcode: it.off_barcode,
+      quantity: Math.max(1, Math.round(it.quantity || 1)),
+      kcal_100g: it.kcal_100g,
+      protein_100g: it.protein_100g,
+      carbs_100g: it.carbs_100g,
+      fat_100g: it.fat_100g,
+      pack_size_g: it.pack_size_g ?? null,
+    }));
+  if (rows.length === 0) return;
+
+  const { error } = await supabase.from("pantry_items").insert(rows);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/pantry");
+}
+
+// Look up Open Food Facts candidates for an imported item name (server action
+// wrapper so import UIs don't call the route directly).
+export async function matchCandidates(name: string) {
+  await requireUser();
+  const { searchProducts } = await import("@/lib/off");
+  return searchProducts(name);
 }
 
 // Bump quantity up or down. Hitting zero removes the item from the pantry.

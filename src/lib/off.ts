@@ -61,9 +61,30 @@ function toCandidate(p: {
   };
 }
 
+function tokens(s: string): string[] {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+// Rank candidates by how much their name overlaps the search term. Simple
+// token-overlap score; ties keep OFF's popularity order.
+function rankByName(term: string, candidates: OffCandidate[]): OffCandidate[] {
+  const want = new Set(tokens(term));
+  return candidates
+    .map((c, i) => {
+      const hits = tokens(c.name).filter((t) => want.has(t)).length;
+      return { c, score: hits / Math.max(1, want.size), i };
+    })
+    .sort((a, b) => b.score - a.score || a.i - b.i)
+    .map((r) => r.c);
+}
+
 // Search OFF by free text (an imported item name) and return up to `limit`
-// candidate products for the user to confirm. Empty array on any failure —
-// callers keep the item unmatched rather than blocking the batch.
+// candidate products, best match first, for the user to confirm. Empty array on
+// any failure — callers keep the item unmatched rather than blocking the batch.
 export async function searchProducts(
   term: string,
   limit = 5,
@@ -90,10 +111,11 @@ export async function searchProducts(
   const body = (await res.json()) as {
     products?: Array<Parameters<typeof toCandidate>[0]>;
   };
-  return (body.products ?? [])
+  const candidates = (body.products ?? [])
     .map(toCandidate)
     // Drop hits with no usable name.
     .filter((c) => c.name && c.name !== "Unknown item");
+  return rankByName(q, candidates);
 }
 
 // Look up a barcode. Returns null when the product is unknown to OFF.
