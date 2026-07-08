@@ -68,7 +68,7 @@ export default async function MePage({
       {note && (
         <p
           className="rounded-2xl px-4 py-3 text-center text-sm font-semibold"
-          style={{ background: "rgba(20,184,166,0.12)", color: "#0f766e" }}
+          style={{ background: "var(--tint-teal)", color: "var(--ink-teal)" }}
         >
           {note}
         </p>

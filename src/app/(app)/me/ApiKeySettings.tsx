@@ -30,7 +30,7 @@ export default function ApiKeySettings({ connected }: { connected: boolean }) {
         <div className="flex items-center gap-2.5">
           <span
             className="grid h-9 w-9 place-items-center rounded-xl"
-            style={{ background: "rgba(20,184,166,0.12)", color: "#0f766e" }}
+            style={{ background: "var(--tint-teal)", color: "var(--ink-teal)" }}
           >
             <KeyRound size={18} />
           </span>
@@ -40,8 +40,8 @@ export default function ApiKeySettings({ connected }: { connected: boolean }) {
           className="rounded-full px-3 py-1 text-xs font-semibold"
           style={
             connected
-              ? { background: "rgba(34,197,94,0.15)", color: "#15803d" }
-              : { background: "rgba(15,23,42,0.06)", color: "var(--muted)" }
+              ? { background: "var(--tint-green)", color: "var(--ink-green)" }
+              : { background: "var(--fill)", color: "var(--muted)" }
           }
         >
           {connected ? "Connected" : "Not connected"}
@@ -85,7 +85,7 @@ export default function ApiKeySettings({ connected }: { connected: boolean }) {
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center justify-center gap-1.5 text-center text-sm font-semibold"
-            style={{ color: "#0f766e" }}
+            style={{ color: "var(--ink-teal)" }}
           >
             Get a key <ExternalLink size={14} />
           </a>

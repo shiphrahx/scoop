@@ -117,15 +117,15 @@ function Row<T extends string>({
               className={`flex items-center gap-3 rounded-2xl border px-4 py-3 text-left font-semibold transition active:scale-[0.98] ${
                 active ? "border-transparent" : "border-[var(--border)] bg-white/40"
               }`}
-              style={active ? { background: "rgba(20,184,166,0.14)" } : undefined}
+              style={active ? { background: "var(--tint-teal)" } : undefined}
             >
               <span
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
-                style={
-                  active
-                    ? { background: "var(--grad-primary)", color: "#fff" }
-                    : { background: "rgba(15,23,42,0.05)", color: "#0f766e" }
-                }
+                className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
+                  active ? "text-white" : "text-[var(--ink-teal)]"
+                }`}
+                style={{
+                  background: active ? "var(--grad-primary)" : "var(--fill)",
+                }}
               >
                 <Icon size={20} />
               </span>
