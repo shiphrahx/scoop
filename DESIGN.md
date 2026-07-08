@@ -32,6 +32,8 @@ hard-code palette values in components.
 **Named gradients**
 - `--grad-primary` green→teal — primary buttons, hero fills
 - `--grad-cool` teal→blue — accent text/numbers
+- `--grad-warm` orange→amber — calories stat tile
+- `--grad-indigo` indigo→violet — sleep stat tile
 - `--grad-progress` conic — the progress ring motif
 
 **Glass** — `--glass-bg`, `--glass-bg-solid`, `--glass-border`, `--glass-blur`

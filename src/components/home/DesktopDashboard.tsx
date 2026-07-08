@@ -118,7 +118,7 @@ export default function DesktopDashboard({
           label="Calories left"
           value={targets ? `${kcalLeft}` : "—"}
           sub={targets ? `of ${Math.round(targets.kcal)} kcal` : "Set a target"}
-          tint="linear-gradient(135deg,#f97316,#f59e0b)"
+          tint="var(--grad-warm)"
         />
         <StatCard
           icon={Beef}
@@ -132,7 +132,7 @@ export default function DesktopDashboard({
           label="Sleep"
           value={avgSleep != null ? `${avgSleep.toFixed(1)} h` : "—"}
           sub={avgSleep != null ? "nightly average" : "Connect a device"}
-          tint="linear-gradient(135deg,#6366f1,var(--accent))"
+          tint="var(--grad-indigo)"
         />
       </section>
 

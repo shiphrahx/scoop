@@ -35,6 +35,8 @@
   /* Named gradients */
   --grad-primary: linear-gradient(135deg, #22c55e 0%, #14b8a6 100%);
   --grad-cool: linear-gradient(135deg, #14b8a6 0%, #3b82f6 100%);
+  --grad-warm: linear-gradient(135deg, #f97316 0%, #f59e0b 100%); /* calories stat */
+  --grad-indigo: linear-gradient(135deg, #6366f1 0%, var(--accent) 100%); /* sleep stat */
   --grad-progress: conic-gradient(
     from 220deg,
     #22c55e 0deg,
