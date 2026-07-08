@@ -3,7 +3,7 @@ export default function MacroBar({
   label,
   consumed,
   target,
-  gradient = "linear-gradient(90deg, #22c55e, #14b8a6)",
+  gradient = "linear-gradient(90deg, var(--g-green), var(--g-teal))",
 }: {
   label: string;
   consumed: number;

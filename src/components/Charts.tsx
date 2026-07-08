@@ -51,12 +51,12 @@ export function AreaTrend({
       <svg viewBox={`0 0 ${VBW} ${height}`} className="w-full" preserveAspectRatio="none">
         <defs>
           <linearGradient id={`${id}-fill`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#14b8a6" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.02" />
+            <stop offset="0%" stopColor="var(--g-teal)" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="var(--g-blue)" stopOpacity="0.02" />
           </linearGradient>
           <linearGradient id={`${id}-stroke`} x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#22c55e" />
-            <stop offset="100%" stopColor="#3b82f6" />
+            <stop offset="0%" stopColor="var(--g-green)" />
+            <stop offset="100%" stopColor="var(--g-blue)" />
           </linearGradient>
         </defs>
         <path d={area} fill={`url(#${id}-fill)`} />
@@ -69,7 +69,7 @@ export function AreaTrend({
           strokeLinejoin="round"
           vectorEffect="non-scaling-stroke"
         />
-        <circle cx={x(points.length - 1)} cy={y(last.value)} r="3.5" fill="#3b82f6" />
+        <circle cx={x(points.length - 1)} cy={y(last.value)} r="3.5" fill="var(--g-blue)" />
       </svg>
       <div className="mt-1 flex justify-between text-xs text-[var(--muted)]">
         <span>{points[0].label}</span>
@@ -112,12 +112,12 @@ export function WeightVsExercise({
       <svg viewBox={`0 0 ${VBW} ${height}`} className="w-full" preserveAspectRatio="none">
         <defs>
           <linearGradient id={`${id}-bar`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.75" />
-            <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.15" />
+            <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.75" />
+            <stop offset="100%" stopColor="var(--accent)" stopOpacity="0.15" />
           </linearGradient>
           <linearGradient id={`${id}-line`} x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#22c55e" />
-            <stop offset="100%" stopColor="#14b8a6" />
+            <stop offset="0%" stopColor="var(--g-green)" />
+            <stop offset="100%" stopColor="var(--g-teal)" />
           </linearGradient>
         </defs>
         {burn.map((p, i) => {
@@ -147,8 +147,8 @@ export function WeightVsExercise({
         )}
       </svg>
       <div className="mt-2 flex gap-4 text-xs text-[var(--muted)]">
-        <Legend color="#14b8a6">Weight</Legend>
-        <Legend color="#8b5cf6">Exercise burn</Legend>
+        <Legend color="var(--g-teal)">Weight</Legend>
+        <Legend color="var(--accent)">Exercise burn</Legend>
       </div>
     </div>
   );
@@ -175,8 +175,8 @@ export function SleepBars({
       <svg viewBox={`0 0 ${VBW} ${height}`} className="w-full" preserveAspectRatio="none">
         <defs>
           <linearGradient id={`${id}-sleep`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.85" />
-            <stop offset="100%" stopColor="#14b8a6" stopOpacity="0.3" />
+            <stop offset="0%" stopColor="var(--g-blue)" stopOpacity="0.85" />
+            <stop offset="100%" stopColor="var(--g-teal)" stopOpacity="0.3" />
           </linearGradient>
         </defs>
         {points.map((p, i) => {

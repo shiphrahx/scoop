@@ -63,19 +63,19 @@ export default function MobileHome({
               label="Protein"
               consumed={consumed.protein_g}
               target={targets.protein_g}
-              gradient="linear-gradient(90deg, #22c55e, #14b8a6)"
+              gradient="linear-gradient(90deg, var(--g-green), var(--g-teal))"
             />
             <MacroBar
               label="Carbs"
               consumed={consumed.carbs_g}
               target={targets.carbs_g}
-              gradient="linear-gradient(90deg, #14b8a6, #3b82f6)"
+              gradient="linear-gradient(90deg, var(--g-teal), var(--g-blue))"
             />
             <MacroBar
               label="Fat"
               consumed={consumed.fat_g}
               target={targets.fat_g}
-              gradient="linear-gradient(90deg, #3b82f6, #8b5cf6)"
+              gradient="linear-gradient(90deg, var(--g-blue), var(--accent))"
             />
           </section>
         </>
