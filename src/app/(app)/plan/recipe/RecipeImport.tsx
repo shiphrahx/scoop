@@ -12,8 +12,16 @@ import {
 } from "./actions";
 
 // Import a recipe from a link or a screenshot, then see it scaled: per-serving
-// macros and how many servings fit the calories you have left today.
-export default function RecipeImport({ remainingKcal }: { remainingKcal: number }) {
+// macros and how many servings fit the calories you have left today. The link
+// path is keyless (reads the page's structured data); only the screenshot
+// backup needs the user's own key.
+export default function RecipeImport({
+  remainingKcal,
+  connected,
+}: {
+  remainingKcal: number;
+  connected: boolean;
+}) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [url, setUrl] = useState("");
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
@@ -127,11 +135,18 @@ export default function RecipeImport({ remainingKcal }: { remainingKcal: number 
       />
       <button
         onClick={() => fileRef.current?.click()}
-        disabled={busy}
+        disabled={busy || !connected}
         className="sc-btn sc-btn-soft"
       >
         <Camera size={20} /> Screenshot instead
       </button>
+
+      {!connected && (
+        <p className="text-center text-xs text-[var(--muted)]">
+          Paste a link works without a key. Connect your key in Settings for
+          screenshot import.
+        </p>
+      )}
 
       {note && (
         <p className="text-center text-sm font-medium text-[var(--muted)]">

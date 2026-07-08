@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { extractRecipeJsonLd } from "@/lib/recipe";
 import type {
   DietType,
   GroceryItem,
@@ -164,19 +165,33 @@ function htmlToText(html: string): string {
 }
 
 export async function parseRecipeFromUrl(url: string): Promise<ParsedRecipe> {
-  const client = await getClient();
-
-  let text: string;
+  let html: string;
   try {
     const page = await fetch(url, {
       headers: { "User-Agent": "Scoop/0.1 recipe importer" },
     });
     if (!page.ok) throw new Error();
-    text = htmlToText(await page.text());
+    html = await page.text();
   } catch {
     throw new Error("Couldn't fetch that page. Check the link.");
   }
 
+  // Primary path: read the page's schema.org/Recipe JSON-LD. Deterministic and
+  // keyless. Use it straight away when it carries nutrition.
+  const structured = extractRecipeJsonLd(html);
+  if (structured && structured.kcal > 0) return structured;
+
+  // Otherwise have the model read the page text — but if the user has no key,
+  // fall back to the (macro-less) structured recipe rather than failing.
+  let client: Anthropic;
+  try {
+    client = await getClient();
+  } catch (e) {
+    if (structured) return structured;
+    throw e;
+  }
+
+  const text = htmlToText(html);
   const res = await client.messages.parse({
     model: MODEL,
     max_tokens: 4096,
