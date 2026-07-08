@@ -33,7 +33,7 @@ export default function MacroBar({
           )}
         </span>
       </div>
-      <div className="h-3 overflow-hidden rounded-full bg-[rgba(15,23,42,0.06)]">
+      <div className="h-3 overflow-hidden rounded-full bg-[var(--fill)]">
         <div
           className="h-full rounded-full transition-[width] duration-500 ease-out"
           style={{ width: `${pct}%`, background: gradient }}

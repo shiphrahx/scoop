@@ -9,7 +9,7 @@ export default function ProgressRing({
   size = 220,
   stroke = 18,
   children,
-  track = "rgba(15,23,42,0.06)",
+  track = "var(--fill)",
 }: {
   value: number;
   max: number;

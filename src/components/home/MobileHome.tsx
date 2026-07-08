@@ -115,7 +115,7 @@ export default function MobileHome({
           >
             <span
               className="grid h-11 w-11 place-items-center rounded-2xl"
-              style={{ background: "rgba(20,184,166,0.12)", color: "#0f766e" }}
+              style={{ background: "var(--tint-teal)", color: "var(--ink-teal)" }}
             >
               <Icon size={22} />
             </span>

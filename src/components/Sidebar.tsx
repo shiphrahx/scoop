@@ -38,7 +38,7 @@ export default function Sidebar() {
                   <Icon
                     size={20}
                     strokeWidth={active ? 2.5 : 2}
-                    color={active ? "#0f766e" : "currentColor"}
+                    color={active ? "var(--ink-teal)" : "currentColor"}
                   />
                   {item.label}
                 </Link>

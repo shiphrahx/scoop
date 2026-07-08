@@ -132,7 +132,7 @@ export default function OnboardingFlow() {
           >
             <ChevronLeft size={26} />
           </button>
-          <div className="h-3 flex-1 overflow-hidden rounded-full bg-[rgba(15,23,42,0.08)]">
+          <div className="h-3 flex-1 overflow-hidden rounded-full bg-[var(--border)]">
             <div
               className="h-full rounded-full transition-all duration-500 ease-out"
               style={{
@@ -353,7 +353,7 @@ function Welcome({ onStart }: { onStart: () => void }) {
               <li key={p.text} className="sc-card flex items-center gap-3 p-4">
                 <span
                   className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
-                  style={{ background: "rgba(20,184,166,0.12)", color: "#0f766e" }}
+                  style={{ background: "var(--tint-teal)", color: "var(--ink-teal)" }}
                 >
                   <Icon size={20} />
                 </span>
@@ -400,15 +400,15 @@ function Choice({
               className={`flex items-center gap-4 rounded-2xl border px-5 py-4 text-left transition active:scale-95 ${
                 active ? "border-transparent" : "border-[var(--border)] bg-white/40"
               }`}
-              style={active ? { background: "rgba(20,184,166,0.14)" } : undefined}
+              style={active ? { background: "var(--tint-teal)" } : undefined}
             >
               <span
-                className="grid h-12 w-12 shrink-0 place-items-center rounded-xl"
-                style={
-                  active
-                    ? { background: "var(--grad-primary)", color: "#fff" }
-                    : { background: "rgba(15,23,42,0.05)", color: "#0f766e" }
-                }
+                className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl ${
+                  active ? "text-white" : "text-[var(--ink-teal)]"
+                }`}
+                style={{
+                  background: active ? "var(--grad-primary)" : "var(--fill)",
+                }}
               >
                 <Icon size={22} />
               </span>
@@ -560,7 +560,7 @@ function Stepper({
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-8 w-full accent-[#14b8a6]"
+        className="mt-8 w-full accent-[var(--g-teal)]"
       />
       <div className="mt-auto pt-8">
         <NextButton onClick={onNext} label={nextLabel} disabled={nextDisabled} />
@@ -633,7 +633,7 @@ function MeasureStepper({
       <h1 className="mb-6 text-2xl font-semibold">{title}</h1>
 
       {/* unit toggle */}
-      <div className="mx-auto mb-8 flex rounded-full bg-[rgba(15,23,42,0.05)] p-1">
+      <div className="mx-auto mb-8 flex rounded-full bg-[var(--fill)] p-1">
         <UnitTab on={!imperial} label={metricLabel} onClick={() => setImperial(false)} />
         <UnitTab on={imperial} label={imperialLabel} onClick={() => setImperial(true)} />
       </div>
@@ -652,7 +652,7 @@ function MeasureStepper({
         step={0.1}
         value={valueMetric}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-8 w-full accent-[#14b8a6]"
+        className="mt-8 w-full accent-[var(--g-teal)]"
       />
 
       <div className="mt-auto pt-8">
@@ -674,11 +674,11 @@ function UnitTab({
   return (
     <button
       onClick={onClick}
-      className="rounded-full px-5 py-1.5 text-sm font-semibold transition"
+      className={`rounded-full px-5 py-1.5 text-sm font-semibold transition ${
+        on ? "text-white" : ""
+      }`}
       style={
-        on
-          ? { background: "var(--grad-primary)", color: "#fff" }
-          : { color: "var(--muted)" }
+        on ? { background: "var(--grad-primary)" } : { color: "var(--muted)" }
       }
     >
       {label}
@@ -701,7 +701,7 @@ function StepperRow({
     <div className="flex items-center justify-center gap-6">
       <button
         onClick={onMinus}
-        className="grid h-14 w-14 place-items-center rounded-full bg-[rgba(15,23,42,0.05)] active:scale-90"
+        className="grid h-14 w-14 place-items-center rounded-full bg-[var(--fill)] active:scale-90"
         aria-label="Decrease"
       >
         <Minus size={24} />
@@ -712,7 +712,7 @@ function StepperRow({
       </div>
       <button
         onClick={onPlus}
-        className="grid h-14 w-14 place-items-center rounded-full bg-[rgba(15,23,42,0.05)] active:scale-90"
+        className="grid h-14 w-14 place-items-center rounded-full bg-[var(--fill)] active:scale-90"
         aria-label="Increase"
       >
         <Plus size={24} />

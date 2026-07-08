@@ -9,7 +9,7 @@ export default function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="sticky bottom-0 z-10 border-t border-[var(--border)] bg-[rgba(255,255,255,0.92)] backdrop-blur-xl lg:hidden">
+    <nav className="sticky bottom-0 z-10 border-t border-[var(--border)] bg-white/90 backdrop-blur-xl lg:hidden">
       <ul className="mx-auto flex max-w-md items-end justify-around px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
         {bottomNav.map((item) => {
           const active = pathname === item.href;
@@ -34,7 +34,7 @@ export default function BottomNav() {
               <Link
                 href={item.href}
                 className="flex w-16 flex-col items-center gap-1 rounded-2xl py-1.5 text-xs font-medium transition"
-                style={{ color: active ? "#0f766e" : "#475569" }}
+                style={{ color: active ? "var(--ink-teal)" : "var(--muted)" }}
               >
                 <Icon size={24} strokeWidth={active ? 2.5 : 2} />
                 {item.label}
