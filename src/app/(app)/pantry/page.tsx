@@ -16,7 +16,7 @@ export default async function PantryPage() {
     supabase
       .from("pantry_items")
       .select(
-        "id, name, off_barcode, quantity, kcal_100g, protein_100g, carbs_100g, fat_100g",
+        "id, name, off_barcode, quantity, kcal_100g, protein_100g, carbs_100g, fat_100g, pack_size_g",
       )
       .order("created_at", { ascending: false }),
     hasApiKey(),

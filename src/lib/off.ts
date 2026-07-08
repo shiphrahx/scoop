@@ -124,7 +124,7 @@ export async function lookupBarcode(
 ): Promise<OffProduct | null> {
   const url =
     `${OFF_BASE}/${encodeURIComponent(barcode)}.json` +
-    `?fields=product_name,brands,nutriments`;
+    `?fields=product_name,brands,quantity,nutriments`;
 
   const res = await fetch(url, {
     headers: { "User-Agent": USER_AGENT },
@@ -138,6 +138,7 @@ export async function lookupBarcode(
     product?: {
       product_name?: string;
       brands?: string;
+      quantity?: string;
       nutriments?: Record<string, unknown>;
     };
   };
@@ -159,5 +160,6 @@ export async function lookupBarcode(
     protein_100g: num(n["proteins_100g"]),
     carbs_100g: num(n["carbohydrates_100g"]),
     fat_100g: num(n["fat_100g"]),
+    pack_size_g: parsePackSizeG(p.quantity),
   };
 }

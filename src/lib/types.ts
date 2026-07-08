@@ -109,6 +109,7 @@ export interface OffProduct {
   protein_100g: number;
   carbs_100g: number;
   fat_100g: number;
+  pack_size_g: number | null;
 }
 
 // One line of a parsed recipe.

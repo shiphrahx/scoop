@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ScanBarcode } from "lucide-react";
+import { ScanBarcode, Minus, Plus } from "lucide-react";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import type { OffProduct } from "@/lib/types";
 import { addPantryItem } from "./actions";
@@ -19,6 +19,8 @@ const empty = {
 export default function PantryForm() {
   const [form, setForm] = useState(empty);
   const [barcode, setBarcode] = useState<string | null>(null);
+  const [packSize, setPackSize] = useState<number | null>(null);
+  const [quantity, setQuantity] = useState(1);
   const [scanning, setScanning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -38,6 +40,7 @@ export default function PantryForm() {
       }
       const p = (await res.json()) as OffProduct;
       setBarcode(p.barcode);
+      setPackSize(p.pack_size_g);
       setForm({
         name: p.name,
         kcal_100g: String(p.kcal_100g),
@@ -45,7 +48,9 @@ export default function PantryForm() {
         carbs_100g: String(p.carbs_100g),
         fat_100g: String(p.fat_100g),
       });
-      setNote(`Found: ${p.name}`);
+      setNote(
+        p.pack_size_g ? `Found: ${p.name} (${p.pack_size_g} g)` : `Found: ${p.name}`,
+      );
     } catch {
       setNote("Lookup failed. Enter it by hand.");
     }
@@ -58,14 +63,17 @@ export default function PantryForm() {
       await addPantryItem({
         name: form.name.trim(),
         off_barcode: barcode,
-        quantity: 1,
+        quantity,
         kcal_100g: Number(form.kcal_100g) || 0,
         protein_100g: Number(form.protein_100g) || 0,
         carbs_100g: Number(form.carbs_100g) || 0,
         fat_100g: Number(form.fat_100g) || 0,
+        pack_size_g: packSize,
       });
       setForm(empty);
       setBarcode(null);
+      setPackSize(null);
+      setQuantity(1);
       setNote(null);
     } finally {
       setSaving(false);
@@ -123,10 +131,33 @@ export default function PantryForm() {
         />
       </div>
 
+      <div className="mt-1 flex items-center justify-between">
+        <span className="text-sm font-semibold">How many packs</span>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+            aria-label="One fewer"
+            className="grid h-9 w-9 place-items-center rounded-full bg-[rgba(15,23,42,0.06)] active:scale-90"
+          >
+            <Minus size={18} />
+          </button>
+          <span className="w-6 text-center font-semibold tabular-nums">
+            {quantity}
+          </span>
+          <button
+            onClick={() => setQuantity((q) => q + 1)}
+            aria-label="One more"
+            className="grid h-9 w-9 place-items-center rounded-full bg-[rgba(15,23,42,0.06)] active:scale-90"
+          >
+            <Plus size={18} />
+          </button>
+        </div>
+      </div>
+
       <button
         onClick={add}
         disabled={saving || !form.name.trim()}
-        className="mt-1 w-full sc-btn sc-btn-primary py-4 text-lg"
+        className="w-full sc-btn sc-btn-primary py-4 text-lg"
       >
         {saving ? "Adding…" : "Add item"}
       </button>
