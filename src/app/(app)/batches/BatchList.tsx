@@ -55,7 +55,7 @@ function BatchCard({ batch }: { batch: Batch }) {
       </div>
 
       {/* Remaining bar */}
-      <div className="h-2.5 w-full overflow-hidden rounded-full bg-[rgba(15,23,42,0.06)]">
+      <div className="h-2.5 w-full overflow-hidden rounded-full bg-[var(--fill)]">
         <div
           className="h-full rounded-full"
           style={{ width: `${pct}%`, background: "var(--grad-primary)" }}

@@ -184,7 +184,7 @@ export function AppleIngest({ initialToken }: { initialToken: string | null }) {
         <li>Format JSON, aggregate daily, run once a day.</li>
         <li>Paste the URL below as the endpoint.</li>
       </ol>
-      <code className="block break-all rounded-2xl bg-[rgba(15,23,42,0.05)] p-3 text-xs">
+      <code className="block break-all rounded-2xl bg-[var(--fill)] p-3 text-xs">
         {url}
       </code>
       <div className="flex gap-2">

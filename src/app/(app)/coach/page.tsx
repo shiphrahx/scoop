@@ -20,7 +20,7 @@ export default async function CoachPage() {
         <p className="text-[var(--muted)]">{review.detail}</p>
 
         {current && (
-          <div className="flex items-end justify-between rounded-2xl bg-[rgba(15,23,42,0.04)] p-4">
+          <div className="flex items-end justify-between rounded-2xl bg-[var(--fill-soft)] p-4">
             <div>
               <p className="text-xs text-[var(--muted)]">Now</p>
               <p className="text-2xl font-bold tabular-nums">
@@ -35,7 +35,7 @@ export default async function CoachPage() {
                   <p className="text-xs text-[var(--muted)]">Next week</p>
                   <p
                     className="text-2xl font-bold tabular-nums"
-                    style={{ color: "#15803d" }}
+                    style={{ color: "var(--ink-green)" }}
                   >
                     {review.macros.kcal}
                     <span className="text-sm font-medium"> kcal</span>
@@ -98,7 +98,7 @@ export default async function CoachPage() {
       >
         <span
           className="grid h-10 w-10 place-items-center rounded-2xl"
-          style={{ background: "rgba(20,184,166,0.12)", color: "#0f766e" }}
+          style={{ background: "var(--tint-teal)", color: "var(--ink-teal)" }}
         >
           <Settings size={20} />
         </span>

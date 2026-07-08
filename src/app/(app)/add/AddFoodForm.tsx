@@ -171,7 +171,7 @@ export default function AddFoodForm() {
         onClick={saveUsual}
         disabled={saving || !form.name.trim()}
         className="sc-btn w-full py-3 text-sm font-semibold text-[var(--g-teal)] active:scale-95 disabled:opacity-40"
-        style={{ color: "#0f766e" }}
+        style={{ color: "var(--ink-teal)" }}
       >
         <Star size={16} /> Save as usual
       </button>

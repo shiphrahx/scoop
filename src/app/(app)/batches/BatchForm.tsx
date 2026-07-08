@@ -133,7 +133,7 @@ export default function BatchForm() {
           {packs.map((p, i) => (
             <li
               key={i}
-              className="flex items-center justify-between gap-3 rounded-2xl bg-[rgba(15,23,42,0.04)] px-4 py-2"
+              className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--fill-soft)] px-4 py-2"
             >
               <span className="min-w-0 truncate font-semibold">{p.name}</span>
               <span className="shrink-0 text-xs text-[var(--muted)]">

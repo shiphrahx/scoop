@@ -22,7 +22,7 @@ export default function Favourites({ items }: { items: Favourite[] }) {
         <button
           onClick={() => setEditing((e) => !e)}
           className="text-sm font-semibold"
-          style={{ color: "#0f766e" }}
+          style={{ color: "var(--ink-teal)" }}
         >
           {editing ? "Done" : "Edit"}
         </button>

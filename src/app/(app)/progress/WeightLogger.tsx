@@ -29,7 +29,7 @@ export default function WeightLogger({ last }: { last: number | null }) {
       <div className="flex items-center justify-center gap-6">
         <button
           onClick={() => nudge(-0.1)}
-          className="grid h-12 w-12 place-items-center rounded-full bg-[rgba(15,23,42,0.05)] active:scale-90"
+          className="grid h-12 w-12 place-items-center rounded-full bg-[var(--fill)] active:scale-90"
           aria-label="Decrease"
         >
           <Minus size={22} />
@@ -42,7 +42,7 @@ export default function WeightLogger({ last }: { last: number | null }) {
         </div>
         <button
           onClick={() => nudge(0.1)}
-          className="grid h-12 w-12 place-items-center rounded-full bg-[rgba(15,23,42,0.05)] active:scale-90"
+          className="grid h-12 w-12 place-items-center rounded-full bg-[var(--fill)] active:scale-90"
           aria-label="Increase"
         >
           <Plus size={22} />
