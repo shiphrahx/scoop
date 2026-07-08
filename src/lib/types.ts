@@ -148,11 +148,19 @@ export interface Activity {
   source: ActivitySource;
 }
 
+// One ingredient in a suggested dish, with the exact amount to use.
+export interface MealPortion {
+  name: string;
+  grams: number;
+}
+
 // One dish the AI suggests from the pantry that fits the user's diet and
-// remaining macros for the day.
+// remaining macros for the day, with exact portions and possible swaps.
 export interface MealSuggestion {
   name: string;
   uses: string[]; // pantry item names it draws on
+  portions: MealPortion[]; // exact grams per ingredient to hit the macros
+  swaps: string[]; // optional ingredient swaps ("brown rice → quinoa")
   why: string; // one plain-language line
   kcal: number;
   protein_g: number;

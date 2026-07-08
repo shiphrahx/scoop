@@ -7,19 +7,18 @@ import { hasApiKey } from "@/lib/queries";
 export default async function PlanPage() {
   const supabase = await createClient();
 
-  const [connected, { count }] = await Promise.all([
+  const [connected, { data: pantryRows }] = await Promise.all([
     hasApiKey(),
-    supabase
-      .from("pantry_items")
-      .select("id", { count: "exact", head: true }),
+    supabase.from("pantry_items").select("name").order("name"),
   ]);
+  const pantry = ((pantryRows as { name: string }[]) ?? []).map((r) => r.name);
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-5 pt-8 pb-6 lg:px-8">
       <h1 className="text-3xl font-semibold">Plan a meal</h1>
 
       {connected ? (
-        <PlanMeal hasPantry={(count ?? 0) > 0} />
+        <PlanMeal pantry={pantry} />
       ) : (
         <Link
           href="/me"

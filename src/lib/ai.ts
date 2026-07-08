@@ -231,6 +231,8 @@ const SuggestSchema = z.object({
     z.object({
       name: z.string(),
       uses: z.array(z.string()),
+      portions: z.array(z.object({ name: z.string(), grams: z.number() })),
+      swaps: z.array(z.string()),
       why: z.string(),
       kcal: z.number(),
       protein_g: z.number(),
@@ -246,6 +248,8 @@ export interface SuggestInput {
   dislikes: string[];
   pantry: string[];
   remaining: { kcal: number; protein_g: number; carbs_g: number; fat_g: number };
+  carb?: string | null; // the carb base the user picked (optional)
+  protein?: string | null; // the protein the user picked (optional)
 }
 
 export async function suggestMeals(
@@ -253,15 +257,25 @@ export async function suggestMeals(
 ): Promise<MealSuggestion[]> {
   const client = await getClient();
 
+  const pick =
+    input.carb || input.protein
+      ? `The user chose to build the meal around ${[input.carb, input.protein]
+          .filter(Boolean)
+          .join(" + ")}. Center the dishes on that.\n`
+      : "";
+
   const system =
     "You suggest simple dishes a user can make right now from what's in their " +
     "pantry, to fit the macros they have left today.\n" +
     `${dietRule(input.diet)}\n` +
+    pick +
     "This diet rule is absolute: never suggest a dish that includes a " +
     "forbidden ingredient, EVEN IF that ingredient is in the pantry — skip it " +
     "entirely. Also avoid the user's allergies and dislikes. Prefer dishes " +
-    "that mostly use pantry items. Keep each dish realistic and give rough " +
-    "macros for one serving.";
+    "that mostly use pantry items. For each dish give EXACT portions in grams " +
+    "per ingredient (the `portions` array) chosen so the dish's totals hit the " +
+    "macros left today as closely as possible, plus a couple of optional " +
+    "ingredient `swaps`. Keep the totals for the portions you list.";
 
   const res = await client.messages.parse({
     model: MODEL,
@@ -273,6 +287,8 @@ export async function suggestMeals(
         role: "user",
         content: JSON.stringify({
           pantry: input.pantry,
+          chosen_carb: input.carb ?? null,
+          chosen_protein: input.protein ?? null,
           allergies: input.allergies,
           dislikes: input.dislikes,
           macros_left_today: input.remaining,
@@ -286,6 +302,10 @@ export async function suggestMeals(
   const meals = res.parsed_output?.meals ?? [];
   // Final guard: drop anything that slipped past the diet rule.
   return meals.filter(
-    (m) => !violatesDiet(`${m.name} ${m.uses.join(" ")}`, input.diet),
+    (m) =>
+      !violatesDiet(
+        `${m.name} ${m.uses.join(" ")} ${m.portions.map((p) => p.name).join(" ")}`,
+        input.diet,
+      ),
   );
 }

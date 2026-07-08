@@ -1,13 +1,16 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Sparkles, Check } from "lucide-react";
+import { Sparkles, Check, ArrowRight } from "lucide-react";
 import type { MealSuggestion } from "@/lib/types";
 import { getSuggestions, logSuggestion } from "./actions";
 
-// Tap once to get dish ideas from the pantry that fit today's macros and the
-// user's diet, then tap to log the one they made.
-export default function PlanMeal({ hasPantry }: { hasPantry: boolean }) {
+// Build a meal by tapping: pick a carb → pick a protein → get dishes that use
+// your pantry, fit your diet, and come with exact portions for today's macros.
+// The carb/protein steps are optional shortcuts — you can just tap Suggest.
+export default function PlanMeal({ pantry }: { pantry: string[] }) {
+  const [carb, setCarb] = useState<string | null>(null);
+  const [protein, setProtein] = useState<string | null>(null);
   const [meals, setMeals] = useState<MealSuggestion[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [logged, setLogged] = useState<Set<number>>(new Set());
@@ -18,7 +21,7 @@ export default function PlanMeal({ hasPantry }: { hasPantry: boolean }) {
     setLoading(true);
     setNote("Thinking up dishes…");
     try {
-      const found = await getSuggestions();
+      const found = await getSuggestions(carb, protein);
       setMeals(found);
       setLogged(new Set());
       setNote(found.length ? null : "No dishes fit right now. Add pantry items.");
@@ -29,8 +32,29 @@ export default function PlanMeal({ hasPantry }: { hasPantry: boolean }) {
     }
   }
 
+  const hasPantry = pantry.length > 0;
+
   return (
-    <section className="flex flex-col gap-3">
+    <section className="flex flex-col gap-4">
+      {hasPantry && (
+        <>
+          <TilePicker
+            step="1"
+            label="Pick a carb"
+            options={pantry}
+            selected={carb}
+            onSelect={(v) => setCarb((c) => (c === v ? null : v))}
+          />
+          <TilePicker
+            step="2"
+            label="Pick a protein"
+            options={pantry}
+            selected={protein}
+            onSelect={(v) => setProtein((p) => (p === v ? null : v))}
+          />
+        </>
+      )}
+
       <button
         onClick={suggest}
         disabled={loading}
@@ -55,17 +79,29 @@ export default function PlanMeal({ hasPantry }: { hasPantry: boolean }) {
       {meals && meals.length > 0 && (
         <ul className="flex flex-col gap-3">
           {meals.map((m, i) => (
-            <li
-              key={i}
-              className="flex flex-col gap-2 sc-card p-4"
-            >
+            <li key={i} className="flex flex-col gap-2 sc-card p-4">
               <p className="text-lg font-semibold">{m.name}</p>
               <p className="text-sm text-[var(--muted)]">{m.why}</p>
-              {m.uses.length > 0 && (
+
+              {m.portions.length > 0 && (
+                <ul className="flex flex-col gap-1 rounded-2xl bg-[rgba(15,23,42,0.03)] p-3 text-sm">
+                  {m.portions.map((p, pi) => (
+                    <li key={pi} className="flex justify-between gap-3">
+                      <span className="min-w-0 truncate">{p.name}</span>
+                      <span className="shrink-0 font-semibold tabular-nums">
+                        {Math.round(p.grams)} g
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {m.swaps.length > 0 && (
                 <p className="text-xs text-[var(--muted)]">
-                  Uses: {m.uses.join(", ")}
+                  Swaps: {m.swaps.join(" · ")}
                 </p>
               )}
+
               <p className="text-xs text-[var(--muted)]">
                 {Math.round(m.kcal)} kcal · P{Math.round(m.protein_g)} C
                 {Math.round(m.carbs_g)} F{Math.round(m.fat_g)}
@@ -93,5 +129,47 @@ export default function PlanMeal({ hasPantry }: { hasPantry: boolean }) {
         </ul>
       )}
     </section>
+  );
+}
+
+function TilePicker({
+  step,
+  label,
+  options,
+  selected,
+  onSelect,
+}: {
+  step: string;
+  label: string;
+  options: string[];
+  selected: string | null;
+  onSelect: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2 text-sm font-semibold text-[var(--muted)]">
+        <span className="grid h-5 w-5 place-items-center rounded-full bg-[rgba(20,184,166,0.14)] text-xs text-[#0f766e]">
+          {step}
+        </span>
+        {label}
+        {selected && (
+          <span className="ml-auto inline-flex items-center gap-1 text-[#0f766e]">
+            {selected} <ArrowRight size={14} />
+          </span>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {options.map((opt) => (
+          <button
+            key={opt}
+            onClick={() => onSelect(opt)}
+            data-active={selected === opt}
+            className="sc-chip"
+          >
+            {opt}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

@@ -16,8 +16,12 @@ async function requireUser() {
 }
 
 // Ask the AI for dishes the user can make from their pantry that fit their
-// diet and the macros they have left today.
-export async function getSuggestions(): Promise<MealSuggestion[]> {
+// diet and the macros they have left today, optionally built around a chosen
+// carb + protein.
+export async function getSuggestions(
+  carb?: string | null,
+  protein?: string | null,
+): Promise<MealSuggestion[]> {
   const { supabase } = await requireUser();
 
   const [profile, targets, consumed, { data: pantryData }] = await Promise.all([
@@ -45,6 +49,8 @@ export async function getSuggestions(): Promise<MealSuggestion[]> {
     dislikes: profile.dislikes,
     pantry,
     remaining,
+    carb: carb ?? null,
+    protein: protein ?? null,
   });
 }
 
