@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Check } from "lucide-react";
 import {
   applyReview,
   clearMockActivity,
@@ -30,13 +31,17 @@ export function ApplyTargetsButton({ changed }: { changed: boolean }) {
       disabled={saving || saved}
       className="sc-btn sc-btn-primary w-full py-4 text-lg"
     >
-      {saved
-        ? "Set for next week ✓"
-        : saving
-          ? "Saving…"
-          : changed
-            ? "Use these new targets"
-            : "Keep these targets"}
+      {saved ? (
+        <>
+          <Check size={18} /> Set for next week
+        </>
+      ) : saving ? (
+        "Saving…"
+      ) : changed ? (
+        "Use these new targets"
+      ) : (
+        "Keep these targets"
+      )}
     </button>
   );
 }
@@ -59,7 +64,7 @@ export function FitbitButton({ connected }: { connected: boolean }) {
     setMsg(null);
     try {
       await syncFitbit();
-      setMsg("Synced ✓");
+      setMsg("Synced");
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Sync failed");
     } finally {
