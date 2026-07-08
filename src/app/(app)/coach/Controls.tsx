@@ -166,15 +166,25 @@ export function AppleIngest({ initialToken }: { initialToken: string | null }) {
   return (
     <div className="flex flex-col gap-2">
       <p className="text-sm text-[var(--muted)]">
-        In the Health Auto Export app, add a REST API automation that POSTs to
-        this URL. Keep it secret.
+        In the <span className="font-semibold">Health Auto Export</span> app
+        (iPhone), add an automation that POSTs to this URL. Keep it secret.
       </p>
+      <ol className="ml-4 list-decimal text-sm text-[var(--muted)] marker:text-[var(--muted)]">
+        <li>Automations → add a new REST API automation.</li>
+        <li>
+          Metrics: <span className="font-medium">Steps</span>,{" "}
+          <span className="font-medium">Active Energy</span>,{" "}
+          <span className="font-medium">Sleep Analysis</span>.
+        </li>
+        <li>Format JSON, aggregate daily, run once a day.</li>
+        <li>Paste the URL below as the endpoint.</li>
+      </ol>
       <code className="block break-all rounded-2xl bg-[rgba(15,23,42,0.05)] p-3 text-xs">
         {url}
       </code>
       <div className="flex gap-2">
         <button onClick={copy} className="sc-btn sc-btn-neutral flex-1 py-3">
-          {copied ? "Copied ✓" : "Copy URL"}
+          {copied ? "Copied" : "Copy URL"}
         </button>
         <button
           onClick={make}
