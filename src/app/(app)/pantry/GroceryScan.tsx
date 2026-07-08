@@ -142,7 +142,7 @@ export default function GroceryScan({ connected }: { connected: boolean }) {
                   }`}
                   style={
                     chosen.has(i)
-                      ? { background: "rgba(20,184,166,0.14)" }
+                      ? { background: "var(--tint-teal)" }
                       : undefined
                   }
                 >

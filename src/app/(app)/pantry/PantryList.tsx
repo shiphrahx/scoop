@@ -46,7 +46,7 @@ function PantryRow({ item }: { item: PantryItem }) {
           {noMacros ? (
             <button
               onClick={() => setEditing(true)}
-              className="font-medium text-[#0f766e]"
+              className="font-medium text-[var(--ink-teal)]"
             >
               Add macros
             </button>
@@ -63,7 +63,7 @@ function PantryRow({ item }: { item: PantryItem }) {
         <button
           onClick={() => setEditing(true)}
           aria-label="Edit"
-          className="grid h-9 w-9 place-items-center rounded-full bg-[rgba(15,23,42,0.05)] active:scale-90"
+          className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] active:scale-90"
         >
           <Pencil size={16} />
         </button>
@@ -71,7 +71,7 @@ function PantryRow({ item }: { item: PantryItem }) {
           onClick={() => step(-1)}
           disabled={pending}
           aria-label="One fewer"
-          className="grid h-9 w-9 place-items-center rounded-full bg-[rgba(15,23,42,0.05)] active:scale-90 disabled:opacity-40"
+          className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] active:scale-90 disabled:opacity-40"
         >
           <Minus size={18} />
         </button>
@@ -82,7 +82,7 @@ function PantryRow({ item }: { item: PantryItem }) {
           onClick={() => step(1)}
           disabled={pending}
           aria-label="One more"
-          className="grid h-9 w-9 place-items-center rounded-full bg-[rgba(15,23,42,0.05)] active:scale-90 disabled:opacity-40"
+          className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] active:scale-90 disabled:opacity-40"
         >
           <Plus size={18} />
         </button>

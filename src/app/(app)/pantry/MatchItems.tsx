@@ -144,8 +144,8 @@ export default function MatchItems({
                     className="flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm"
                     style={
                       r.chosen === c
-                        ? { background: "rgba(20,184,166,0.14)" }
-                        : { background: "rgba(15,23,42,0.03)" }
+                        ? { background: "var(--tint-teal)" }
+                        : { background: "var(--fill-soft)" }
                     }
                   >
                     <span className="min-w-0 truncate">
@@ -157,7 +157,7 @@ export default function MatchItems({
                     <span className="flex shrink-0 items-center gap-2 text-xs text-[var(--muted)]">
                       {Math.round(c.kcal_100g)} kcal
                       {r.chosen === c && (
-                        <Check size={14} className="text-[#0f766e]" />
+                        <Check size={14} className="text-[var(--ink-teal)]" />
                       )}
                     </span>
                   </button>
@@ -167,8 +167,8 @@ export default function MatchItems({
                   className="rounded-xl px-3 py-2 text-left text-sm"
                   style={
                     r.chosen === null
-                      ? { background: "rgba(20,184,166,0.14)" }
-                      : { background: "rgba(15,23,42,0.03)" }
+                      ? { background: "var(--tint-teal)" }
+                      : { background: "var(--fill-soft)" }
                   }
                 >
                   None of these — add without macros

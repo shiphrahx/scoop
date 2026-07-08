@@ -137,7 +137,7 @@ export default function PantryForm() {
           <button
             onClick={() => setQuantity((q) => Math.max(1, q - 1))}
             aria-label="One fewer"
-            className="grid h-9 w-9 place-items-center rounded-full bg-[rgba(15,23,42,0.06)] active:scale-90"
+            className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] active:scale-90"
           >
             <Minus size={18} />
           </button>
@@ -147,7 +147,7 @@ export default function PantryForm() {
           <button
             onClick={() => setQuantity((q) => q + 1)}
             aria-label="One more"
-            className="grid h-9 w-9 place-items-center rounded-full bg-[rgba(15,23,42,0.06)] active:scale-90"
+            className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] active:scale-90"
           >
             <Plus size={18} />
           </button>
