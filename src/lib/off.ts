@@ -227,8 +227,10 @@ export async function searchProducts(
   const q = term.trim();
   if (!q) return [];
 
-  const exact = await rawSearch(q, limit);
-  if (exact.length) return rankByName(q, exact);
+  // Fetch a pool bigger than we'll show so the idf re-rank can lift a distinctive
+  // product above popular same-brand items it was buried under.
+  const pool = await rawSearch(q, 25);
+  if (pool.length) return rankByName(q, pool).slice(0, limit);
 
   return fuzzySearch(q, limit);
 }
