@@ -242,12 +242,19 @@ async function fuzzySearch(
     if (!byKey.has(key)) byKey.set(key, c);
   }
 
-  // Rank by closeness to the misspelled word; drop distant noise.
+  // Rank by closeness to the misspelled word; drop distant noise. On a near-tie
+  // in similarity, prefer a candidate that actually has macros so the user gets
+  // a usable match rather than an empty shell.
   const MIN_SIMILARITY = 0.6;
   return [...byKey.values()]
     .map((c) => ({ c, sim: nameSimilarity(target, c.name) }))
     .filter((r) => r.sim >= MIN_SIMILARITY)
-    .sort((a, b) => b.sim - a.sim)
+    .sort((a, b) => {
+      if (Math.abs(a.sim - b.sim) > 0.05) return b.sim - a.sim;
+      const am = a.c.kcal_100g > 0 ? 1 : 0;
+      const bm = b.c.kcal_100g > 0 ? 1 : 0;
+      return bm - am || b.sim - a.sim;
+    })
     .slice(0, limit)
     .map((r) => r.c);
 }
