@@ -34,6 +34,8 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   const isPublic =
+    // The landing page is the public front door for everyone.
+    pathname === "/" ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/auth") ||
     // PWA install files must be reachable without a session.

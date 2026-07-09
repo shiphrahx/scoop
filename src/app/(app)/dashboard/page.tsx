@@ -10,7 +10,7 @@ import {
   getCoachData,
 } from "@/lib/queries";
 
-export default async function HomePage() {
+export default async function DashboardPage() {
   const supabase = await createClient();
   const {
     data: { user },

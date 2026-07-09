@@ -10,7 +10,7 @@ export default function Sidebar() {
 
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col gap-2 p-5 lg:flex">
-      <Link href="/" className="mb-4 flex items-center gap-2.5 px-2">
+      <Link href="/dashboard" className="mb-4 flex items-center gap-2.5 px-2">
         <span
           className="grid h-9 w-9 place-items-center rounded-xl text-white"
           style={{ background: "var(--grad-primary)" }}
