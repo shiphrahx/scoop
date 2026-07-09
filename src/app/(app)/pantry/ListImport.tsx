@@ -47,15 +47,16 @@ export default function ListImport() {
 
   return (
     <section className="flex flex-col gap-3 sc-card p-5">
-      <h2 className="text-lg font-semibold">Paste a list</h2>
+      <h2 className="text-lg font-semibold">Search by name</h2>
       <p className="text-sm text-[var(--muted)]">
-        From Bring, AnyList, Google Keep, or a CSV — one item per line.
+        Type one item, or paste a whole list — one per line (from Bring, AnyList,
+        Google Keep, or a CSV).
       </p>
 
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder={"2 milk\nbananas\n500 g rice"}
+        placeholder={"tofu\n\nor a list:\n2 milk\nbananas\n500 g rice"}
         rows={4}
         className="sc-input resize-none"
       />
