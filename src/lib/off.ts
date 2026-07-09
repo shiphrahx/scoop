@@ -203,6 +203,31 @@ function rankByName(term: string, candidates: OffCandidate[]): OffCandidate[] {
     .map((r) => r.c);
 }
 
+// The most distinctive query word given a candidate pool — the rarest one, which
+// best pins the intended product. Empty string when the term has no tokens.
+function distinctiveToken(term: string, pool: OffCandidate[]): string {
+  const want = [...new Set(tokens(term))];
+  if (want.length <= 1) return want[0] ?? "";
+  const texts = pool.map((c) => new Set(tokens(`${c.name} ${c.brand ?? ""}`)));
+  const n = pool.length || 1;
+  const idf: Record<string, number> = {};
+  for (const w of want) {
+    const df = texts.reduce((acc, t) => acc + (t.has(w) ? 1 : 0), 0);
+    idf[w] = Math.log(1 + n / (df || 0.5));
+  }
+  return want.reduce((a, b) => (idf[b] > idf[a] ? b : a), want[0]);
+}
+
+// True when the ranked results miss the query's distinctive word — a sign the
+// exact search only found category/near matches and a fuzzy retry is worth it.
+function exactIsWeak(term: string, ranked: OffCandidate[], pool: OffCandidate[]): boolean {
+  if (!ranked.length) return true;
+  if ([...new Set(tokens(term))].length < 2) return false;
+  const key = distinctiveToken(term, pool);
+  const top = ranked[0];
+  return !new Set(tokens(`${top.name} ${top.brand ?? ""}`)).has(key);
+}
+
 // One OFF full-text search. Returns unranked candidates (best-effort); empty
 // array on any failure so callers never block the batch.
 async function rawSearch(term: string, limit: number): Promise<OffCandidate[]> {
@@ -347,9 +372,14 @@ export async function searchProducts(
     return rankByName(rankTerm, inBrand).slice(0, limit);
   }
 
-  if (pool.length) return rankByName(q, pool).slice(0, limit);
-
-  return fuzzySearch(q, limit);
+  const ranked = pool.length ? rankByName(q, pool) : [];
+  // Fall back to fuzzy when the exact search found nothing useful (no hits, or
+  // the top hit misses the distinctive word — usually a typo).
+  if (exactIsWeak(q, ranked, pool)) {
+    const fz = await fuzzySearch(q, limit);
+    if (fz.length) return fz;
+  }
+  return ranked.slice(0, limit);
 }
 
 // Fallback for a misspelled query: correct the longest word, search each
