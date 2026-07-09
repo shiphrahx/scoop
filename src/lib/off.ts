@@ -5,7 +5,10 @@ import type { OffCandidate, OffProduct } from "@/lib/types";
 // Docs: https://openfoodfacts.github.io/openfoodfacts-server/api/
 
 const OFF_BASE = "https://world.openfoodfacts.org/api/v2/product";
-const OFF_SEARCH = "https://world.openfoodfacts.org/api/v2/search";
+// Full-text search. The v2 /search endpoint ignores `search_terms` (it returns
+// the whole DB by popularity), so we use the Search-a-licious API, which is
+// relevance-ranked and OFF's recommended replacement for the legacy cgi search.
+const OFF_SEARCH = "https://search.openfoodfacts.org/search";
 const USER_AGENT = "Scoop/0.1 (weight-loss coach app)";
 
 function num(value: unknown): number {
@@ -100,9 +103,9 @@ export async function searchProducts(
   if (!q) return [];
 
   const url =
-    `${OFF_SEARCH}?search_terms=${encodeURIComponent(q)}` +
+    `${OFF_SEARCH}?q=${encodeURIComponent(q)}` +
     `&fields=code,product_name,brands,quantity,nutriments` +
-    `&page_size=${limit}&sort_by=popularity_key`;
+    `&page_size=${limit}`;
 
   let res: Response;
   try {
@@ -115,10 +118,11 @@ export async function searchProducts(
   }
   if (!res.ok) return [];
 
+  // Search-a-licious returns matches under `hits` (relevance-ranked).
   const body = (await res.json()) as {
-    products?: Array<Parameters<typeof toCandidate>[0]>;
+    hits?: Array<Parameters<typeof toCandidate>[0]>;
   };
-  const candidates = (body.products ?? [])
+  const candidates = (body.hits ?? [])
     .map(toCandidate)
     // Drop hits with no usable name.
     .filter((c) => c.name && c.name !== "Unknown item");
