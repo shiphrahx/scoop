@@ -3,20 +3,28 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
-// One-tap daily weight. Upserts so re-logging the same day overwrites.
-export async function logWeight(weightKg: number) {
+// Log a weight. Defaults to today; pass an ISO date (YYYY-MM-DD) to back-fill a
+// day the user forgot. Upserts on (user_id, date) so re-logging a day overwrites.
+export async function logWeight(weightKg: number, dateISO?: string) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not signed in");
 
+  const row: { user_id: string; weight_kg: number; date?: string } = {
+    user_id: user.id,
+    weight_kg: weightKg,
+  };
+  // Accept a valid, non-future date; otherwise fall back to the DB default (today).
+  if (dateISO && /^\d{4}-\d{2}-\d{2}$/.test(dateISO)) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (dateISO <= today) row.date = dateISO;
+  }
+
   const { error } = await supabase
     .from("weights")
-    .upsert(
-      { user_id: user.id, weight_kg: weightKg },
-      { onConflict: "user_id,date" },
-    );
+    .upsert(row, { onConflict: "user_id,date" });
   if (error) throw new Error(error.message);
 
   revalidatePath("/progress");
