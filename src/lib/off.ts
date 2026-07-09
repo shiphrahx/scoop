@@ -389,9 +389,19 @@ async function fuzzySearch(
   limit: number,
 ): Promise<OffCandidate[]> {
   const words = q.split(/\s+/).filter(Boolean);
-  // The longest word is the most likely-misspelled content word; short words
-  // (≤3 chars) rarely benefit and blow up the variant count.
-  const target = words.reduce((a, b) => (b.length > a.length ? b : a), "");
+  // Find which words draw a blank on their own — those are the misspelled ones,
+  // wherever they sit in the phrase (not necessarily the longest word).
+  const solo = await Promise.all(
+    words.map((w) => (w.length >= 4 ? rawSearch(w, 1) : Promise.resolve([null]))),
+  );
+  const failing = words.filter((w, i) => w.length >= 4 && solo[i].length === 0);
+  // Correct the longest failing word; if none failed alone (the whole phrase
+  // missed), fall back to the longest word. Short words rarely benefit and blow
+  // up the variant count.
+  const target = (failing.length ? failing : words).reduce(
+    (a, b) => (b.length > a.length ? b : a),
+    "",
+  );
   if (target.length < 4) return [];
 
   const variants = fuzzyVariants(target);
