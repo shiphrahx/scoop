@@ -79,6 +79,81 @@ function tokens(s: string): string[] {
     .filter(Boolean);
 }
 
+// --- Typo tolerance --------------------------------------------------------
+// OFF's search is exact (match_phrase, no fuzziness), so a misspelled item
+// returns nothing. When that happens we generate likely spelling corrections
+// of the query and search those, then rank the pool by how close each result
+// is to what the user typed. Keyless; only runs on a miss.
+
+// QWERTY neighbours, for "hit the wrong key" substitutions.
+const KEYBOARD: Record<string, string> = {
+  q: "wsa", w: "qeds", e: "wrsdf", r: "etdfg", t: "ryfgh", y: "tughj",
+  u: "yijhk", i: "uokjl", o: "iplk", p: "ol", a: "qwsz", s: "awedxz",
+  d: "serfcx", f: "drtgvc", g: "ftyhbv", h: "gyujnb", j: "huiknm",
+  k: "jiolm", l: "kop", z: "asx", x: "zsdc", c: "xdfv", v: "cfgb",
+  b: "vghn", n: "bhjm", m: "njk",
+};
+
+// Damerau–Levenshtein edit distance (with adjacent transpositions).
+function damerau(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  const d: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) d[i][0] = i;
+  for (let j = 0; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(
+        d[i - 1][j] + 1,
+        d[i][j - 1] + 1,
+        d[i - 1][j - 1] + cost,
+      );
+      if (
+        i > 1 && j > 1 &&
+        a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]
+      ) {
+        d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+      }
+    }
+  }
+  return d[m][n];
+}
+
+// Edit-distance-1 spelling variants of one word: deletions, adjacent
+// transpositions, letter-doublings, and keyboard-adjacent substitutions.
+// Deduped and capped so a fallback fires a bounded number of searches.
+function fuzzyVariants(word: string, cap = 60): string[] {
+  const w = word.toLowerCase();
+  const out = new Set<string>();
+  for (let i = 0; i < w.length; i++) out.add(w.slice(0, i) + w.slice(i + 1));
+  for (let i = 0; i < w.length - 1; i++) {
+    out.add(w.slice(0, i) + w[i + 1] + w[i] + w.slice(i + 2));
+  }
+  for (let i = 0; i < w.length; i++) out.add(w.slice(0, i + 1) + w[i] + w.slice(i + 1));
+  for (let i = 0; i < w.length; i++) {
+    for (const c of KEYBOARD[w[i]] ?? "") {
+      out.add(w.slice(0, i) + c + w.slice(i + 1));
+    }
+  }
+  out.delete(w);
+  return [...out].slice(0, cap);
+}
+
+// Similarity of a candidate's name to the search word: best (lowest-distance)
+// match among the name's tokens, normalised to 0..1.
+function nameSimilarity(word: string, name: string): number {
+  const w = word.toLowerCase();
+  let best = 0;
+  for (const t of tokens(name)) {
+    const sim = 1 - damerau(w, t) / Math.max(w.length, t.length, 1);
+    if (sim > best) best = sim;
+  }
+  return best;
+}
+
 // Rank candidates by how much their name overlaps the search term. Simple
 // token-overlap score; ties keep OFF's popularity order.
 function rankByName(term: string, candidates: OffCandidate[]): OffCandidate[] {
@@ -92,13 +167,9 @@ function rankByName(term: string, candidates: OffCandidate[]): OffCandidate[] {
     .map((r) => r.c);
 }
 
-// Search OFF by free text (an imported item name) and return up to `limit`
-// candidate products, best match first, for the user to confirm. Empty array on
-// any failure — callers keep the item unmatched rather than blocking the batch.
-export async function searchProducts(
-  term: string,
-  limit = 5,
-): Promise<OffCandidate[]> {
+// One OFF full-text search. Returns unranked candidates (best-effort); empty
+// array on any failure so callers never block the batch.
+async function rawSearch(term: string, limit: number): Promise<OffCandidate[]> {
   const q = term.trim();
   if (!q) return [];
 
@@ -122,11 +193,63 @@ export async function searchProducts(
   const body = (await res.json()) as {
     hits?: Array<Parameters<typeof toCandidate>[0]>;
   };
-  const candidates = (body.hits ?? [])
+  return (body.hits ?? [])
     .map(toCandidate)
     // Drop hits with no usable name.
     .filter((c) => c.name && c.name !== "Unknown item");
-  return rankByName(q, candidates);
+}
+
+// Search OFF by free text (an imported item name) and return up to `limit`
+// candidate products, best match first, for the user to confirm. Falls back to
+// a fuzzy (typo-tolerant) search when the exact search finds nothing. Empty
+// array on any failure — callers keep the item unmatched rather than blocking.
+export async function searchProducts(
+  term: string,
+  limit = 5,
+): Promise<OffCandidate[]> {
+  const q = term.trim();
+  if (!q) return [];
+
+  const exact = await rawSearch(q, limit);
+  if (exact.length) return rankByName(q, exact);
+
+  return fuzzySearch(q, limit);
+}
+
+// Fallback for a misspelled query: correct the longest word, search each
+// correction, then keep the results closest to what the user typed.
+async function fuzzySearch(
+  q: string,
+  limit: number,
+): Promise<OffCandidate[]> {
+  const words = q.split(/\s+/).filter(Boolean);
+  // The longest word is the most likely-misspelled content word; short words
+  // (≤3 chars) rarely benefit and blow up the variant count.
+  const target = words.reduce((a, b) => (b.length > a.length ? b : a), "");
+  if (target.length < 4) return [];
+
+  const variants = fuzzyVariants(target);
+  const queries = variants.map((v) =>
+    words.map((w) => (w === target ? v : w)).join(" "),
+  );
+
+  const pools = await Promise.all(queries.map((query) => rawSearch(query, 3)));
+
+  // Pool, dedupe by barcode (fall back to name for keyless hits).
+  const byKey = new Map<string, OffCandidate>();
+  for (const c of pools.flat()) {
+    const key = c.code ?? c.name.toLowerCase();
+    if (!byKey.has(key)) byKey.set(key, c);
+  }
+
+  // Rank by closeness to the misspelled word; drop distant noise.
+  const MIN_SIMILARITY = 0.6;
+  return [...byKey.values()]
+    .map((c) => ({ c, sim: nameSimilarity(target, c.name) }))
+    .filter((r) => r.sim >= MIN_SIMILARITY)
+    .sort((a, b) => b.sim - a.sim)
+    .slice(0, limit)
+    .map((r) => r.c);
 }
 
 // Look up a barcode. Returns null when the product is unknown to OFF.
