@@ -1,6 +1,8 @@
 import { User } from "lucide-react";
 import ApiKeySettings from "./ApiKeySettings";
 import GoalsSettings from "./GoalsSettings";
+import MealSlotsSettings from "./MealSlotsSettings";
+import { DEFAULT_MEAL_SLOTS } from "@/lib/types";
 import SignOutButton from "@/components/SignOutButton";
 import {
   AppleIngest,
@@ -75,13 +77,20 @@ export default async function MePage({
       )}
 
       {profile && (
-        <GoalsSettings
-          initial={{
-            diet_type: profile.diet_type,
-            activity_level: profile.activity_level,
-            goal_pace: profile.goal_pace,
-          }}
-        />
+        <>
+          <GoalsSettings
+            initial={{
+              diet_type: profile.diet_type,
+              activity_level: profile.activity_level,
+              goal_pace: profile.goal_pace,
+            }}
+          />
+          <MealSlotsSettings
+            initial={
+              profile.meal_slots?.length ? profile.meal_slots : DEFAULT_MEAL_SLOTS
+            }
+          />
+        </>
       )}
 
       {/* Devices — moved here from the Coach screen. */}

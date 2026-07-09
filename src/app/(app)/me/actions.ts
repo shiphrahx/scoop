@@ -93,6 +93,31 @@ export async function saveGoals(input: GoalsInput) {
   revalidatePath("/");
 }
 
+// Save the user's meal-slot list (the named meals a day breaks into, e.g.
+// Breakfast/Lunch/Snack/Dinner). Trimmed, de-duplicated, order preserved.
+export async function saveMealSlots(slots: string[]) {
+  const cleaned: string[] = [];
+  for (const s of slots) {
+    const name = s.trim();
+    if (name && !cleaned.some((c) => c.toLowerCase() === name.toLowerCase())) {
+      cleaned.push(name);
+    }
+  }
+  if (cleaned.length === 0) {
+    throw new Error("Keep at least one meal.");
+  }
+
+  const { supabase, user } = await requireUser();
+  const { error } = await supabase
+    .from("users")
+    .update({ meal_slots: cleaned, updated_at: new Date().toISOString() })
+    .eq("id", user.id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/me");
+  revalidatePath("/plan/day");
+}
+
 export async function clearApiKey() {
   const { supabase, user } = await requireUser();
   const { error } = await supabase
