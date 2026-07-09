@@ -56,7 +56,7 @@ export default function ListImport() {
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder={"tofu\n\nor a list:\n2 milk\nbananas\n500 g rice"}
+        placeholder={"2 milk\nbananas\n500 g rice"}
         rows={4}
         className="sc-input resize-none"
       />
