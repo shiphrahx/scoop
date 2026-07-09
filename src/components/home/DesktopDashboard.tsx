@@ -3,13 +3,8 @@ import { Scale, Flame, Beef, Moon, Sparkles, ChevronRight } from "lucide-react";
 import ProgressRing from "@/components/ProgressRing";
 import MacroBar from "@/components/MacroBar";
 import SignOutButton from "@/components/SignOutButton";
-import { AreaTrend, WeightVsExercise, SleepBars } from "@/components/Charts";
+import { WeightTrendChart, WeightVsExercise, SleepChart } from "@/components/Charts";
 import type { Activity, DailyTargets, Macros } from "@/lib/types";
-
-const shortDate = (iso: string) => {
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-};
 
 function StatCard({
   icon: Icon,
@@ -66,8 +61,8 @@ export default function DesktopDashboard({
     : 0;
 
   const weightPts = weightHistory.map((w) => ({
-    label: shortDate(w.date),
-    value: Math.round(w.weight_kg * 10) / 10,
+    date: w.date,
+    weight: Math.round(w.weight_kg * 10) / 10,
   }));
   const weightChange =
     weightHistory.length >= 2
@@ -76,12 +71,12 @@ export default function DesktopDashboard({
 
   const burnPts = activity
     .filter((a) => a.workout_kcal != null)
-    .map((a) => ({ label: shortDate(a.date), value: Math.round(Number(a.workout_kcal)) }));
+    .map((a) => ({ date: a.date, kcal: Math.round(Number(a.workout_kcal)) }));
   const sleepPts = activity
     .filter((a) => a.sleep_hours != null)
-    .map((a) => ({ label: shortDate(a.date), value: Math.round(Number(a.sleep_hours) * 10) / 10 }));
+    .map((a) => ({ date: a.date, hours: Math.round(Number(a.sleep_hours) * 10) / 10 }));
   const avgSleep = sleepPts.length
-    ? sleepPts.reduce((s, p) => s + p.value, 0) / sleepPts.length
+    ? sleepPts.reduce((s, p) => s + p.hours, 0) / sleepPts.length
     : null;
 
   return (
@@ -144,17 +139,17 @@ export default function DesktopDashboard({
               <h2 className="text-lg font-semibold">Weight trend</h2>
               <span className="text-sm text-[var(--muted)]">last 30 days</span>
             </div>
-            <AreaTrend points={weightPts} height={200} unit=" kg" id="wt" />
+            <WeightTrendChart data={weightPts} height={200} />
           </section>
 
           <div className="grid grid-cols-2 gap-6">
             <section className="sc-card p-6">
               <h2 className="mb-2 text-lg font-semibold">Weight vs exercise</h2>
-              <WeightVsExercise weights={weightPts} burn={burnPts} height={180} id="wve" />
+              <WeightVsExercise weights={weightPts} burn={burnPts} height={200} />
             </section>
             <section className="sc-card p-6">
               <h2 className="mb-2 text-lg font-semibold">Sleep</h2>
-              <SleepBars points={sleepPts} height={180} id="slp" />
+              <SleepChart data={sleepPts} height={200} />
             </section>
           </div>
         </div>
