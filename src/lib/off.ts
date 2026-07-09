@@ -228,6 +228,26 @@ function exactIsWeak(term: string, ranked: OffCandidate[], pool: OffCandidate[])
   return !new Set(tokens(`${top.name} ${top.brand ?? ""}`)).has(key);
 }
 
+// How many products carry a brand tag — used to confirm a leading-prefix brand
+// is real. A two-word brand needs only a handful of products to be trusted.
+const MULTIWORD_BRAND_MIN = 10;
+
+async function brandSize(tag: string): Promise<number> {
+  const url =
+    `${OFF_SEARCH}?q=${encodeURIComponent(`brands_tags:${tag}`)}&page_size=1`;
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": USER_AGENT },
+      next: { revalidate: 86400 },
+    });
+    if (!res.ok) return 0;
+    const body = (await res.json()) as { count?: number };
+    return body.count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 // One OFF full-text search. Returns unranked candidates (best-effort); empty
 // array on any failure so callers never block the batch.
 async function rawSearch(term: string, limit: number): Promise<OffCandidate[]> {
@@ -301,39 +321,37 @@ async function searchWithBrands(
   return { pool, brands: body.facets?.brands_tags?.items ?? [] };
 }
 
-function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
 // A brand is "implied" when every word of its name appears in the query — then
 // the user clearly wants that brand. We look at the brands present both in the
 // result facet AND in the pool itself: a brand-matched product can sit mid-pool
 // even when a common product word skews the facet toward other brands. Returns
 // the most specific implied brand (most words, then most products), or null for
 // a generic query.
+// A real single-word brand is well represented in the query's results (Heinz,
+// Walkers); a common word that merely coincides with some obscure brand name
+// (Almond, Vegan) is not. Require this many facet products to trust a one-word
+// brand — multi-word brands (Linda McCartney) are trusted regardless.
+const SINGLE_WORD_BRAND_MIN = 50;
+
 function impliedBrand(
   q: string,
   brands: BrandFacetItem[],
-  pool: OffCandidate[],
 ): { tag: string; words: string[] } | null {
   const qset = new Set(tokens(q));
-  const map = new Map<string, { tag: string; words: string[]; count: number }>();
-  const add = (tag: string, label: string, count: number) => {
-    const words = tokens(label.replace(/-/g, " "));
-    if (!tag || !words.length) return;
-    const e = map.get(tag);
-    if (e) e.count += count;
-    else map.set(tag, { tag, words, count });
-  };
-  for (const b of brands) if (b.count > 0) add(b.key, b.name, b.count);
-  for (const c of pool) if (c.brand) add(slugify(c.brand), c.brand, 1);
-
-  const cands = [...map.values()].filter(
-    (b) => b.words.length > 0 && b.words.every((w) => qset.has(w)),
-  );
+  // Only trust the brand facet — its keys are canonical OFF brand tags and its
+  // counts are real. (A single product's free-text brand field is often junk
+  // like "Baked Beans" or "Vegan", which would gate to a bogus brand.)
+  const cands = brands
+    .filter((b) => b.count > 0)
+    .map((b) => ({ tag: b.key, words: tokens(b.name.replace(/-/g, " ")), count: b.count }))
+    .filter(
+      (b) =>
+        b.words.length > 0 &&
+        b.words.every((w) => qset.has(w)) &&
+        // Multi-word brands are safe; a one-word brand must be well represented
+        // (Heinz, Walkers) to avoid gating on a common word (Vegan, Almond).
+        (b.words.length >= 2 || b.count >= SINGLE_WORD_BRAND_MIN),
+    );
   if (!cands.length) return null;
   cands.sort((a, b) => b.words.length - a.words.length || b.count - a.count);
   return { tag: cands[0].tag, words: cands[0].words };
@@ -357,7 +375,19 @@ export async function searchProducts(
   // Fetch a pool bigger than we'll show (so the idf re-rank can lift a buried
   // distinctive product) plus the brand facet (to detect a brand-led query).
   const { pool, brands } = await searchWithBrands(q, 25);
-  const brand = impliedBrand(q, brands, pool);
+  let brand = impliedBrand(q, brands);
+
+  // The facet can miss a brand when the product words dominate the results (e.g.
+  // "linda mccartney chicken breast" — a product the brand doesn't actually make).
+  // If the query leads with a real two-word brand, honour it so we stay in-brand
+  // rather than leaking other brands.
+  const qWords = tokens(q);
+  if (!brand && qWords.length >= 3) {
+    const tag = `${qWords[0]}-${qWords[1]}`;
+    if ((await brandSize(tag)) >= MULTIWORD_BRAND_MIN) {
+      brand = { tag, words: [qWords[0], qWords[1]] };
+    }
+  }
 
   if (brand) {
     const productWords = tokens(q).filter((w) => !brand.words.includes(w));
