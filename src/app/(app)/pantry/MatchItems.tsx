@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, ChevronDown, Loader2, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Loader2, Pencil, Search, Trash2, X } from "lucide-react";
 import type { ImportedItem, OffCandidate } from "@/lib/types";
 import { addMatchedItems, matchCandidates, type PantryInput } from "./actions";
 
@@ -17,6 +17,9 @@ type Row = {
   // The accepted match, or null = "keep, no macros yet".
   chosen: OffCandidate | null;
   expanded: boolean;
+  // Inline name editor: `editing` toggles it, `draft` holds the pending name.
+  editing: boolean;
+  draft: string;
 };
 
 export default function MatchItems({
@@ -39,6 +42,8 @@ export default function MatchItems({
       candidates: [],
       chosen: null,
       expanded: false,
+      editing: false,
+      draft: item.name,
     })),
   );
   const [saving, setSaving] = useState(false);
@@ -74,6 +79,28 @@ export default function MatchItems({
   // Drop a row the user doesn't want to import. Save skips it automatically.
   const remove = (i: number) =>
     setRows((prev) => prev.filter((_, j) => j !== i));
+
+  // Rename a row and search Open Food Facts again for it, in place. The
+  // corrected name is what gets saved even if OFF still finds no match.
+  async function research(i: number, rawName: string) {
+    const term = rawName.trim();
+    if (!term) return;
+    setRows((prev) =>
+      prev.map((r, j) =>
+        j === i
+          ? { ...r, editing: false, loading: true, item: { ...r.item, name: term } }
+          : r,
+      ),
+    );
+    const found = await matchCandidates(term);
+    setRows((prev) =>
+      prev.map((r, j) =>
+        j === i
+          ? { ...r, loading: false, candidates: found, chosen: found[0] ?? null }
+          : r,
+      ),
+    );
+  }
 
   async function save() {
     setSaving(true);
@@ -112,6 +139,39 @@ export default function MatchItems({
       <ul className="flex flex-col gap-2">
         {rows.map((r, i) => (
           <li key={i} className="rounded-2xl border border-[var(--border)] bg-white/40">
+            {r.editing ? (
+              <div className="flex items-center gap-2 p-3">
+                <input
+                  autoFocus
+                  value={r.draft}
+                  onChange={(e) => patch(i, { draft: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") research(i, r.draft);
+                    if (e.key === "Escape")
+                      patch(i, { editing: false, draft: r.item.name });
+                  }}
+                  placeholder="Item name"
+                  className="sc-input min-w-0 flex-1"
+                />
+                <button
+                  onClick={() => research(i, r.draft)}
+                  disabled={!r.draft.trim()}
+                  aria-label="Search again"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-white transition active:scale-90 disabled:opacity-40"
+                  style={{ background: "var(--grad-primary)" }}
+                >
+                  <Search size={17} />
+                </button>
+                <button
+                  onClick={() => patch(i, { editing: false, draft: r.item.name })}
+                  aria-label="Cancel edit"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[var(--muted)] transition active:scale-90"
+                  style={{ background: "var(--fill)" }}
+                >
+                  <X size={17} />
+                </button>
+              </div>
+            ) : (
             <div className="flex items-center gap-1 pr-2">
               <button
                 onClick={() => patch(i, { expanded: !r.expanded })}
@@ -146,6 +206,14 @@ export default function MatchItems({
                 />
               </button>
               <button
+                onClick={() => patch(i, { editing: true, draft: r.item.name })}
+                aria-label={`Edit ${r.item.name}`}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[var(--muted)] transition active:scale-90"
+                style={{ background: "var(--fill)" }}
+              >
+                <Pencil size={15} />
+              </button>
+              <button
                 onClick={() => remove(i)}
                 aria-label={`Remove ${r.item.name}`}
                 className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[var(--muted)] transition active:scale-90"
@@ -154,6 +222,7 @@ export default function MatchItems({
                 <Trash2 size={16} />
               </button>
             </div>
+            )}
 
             {r.expanded && !r.loading && (
               <div className="flex flex-col gap-1.5 px-4 pb-3">
