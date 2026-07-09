@@ -216,10 +216,93 @@ async function rawSearch(term: string, limit: number): Promise<OffCandidate[]> {
     .filter((c) => c.name && c.name !== "Unknown item");
 }
 
+interface BrandFacetItem {
+  key: string;
+  name: string;
+  count: number;
+}
+
+// One search that also returns the brand distribution of the results, so we can
+// tell a brand-led query ("linda mccartney …") from a generic one ("corn flakes").
+async function searchWithBrands(
+  query: string,
+  limit: number,
+): Promise<{ pool: OffCandidate[]; brands: BrandFacetItem[] }> {
+  const q = query.trim();
+  if (!q) return { pool: [], brands: [] };
+
+  const url =
+    `${OFF_SEARCH}?q=${encodeURIComponent(q)}` +
+    `&fields=code,product_name,brands,quantity,nutriments` +
+    `&facets=brands_tags&page_size=${limit}`;
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { "User-Agent": USER_AGENT },
+      next: { revalidate: 86400 },
+    });
+  } catch {
+    return { pool: [], brands: [] };
+  }
+  if (!res.ok) return { pool: [], brands: [] };
+
+  const body = (await res.json()) as {
+    hits?: Array<Parameters<typeof toCandidate>[0]>;
+    facets?: { brands_tags?: { items?: BrandFacetItem[] } };
+  };
+  const pool = (body.hits ?? [])
+    .map(toCandidate)
+    .filter((c) => c.name && c.name !== "Unknown item");
+  return { pool, brands: body.facets?.brands_tags?.items ?? [] };
+}
+
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+// A brand is "implied" when every word of its name appears in the query — then
+// the user clearly wants that brand. We look at the brands present both in the
+// result facet AND in the pool itself: a brand-matched product can sit mid-pool
+// even when a common product word skews the facet toward other brands. Returns
+// the most specific implied brand (most words, then most products), or null for
+// a generic query.
+function impliedBrand(
+  q: string,
+  brands: BrandFacetItem[],
+  pool: OffCandidate[],
+): { tag: string; words: string[] } | null {
+  const qset = new Set(tokens(q));
+  const map = new Map<string, { tag: string; words: string[]; count: number }>();
+  const add = (tag: string, label: string, count: number) => {
+    const words = tokens(label.replace(/-/g, " "));
+    if (!tag || !words.length) return;
+    const e = map.get(tag);
+    if (e) e.count += count;
+    else map.set(tag, { tag, words, count });
+  };
+  for (const b of brands) if (b.count > 0) add(b.key, b.name, b.count);
+  for (const c of pool) if (c.brand) add(slugify(c.brand), c.brand, 1);
+
+  const cands = [...map.values()].filter(
+    (b) => b.words.length > 0 && b.words.every((w) => qset.has(w)),
+  );
+  if (!cands.length) return null;
+  cands.sort((a, b) => b.words.length - a.words.length || b.count - a.count);
+  return { tag: cands[0].tag, words: cands[0].words };
+}
+
 // Search OFF by free text (an imported item name) and return up to `limit`
-// candidate products, best match first, for the user to confirm. Falls back to
-// a fuzzy (typo-tolerant) search when the exact search finds nothing. Empty
-// array on any failure — callers keep the item unmatched rather than blocking.
+// candidate products, best match first, for the user to confirm.
+//
+// - Brand-led queries ("linda mccartney …") are constrained to that brand, so a
+//   missing product returns nothing rather than other brands.
+// - Generic queries rank a large pool by inverse document frequency.
+// - A misspelled query with no hits falls back to a fuzzy, typo-tolerant search.
+// Empty array on any failure — callers keep the item unmatched, never blocking.
 export async function searchProducts(
   term: string,
   limit = 5,
@@ -227,9 +310,24 @@ export async function searchProducts(
   const q = term.trim();
   if (!q) return [];
 
-  // Fetch a pool bigger than we'll show so the idf re-rank can lift a distinctive
-  // product above popular same-brand items it was buried under.
-  const pool = await rawSearch(q, 25);
+  // Fetch a pool bigger than we'll show (so the idf re-rank can lift a buried
+  // distinctive product) plus the brand facet (to detect a brand-led query).
+  const { pool, brands } = await searchWithBrands(q, 25);
+  const brand = impliedBrand(q, brands, pool);
+
+  if (brand) {
+    const productWords = tokens(q).filter((w) => !brand.words.includes(w));
+    const filter = `brands_tags:${brand.tag}`;
+    // Each product word must AND explicitly — a bare multi-word phrase before an
+    // AND filter mis-parses and returns nothing.
+    const constrained = [...productWords, filter].join(" AND ");
+    const inBrand = await rawSearch(constrained, 25);
+    // Rank on the product words only; the brand words are shared by all hits.
+    const rankTerm = productWords.length ? productWords.join(" ") : q;
+    // May be empty — that means "not in this brand", never other brands.
+    return rankByName(rankTerm, inBrand).slice(0, limit);
+  }
+
   if (pool.length) return rankByName(q, pool).slice(0, limit);
 
   return fuzzySearch(q, limit);
