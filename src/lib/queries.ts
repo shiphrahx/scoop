@@ -1,6 +1,21 @@
 import { createClient } from "@/lib/supabase/server";
 import { average, weekStart, weeklyReview, type WeeklyReview } from "@/lib/coach";
-import type { Activity, DailyTargets, Macros, Profile } from "@/lib/types";
+import type {
+  Activity,
+  DailyTargets,
+  Macros,
+  PlannedMeal,
+  Profile,
+} from "@/lib/types";
+
+// Today's date in the user's local timezone as YYYY-MM-DD. Used for the
+// planned_meals.date column so a plan lines up with the calendar day, matching
+// how getTodayConsumed sums food from local midnight.
+export function localToday(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
 
 // Server-side reads. Each returns the current user's data (RLS enforces scope).
 
@@ -54,6 +69,39 @@ export async function getTodayConsumed(): Promise<Macros> {
     }),
     { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
   );
+}
+
+// Today's saved day plan (all slots), ordered as the user arranged them.
+export async function getTodayPlan(): Promise<PlannedMeal[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("planned_meals")
+    .select(
+      "id, date, slot, position, origin, name, portions, swaps, why, kcal, protein_g, carbs_g, fat_g, logged_food_id",
+    )
+    .eq("date", localToday())
+    .order("position", { ascending: true });
+
+  return ((data as PlannedMeal[]) ?? []).map((m) => ({
+    ...m,
+    kcal: Number(m.kcal),
+    protein_g: Number(m.protein_g),
+    carbs_g: Number(m.carbs_g),
+    fat_g: Number(m.fat_g),
+  }));
+}
+
+// True once the user has logged any food today — used to decide whether to
+// nudge them to plan the day.
+export async function hasTrackedToday(): Promise<boolean> {
+  const supabase = await createClient();
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const { count } = await supabase
+    .from("food_logs")
+    .select("id", { count: "exact", head: true })
+    .gte("logged_at", start.toISOString());
+  return (count ?? 0) > 0;
 }
 
 // True when the user has saved an Anthropic key (the key itself never leaves
