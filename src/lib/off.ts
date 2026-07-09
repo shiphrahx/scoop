@@ -174,13 +174,32 @@ function rankByName(term: string, candidates: OffCandidate[]): OffCandidate[] {
   const idf: Record<string, number> = {};
   for (const w of want) idf[w] = Math.log(1 + n / (df[w] || 0.5));
 
+  // The single most distinctive query word — the one that best pins the product.
+  const keyToken = want.reduce((a, b) => (idf[b] > (idf[a] ?? 0) ? b : a), want[0]);
+  const maxIdf = Math.max(1, ...want.map((w) => idf[w]));
+
   return candidates
     .map((c, i) => {
       const t = texts[i];
-      const score = want.reduce((acc, w) => acc + (t.has(w) ? idf[w] : 0), 0);
-      return { c, score, i };
+      const matched = want.filter((w) => t.has(w));
+      let score = matched.reduce((acc, w) => acc + idf[w], 0);
+      // Prefer a tight match (little else in the text) over a long noisy one.
+      // Denominator is the whole name+brand token count so a brand-side match
+      // can't push the ratio above 1.
+      score += 0.3 * maxIdf * (matched.length / (t.size || 1));
+      // A candidate that misses the distinctive word is probably the wrong
+      // product (a same-category or same-brand also-ran) — push it down hard.
+      if (want.length > 1 && !t.has(keyToken)) score *= 0.2;
+      return { c, score, hasMacro: c.kcal_100g > 0, i };
     })
-    .sort((a, b) => b.score - a.score || a.i - b.i)
+    // Drop pure noise (matched nothing) so junk becomes "no match".
+    .filter((r) => r.score > 0)
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        Number(b.hasMacro) - Number(a.hasMacro) ||
+        a.i - b.i,
+    )
     .map((r) => r.c);
 }
 
