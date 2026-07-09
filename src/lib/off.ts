@@ -154,14 +154,31 @@ function nameSimilarity(word: string, name: string): number {
   return best;
 }
 
-// Rank candidates by how much their name overlaps the search term. Simple
-// token-overlap score; ties keep OFF's popularity order.
+// Rank candidates by inverse document frequency within the result pool. A rare,
+// distinctive query word ("vegemince") is worth far more than a common brand
+// word ("linda", "mccartney") that half the pool shares — so the specific
+// product wins over popular same-brand items. Weighs name + brand text; ties
+// keep OFF's popularity order.
 function rankByName(term: string, candidates: OffCandidate[]): OffCandidate[] {
-  const want = new Set(tokens(term));
+  const want = [...new Set(tokens(term))];
+  const n = candidates.length || 1;
+  const texts = candidates.map(
+    (c) => new Set(tokens(`${c.name} ${c.brand ?? ""}`)),
+  );
+
+  // Document frequency of each query token across the pool.
+  const df: Record<string, number> = {};
+  for (const w of want) {
+    df[w] = texts.reduce((acc, t) => acc + (t.has(w) ? 1 : 0), 0);
+  }
+  const idf: Record<string, number> = {};
+  for (const w of want) idf[w] = Math.log(1 + n / (df[w] || 0.5));
+
   return candidates
     .map((c, i) => {
-      const hits = tokens(c.name).filter((t) => want.has(t)).length;
-      return { c, score: hits / Math.max(1, want.size), i };
+      const t = texts[i];
+      const score = want.reduce((acc, w) => acc + (t.has(w) ? idf[w] : 0), 0);
+      return { c, score, i };
     })
     .sort((a, b) => b.score - a.score || a.i - b.i)
     .map((r) => r.c);
