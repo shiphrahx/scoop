@@ -24,8 +24,12 @@ export interface Profile {
   height_cm: number;
   sex: Sex;
   birth_year: number;
+  meal_slots: string[];
   onboarded_at: string | null;
 }
+
+// Default meal slots for a brand-new user (mirrors the DB column default).
+export const DEFAULT_MEAL_SLOTS = ["Breakfast", "Lunch", "Snack", "Dinner"];
 
 export interface Macros {
   kcal: number;
@@ -166,4 +170,31 @@ export interface MealSuggestion {
   protein_g: number;
   carbs_g: number;
   fat_g: number;
+}
+
+// One meal in a saved day plan, tied to a named slot (Breakfast, Lunch, …).
+// origin 'manual' = the user pinned it as free text and the AI estimated its
+// macros; 'ai' = a dish the app built from the pantry. logged_food_id is set
+// once the user says they ate it.
+export interface PlannedMeal extends Macros {
+  id: string;
+  date: string;
+  slot: string;
+  position: number;
+  origin: "manual" | "ai";
+  name: string;
+  portions: MealPortion[];
+  swaps: string[];
+  why: string | null;
+  logged_food_id: string | null;
+}
+
+// What the AI returns for one slot when planning a whole day.
+export interface PlannedSlot extends Macros {
+  slot: string;
+  origin: "manual" | "ai";
+  name: string;
+  portions: MealPortion[];
+  swaps: string[];
+  why: string;
 }
