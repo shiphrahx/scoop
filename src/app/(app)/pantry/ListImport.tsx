@@ -17,7 +17,7 @@ export default function ListImport() {
   function parse(input: string) {
     const found = parseShoppingList(input);
     if (found.length === 0) {
-      setNote("No items found in that list.");
+      setNote("Nothing to search — type an item or paste a list.");
       setItems(null);
       return;
     }
@@ -89,7 +89,7 @@ export default function ListImport() {
           disabled={!text.trim()}
           className="sc-btn sc-btn-soft flex-1"
         >
-          <ListPlus size={18} /> Read list
+          <ListPlus size={18} /> Search
         </button>
       </div>
     </section>
