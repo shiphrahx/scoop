@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { UtensilsCrossed, Scale, CookingPot, Package, Sparkles, ChevronRight } from "lucide-react";
+import { UtensilsCrossed, Scale, CookingPot, Package, Sparkles, ChevronRight, CalendarCheck } from "lucide-react";
 import ProgressRing from "@/components/ProgressRing";
 import MacroBar from "@/components/MacroBar";
 import SignOutButton from "@/components/SignOutButton";
@@ -17,11 +17,13 @@ export default function MobileHome({
   targets,
   consumed,
   coach,
+  planPrompt,
 }: {
   name: string;
   targets: DailyTargets | null;
   consumed: Macros;
   coach: { headline: string; detail: string };
+  planPrompt: { hasPlan: boolean } | null;
 }) {
   const kcalLeft = targets ? Math.max(0, Math.round(targets.kcal - consumed.kcal)) : 0;
 
@@ -34,6 +36,29 @@ export default function MobileHome({
         </div>
         <SignOutButton />
       </header>
+
+      {planPrompt && (
+        <Link
+          href="/plan/day"
+          className="flex items-center gap-4 rounded-[1.75rem] p-5 text-white transition active:scale-[0.99]"
+          style={{ background: "var(--grad-primary)", boxShadow: "var(--shadow-glow)" }}
+        >
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/20">
+            <CalendarCheck size={22} />
+          </span>
+          <div className="min-w-0">
+            <p className="font-semibold">
+              {planPrompt.hasPlan ? "Continue today's plan" : "Plan my day"}
+            </p>
+            <p className="truncate text-sm text-white/80">
+              {planPrompt.hasPlan
+                ? "Pick up where you left off"
+                : "Nothing logged yet — sort your meals"}
+            </p>
+          </div>
+          <ChevronRight size={22} className="ml-auto shrink-0 text-white/80" />
+        </Link>
+      )}
 
       {targets ? (
         <>
