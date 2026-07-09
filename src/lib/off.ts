@@ -38,16 +38,23 @@ export function parsePackSizeG(quantity: unknown): number | null {
   }
 }
 
-// Shape one OFF product record into per-100g macros + pack size.
+// Shape one OFF product record into per-100g macros + pack size. `brands` comes
+// back as a comma-joined string from the product/v2 APIs but as an array from
+// the Search-a-licious search API — accept either and take the first brand.
 function toCandidate(p: {
   code?: string;
   product_name?: string;
-  brands?: string;
+  brands?: string | string[];
   quantity?: string;
   nutriments?: Record<string, unknown>;
 }): OffCandidate {
   const n = p.nutriments ?? {};
-  const brand = p.brands ? p.brands.split(",")[0].trim() : null;
+  const brandList = Array.isArray(p.brands)
+    ? p.brands
+    : p.brands
+      ? p.brands.split(",")
+      : [];
+  const brand = brandList.length ? brandList[0].trim() : null;
   const name = (p.product_name && p.product_name.trim()) || brand || "Unknown item";
   return {
     code: p.code ?? null,
