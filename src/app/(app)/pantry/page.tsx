@@ -1,26 +1,19 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import GroceryScan from "./GroceryScan";
-import InvoiceImport from "./InvoiceImport";
-import ListImport from "./ListImport";
-import PantryForm from "./PantryForm";
+import { ArrowLeft, Package, Plus } from "lucide-react";
 import PantryList from "./PantryList";
 import { createClient } from "@/lib/supabase/server";
-import { hasApiKey } from "@/lib/queries";
 import type { PantryItem } from "@/lib/types";
 
+// The pantry list. Adding items happens on /pantry/add.
 export default async function PantryPage() {
   const supabase = await createClient();
 
-  const [{ data }, connected] = await Promise.all([
-    supabase
-      .from("pantry_items")
-      .select(
-        "id, name, off_barcode, quantity, kcal_100g, protein_100g, carbs_100g, fat_100g, pack_size_g",
-      )
-      .order("created_at", { ascending: false }),
-    hasApiKey(),
-  ]);
+  const { data } = await supabase
+    .from("pantry_items")
+    .select(
+      "id, name, off_barcode, quantity, kcal_100g, protein_100g, carbs_100g, fat_100g, pack_size_g",
+    )
+    .order("created_at", { ascending: false });
 
   const items = (data as PantryItem[]) ?? [];
 
@@ -37,11 +30,38 @@ export default async function PantryPage() {
         <h1 className="text-3xl font-semibold">Pantry</h1>
       </div>
 
-      <PantryList items={items} />
-      <PantryForm />
-      <ListImport />
-      <InvoiceImport />
-      <GroceryScan connected={connected} />
+      {items.length === 0 ? (
+        <div className="sc-card flex flex-col items-center gap-4 px-6 py-12 text-center">
+          <span
+            className="grid h-16 w-16 place-items-center rounded-full"
+            style={{ background: "var(--tint-teal)", color: "var(--ink-teal)" }}
+          >
+            <Package size={30} />
+          </span>
+          <div className="flex flex-col gap-1">
+            <p className="text-lg font-semibold">Your pantry is empty</p>
+            <p className="text-sm text-[var(--muted)]">
+              Add what you have so we can plan meals and log faster.
+            </p>
+          </div>
+          <Link
+            href="/pantry/add"
+            className="sc-btn sc-btn-primary px-6 py-4 text-lg"
+          >
+            <Plus size={20} /> Add your first item
+          </Link>
+        </div>
+      ) : (
+        <>
+          <Link
+            href="/pantry/add"
+            className="sc-btn sc-btn-primary py-4 text-lg"
+          >
+            <Plus size={20} /> Add item
+          </Link>
+          <PantryList items={items} />
+        </>
+      )}
     </main>
   );
 }
