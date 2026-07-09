@@ -259,25 +259,25 @@ async function rawSearch(term: string, limit: number): Promise<OffCandidate[]> {
     `&fields=code,product_name,brands,quantity,nutriments` +
     `&page_size=${limit}`;
 
-  let res: Response;
   try {
-    res = await fetch(url, {
+    const res = await fetch(url, {
       headers: { "User-Agent": USER_AGENT },
       next: { revalidate: 86400 },
     });
+    if (!res.ok) return [];
+    // Search-a-licious returns matches under `hits` (relevance-ranked). OFF can
+    // serve an HTML error page with a 2xx — parse inside the try so a non-JSON
+    // body degrades to "no match" instead of throwing.
+    const body = (await res.json()) as {
+      hits?: Array<Parameters<typeof toCandidate>[0]>;
+    };
+    return (body.hits ?? [])
+      .map(toCandidate)
+      // Drop hits with no usable name.
+      .filter((c) => c.name && c.name !== "Unknown item");
   } catch {
     return [];
   }
-  if (!res.ok) return [];
-
-  // Search-a-licious returns matches under `hits` (relevance-ranked).
-  const body = (await res.json()) as {
-    hits?: Array<Parameters<typeof toCandidate>[0]>;
-  };
-  return (body.hits ?? [])
-    .map(toCandidate)
-    // Drop hits with no usable name.
-    .filter((c) => c.name && c.name !== "Unknown item");
 }
 
 interface BrandFacetItem {
@@ -300,25 +300,24 @@ async function searchWithBrands(
     `&fields=code,product_name,brands,quantity,nutriments` +
     `&facets=brands_tags&page_size=${limit}`;
 
-  let res: Response;
   try {
-    res = await fetch(url, {
+    const res = await fetch(url, {
       headers: { "User-Agent": USER_AGENT },
       next: { revalidate: 86400 },
     });
+    if (!res.ok) return { pool: [], brands: [] };
+    // Parse inside the try — a non-JSON error page must degrade to empty.
+    const body = (await res.json()) as {
+      hits?: Array<Parameters<typeof toCandidate>[0]>;
+      facets?: { brands_tags?: { items?: BrandFacetItem[] } };
+    };
+    const pool = (body.hits ?? [])
+      .map(toCandidate)
+      .filter((c) => c.name && c.name !== "Unknown item");
+    return { pool, brands: body.facets?.brands_tags?.items ?? [] };
   } catch {
     return { pool: [], brands: [] };
   }
-  if (!res.ok) return { pool: [], brands: [] };
-
-  const body = (await res.json()) as {
-    hits?: Array<Parameters<typeof toCandidate>[0]>;
-    facets?: { brands_tags?: { items?: BrandFacetItem[] } };
-  };
-  const pool = (body.hits ?? [])
-    .map(toCandidate)
-    .filter((c) => c.name && c.name !== "Unknown item");
-  return { pool, brands: body.facets?.brands_tags?.items ?? [] };
 }
 
 // A brand is "implied" when every word of its name appears in the query — then
