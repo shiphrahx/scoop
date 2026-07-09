@@ -6,7 +6,9 @@ import { extractRecipeJsonLd } from "@/lib/recipe";
 import type {
   DietType,
   GroceryItem,
+  Macros,
   MealSuggestion,
+  PlannedSlot,
   RecipeIngredient,
 } from "@/lib/types";
 
@@ -320,6 +322,93 @@ export async function suggestMeals(
     (m) =>
       !violatesDiet(
         `${m.name} ${m.uses.join(" ")} ${m.portions.map((p) => p.name).join(" ")}`,
+        input.diet,
+      ),
+  );
+}
+
+// --- Plan a whole day: fill the empty meal slots to hit the day's macros -----
+
+const PlanDaySchema = z.object({
+  meals: z.array(
+    z.object({
+      slot: z.string(),
+      origin: z.enum(["manual", "ai"]),
+      name: z.string(),
+      portions: z.array(z.object({ name: z.string(), grams: z.number() })),
+      swaps: z.array(z.string()),
+      why: z.string(),
+      kcal: z.number(),
+      protein_g: z.number(),
+      carbs_g: z.number(),
+      fat_g: z.number(),
+    }),
+  ),
+});
+
+export interface PlanDayInput {
+  diet: DietType;
+  allergies: string[];
+  dislikes: string[];
+  pantry: string[];
+  // The macros the user should still eat across the meals we're planning
+  // (day target minus anything already logged today).
+  budget: Macros;
+  // Every slot to plan for, in order. `pinned` is the user's free-text meal
+  // for that slot when they already know what they'll eat; otherwise null and
+  // the app should invent a pantry dish.
+  slots: { slot: string; pinned: string | null }[];
+}
+
+// Plan the day in one pass: for each slot return a meal. Pinned slots keep the
+// user's meal and just get macro estimates; empty slots get a pantry dish. The
+// totals across all slots should land on the day's budget.
+export async function planDay(input: PlanDayInput): Promise<PlannedSlot[]> {
+  const client = await getClient();
+
+  const system =
+    "You plan a full day of eating, slot by slot, to hit a macro budget.\n" +
+    `${dietRule(input.diet)}\n` +
+    "This diet rule is absolute: never include a forbidden ingredient, EVEN IF " +
+    "it's in the pantry. Also avoid the user's allergies and dislikes.\n" +
+    "Rules:\n" +
+    "- For a slot with a `pinned` meal: keep that exact meal as the `name`, set " +
+    "origin 'manual', leave `portions` empty, and just ESTIMATE its macros.\n" +
+    "- For a slot with no pinned meal: invent one simple dish the user can make " +
+    "from their pantry, set origin 'ai', and give EXACT `portions` in grams per " +
+    "ingredient plus a couple of optional `swaps` and a one-line `why`.\n" +
+    "- Choose the empty-slot dishes so the TOTAL macros across ALL slots (pinned " +
+    "estimates included) land as close as possible to the day's budget.\n" +
+    "- Return exactly one meal per slot, in the given order.";
+
+  const res = await client.messages.parse({
+    model: MODEL,
+    max_tokens: 4096,
+    thinking: { type: "adaptive" },
+    system,
+    messages: [
+      {
+        role: "user",
+        content: JSON.stringify({
+          pantry: input.pantry,
+          allergies: input.allergies,
+          dislikes: input.dislikes,
+          day_budget: input.budget,
+          slots: input.slots,
+        }),
+      },
+    ],
+    output_config: { format: zodOutputFormat(PlanDaySchema) },
+  });
+
+  const meals = res.parsed_output?.meals ?? [];
+  // Guard the AI-invented dishes against the diet; never drop a pinned meal
+  // (that's the user's own choice — we only estimated its macros).
+  return meals.filter(
+    (m) =>
+      m.origin === "manual" ||
+      !violatesDiet(
+        `${m.name} ${m.portions.map((p) => p.name).join(" ")}`,
         input.diet,
       ),
   );
