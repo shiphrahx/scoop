@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, ChevronDown, Loader2 } from "lucide-react";
+import { Check, ChevronDown, Loader2, Trash2 } from "lucide-react";
 import type { ImportedItem, OffCandidate } from "@/lib/types";
 import { addMatchedItems, matchCandidates, type PantryInput } from "./actions";
 
@@ -71,6 +71,10 @@ export default function MatchItems({
   const patch = (i: number, next: Partial<Row>) =>
     setRows((prev) => prev.map((r, j) => (j === i ? { ...r, ...next } : r)));
 
+  // Drop a row the user doesn't want to import. Save skips it automatically.
+  const remove = (i: number) =>
+    setRows((prev) => prev.filter((_, j) => j !== i));
+
   async function save() {
     setSaving(true);
     try {
@@ -99,41 +103,57 @@ export default function MatchItems({
         later.
       </p>
 
+      {rows.length === 0 && (
+        <p className="rounded-2xl bg-[var(--fill-soft)] px-4 py-6 text-center text-sm text-[var(--muted)]">
+          No items left. Cancel to go back.
+        </p>
+      )}
+
       <ul className="flex flex-col gap-2">
         {rows.map((r, i) => (
           <li key={i} className="rounded-2xl border border-[var(--border)] bg-white/40">
-            <button
-              onClick={() => patch(i, { expanded: !r.expanded })}
-              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
-            >
-              <span className="min-w-0">
-                <span className="block truncate font-semibold">
-                  {r.item.name}
-                  {r.item.quantity > 1 && (
-                    <span className="text-[var(--muted)]"> ×{r.item.quantity}</span>
-                  )}
+            <div className="flex items-center gap-1 pr-2">
+              <button
+                onClick={() => patch(i, { expanded: !r.expanded })}
+                className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3 text-left"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate font-semibold">
+                    {r.item.name}
+                    {r.item.quantity > 1 && (
+                      <span className="text-[var(--muted)]"> ×{r.item.quantity}</span>
+                    )}
+                  </span>
+                  <span className="block truncate text-xs text-[var(--muted)]">
+                    {r.loading ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Loader2 size={12} className="animate-spin" /> Searching…
+                      </span>
+                    ) : r.chosen ? (
+                      `${r.chosen.name}${r.chosen.brand ? ` · ${r.chosen.brand}` : ""} · ${Math.round(
+                        r.chosen.kcal_100g,
+                      )} kcal/100g`
+                    ) : (
+                      "No match — will add without macros"
+                    )}
+                  </span>
                 </span>
-                <span className="block truncate text-xs text-[var(--muted)]">
-                  {r.loading ? (
-                    <span className="inline-flex items-center gap-1">
-                      <Loader2 size={12} className="animate-spin" /> Searching…
-                    </span>
-                  ) : r.chosen ? (
-                    `${r.chosen.name}${r.chosen.brand ? ` · ${r.chosen.brand}` : ""} · ${Math.round(
-                      r.chosen.kcal_100g,
-                    )} kcal/100g`
-                  ) : (
-                    "No match — will add without macros"
-                  )}
-                </span>
-              </span>
-              <ChevronDown
-                size={18}
-                className={`shrink-0 text-[var(--muted)] transition ${
-                  r.expanded ? "rotate-180" : ""
-                }`}
-              />
-            </button>
+                <ChevronDown
+                  size={18}
+                  className={`shrink-0 text-[var(--muted)] transition ${
+                    r.expanded ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+              <button
+                onClick={() => remove(i)}
+                aria-label={`Remove ${r.item.name}`}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[var(--muted)] transition active:scale-90"
+                style={{ background: "var(--fill)" }}
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
 
             {r.expanded && !r.loading && (
               <div className="flex flex-col gap-1.5 px-4 pb-3">
@@ -189,7 +209,7 @@ export default function MatchItems({
         </button>
         <button
           onClick={save}
-          disabled={saving || rows.some((r) => r.loading)}
+          disabled={saving || rows.length === 0 || rows.some((r) => r.loading)}
           className="sc-btn sc-btn-primary flex-1"
         >
           {saving ? "Saving…" : `Save ${rows.length} to pantry`}
