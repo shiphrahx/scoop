@@ -4,9 +4,20 @@ import { useState } from "react";
 import { Minus, Plus, Check } from "lucide-react";
 import { logWeight } from "./actions";
 
+// Local today as YYYY-MM-DD (not UTC, so "today" matches the user's calendar).
+function localToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
+}
+
 // One-tap weigh-in: pre-filled with the last weight, nudge with ± then Save.
+// Defaults to today; pick a past date to back-fill a day you forgot.
 export default function WeightLogger({ last }: { last: number | null }) {
+  const today = localToday();
   const [value, setValue] = useState(last ?? 80);
+  const [date, setDate] = useState(today);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -17,7 +28,7 @@ export default function WeightLogger({ last }: { last: number | null }) {
     setSaving(true);
     setSaved(false);
     try {
-      await logWeight(value);
+      await logWeight(value, date);
       setSaved(true);
     } finally {
       setSaving(false);
@@ -49,6 +60,20 @@ export default function WeightLogger({ last }: { last: number | null }) {
         </button>
       </div>
 
+      <label className="flex items-center justify-between gap-3">
+        <span className="text-sm font-semibold">Date</span>
+        <input
+          type="date"
+          value={date}
+          max={today}
+          onChange={(e) => {
+            setDate(e.target.value || today);
+            setSaved(false);
+          }}
+          className="sc-input w-auto"
+        />
+      </label>
+
       <button
         onClick={save}
         disabled={saving}
@@ -60,8 +85,10 @@ export default function WeightLogger({ last }: { last: number | null }) {
           <>
             <Check size={18} /> Saved
           </>
-        ) : (
+        ) : date === today ? (
           "Log today's weight"
+        ) : (
+          `Log weight for ${date}`
         )}
       </button>
     </div>
