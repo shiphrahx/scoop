@@ -3,7 +3,12 @@
 import { useState, useTransition } from "react";
 import { Minus, Plus, Pencil, Trash2, Check, X } from "lucide-react";
 import type { PantryItem } from "@/lib/types";
-import { deletePantryItem, setPantryQuantity, updatePantryItem } from "./actions";
+import {
+  clearPantry,
+  deletePantryItem,
+  setPantryQuantity,
+  updatePantryItem,
+} from "./actions";
 
 // The user's pantry. Tap +/− to change how many they have (zero removes it),
 // pencil to edit name/macros/pack size, trash to delete.
@@ -17,11 +22,45 @@ export default function PantryList({ items }: { items: PantryItem[] }) {
   }
 
   return (
-    <ul className="flex flex-col gap-2">
-      {items.map((item) => (
-        <PantryRow key={item.id} item={item} />
-      ))}
-    </ul>
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-[var(--muted)]">
+          {items.length} item{items.length === 1 ? "" : "s"}
+        </span>
+        <ClearAllButton count={items.length} />
+      </div>
+      <ul className="flex flex-col gap-2">
+        {items.map((item) => (
+          <PantryRow key={item.id} item={item} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ClearAllButton({ count }: { count: number }) {
+  const [pending, startTransition] = useTransition();
+
+  function clear() {
+    if (
+      !window.confirm(
+        `Remove all ${count} item${count === 1 ? "" : "s"} from your pantry? This can't be undone.`,
+      )
+    ) {
+      return;
+    }
+    startTransition(() => clearPantry());
+  }
+
+  return (
+    <button
+      onClick={clear}
+      disabled={pending}
+      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold text-[var(--danger,#e5484d)] transition active:scale-95 disabled:opacity-50"
+    >
+      <Trash2 size={15} />
+      {pending ? "Clearing…" : "Clear all"}
+    </button>
   );
 }
 

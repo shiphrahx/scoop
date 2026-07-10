@@ -151,6 +151,18 @@ export async function deletePantryItem(id: string) {
   revalidatePath("/pantry");
 }
 
+// Empty the whole pantry for the current user (RLS scopes the delete to them).
+export async function clearPantry() {
+  const { supabase, user } = await requireUser();
+  const { error } = await supabase
+    .from("pantry_items")
+    .delete()
+    .eq("user_id", user.id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/pantry");
+}
+
 // Read a grocery screenshot into a list of items (AI, user's own key). Returns
 // the parsed items for the user to confirm before anything is saved.
 export async function scanGroceries(
