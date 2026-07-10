@@ -1,6 +1,19 @@
+<div align="center">
+
 # Scoop
 
 **Tell me how much to eat. Stop making me do the math.**
+
+![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)
+![TypeScript](https://img.shields.io/badge/TypeScript-blue?logo=typescript&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38bdf8?logo=tailwindcss&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3ecf8e?logo=supabase&logoColor=white)
+![Vercel](https://img.shields.io/badge/Vercel-black?logo=vercel)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+<img src="hero.png" alt="Scoop" width="720" />
+
+</div>
 
 You want rice with dinner. How many grams fit your macros today? Weigh, type,
 guess. Every meal. Annoying. Most people quit tracking because of it.
