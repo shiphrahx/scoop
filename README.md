@@ -1,114 +1,111 @@
 # Scoop
 
-You want lose fat. Normal food app make you hunt, type, guess. Bad. Much work.
+A mobile-first weight-loss coach app. Instead of searching foods, Scoop tells
+you the portion to eat to hit your macros. Built with Next.js, Tailwind and
+Supabase.
 
-Scoop flip it. You no search food. **Scoop tell you how much to eat.** It know
-your body numbers, know your food shelf, do the math. You just eat right amount.
-Tap tap. Done.
+See [`CLAUDE.md`](./CLAUDE.md) for the full product plan and build phases.
 
-Phone-first. Big buttons. Little typing. Feel like Duolingo but for belly.
+## Tech stack
 
-Want full cave-plan and build steps? Look [`CLAUDE.md`](./CLAUDE.md).
+- **Next.js 16** (App Router, TypeScript)
+- **Tailwind CSS v4**
+- **Supabase** — Postgres + Google OAuth
+- **Vercel** — hosting
 
-## What make Scoop go (tools)
+## Prerequisites
 
-- **Next.js 16** — app brain (App Router, TypeScript)
-- **Tailwind CSS v4** — make screen pretty
-- **Supabase** — keep your stuff (Postgres) + Google door (OAuth)
-- **Vercel** — put app on internet
+- Node.js 20+ (built on Node 24)
+- A [Supabase](https://supabase.com) account (free tier)
+- A Google account (for the OAuth provider)
 
-## Before you start (need these)
+## Local setup
 
-- Node.js 20+ (we build on Node 24)
-- [Supabase](https://supabase.com) account (free)
-- Google account (for the sign-in door)
-
-## Run on your machine
-
-1. **Get the pieces**
+1. **Install dependencies**
 
    ```bash
    npm install
    ```
 
-2. **Make secret file**
+2. **Create your env file**
 
    ```bash
    cp .env.local.example .env.local
    ```
 
-   Fill two things (see "Supabase setup" below):
+   Then fill in the two values (see "Supabase setup" below):
 
    | Variable                        | Where to find it                                  |
    | ------------------------------- | ------------------------------------------------- |
    | `NEXT_PUBLIC_SUPABASE_URL`      | Supabase → Project Settings → Data API → URL      |
    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Project Settings → API Keys → anon key |
 
-   `.env.local` hidden from git — never put real keys in commit.
+   `.env.local` is git-ignored — never commit real keys.
 
-3. **Start the fire (dev server)**
+3. **Run the dev server**
 
    ```bash
    npm run dev
    ```
 
-   Open http://localhost:3000. It throw you to `/login`. Sign in with Google.
+   Open http://localhost:3000. You should be redirected to `/login` and can
+   sign in with Google.
 
 ## Supabase setup
 
-Need this or sign-in no work.
+You need this before local sign-in works.
 
-1. Make project at [supabase.com](https://supabase.com) (free).
-2. Copy **Project URL** and **anon public key** into `.env.local`
-   (see table above).
-3. **Turn on Google door:**
-   - In Supabase: **Authentication → Sign In / Providers → Google**, flip it on.
-   - Supabase show a **callback URL** like
+1. Create a project at [supabase.com](https://supabase.com) (free tier).
+2. Copy the **Project URL** and **anon public key** into `.env.local`
+   (see the table above).
+3. **Enable Google auth:**
+   - In Supabase: **Authentication → Sign In / Providers → Google**, toggle it on.
+   - Supabase shows a **callback URL** like
      `https://<your-project-ref>.supabase.co/auth/v1/callback`. Copy it.
-   - In [Google Cloud Console](https://console.cloud.google.com):
-     - Make (or pick) a project.
-     - **APIs & Services → OAuth consent screen** — set it up (External),
-       add your email as test user.
+   - In the [Google Cloud Console](https://console.cloud.google.com):
+     - Create (or pick) a project.
+     - **APIs & Services → OAuth consent screen** — configure it (External),
+       add your email as a test user.
      - **APIs & Services → Credentials → Create credentials → OAuth client ID**
        → **Web application**.
      - Under **Authorized redirect URIs**, paste the Supabase callback URL
        from above.
-     - Copy the **Client ID** and **Client secret** back into the Supabase
-       Google provider settings and save.
+     - Copy the generated **Client ID** and **Client secret** back into the
+       Supabase Google provider settings and save.
 4. **Set redirect URLs in Supabase** (**Authentication → URL Configuration**):
    - **Site URL:** `http://localhost:3000` for local dev.
    - **Redirect URLs:** add `http://localhost:3000/**` (and later your Vercel
      URL, e.g. `https://scoop.vercel.app/**`).
 
-Restart `npm run dev` after you touch `.env.local`.
+Restart `npm run dev` after editing `.env.local`.
 
 ## Database migrations
 
-App tables live in [`supabase/migrations`](./supabase/migrations). Run them
-before Phase 2 stuff work:
+The app tables live in [`supabase/migrations`](./supabase/migrations). Apply
+them before running Phase 2 features:
 
-- **Supabase SQL Editor:** open each `.sql` file in order, run it.
-- Or with Supabase CLI: `supabase db push`.
+- **Supabase SQL Editor:** open each `.sql` file in order and run it.
+- Or with the Supabase CLI: `supabase db push`.
 
-`0001_phase2_schema.sql` make `users`, `weights`, `measurements`, `food_logs`
-and `daily_targets` — all locked to the signed-in user (row-level security).
+`0001_phase2_schema.sql` creates `users`, `weights`, `measurements`,
+`food_logs` and `daily_targets`, all row-level-secured to the signed-in user.
 
-## Put on internet (Vercel)
+## Deploy to Vercel
 
 1. Push this repo to GitHub.
-2. In [Vercel](https://vercel.com), **Add New → Project**, import the repo.
-   It sniff out Next.js on its own — no build config needed.
-3. Add same secret vars in **Project → Settings → Environment Variables**:
+2. In [Vercel](https://vercel.com), **Add New → Project** and import the repo.
+   Framework preset is detected as Next.js — no build config needed.
+3. Add the same env vars in **Project → Settings → Environment Variables**:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-4. Deploy. Then back in Supabase:
+4. Deploy. Then, back in Supabase:
    - Add your Vercel URL to **Authentication → URL Configuration → Redirect
      URLs** (`https://your-app.vercel.app/**`).
-   - Maybe set **Site URL** to the Vercel URL too.
-5. In Google Cloud Console, the Supabase callback URL stay the same, so no
-   change needed there for production.
+   - Optionally set the **Site URL** to the Vercel URL.
+5. In Google Cloud Console, the Supabase callback URL stays the same, so no
+   change is needed there for production.
 
-## Scripts (magic words)
+## Scripts
 
 | Command         | Does                       |
 | --------------- | -------------------------- |
@@ -117,7 +114,7 @@ and `daily_targets` — all locked to the signed-in user (row-level security).
 | `npm run start` | Serve the production build |
 | `npm run lint`  | Run ESLint                 |
 
-## Where stuff live (project map)
+## Project structure
 
 ```
 src/
