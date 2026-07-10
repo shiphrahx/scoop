@@ -1,136 +1,69 @@
 # Scoop
 
-A phone-first weight-loss coach. Most food apps make you hunt, type, and guess.
-Scoop flips that around: instead of searching for foods, it just tells you how
-much to eat to hit your macros. It knows your body numbers, learns your pantry,
-and does the math for you — so tracking is mostly tapping, not typing.
+**Tell me how much to eat. Stop making me do the math.**
 
-Built with Next.js, Tailwind, and Supabase.
+Normal food trackers hand you a search box and a food scale and walk away. You
+want rice with dinner, so now you're the one figuring out: how many grams of
+rice fit what's left of my macros today? Weigh, type, adjust, guess. Every meal.
+It's tedious, and it's the reason most people quit tracking.
+
+Scoop flips it around. You don't tell the app what you ate — the app tells you
+what to eat. It knows your body, your goal, your pantry, and what you've already
+eaten today, then it hands you the portion: *"180g of rice with the chicken."*
+You just eat it.
+
+Phone-first, big tap targets, almost no typing. Built to feel like Duolingo, not
+a spreadsheet.
+
+## The problems it solves
+
+- **"How much of this can I eat?"** — Scoop gives you the exact portion to hit
+  the macros you have left, so you never do the arithmetic.
+- **"Tracking is too much typing."** — Scan a barcode, tap a favourite, snap a
+  photo. Manual entry is the last resort, not the default.
+- **"I cooked a big batch — now what?"** — Log the batch once; Scoop tracks
+  macros per gram and how much is left across the week.
+- **"What can I even make with what I have?"** — It suggests real meals using
+  only what's in your pantry and fits your diet.
+- **"Am I actually making progress?"** — It watches weight, measurements, and
+  activity together, so a flat scale with a shrinking waist reads as the win it
+  is.
+
+## What it does
+
+- **Tells you the portion.** Picks the grams of each food to hit today's
+  remaining calories and macros. This is the whole point.
+- **Sets your targets for you.** From your height, weight, age, sex, and
+  activity it computes your calorie and macro goals — no calculators.
+- **Easy food input.** Barcode scan (Open Food Facts), saved favourites, saved
+  meals, photo of a label, or a grocery screenshot the AI reads for you.
+- **Batch cooking.** Log the packs you used and the total cooked weight; Scoop
+  divides it into per-gram macros and tracks the remaining batch day to day.
+- **Pantry.** Knows the food you actually have, filled by barcode and receipt
+  scans.
+- **Plan a meal.** Pick a carb, pick a protein from pictures — it suggests
+  dishes built only from your pantry that fit your diet.
+- **Import a recipe.** Paste a URL (or screenshot it); the AI reads the recipe
+  and scales it to your macros.
+- **One-tap logging.** Daily weight in a tap; weekly waist / arms / thighs / hips.
+- **The Coach.** Each week it reviews weight, measurements, activity, and food,
+  then adjusts your macros and explains the change in plain words.
+- **Auto body data.** Pulls workouts and sleep from Fitbit; takes Apple Watch
+  data via Health Auto Export — so activity feeds your targets on its own.
+
+## How it works, roughly
+
+- **Targets** come from Mifflin–St Jeor BMR + your activity = TDEE, minus a
+  deficit for weight loss, split high-protein. Plain formulas, no guessing.
+- **Weekly adjustments** compare trailing average weight week over week — losing
+  at a healthy rate holds macros, stalling trims a little, dropping too fast adds
+  a little. Never reacts to a single day.
+- **AI** (your own API key) only does the reading-and-suggesting jobs: grocery
+  screenshots, recipes, and pantry meal ideas.
+
+## Built with
+
+Next.js · Tailwind · Supabase (Postgres + Google sign-in) · Vercel · Anthropic
+API (bring your own key) · Open Food Facts.
 
 See [`CLAUDE.md`](./CLAUDE.md) for the full product plan and build phases.
-
-## Tech stack
-
-- **Next.js 16** (App Router, TypeScript)
-- **Tailwind CSS v4**
-- **Supabase** — Postgres + Google OAuth
-- **Vercel** — hosting
-
-## Prerequisites
-
-- Node.js 20+ (built on Node 24)
-- A [Supabase](https://supabase.com) account (free tier)
-- A Google account (for the OAuth provider)
-
-## Local setup
-
-1. **Install dependencies**
-
-   ```bash
-   npm install
-   ```
-
-2. **Create your env file**
-
-   ```bash
-   cp .env.local.example .env.local
-   ```
-
-   Then fill in the two values (see "Supabase setup" below):
-
-   | Variable                        | Where to find it                                  |
-   | ------------------------------- | ------------------------------------------------- |
-   | `NEXT_PUBLIC_SUPABASE_URL`      | Supabase → Project Settings → Data API → URL      |
-   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Project Settings → API Keys → anon key |
-
-   `.env.local` is git-ignored — never commit real keys.
-
-3. **Run the dev server**
-
-   ```bash
-   npm run dev
-   ```
-
-   Open http://localhost:3000. You should be redirected to `/login` and can
-   sign in with Google.
-
-## Supabase setup
-
-You need this before local sign-in works.
-
-1. Create a project at [supabase.com](https://supabase.com) (free tier).
-2. Copy the **Project URL** and **anon public key** into `.env.local`
-   (see the table above).
-3. **Enable Google auth:**
-   - In Supabase: **Authentication → Sign In / Providers → Google**, toggle it on.
-   - Supabase shows a **callback URL** like
-     `https://<your-project-ref>.supabase.co/auth/v1/callback`. Copy it.
-   - In the [Google Cloud Console](https://console.cloud.google.com):
-     - Create (or pick) a project.
-     - **APIs & Services → OAuth consent screen** — configure it (External),
-       add your email as a test user.
-     - **APIs & Services → Credentials → Create credentials → OAuth client ID**
-       → **Web application**.
-     - Under **Authorized redirect URIs**, paste the Supabase callback URL
-       from above.
-     - Copy the generated **Client ID** and **Client secret** back into the
-       Supabase Google provider settings and save.
-4. **Set redirect URLs in Supabase** (**Authentication → URL Configuration**):
-   - **Site URL:** `http://localhost:3000` for local dev.
-   - **Redirect URLs:** add `http://localhost:3000/**` (and later your Vercel
-     URL, e.g. `https://scoop.vercel.app/**`).
-
-Restart `npm run dev` after editing `.env.local`.
-
-## Database migrations
-
-The app tables live in [`supabase/migrations`](./supabase/migrations). Apply
-them before running Phase 2 features:
-
-- **Supabase SQL Editor:** open each `.sql` file in order and run it.
-- Or with the Supabase CLI: `supabase db push`.
-
-`0001_phase2_schema.sql` creates `users`, `weights`, `measurements`,
-`food_logs` and `daily_targets`, all row-level-secured to the signed-in user.
-
-## Deploy to Vercel
-
-1. Push this repo to GitHub.
-2. In [Vercel](https://vercel.com), **Add New → Project** and import the repo.
-   Framework preset is detected as Next.js — no build config needed.
-3. Add the same env vars in **Project → Settings → Environment Variables**:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-4. Deploy. Then, back in Supabase:
-   - Add your Vercel URL to **Authentication → URL Configuration → Redirect
-     URLs** (`https://your-app.vercel.app/**`).
-   - Optionally set the **Site URL** to the Vercel URL.
-5. In Google Cloud Console, the Supabase callback URL stays the same, so no
-   change is needed there for production.
-
-## Scripts
-
-| Command         | Does                       |
-| --------------- | -------------------------- |
-| `npm run dev`   | Start the dev server       |
-| `npm run build` | Production build           |
-| `npm run start` | Serve the production build |
-| `npm run lint`  | Run ESLint                 |
-
-## Project structure
-
-```
-src/
-  app/
-    (app)/            # signed-in screens (share the bottom-nav shell)
-      layout.tsx      # auth guard + BottomNav
-      page.tsx        # Home
-      plan|add|progress|me/
-    auth/
-      callback/       # OAuth code exchange
-      signout/        # sign-out route handler
-    login/            # Google sign-in screen
-  components/         # BottomNav, SignOutButton
-  lib/supabase/       # browser client, server client, session helper
-  proxy.ts            # session refresh + route guard (was "middleware")
-```
