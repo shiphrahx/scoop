@@ -297,7 +297,8 @@ function ItemPicker({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Add a food…"
-          className="sc-input w-full pl-9"
+          className="sc-input w-full"
+          style={{ paddingLeft: "2.5rem" }}
         />
 
         {(searching || results.length > 0) && query.trim().length >= 2 && (
