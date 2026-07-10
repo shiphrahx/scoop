@@ -109,6 +109,185 @@ describe("searchProducts", () => {
   });
 });
 
+// --- Own-brand / retailer / marketing-noise fallback ------------------------
+// Real pantry names are full product titles ("M&S Red Peppers", "Ocado
+// Aubergine", "Daylesford Organic Brown Onions"). The search must still find
+// the base food when the brand/retailer/marketing words bury it, and must not
+// land on an unrelated product that happens to share a stray token.
+
+interface Hit {
+  code: string;
+  product_name: string;
+  brands: string;
+  quantity: string;
+  nutriments: Record<string, number>;
+}
+const prod = (name: string, brand = ""): Hit => ({
+  code: name,
+  product_name: name,
+  brands: brand,
+  quantity: "",
+  nutriments: { "energy-kcal_100g": 30, "proteins_100g": 1 },
+});
+
+type BrandItem = { key: string; name: string; count: number };
+
+// Route every OFF request by its decoded `q`. `resolve` returns the hits (and
+// optional brand-facet items) for that query; brand-size probes return 0 so no
+// bogus brand is inferred.
+function installOff(
+  resolve: (q: string) => { hits?: Hit[]; brandItems?: BrandItem[] },
+) {
+  fetchMock.mockImplementation(async (url: string) => {
+    const u = new URL(url);
+    // Lowercase for routing — the full query keeps the user's capitals while
+    // internal sub-queries are already lowercased.
+    const q = (u.searchParams.get("q") ?? "").toLowerCase();
+    if (q.startsWith("brands_tags:")) return jsonResponse({ count: 0 });
+    const isFacet = u.searchParams.get("facets") === "brands_tags";
+    const { hits = [], brandItems = [] } = resolve(q) || {};
+    const body: Record<string, unknown> = { hits };
+    if (isFacet) body.facets = { brands_tags: { items: brandItems } };
+    return jsonResponse(body);
+  });
+}
+
+const has = (q: string, ...words: string[]) => words.every((w) => q.includes(w));
+
+describe("searchProducts — own-brand & marketing-noise fallback", () => {
+  it("drops single-letter M&S tokens instead of matching M&M's (red peppers)", async () => {
+    installOff((q) => {
+      if (has(q, "red peppers")) return { hits: [prod("Red Peppers")] };
+      // The noisy full query returns unrelated chocolate.
+      if (has(q, "m&s")) return { hits: [prod("M&M's Red White & Blue")] };
+      return {};
+    });
+    const out = await searchProducts("M&S Red Peppers");
+    expect(out[0].name).toMatch(/pepper/i);
+    expect(out.some((c) => /m&m/i.test(c.name))).toBe(false);
+  });
+
+  it("finds tortilla wraps, not M&M's protein peanut", async () => {
+    installOff((q) => {
+      if (has(q, "tortilla")) return { hits: [prod("Tortilla Wraps")] };
+      if (has(q, "m&s")) return { hits: [prod("M&M's Protein Peanut")] };
+      return {};
+    });
+    const out = await searchProducts("M&S High Protein Tortilla Wraps");
+    expect(out[0].name).toMatch(/tortilla wraps/i);
+  });
+
+  it("ignores the brand and finds generic pork stir fry strips", async () => {
+    installOff((q) => {
+      if (has(q, "pork")) return { hits: [prod("Pork Stir-Fry Strips")] };
+      return {}; // nothing under the noisy branded query
+    });
+    const out = await searchProducts("M&S British Outdoor Bred Pork Stir Fry Strips");
+    expect(out[0].name).toMatch(/pork/i);
+  });
+
+  it("falls back past the Tenderstem trademark to broccoli", async () => {
+    installOff((q) => {
+      if (has(q, "tenderstem")) return {}; // no exact tenderstem product
+      if (has(q, "broccoli")) return { hits: [prod("Broccoli")] };
+      return {};
+    });
+    const out = await searchProducts("M&S Tenderstem Broccoli");
+    expect(out[0].name).toMatch(/broccoli/i);
+  });
+
+  it("finds aubergine behind the Ocado retailer name", async () => {
+    installOff((q) => {
+      if (has(q, "ocado")) return {};
+      if (has(q, "aubergine")) return { hits: [prod("Aubergine")] };
+      return {};
+    });
+    const out = await searchProducts("Ocado Aubergine");
+    expect(out[0].name).toMatch(/aubergine/i);
+  });
+
+  it("finds courgettes behind the Ocado retailer name", async () => {
+    installOff((q) => {
+      if (has(q, "ocado")) return {};
+      if (has(q, "courgette")) return { hits: [prod("Courgettes")] };
+      return {};
+    });
+    const out = await searchProducts("Ocado Courgettes");
+    expect(out[0].name).toMatch(/courgette/i);
+  });
+
+  it("finds limes, not avocados, and strips 'twin pack'", async () => {
+    installOff((q) => {
+      if (has(q, "ocado")) return { hits: [prod("Avocados")] };
+      if (has(q, "lime")) return { hits: [prod("Limes")] };
+      return {};
+    });
+    const out = await searchProducts("Ocado Limes Twin Pack");
+    expect(out[0].name).toMatch(/lime/i);
+    expect(out.some((c) => /avocado/i.test(c.name))).toBe(false);
+  });
+
+  it("strips the Daylesford brand + 'Organic' to find brown onions", async () => {
+    installOff((q) => {
+      if (has(q, "daylesford")) return {};
+      if (has(q, "brown", "onions")) return { hits: [prod("Brown Onions")] };
+      if (has(q, "onions")) return { hits: [prod("Onions")] };
+      return {};
+    });
+    const out = await searchProducts("Daylesford Organic Brown Onions");
+    expect(out[0].name).toMatch(/onion/i);
+  });
+
+  it("finds the Alpro almond drink despite the long descriptive name", async () => {
+    // The full query itself surfaces the product; two core terms (almond +
+    // alpro) match, so it's accepted without needing the base noun 'drink'.
+    installOff((q) => {
+      if (has(q, "almond")) {
+        return { hits: [prod("Alpro Almond No Sugar", "Alpro")] };
+      }
+      return {};
+    });
+    const out = await searchProducts("Alpro Almond No Sugar Long Life Dairy Free Drink");
+    expect(out[0].name).toMatch(/almond/i);
+  });
+
+  it("keeps a real product brand and finds Linda McCartney shredded chicken", async () => {
+    installOff((q) => {
+      // In-brand constrained search returns the vegan product (check the tag
+      // before the plain 'linda' facet branch, since the tag also contains it).
+      if (has(q, "brands_tags:linda-mccartney")) {
+        return {
+          hits: [prod("Vegan Shredded Chicken", "Linda McCartney")],
+        };
+      }
+      // Brand facet marks this as a Linda McCartney query.
+      if (has(q, "linda")) {
+        return {
+          brandItems: [
+            { key: "linda-mccartney", name: "Linda McCartney", count: 60 },
+          ],
+        };
+      }
+      return {};
+    });
+    const out = await searchProducts("Linda McCartney Shredded Chicken");
+    expect(out[0].name).toMatch(/shredded chicken/i);
+  });
+
+  it("still returns a clean generic query directly (no needless fallback)", async () => {
+    let calls = 0;
+    installOff((q) => {
+      calls++;
+      if (has(q, "banana")) return { hits: [prod("Banana")] };
+      return {};
+    });
+    const out = await searchProducts("banana");
+    expect(out[0].name).toBe("Banana");
+    // One search (+ nothing more): the primary result was already strong.
+    expect(calls).toBe(1);
+  });
+});
+
 describe("lookupBarcode", () => {
   it("returns a product on status 1", async () => {
     fetchMock.mockResolvedValueOnce(

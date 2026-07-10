@@ -92,6 +92,72 @@ function tokens(s: string): string[] {
     .filter(Boolean);
 }
 
+// Tokens worth ranking on: drop single characters. "M&S" tokenises to
+// ["m","s"], and those stray letters otherwise match unrelated products (e.g.
+// "M&M's"), so an own-brand query lands on chocolate. Length ≥ 2 keeps real
+// words while discarding that noise.
+function queryTokens(s: string): string[] {
+  return tokens(s).filter((t) => t.length >= 2);
+}
+
+// Supermarket / own-brand names and marketing words that describe a product but
+// aren't the food itself. When the full query finds nothing useful we strip
+// these to fall back on the core food ("Daylesford Organic Brown Onions" →
+// "brown onions", "Ocado Aubergine" → "aubergine").
+const STORE_BRANDS = new Set([
+  "ocado", "tesco", "sainsbury", "sainsburys", "asda", "waitrose", "aldi",
+  "lidl", "morrisons", "coop", "daylesford", "marks", "spencer", "iceland",
+  "budgens", "costcutter", "nisa", "spar",
+]);
+const FILLER = new Set([
+  "organic", "long", "life", "no", "added", "reduced", "low", "high", "free",
+  "dairy", "british", "irish", "scottish", "welsh", "outdoor", "bred", "source",
+  "twin", "pack", "multipack", "single", "style", "range", "finest", "taste",
+  "difference", "extra", "value", "essential", "essentials", "select", "wonky",
+  "loose", "fresh", "natural", "of", "the", "with", "and", "light", "original",
+  "classic", "new", "approx", "large", "medium", "small", "mini", "baby",
+]);
+
+// The essential food words in a query — brand, retailer and marketing words
+// stripped. Order preserved (the base noun tends to sit last).
+function coreTerms(q: string): string[] {
+  return queryTokens(q).filter(
+    (w) => !STORE_BRANDS.has(w) && !FILLER.has(w),
+  );
+}
+
+// Search queries to try, in order, when the full query didn't land: the core
+// food terms, then progressively shorter tails ending on the base noun.
+function fallbackVariants(q: string): string[] {
+  const core = coreTerms(q);
+  const base = q.trim().toLowerCase();
+  const out: string[] = [];
+  const push = (s: string) => {
+    const v = s.trim();
+    if (v && v !== base && !out.includes(v)) out.push(v);
+  };
+  if (core.length) push(core.join(" "));
+  for (const n of [3, 2, 1]) if (core.length > n) push(core.slice(-n).join(" "));
+  const qt = queryTokens(q);
+  if (qt.length) push(qt[qt.length - 1]); // the base noun, even if it's filler-ish
+  return out;
+}
+
+// A result set is "strong" when the top hit really is the food the user typed —
+// its name carries the base food noun (the last core word) OR at least two of
+// the core terms. That accepts "Alpro Almond No Sugar" for "…almond…drink"
+// (two core terms) while rejecting "M&M's Red White & Blue" for "red peppers"
+// (only "red" overlaps, and the noun "peppers" is missing).
+function isStrong(query: string, results: OffCandidate[]): boolean {
+  if (!results.length) return false;
+  const core = coreTerms(query);
+  if (!core.length) return true;
+  const top = new Set(tokens(results[0].name));
+  const noun = core[core.length - 1];
+  const matched = core.filter((w) => top.has(w)).length;
+  return top.has(noun) || matched >= 2;
+}
+
 // --- Typo tolerance --------------------------------------------------------
 // OFF's search is exact (match_phrase, no fuzziness), so a misspelled item
 // returns nothing. When that happens we generate likely spelling corrections
@@ -173,7 +239,7 @@ function nameSimilarity(word: string, name: string): number {
 // product wins over popular same-brand items. Weighs name + brand text; ties
 // keep OFF's popularity order.
 function rankByName(term: string, candidates: OffCandidate[]): OffCandidate[] {
-  const want = [...new Set(tokens(term))];
+  const want = [...new Set(queryTokens(term))];
   const n = candidates.length || 1;
   const texts = candidates.map(
     (c) => new Set(tokens(`${c.name} ${c.brand ?? ""}`)),
@@ -219,7 +285,7 @@ function rankByName(term: string, candidates: OffCandidate[]): OffCandidate[] {
 // The most distinctive query word given a candidate pool — the rarest one, which
 // best pins the intended product. Empty string when the term has no tokens.
 function distinctiveToken(term: string, pool: OffCandidate[]): string {
-  const want = [...new Set(tokens(term))];
+  const want = [...new Set(queryTokens(term))];
   if (want.length <= 1) return want[0] ?? "";
   const texts = pool.map((c) => new Set(tokens(`${c.name} ${c.brand ?? ""}`)));
   const n = pool.length || 1;
@@ -235,7 +301,7 @@ function distinctiveToken(term: string, pool: OffCandidate[]): string {
 // exact search only found category/near matches and a fuzzy retry is worth it.
 function exactIsWeak(term: string, ranked: OffCandidate[], pool: OffCandidate[]): boolean {
   if (!ranked.length) return true;
-  if ([...new Set(tokens(term))].length < 2) return false;
+  if ([...new Set(queryTokens(term))].length < 2) return false;
   const key = distinctiveToken(term, pool);
   const top = ranked[0];
   return !new Set(tokens(`${top.name} ${top.brand ?? ""}`)).has(key);
@@ -349,7 +415,7 @@ function impliedBrand(
   q: string,
   brands: BrandFacetItem[],
 ): { tag: string; words: string[] } | null {
-  const qset = new Set(tokens(q));
+  const qset = new Set(queryTokens(q));
   // Only trust the brand facet — its keys are canonical OFF brand tags and its
   // counts are real. (A single product's free-text brand field is often junk
   // like "Baked Beans" or "Vegan", which would gate to a bogus brand.)
@@ -372,10 +438,13 @@ function impliedBrand(
 // Search OFF by free text (an imported item name) and return up to `limit`
 // candidate products, best match first, for the user to confirm.
 //
-// - Brand-led queries ("linda mccartney …") are constrained to that brand, so a
-//   missing product returns nothing rather than other brands.
+// - Brand-led queries ("linda mccartney …") are constrained to that brand.
 // - Generic queries rank a large pool by inverse document frequency.
-// - A misspelled query with no hits falls back to a fuzzy, typo-tolerant search.
+// - A misspelled query falls back to a fuzzy, typo-tolerant search.
+// - When the full query lands nothing that actually IS the food (own-brand and
+//   marketing noise burying the base food, e.g. "Ocado Aubergine",
+//   "Daylesford Organic Brown Onions"), we retry on the core food terms and
+//   progressively shorter tails, so the base food is still found.
 // Empty array on any failure — callers keep the item unmatched, never blocking.
 export async function searchProducts(
   term: string,
@@ -384,6 +453,30 @@ export async function searchProducts(
   const q = term.trim();
   if (!q) return [];
 
+  const primary = await brandAwareSearch(q, limit);
+  if (isStrong(q, primary)) return primary;
+
+  // The full query didn't clearly find the food. Strip brand/retailer/marketing
+  // words and retry, then fall back to ever-shorter tails ending on the base
+  // noun. Take the first variant whose top hit really is the food.
+  let firstNonEmpty: OffCandidate[] | null = null;
+  for (const variant of fallbackVariants(q)) {
+    const pool = await rawSearch(variant, 25);
+    if (!pool.length) continue;
+    const ranked = rankByName(variant, pool).slice(0, limit);
+    if (!ranked.length) continue;
+    if (isStrong(variant, ranked)) return ranked;
+    firstNonEmpty ??= ranked;
+  }
+  return firstNonEmpty ?? primary;
+}
+
+// The brand-aware, single-query search: honour an implied brand, otherwise rank
+// a generic pool, with a fuzzy retry for typos.
+async function brandAwareSearch(
+  q: string,
+  limit: number,
+): Promise<OffCandidate[]> {
   // Fetch a pool bigger than we'll show (so the idf re-rank can lift a buried
   // distinctive product) plus the brand facet (to detect a brand-led query).
   const { pool, brands } = await searchWithBrands(q, 25);
@@ -393,7 +486,7 @@ export async function searchProducts(
   // "linda mccartney chicken breast" — a product the brand doesn't actually make).
   // If the query leads with a real two-word brand, honour it so we stay in-brand
   // rather than leaking other brands.
-  const qWords = tokens(q);
+  const qWords = queryTokens(q);
   if (!brand && qWords.length >= 3) {
     const tag = `${qWords[0]}-${qWords[1]}`;
     if ((await brandSize(tag)) >= MULTIWORD_BRAND_MIN) {
@@ -402,7 +495,7 @@ export async function searchProducts(
   }
 
   if (brand) {
-    const productWords = tokens(q).filter((w) => !brand.words.includes(w));
+    const productWords = queryTokens(q).filter((w) => !brand.words.includes(w));
     const filter = `brands_tags:${brand.tag}`;
     // Each product word must AND explicitly — a bare multi-word phrase before an
     // AND filter mis-parses and returns nothing.
@@ -410,7 +503,8 @@ export async function searchProducts(
     const inBrand = await rawSearch(constrained, 25);
     // Rank on the product words only; the brand words are shared by all hits.
     const rankTerm = productWords.length ? productWords.join(" ") : q;
-    // May be empty — that means "not in this brand", never other brands.
+    // May be empty — that means "not in this brand"; the caller then falls back
+    // to a generic, brandless search on the core food.
     return rankByName(rankTerm, inBrand).slice(0, limit);
   }
 
