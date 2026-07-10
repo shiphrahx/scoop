@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Sparkles, Check, X, Search, Plus, Minus, Package, Globe } from "lucide-react";
 import type { FoodChoice, Macros, PlannedMeal, PlanItem } from "@/lib/types";
 import { sumItems } from "@/lib/types";
@@ -28,6 +28,33 @@ function dayTotal(slots: Slot[]): Macros {
         : s,
     { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
   );
+}
+
+// Weight units we understand in the "add a food" box, in grams.
+const UNIT_G: Record<string, number> = {
+  kg: 1000, kilo: 1000, kilos: 1000, kilogram: 1000, kilograms: 1000,
+  g: 1, gram: 1, grams: 1,
+  oz: 28.35, ounce: 28.35, ounces: 28.35,
+  l: 1000, litre: 1000, litres: 1000, liter: 1000, liters: 1000,
+  ml: 1, milliliter: 1, milliliters: 1,
+};
+const UNIT = Object.keys(UNIT_G).join("|");
+
+// Pull a leading or trailing weight off a food query so the user can type the
+// item and the amount in one go ("50g shreddies", "rice 200 g"). Returns the
+// grams (null when none given) and the food name to search on.
+function parseFoodQuery(raw: string): { grams: number | null; term: string } {
+  const s = raw.trim();
+  const lead = s.match(new RegExp(`^\\s*(\\d+(?:\\.\\d+)?)\\s*(${UNIT})\\b\\s*(.+)$`, "i"));
+  if (lead) return { grams: toGrams(lead[1], lead[2]), term: lead[3].trim() };
+  const trail = s.match(new RegExp(`^(.+?)\\s+(\\d+(?:\\.\\d+)?)\\s*(${UNIT})\\b\\s*$`, "i"));
+  if (trail) return { grams: toGrams(trail[2], trail[3]), term: trail[1].trim() };
+  return { grams: null, term: s };
+}
+
+function toGrams(value: string, unit: string): number {
+  const g = Number(value) * (UNIT_G[unit.toLowerCase()] ?? 1);
+  return Math.max(1, Math.round(g));
 }
 
 const macroLine = (m: Macros) =>
@@ -176,33 +203,39 @@ function ItemPicker({
     });
   }
 
-  // Debounced search: pantry matches first, Open Food Facts as backup. All
-  // state updates happen inside the timer (never synchronously in the effect).
+  // The user can type the amount with the item ("50g shreddies") — split it so
+  // we search the food name and remember the grams they gave.
+  const parsed = useMemo(() => parseFoodQuery(query), [query]);
+
+  // Debounced search on the food name only. All state updates happen inside the
+  // timer (never synchronously in the effect).
   useEffect(() => {
-    const q = query.trim();
+    const term = parsed.term;
     const t = setTimeout(
       async () => {
-        if (q.length < 2) {
+        if (term.length < 2) {
           setResults([]);
           setSearching(false);
           return;
         }
         setSearching(true);
         try {
-          setResults(await searchFoods(q));
+          setResults(await searchFoods(term));
         } catch {
           setResults([]);
         } finally {
           setSearching(false);
         }
       },
-      q.length < 2 ? 0 : 300,
+      term.length < 2 ? 0 : 300,
     );
     return () => clearTimeout(t);
-  }, [query]);
+  }, [parsed.term]);
 
   function add(c: FoodChoice) {
-    const grams = c.pack_size_g && c.pack_size_g <= 500 ? c.pack_size_g : 100;
+    // Honour the amount the user typed; otherwise seed from the pack size.
+    const grams =
+      parsed.grams ?? (c.pack_size_g && c.pack_size_g <= 500 ? c.pack_size_g : 100);
     save([
       ...items,
       {
@@ -296,12 +329,12 @@ function ItemPicker({
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Add a food…"
+          placeholder="Add a food… e.g. 50g shreddies"
           className="sc-input w-full"
           style={{ paddingLeft: "2.5rem" }}
         />
 
-        {(searching || results.length > 0) && query.trim().length >= 2 && (
+        {(searching || results.length > 0) && parsed.term.length >= 2 && (
           <ul className="absolute z-10 mt-1 flex w-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg">
             {searching && results.length === 0 && (
               <li className="px-4 py-3 text-sm text-[var(--muted)]">Searching…</li>
@@ -326,7 +359,9 @@ function ItemPicker({
                     </span>
                     <span className="block text-xs text-[var(--muted)]">
                       {c.source === "pantry" ? "In your pantry" : "Web"} ·{" "}
-                      {Math.round(c.kcal_100g)} kcal/100g
+                      {parsed.grams != null
+                        ? `add ${parsed.grams} g`
+                        : `${Math.round(c.kcal_100g)} kcal/100g`}
                     </span>
                   </span>
                   <Plus size={16} className="shrink-0 text-[var(--muted)]" />
