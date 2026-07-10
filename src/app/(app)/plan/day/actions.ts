@@ -38,7 +38,9 @@ export async function searchFoods(query: string): Promise<FoodChoice[]> {
 
   const { data: pantryData } = await supabase
     .from("pantry_items")
-    .select("name, off_barcode, kcal_100g, protein_100g, carbs_100g, fat_100g, pack_size_g")
+    .select(
+      "name, off_barcode, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, satfat_100g, sodium_mg_100g, pack_size_g",
+    )
     .ilike("name", `%${q}%`)
     .limit(6);
 
@@ -50,6 +52,10 @@ export async function searchFoods(query: string): Promise<FoodChoice[]> {
       protein_100g: number;
       carbs_100g: number;
       fat_100g: number;
+      fiber_100g: number;
+      sugar_100g: number;
+      satfat_100g: number;
+      sodium_mg_100g: number;
       pack_size_g: number | null;
     }>) ?? []
   ).map((p) => ({
@@ -61,6 +67,10 @@ export async function searchFoods(query: string): Promise<FoodChoice[]> {
     protein_100g: Number(p.protein_100g),
     carbs_100g: Number(p.carbs_100g),
     fat_100g: Number(p.fat_100g),
+    fiber_100g: Number(p.fiber_100g ?? 0),
+    sugar_100g: Number(p.sugar_100g ?? 0),
+    satfat_100g: Number(p.satfat_100g ?? 0),
+    sodium_mg_100g: Number(p.sodium_mg_100g ?? 0),
     pack_size_g: p.pack_size_g != null ? Number(p.pack_size_g) : null,
   }));
 
@@ -79,6 +89,10 @@ export async function searchFoods(query: string): Promise<FoodChoice[]> {
         protein_100g: c.protein_100g,
         carbs_100g: c.carbs_100g,
         fat_100g: c.fat_100g,
+        fiber_100g: c.fiber_100g,
+        sugar_100g: c.sugar_100g,
+        satfat_100g: c.satfat_100g,
+        sodium_mg_100g: c.sodium_mg_100g,
         pack_size_g: c.pack_size_g,
       }));
   }
@@ -123,6 +137,10 @@ export async function setMealItems(slot: string, items: PlanItem[]) {
       protein_g: totals.protein_g,
       carbs_g: totals.carbs_g,
       fat_g: totals.fat_g,
+      fiber_g: totals.fiber_g,
+      sugar_g: totals.sugar_g,
+      satfat_g: totals.satfat_g,
+      sodium_mg: totals.sodium_mg,
       logged_food_id: null,
     },
     { onConflict: "user_id,date,slot" },
@@ -221,6 +239,11 @@ export async function planMyDay() {
         protein_g: m.protein_g,
         carbs_g: m.carbs_g,
         fat_g: m.fat_g,
+        // AI dishes don't carry the extra nutrients — leave them at 0.
+        fiber_g: 0,
+        sugar_g: 0,
+        satfat_g: 0,
+        sodium_mg: 0,
         logged_food_id: null,
       };
     })
@@ -241,7 +264,9 @@ export async function logPlannedMeal(id: string) {
 
   const { data: meal } = await supabase
     .from("planned_meals")
-    .select("name, kcal, protein_g, carbs_g, fat_g, logged_food_id")
+    .select(
+      "name, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg, logged_food_id",
+    )
     .eq("id", id)
     .maybeSingle();
   if (!meal) throw new Error("Meal not found");
@@ -251,6 +276,10 @@ export async function logPlannedMeal(id: string) {
     protein_g: number;
     carbs_g: number;
     fat_g: number;
+    fiber_g: number;
+    sugar_g: number;
+    satfat_g: number;
+    sodium_mg: number;
     logged_food_id: string | null;
   };
   if (m.logged_food_id) return; // already eaten
@@ -266,6 +295,10 @@ export async function logPlannedMeal(id: string) {
       protein_g: m.protein_g,
       carbs_g: m.carbs_g,
       fat_g: m.fat_g,
+      fiber_g: m.fiber_g,
+      sugar_g: m.sugar_g,
+      satfat_g: m.satfat_g,
+      sodium_mg: m.sodium_mg,
     })
     .select("id")
     .single();

@@ -22,7 +22,22 @@ export interface PantryInput {
   protein_100g: number;
   carbs_100g: number;
   fat_100g: number;
+  fiber_100g?: number;
+  sugar_100g?: number;
+  satfat_100g?: number;
+  sodium_mg_100g?: number;
   pack_size_g?: number | null;
+}
+
+// The extra per-100g nutrient columns, defaulted to 0 when a source didn't
+// report them — shared by both pantry inserts.
+function extraCols(it: PantryInput) {
+  return {
+    fiber_100g: it.fiber_100g ?? 0,
+    sugar_100g: it.sugar_100g ?? 0,
+    satfat_100g: it.satfat_100g ?? 0,
+    sodium_mg_100g: it.sodium_mg_100g ?? 0,
+  };
 }
 
 export async function addPantryItem(input: PantryInput) {
@@ -37,6 +52,7 @@ export async function addPantryItem(input: PantryInput) {
     protein_100g: input.protein_100g,
     carbs_100g: input.carbs_100g,
     fat_100g: input.fat_100g,
+    ...extraCols(input),
     pack_size_g: input.pack_size_g ?? null,
   });
   if (error) throw new Error(error.message);
@@ -60,6 +76,7 @@ export async function addMatchedItems(items: PantryInput[]) {
       protein_100g: it.protein_100g,
       carbs_100g: it.carbs_100g,
       fat_100g: it.fat_100g,
+      ...extraCols(it),
       pack_size_g: it.pack_size_g ?? null,
     }));
   if (rows.length === 0) return;

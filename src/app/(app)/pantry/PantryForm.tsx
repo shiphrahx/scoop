@@ -3,8 +3,12 @@
 import { useState } from "react";
 import { ScanBarcode, Minus, Plus } from "lucide-react";
 import BarcodeScanner from "@/components/BarcodeScanner";
-import type { OffProduct } from "@/lib/types";
+import type { ExtraPer100g, OffProduct } from "@/lib/types";
 import { addPantryItem } from "./actions";
+
+const NO_EXTRAS: ExtraPer100g = {
+  fiber_100g: 0, sugar_100g: 0, satfat_100g: 0, sodium_mg_100g: 0,
+};
 
 const empty = {
   name: "",
@@ -20,6 +24,8 @@ export default function PantryForm() {
   const [form, setForm] = useState(empty);
   const [barcode, setBarcode] = useState<string | null>(null);
   const [packSize, setPackSize] = useState<number | null>(null);
+  // Extra per-100g nutrients from a scan (kept out of the visible form).
+  const [scannedExtras, setScannedExtras] = useState<ExtraPer100g>(NO_EXTRAS);
   const [quantity, setQuantity] = useState(1);
   const [scanning, setScanning] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -41,6 +47,12 @@ export default function PantryForm() {
       const p = (await res.json()) as OffProduct;
       setBarcode(p.barcode);
       setPackSize(p.pack_size_g);
+      setScannedExtras({
+        fiber_100g: p.fiber_100g,
+        sugar_100g: p.sugar_100g,
+        satfat_100g: p.satfat_100g,
+        sodium_mg_100g: p.sodium_mg_100g,
+      });
       setForm({
         name: p.name,
         kcal_100g: String(p.kcal_100g),
@@ -68,11 +80,13 @@ export default function PantryForm() {
         protein_100g: Number(form.protein_100g) || 0,
         carbs_100g: Number(form.carbs_100g) || 0,
         fat_100g: Number(form.fat_100g) || 0,
+        ...scannedExtras,
         pack_size_g: packSize,
       });
       setForm(empty);
       setBarcode(null);
       setPackSize(null);
+      setScannedExtras(NO_EXTRAS);
       setQuantity(1);
       setNote(null);
     } finally {

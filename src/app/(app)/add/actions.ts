@@ -11,6 +11,10 @@ export interface LogFoodInput {
   protein_g: number;
   carbs_g: number;
   fat_g: number;
+  fiber_g?: number;
+  sugar_g?: number;
+  satfat_g?: number;
+  sodium_mg?: number;
   source?: FoodSource;
 }
 
@@ -30,6 +34,10 @@ export async function logFood(input: LogFoodInput) {
     protein_g: input.protein_g,
     carbs_g: input.carbs_g,
     fat_g: input.fat_g,
+    fiber_g: input.fiber_g ?? 0,
+    sugar_g: input.sugar_g ?? 0,
+    satfat_g: input.satfat_g ?? 0,
+    sodium_mg: input.sodium_mg ?? 0,
   });
   if (error) throw new Error(error.message);
 

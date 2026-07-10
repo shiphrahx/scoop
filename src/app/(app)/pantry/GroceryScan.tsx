@@ -66,6 +66,10 @@ export default function GroceryScan({ connected }: { connected: boolean }) {
         protein_100g: it.protein_100g,
         carbs_100g: it.carbs_100g,
         fat_100g: it.fat_100g,
+        fiber_100g: 0,
+        sugar_100g: 0,
+        satfat_100g: 0,
+        sodium_mg_100g: 0,
         pack_size_g: null,
       })),
     });

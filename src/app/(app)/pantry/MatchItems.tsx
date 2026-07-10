@@ -113,6 +113,10 @@ export default function MatchItems({
         protein_100g: r.chosen?.protein_100g ?? 0,
         carbs_100g: r.chosen?.carbs_100g ?? 0,
         fat_100g: r.chosen?.fat_100g ?? 0,
+        fiber_100g: r.chosen?.fiber_100g ?? 0,
+        sugar_100g: r.chosen?.sugar_100g ?? 0,
+        satfat_100g: r.chosen?.satfat_100g ?? 0,
+        sodium_mg_100g: r.chosen?.sodium_mg_100g ?? 0,
         pack_size_g: r.chosen?.pack_size_g ?? null,
       }));
       await addMatchedItems(payload);
