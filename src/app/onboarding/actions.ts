@@ -74,5 +74,5 @@ export async function saveOnboarding(input: OnboardingInput) {
     );
   if (targetError) throw new Error(targetError.message);
 
-  redirect("/");
+  redirect("/dashboard");
 }
