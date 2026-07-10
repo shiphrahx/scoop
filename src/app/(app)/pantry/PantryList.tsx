@@ -51,8 +51,8 @@ function ClearAllButton({ count }: { count: number }) {
     <button
       onClick={clear}
       disabled={pending}
-      className="sc-btn sc-btn-soft py-4 text-lg"
-      style={{ color: "var(--danger, #e5484d)" }}
+      className="sc-btn py-4 text-lg font-semibold text-white active:scale-95 disabled:opacity-50"
+      style={{ background: "#e5484d" }}
     >
       <Trash2 size={20} />
       {pending ? "Clearing…" : "Clear pantry"}
