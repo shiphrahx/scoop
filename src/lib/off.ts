@@ -100,6 +100,24 @@ function queryTokens(s: string): string[] {
   return tokens(s).filter((t) => t.length >= 2);
 }
 
+// Reduce a word to a rough singular so plurals match ("potatoes"→"potato",
+// "onions"→"onion", "berries"→"berry"). Without this, a query for "baby
+// potatoes" never matches a product named "Potato" and falls through to
+// whatever else shares a token (e.g. crisps). Deliberately light-touch.
+function stem(w: string): string {
+  if (w.length <= 3) return w;
+  if (w.endsWith("ies")) return `${w.slice(0, -3)}y`;
+  if (w.endsWith("oes")) return w.slice(0, -2); // potatoes, tomatoes, mangoes
+  if (/(ses|xes|zes|ches|shes)$/.test(w)) return w.slice(0, -2); // boxes, dishes
+  if (w.endsWith("s") && !w.endsWith("ss")) return w.slice(0, -1);
+  return w;
+}
+
+// The stemmed token set of a text, for matching that ignores plurals.
+function stemSet(s: string): Set<string> {
+  return new Set(tokens(s).map(stem));
+}
+
 // Supermarket / own-brand names and marketing words that describe a product but
 // aren't the food itself. When the full query finds nothing useful we strip
 // these to fall back on the core food ("Daylesford Organic Brown Onions" →
@@ -150,9 +168,9 @@ function fallbackVariants(q: string): string[] {
 // (only "red" overlaps, and the noun "peppers" is missing).
 function isStrong(query: string, results: OffCandidate[]): boolean {
   if (!results.length) return false;
-  const core = coreTerms(query);
+  const core = coreTerms(query).map(stem);
   if (!core.length) return true;
-  const top = new Set(tokens(results[0].name));
+  const top = stemSet(results[0].name);
   const noun = core[core.length - 1];
   const matched = core.filter((w) => top.has(w)).length;
   return top.has(noun) || matched >= 2;
@@ -239,11 +257,9 @@ function nameSimilarity(word: string, name: string): number {
 // product wins over popular same-brand items. Weighs name + brand text; ties
 // keep OFF's popularity order.
 function rankByName(term: string, candidates: OffCandidate[]): OffCandidate[] {
-  const want = [...new Set(queryTokens(term))];
+  const want = [...new Set(queryTokens(term).map(stem))];
   const n = candidates.length || 1;
-  const texts = candidates.map(
-    (c) => new Set(tokens(`${c.name} ${c.brand ?? ""}`)),
-  );
+  const texts = candidates.map((c) => stemSet(`${c.name} ${c.brand ?? ""}`));
 
   // Document frequency of each query token across the pool.
   const df: Record<string, number> = {};
@@ -285,9 +301,9 @@ function rankByName(term: string, candidates: OffCandidate[]): OffCandidate[] {
 // The most distinctive query word given a candidate pool — the rarest one, which
 // best pins the intended product. Empty string when the term has no tokens.
 function distinctiveToken(term: string, pool: OffCandidate[]): string {
-  const want = [...new Set(queryTokens(term))];
+  const want = [...new Set(queryTokens(term).map(stem))];
   if (want.length <= 1) return want[0] ?? "";
-  const texts = pool.map((c) => new Set(tokens(`${c.name} ${c.brand ?? ""}`)));
+  const texts = pool.map((c) => stemSet(`${c.name} ${c.brand ?? ""}`));
   const n = pool.length || 1;
   const idf: Record<string, number> = {};
   for (const w of want) {
@@ -304,7 +320,7 @@ function exactIsWeak(term: string, ranked: OffCandidate[], pool: OffCandidate[])
   if ([...new Set(queryTokens(term))].length < 2) return false;
   const key = distinctiveToken(term, pool);
   const top = ranked[0];
-  return !new Set(tokens(`${top.name} ${top.brand ?? ""}`)).has(key);
+  return !stemSet(`${top.name} ${top.brand ?? ""}`).has(key);
 }
 
 // How many products carry a brand tag — used to confirm a leading-prefix brand

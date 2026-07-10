@@ -274,6 +274,23 @@ describe("searchProducts — own-brand & marketing-noise fallback", () => {
     expect(out[0].name).toMatch(/shredded chicken/i);
   });
 
+  it("strips Ocado + 'British'/'baby' and finds potatoes, not Lay's crisps", async () => {
+    installOff((q) => {
+      if (has(q, "ocado")) return { hits: [prod("Lay's Salt & Vinegar", "Lay's")] };
+      if (has(q, "potato")) return { hits: [prod("Baby Potatoes")] };
+      return {};
+    });
+    const out = await searchProducts("Ocado British Baby Potatoes");
+    expect(out[0].name).toMatch(/potato/i);
+    expect(out.some((c) => /lay/i.test(c.name))).toBe(false);
+  });
+
+  it("matches a singular product name for a plural query (stemming)", async () => {
+    installOff((q) => (has(q, "tomato") ? { hits: [prod("Tomato")] } : {}));
+    const out = await searchProducts("tomatoes");
+    expect(out[0].name).toBe("Tomato");
+  });
+
   it("still returns a clean generic query directly (no needless fallback)", async () => {
     let calls = 0;
     installOff((q) => {
