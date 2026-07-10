@@ -40,16 +40,36 @@ const UNIT_G: Record<string, number> = {
 };
 const UNIT = Object.keys(UNIT_G).join("|");
 
-// Pull a leading or trailing weight off a food query so the user can type the
-// item and the amount in one go ("50g shreddies", "rice 200 g"). Returns the
-// grams (null when none given) and the food name to search on.
+// Rough grams for size words when no exact weight is given. Food-agnostic
+// guesses the user can adjust after adding.
+const SIZE_G: Record<string, number> = {
+  small: 80, regular: 120, medium: 120, large: 180, big: 180, jumbo: 220, xl: 220,
+};
+const SIZE = Object.keys(SIZE_G).join("|");
+
+// Pull the amount out of a food query so the user can type the item and how
+// much in one go. Handles exact weights ("50g shreddies", "rice 200 g") and
+// size words ("medium banana"). Returns the grams (null when none given) and
+// the food name to search on — size words are stripped so the search matches
+// the food, not the adjective.
 function parseFoodQuery(raw: string): { grams: number | null; term: string } {
-  const s = raw.trim();
+  let s = raw.trim();
+
+  // Strip a size word first (it isn't part of the food name) and remember its
+  // default grams. An explicit weight, if also present, wins below.
+  let sizeGrams: number | null = null;
+  const sizeMatch = s.match(new RegExp(`(?:^|\\s)(${SIZE})(?:\\s|$)`, "i"));
+  if (sizeMatch) {
+    sizeGrams = SIZE_G[sizeMatch[1].toLowerCase()];
+    s = s.replace(new RegExp(`(?:^|\\s)(${SIZE})(?:\\s|$)`, "i"), " ").replace(/\s+/g, " ").trim();
+  }
+
   const lead = s.match(new RegExp(`^\\s*(\\d+(?:\\.\\d+)?)\\s*(${UNIT})\\b\\s*(.+)$`, "i"));
   if (lead) return { grams: toGrams(lead[1], lead[2]), term: lead[3].trim() };
   const trail = s.match(new RegExp(`^(.+?)\\s+(\\d+(?:\\.\\d+)?)\\s*(${UNIT})\\b\\s*$`, "i"));
   if (trail) return { grams: toGrams(trail[2], trail[3]), term: trail[1].trim() };
-  return { grams: null, term: s };
+
+  return { grams: sizeGrams, term: s };
 }
 
 function toGrams(value: string, unit: string): number {
