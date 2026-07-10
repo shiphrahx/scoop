@@ -1,8 +1,11 @@
 # Scoop
 
-A mobile-first weight-loss coach app. Instead of searching foods, Scoop tells
-you the portion to eat to hit your macros. Built with Next.js, Tailwind and
-Supabase.
+A phone-first weight-loss coach. Most food apps make you hunt, type, and guess.
+Scoop flips that around: instead of searching for foods, it just tells you how
+much to eat to hit your macros. It knows your body numbers, learns your pantry,
+and does the math for you — so tracking is mostly tapping, not typing.
+
+Built with Next.js, Tailwind, and Supabase.
 
 See [`CLAUDE.md`](./CLAUDE.md) for the full product plan and build phases.
 
