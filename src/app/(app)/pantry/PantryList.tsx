@@ -22,18 +22,13 @@ export default function PantryList({ items }: { items: PantryItem[] }) {
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-[var(--muted)]">
-          {items.length} item{items.length === 1 ? "" : "s"}
-        </span>
-        <ClearAllButton count={items.length} />
-      </div>
+    <div className="flex flex-col gap-4">
       <ul className="flex flex-col gap-2">
         {items.map((item) => (
           <PantryRow key={item.id} item={item} />
         ))}
       </ul>
+      <ClearAllButton count={items.length} />
     </div>
   );
 }
@@ -56,10 +51,11 @@ function ClearAllButton({ count }: { count: number }) {
     <button
       onClick={clear}
       disabled={pending}
-      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold text-[var(--danger,#e5484d)] transition active:scale-95 disabled:opacity-50"
+      className="sc-btn sc-btn-soft py-4 text-lg"
+      style={{ color: "var(--danger, #e5484d)" }}
     >
-      <Trash2 size={15} />
-      {pending ? "Clearing…" : "Clear all"}
+      <Trash2 size={20} />
+      {pending ? "Clearing…" : "Clear pantry"}
     </button>
   );
 }
