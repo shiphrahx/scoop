@@ -25,6 +25,7 @@ export interface Profile {
   sex: Sex;
   birth_year: number;
   meal_slots: string[];
+  nutrient_prefs: string[];
   onboarded_at: string | null;
 }
 
@@ -36,6 +37,12 @@ export interface Macros {
   protein_g: number;
   carbs_g: number;
   fat_g: number;
+  // Extra nutrients — optional so existing 4-field literals still type-check.
+  // Populated when the source (Open Food Facts, pantry) carries them.
+  fiber_g?: number;
+  sugar_g?: number;
+  satfat_g?: number;
+  sodium_mg?: number;
 }
 
 export interface DailyTargets extends Macros {
@@ -60,7 +67,20 @@ export interface PantryItem {
   protein_100g: number;
   carbs_100g: number;
   fat_100g: number;
+  fiber_100g: number;
+  sugar_100g: number;
+  satfat_100g: number;
+  sodium_mg_100g: number;
   pack_size_g: number | null;
+}
+
+// The extra per-100g nutrients a food can carry, alongside the core four.
+// Grouped so the food shapes (OFF, pantry, plan item) share one definition.
+export interface ExtraPer100g {
+  fiber_100g: number;
+  sugar_100g: number;
+  satfat_100g: number;
+  sodium_mg_100g: number;
 }
 
 // A raw line parsed from an import source (PDF invoice, pasted list, or a
@@ -74,7 +94,7 @@ export interface ImportedItem {
 
 // One Open Food Facts search hit offered to the user as a match for an
 // ImportedItem. Macros are per 100 g; pack_size_g comes from OFF "quantity".
-export interface OffCandidate {
+export interface OffCandidate extends ExtraPer100g {
   code: string | null;
   name: string;
   brand: string | null;
@@ -106,7 +126,7 @@ export interface Batch extends Macros {
 }
 
 // What Open Food Facts gives us back for a scanned barcode (per 100 g).
-export interface OffProduct {
+export interface OffProduct extends ExtraPer100g {
   barcode: string;
   name: string;
   kcal_100g: number;
@@ -175,7 +195,7 @@ export interface MealSuggestion {
 // A food the user added to a planned meal — found in their pantry or on Open
 // Food Facts. Macros are per 100 g (as everywhere); grams is how much of it
 // this meal uses, so the meal's totals are exact and editable.
-export interface PlanItem {
+export interface PlanItem extends ExtraPer100g {
   name: string;
   source: "pantry" | "off";
   off_barcode: string | null;
@@ -189,7 +209,7 @@ export interface PlanItem {
 // A search hit offered when the user is building a meal: a pantry item they
 // already have, or an Open Food Facts product. pack_size_g seeds a sensible
 // default portion.
-export interface FoodChoice {
+export interface FoodChoice extends ExtraPer100g {
   name: string;
   source: "pantry" | "off";
   off_barcode: string | null;
@@ -219,9 +239,9 @@ export interface PlannedMeal extends Macros {
   logged_food_id: string | null;
 }
 
-// Sum a list of picked foods into a meal's total macros.
-export function sumItems(items: PlanItem[]): Macros {
-  return items.reduce<Macros>(
+// Sum a list of picked foods into a meal's total macros (all nutrients).
+export function sumItems(items: PlanItem[]): Required<Macros> {
+  return items.reduce<Required<Macros>>(
     (s, it) => {
       const f = it.grams / 100;
       return {
@@ -229,9 +249,13 @@ export function sumItems(items: PlanItem[]): Macros {
         protein_g: s.protein_g + it.protein_100g * f,
         carbs_g: s.carbs_g + it.carbs_100g * f,
         fat_g: s.fat_g + it.fat_100g * f,
+        fiber_g: s.fiber_g + it.fiber_100g * f,
+        sugar_g: s.sugar_g + it.sugar_100g * f,
+        satfat_g: s.satfat_g + it.satfat_100g * f,
+        sodium_mg: s.sodium_mg + it.sodium_mg_100g * f,
       };
     },
-    { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
+    { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, fiber_g: 0, sugar_g: 0, satfat_g: 0, sodium_mg: 0 },
   );
 }
 

@@ -5,6 +5,8 @@ import type {
   Sex,
 } from "@/lib/types";
 
+export type { Macros } from "@/lib/types";
+
 // The Coach math — pure functions, no AI. Mifflin–St Jeor BMR + activity
 // multiplier = TDEE, minus a deficit for weight loss, split into macros.
 
@@ -57,15 +59,29 @@ export function ageFromBirthYear(birthYear: number, now = new Date()) {
 }
 
 // Split a calorie target into macros: fixed high protein (by bodyweight),
-// a quarter of calories from fat, the rest from carbs.
-export function macrosForKcal(kcal: number, weightKg: number): Macros {
+// a quarter of calories from fat, the rest from carbs. Also derive the extra
+// nutrient targets — fiber a floor to reach, the rest ceilings to stay under:
+//   fiber   14 g per 1000 kcal (dietary guideline)
+//   sugar   free sugars ≤ 10% of energy
+//   satfat  saturated fat ≤ 10% of energy
+//   sodium  2300 mg/day upper limit
+export function macrosForKcal(kcal: number, weightKg: number): Required<Macros> {
   const protein_g = Math.round(weightKg * PROTEIN_G_PER_KG);
   const fat_g = Math.round((kcal * FAT_FRACTION_OF_KCAL) / 9);
   const carbs_g = Math.max(
     0,
     Math.round((kcal - protein_g * 4 - fat_g * 9) / 4),
   );
-  return { kcal: Math.round(kcal), protein_g, carbs_g, fat_g };
+  return {
+    kcal: Math.round(kcal),
+    protein_g,
+    carbs_g,
+    fat_g,
+    fiber_g: Math.round((14 * kcal) / 1000),
+    sugar_g: Math.round((0.1 * kcal) / 4),
+    satfat_g: Math.round((0.1 * kcal) / 9),
+    sodium_mg: 2300,
+  };
 }
 
 // Full daily macro target for a user in a weight-loss deficit.

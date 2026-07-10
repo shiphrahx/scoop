@@ -16,6 +16,18 @@ function num(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+// The extra per-100g nutrients from an OFF nutriments blob. Sodium is reported
+// in grams — we keep it in milligrams; fall back to salt (salt ≈ sodium × 2.5).
+function extras(n: Record<string, unknown>) {
+  const sodiumG = n["sodium_100g"] != null ? num(n["sodium_100g"]) : num(n["salt_100g"]) / 2.5;
+  return {
+    fiber_100g: num(n["fiber_100g"]),
+    sugar_100g: num(n["sugars_100g"]),
+    satfat_100g: num(n["saturated-fat_100g"]),
+    sodium_mg_100g: Math.round(sodiumG * 1000),
+  };
+}
+
 // Turn an OFF "quantity" string into grams. Handles "500 g", "1.5 kg", "1 L"
 // (treat ml/L as grams, close enough for food), "330ml". Null when unparseable.
 export function parsePackSizeG(quantity: unknown): number | null {
@@ -67,6 +79,7 @@ function toCandidate(p: {
     protein_100g: num(n["proteins_100g"]),
     carbs_100g: num(n["carbohydrates_100g"]),
     fat_100g: num(n["fat_100g"]),
+    ...extras(n),
     pack_size_g: parsePackSizeG(p.quantity),
   };
 }
@@ -506,6 +519,7 @@ export async function lookupBarcode(
     protein_100g: num(n["proteins_100g"]),
     carbs_100g: num(n["carbohydrates_100g"]),
     fat_100g: num(n["fat_100g"]),
+    ...extras(n),
     pack_size_g: parsePackSizeG(p.quantity),
   };
 }

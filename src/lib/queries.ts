@@ -40,7 +40,7 @@ export async function getCurrentTargets(): Promise<DailyTargets | null> {
   // Prefer this week's target; fall back to the most recent one.
   const { data } = await supabase
     .from("daily_targets")
-    .select("week_start, kcal, protein_g, carbs_g, fat_g")
+    .select("week_start, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg")
     .lte("week_start", weekStart())
     .order("week_start", { ascending: false })
     .limit(1)
@@ -56,18 +56,22 @@ export async function getTodayConsumed(): Promise<Macros> {
 
   const { data } = await supabase
     .from("food_logs")
-    .select("kcal, protein_g, carbs_g, fat_g")
+    .select("kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg")
     .gte("logged_at", start.toISOString());
 
   const rows = (data as Macros[]) ?? [];
-  return rows.reduce<Macros>(
+  return rows.reduce<Required<Macros>>(
     (sum, r) => ({
       kcal: sum.kcal + Number(r.kcal),
       protein_g: sum.protein_g + Number(r.protein_g),
       carbs_g: sum.carbs_g + Number(r.carbs_g),
       fat_g: sum.fat_g + Number(r.fat_g),
+      fiber_g: sum.fiber_g + Number(r.fiber_g ?? 0),
+      sugar_g: sum.sugar_g + Number(r.sugar_g ?? 0),
+      satfat_g: sum.satfat_g + Number(r.satfat_g ?? 0),
+      sodium_mg: sum.sodium_mg + Number(r.sodium_mg ?? 0),
     }),
-    { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
+    { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, fiber_g: 0, sugar_g: 0, satfat_g: 0, sodium_mg: 0 },
   );
 }
 
@@ -77,7 +81,7 @@ export async function getTodayPlan(): Promise<PlannedMeal[]> {
   const { data } = await supabase
     .from("planned_meals")
     .select(
-      "id, date, slot, position, origin, name, items, portions, swaps, why, kcal, protein_g, carbs_g, fat_g, logged_food_id",
+      "id, date, slot, position, origin, name, items, portions, swaps, why, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg, logged_food_id",
     )
     .eq("date", localToday())
     .order("position", { ascending: true });
@@ -88,6 +92,10 @@ export async function getTodayPlan(): Promise<PlannedMeal[]> {
     protein_g: Number(m.protein_g),
     carbs_g: Number(m.carbs_g),
     fat_g: Number(m.fat_g),
+    fiber_g: Number(m.fiber_g ?? 0),
+    sugar_g: Number(m.sugar_g ?? 0),
+    satfat_g: Number(m.satfat_g ?? 0),
+    sodium_mg: Number(m.sodium_mg ?? 0),
   }));
 }
 
