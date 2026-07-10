@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { UtensilsCrossed, Scale, CookingPot, Package, Sparkles, ChevronRight, CalendarCheck } from "lucide-react";
 import ProgressRing from "@/components/ProgressRing";
-import MacroBar from "@/components/MacroBar";
+import { NutrientBars } from "@/components/NutrientBreakdown";
 import SignOutButton from "@/components/SignOutButton";
 import type { DailyTargets, Macros } from "@/lib/types";
+import type { NutrientKey } from "@/lib/nutrients";
 
 const quickActions = [
   { href: "/add", label: "Log food", icon: UtensilsCrossed },
@@ -18,12 +19,14 @@ export default function MobileHome({
   consumed,
   coach,
   planPrompt,
+  prefs,
 }: {
   name: string;
   targets: DailyTargets | null;
   consumed: Macros;
   coach: { headline: string; detail: string };
   planPrompt: { hasPlan: boolean } | null;
+  prefs: NutrientKey[];
 }) {
   const kcalLeft = targets ? Math.max(0, Math.round(targets.kcal - consumed.kcal)) : 0;
 
@@ -84,24 +87,7 @@ export default function MobileHome({
 
           {/* Macros left */}
           <section className="sc-card flex flex-col gap-4 p-5">
-            <MacroBar
-              label="Protein"
-              consumed={consumed.protein_g}
-              target={targets.protein_g}
-              gradient="linear-gradient(90deg, var(--g-green), var(--g-teal))"
-            />
-            <MacroBar
-              label="Carbs"
-              consumed={consumed.carbs_g}
-              target={targets.carbs_g}
-              gradient="linear-gradient(90deg, var(--g-teal), var(--g-blue))"
-            />
-            <MacroBar
-              label="Fat"
-              consumed={consumed.fat_g}
-              target={targets.fat_g}
-              gradient="linear-gradient(90deg, var(--g-blue), var(--accent))"
-            />
+            <NutrientBars prefs={prefs} consumed={consumed} target={targets} />
           </section>
         </>
       ) : (

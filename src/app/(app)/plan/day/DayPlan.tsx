@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { Sparkles, Check, X, Search, Plus, Minus, Package, Globe } from "lucide-react";
 import type { FoodChoice, Macros, PlannedMeal, PlanItem } from "@/lib/types";
 import { sumItems } from "@/lib/types";
+import { NUTRIENTS, valueOf, formatNutrient, type NutrientKey } from "@/lib/nutrients";
+import { NutrientStats } from "@/components/NutrientBreakdown";
 import {
   searchFoods,
   setMealItems,
@@ -77,19 +79,28 @@ function toGrams(value: string, unit: string): number {
   return Math.max(1, Math.round(g));
 }
 
-const macroLine = (m: Macros) =>
-  `${Math.round(m.kcal)} kcal · P${Math.round(m.protein_g)} C${Math.round(
-    m.carbs_g,
-  )} F${Math.round(m.fat_g)}`;
+// Compact kcal line for a single ingredient row.
+const kcalLine = (m: Macros) => `${Math.round(m.kcal)} kcal`;
+
+// The chosen-nutrient breakdown for a meal, one line: "420 kcal · Protein 34 g …"
+function macroLine(prefs: NutrientKey[], m: Macros): string {
+  const parts = [
+    `${Math.round(m.kcal)} kcal`,
+    ...prefs.map((k) => `${NUTRIENTS[k].label} ${formatNutrient(valueOf(m, k), k)}`),
+  ];
+  return parts.join(" · ");
+}
 
 export default function DayPlan({
   slots,
   target,
   connected,
+  prefs,
 }: {
   slots: Slot[];
   target: Macros | null;
   connected: boolean;
+  prefs: NutrientKey[];
 }) {
   const [busy, startTransition] = useTransition();
   const [err, setErr] = useState<string | null>(null);
@@ -111,11 +122,8 @@ export default function DayPlan({
   return (
     <section className="flex flex-col gap-4">
       {target && (
-        <div className="sc-card flex items-center justify-around gap-2 p-4 text-center">
-          <Stat label="kcal" value={total.kcal} of={target.kcal} />
-          <Stat label="P" value={total.protein_g} of={target.protein_g} />
-          <Stat label="C" value={total.carbs_g} of={target.carbs_g} />
-          <Stat label="F" value={total.fat_g} of={target.fat_g} />
+        <div className="sc-card p-4">
+          <NutrientStats prefs={prefs} consumed={total} target={target} />
         </div>
       )}
 
@@ -141,20 +149,21 @@ export default function DayPlan({
           {meal?.logged_food_id ? (
             <>
               <p className="text-lg font-semibold">{meal.name}</p>
-              <p className="text-xs text-[var(--muted)]">{macroLine(meal)}</p>
+              <p className="text-xs text-[var(--muted)]">{macroLine(prefs, meal)}</p>
               <p className="mt-1 inline-flex items-center gap-1 text-sm font-semibold text-[var(--ink-teal)]">
                 <Check size={16} /> Eaten
               </p>
             </>
           ) : meal?.origin === "ai" ? (
             /* AI-suggested dish */
-            <AiMeal meal={meal} busy={busy} onLog={() => run(() => logPlannedMeal(meal.id))} />
+            <AiMeal meal={meal} prefs={prefs} busy={busy} onLog={() => run(() => logPlannedMeal(meal.id))} />
           ) : (
             /* Empty or user-built: pick a list of foods */
             <ItemPicker
               slot={slot}
               initial={meal?.items ?? []}
               mealId={meal?.id ?? null}
+              prefs={prefs}
               busy={busy}
               onError={setErr}
               onLog={meal ? () => run(() => logPlannedMeal(meal.id)) : undefined}
@@ -194,6 +203,7 @@ function ItemPicker({
   slot,
   initial,
   mealId,
+  prefs,
   busy,
   onError,
   onLog,
@@ -201,6 +211,7 @@ function ItemPicker({
   slot: string;
   initial: PlanItem[];
   mealId: string | null;
+  prefs: NutrientKey[];
   busy: boolean;
   onError: (msg: string) => void;
   onLog?: () => void;
@@ -267,6 +278,10 @@ function ItemPicker({
         protein_100g: c.protein_100g,
         carbs_100g: c.carbs_100g,
         fat_100g: c.fat_100g,
+        fiber_100g: c.fiber_100g,
+        sugar_100g: c.sugar_100g,
+        satfat_100g: c.satfat_100g,
+        sodium_mg_100g: c.sodium_mg_100g,
       },
     ]);
     setQuery("");
@@ -299,7 +314,7 @@ function ItemPicker({
                   <span className="truncate">{it.name}</span>
                 </span>
                 <span className="text-xs text-[var(--muted)]">
-                  {macroLine(sumItems([it]))}
+                  {kcalLine(sumItems([it]))}
                 </span>
               </span>
               <div className="flex shrink-0 items-center gap-1">
@@ -398,7 +413,7 @@ function ItemPicker({
       {items.length > 0 && (
         <>
           <p className="text-xs font-medium text-[var(--muted)]">
-            Meal total: {macroLine(total)}
+            Meal total: {macroLine(prefs, total)}
           </p>
           {mealId && onLog && (
             <button onClick={onLog} disabled={busy} className="sc-btn sc-btn-soft">
@@ -413,10 +428,12 @@ function ItemPicker({
 
 function AiMeal({
   meal,
+  prefs,
   busy,
   onLog,
 }: {
   meal: PlannedMeal;
+  prefs: NutrientKey[];
   busy: boolean;
   onLog: () => void;
 }) {
@@ -439,7 +456,7 @@ function AiMeal({
       {meal.swaps.length > 0 && (
         <p className="text-xs text-[var(--muted)]">Swaps: {meal.swaps.join(" · ")}</p>
       )}
-      <p className="text-xs text-[var(--muted)]">{macroLine(meal)}</p>
+      <p className="text-xs text-[var(--muted)]">{macroLine(prefs, meal)}</p>
       <button onClick={onLog} disabled={busy} className="sc-btn sc-btn-soft mt-1">
         I ate this — log it
       </button>
@@ -447,15 +464,3 @@ function AiMeal({
   );
 }
 
-function Stat({ label, value, of }: { label: string; value: number; of: number }) {
-  return (
-    <div className="flex flex-col">
-      <span className="text-lg font-bold tabular-nums leading-tight">
-        {Math.round(value)}
-      </span>
-      <span className="text-xs text-[var(--muted)]">
-        / {Math.round(of)} {label}
-      </span>
-    </div>
-  );
-}

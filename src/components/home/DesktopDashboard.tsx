@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { Scale, Flame, Beef, Moon, Sparkles, ChevronRight, CalendarCheck } from "lucide-react";
 import ProgressRing from "@/components/ProgressRing";
-import MacroBar from "@/components/MacroBar";
+import { NutrientBars } from "@/components/NutrientBreakdown";
 import SignOutButton from "@/components/SignOutButton";
 import { WeightTrendChart, WeightVsExercise, SleepChart } from "@/components/Charts";
 import type { Activity, DailyTargets, Macros } from "@/lib/types";
+import type { NutrientKey } from "@/lib/nutrients";
 
 function StatCard({
   icon: Icon,
@@ -47,6 +48,7 @@ export default function DesktopDashboard({
   activity,
   latestWeight,
   planPrompt,
+  prefs,
 }: {
   name: string;
   targets: DailyTargets | null;
@@ -56,6 +58,7 @@ export default function DesktopDashboard({
   activity: Activity[];
   latestWeight: number | null;
   planPrompt: { hasPlan: boolean } | null;
+  prefs: NutrientKey[];
 }) {
   const kcalLeft = targets ? Math.max(0, Math.round(targets.kcal - consumed.kcal)) : 0;
   const proteinLeft = targets
@@ -194,24 +197,7 @@ export default function DesktopDashboard({
                   </div>
                 </ProgressRing>
                 <div className="flex w-full flex-col gap-3">
-                  <MacroBar
-                    label="Protein"
-                    consumed={consumed.protein_g}
-                    target={targets.protein_g}
-                    gradient="linear-gradient(90deg, var(--g-green), var(--g-teal))"
-                  />
-                  <MacroBar
-                    label="Carbs"
-                    consumed={consumed.carbs_g}
-                    target={targets.carbs_g}
-                    gradient="linear-gradient(90deg, var(--g-teal), var(--g-blue))"
-                  />
-                  <MacroBar
-                    label="Fat"
-                    consumed={consumed.fat_g}
-                    target={targets.fat_g}
-                    gradient="linear-gradient(90deg, var(--g-blue), var(--accent))"
-                  />
+                  <NutrientBars prefs={prefs} consumed={consumed} target={targets} />
                 </div>
               </>
             ) : (

@@ -2,15 +2,13 @@ import AddFoodForm from "./AddFoodForm";
 import DeleteFoodButton from "./DeleteFoodButton";
 import Favourites from "./Favourites";
 import { createClient } from "@/lib/supabase/server";
-import type { Favourite } from "@/lib/types";
+import { getProfile } from "@/lib/queries";
+import { NUTRIENTS, normalizePrefs, valueOf, formatNutrient } from "@/lib/nutrients";
+import type { Favourite, Macros } from "@/lib/types";
 
-interface FoodLogRow {
+interface FoodLogRow extends Macros {
   id: string;
   name: string;
-  kcal: number;
-  protein_g: number;
-  carbs_g: number;
-  fat_g: number;
 }
 
 export default async function AddPage() {
@@ -18,20 +16,24 @@ export default async function AddPage() {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
 
-  const [{ data: logData }, { data: favData }] = await Promise.all([
+  const [{ data: logData }, { data: favData }, profile] = await Promise.all([
     supabase
       .from("food_logs")
-      .select("id, name, kcal, protein_g, carbs_g, fat_g")
+      .select(
+        "id, name, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg",
+      )
       .gte("logged_at", start.toISOString())
       .order("logged_at", { ascending: false }),
     supabase
       .from("favourites")
       .select("id, name, grams, kcal, protein_g, carbs_g, fat_g")
       .order("created_at", { ascending: false }),
+    getProfile(),
   ]);
 
   const logs = (logData as FoodLogRow[]) ?? [];
   const favourites = (favData as Favourite[]) ?? [];
+  const prefs = normalizePrefs(profile?.nutrient_prefs);
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-5 pt-8 pb-6 lg:px-8">
@@ -39,7 +41,7 @@ export default async function AddPage() {
 
       <Favourites items={favourites} />
 
-      <AddFoodForm />
+      <AddFoodForm prefs={prefs} />
 
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
@@ -57,8 +59,13 @@ export default async function AddPage() {
                 <div className="min-w-0">
                   <p className="truncate font-semibold">{log.name}</p>
                   <p className="text-xs text-[var(--muted)]">
-                    {Math.round(log.kcal)} kcal · P{Math.round(log.protein_g)} C
-                    {Math.round(log.carbs_g)} F{Math.round(log.fat_g)}
+                    {[
+                      `${Math.round(log.kcal)} kcal`,
+                      ...prefs.map(
+                        (k) =>
+                          `${NUTRIENTS[k].label} ${formatNutrient(valueOf(log, k), k)}`,
+                      ),
+                    ].join(" · ")}
                   </p>
                 </div>
                 <DeleteFoodButton id={log.id} />

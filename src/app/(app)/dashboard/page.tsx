@@ -10,7 +10,9 @@ import {
   getCoachData,
   hasTrackedToday,
   getTodayPlan,
+  getProfile,
 } from "@/lib/queries";
+import { normalizePrefs } from "@/lib/nutrients";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -31,6 +33,7 @@ export default async function DashboardPage() {
     coachData,
     trackedToday,
     plan,
+    profile,
   ] = await Promise.all([
     getCurrentTargets(),
     getTodayConsumed(),
@@ -40,7 +43,10 @@ export default async function DashboardPage() {
     getCoachData(),
     hasTrackedToday(),
     getTodayPlan(),
+    getProfile(),
   ]);
+
+  const prefs = normalizePrefs(profile?.nutrient_prefs);
 
   const coach = {
     headline: coachData.review.headline,
@@ -61,6 +67,7 @@ export default async function DashboardPage() {
         consumed={consumed}
         coach={coach}
         planPrompt={planPrompt}
+        prefs={prefs}
       />
       <DesktopDashboard
         name={name}
@@ -71,6 +78,7 @@ export default async function DashboardPage() {
         activity={activity}
         latestWeight={latestWeight}
         planPrompt={planPrompt}
+        prefs={prefs}
       />
     </>
   );

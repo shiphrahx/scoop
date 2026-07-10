@@ -8,6 +8,7 @@ import {
   hasApiKey,
 } from "@/lib/queries";
 import { DEFAULT_MEAL_SLOTS } from "@/lib/types";
+import { normalizePrefs } from "@/lib/nutrients";
 
 export default async function PlanDayPage() {
   const [profile, target, plan, connected] = await Promise.all([
@@ -17,6 +18,7 @@ export default async function PlanDayPage() {
     hasApiKey(),
   ]);
 
+  const prefs = normalizePrefs(profile?.nutrient_prefs);
   const slotNames =
     profile?.meal_slots?.length ? profile.meal_slots : DEFAULT_MEAL_SLOTS;
   const bySlot = new Map(plan.map((m) => [m.slot, m]));
@@ -41,7 +43,7 @@ export default async function PlanDayPage() {
         </p>
       </div>
 
-      <DayPlan slots={slots} target={target} connected={connected} />
+      <DayPlan slots={slots} target={target} connected={connected} prefs={prefs} />
     </main>
   );
 }
