@@ -3,13 +3,13 @@ import { ArrowLeft } from "lucide-react";
 import RecipeImport from "./RecipeImport";
 import SavedRecipes from "./SavedRecipes";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentTargets, getTodayConsumed, hasApiKey } from "@/lib/queries";
+import { hasApiKey } from "@/lib/queries";
 import type { Recipe } from "@/lib/types";
 
 export default async function RecipePage() {
   const supabase = await createClient();
 
-  const [{ data }, connected, targets, consumed] = await Promise.all([
+  const [{ data }, connected] = await Promise.all([
     supabase
       .from("recipes")
       .select(
@@ -17,14 +17,9 @@ export default async function RecipePage() {
       )
       .order("created_at", { ascending: false }),
     hasApiKey(),
-    getCurrentTargets(),
-    getTodayConsumed(),
   ]);
 
   const recipes = (data as Recipe[]) ?? [];
-  const remainingKcal = targets
-    ? Math.max(0, Math.round(targets.kcal - consumed.kcal))
-    : 0;
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-5 pt-8 pb-6 lg:px-8">
@@ -39,7 +34,7 @@ export default async function RecipePage() {
         <h1 className="text-3xl font-semibold">Recipes</h1>
       </div>
 
-      <RecipeImport remainingKcal={remainingKcal} connected={connected} />
+      <RecipeImport connected={connected} />
 
       <SavedRecipes recipes={recipes} />
     </main>

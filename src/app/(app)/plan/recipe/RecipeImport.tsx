@@ -16,10 +16,8 @@ import {
 // path is keyless (reads the page's structured data); only the screenshot
 // backup needs the user's own key.
 export default function RecipeImport({
-  remainingKcal,
   connected,
 }: {
-  remainingKcal: number;
   connected: boolean;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -42,10 +40,8 @@ export default function RecipeImport({
   function onResult(r: ParsedRecipe, src: string | null) {
     setRecipe(r);
     setSourceUrl(src);
-    const per = r.kcal / Math.max(1, r.servings);
-    // Suggest the number of servings that fits the calories left today.
-    const fit = per > 0 ? Math.floor(remainingKcal / per) : 1;
-    setServings(Math.min(Math.max(1, fit), Math.max(1, Math.round(r.servings))));
+    // Default to a single portion; the user taps ± to log more.
+    setServings(1);
     setNote(null);
   }
 
