@@ -36,8 +36,8 @@ export default async function PlanDayPage() {
         </Link>
         <h1 className="text-3xl font-semibold">Plan my day</h1>
         <p className="text-sm text-[var(--muted)]">
-          Add the meals you already know. Leave the rest — I&apos;ll fill them
-          from your pantry to hit today&apos;s macros.
+          Build the meals you already know from your pantry or the web. Leave the
+          rest empty and I&apos;ll fill them to hit today&apos;s macros.
         </p>
       </div>
 

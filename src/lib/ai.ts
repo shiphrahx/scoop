@@ -351,35 +351,42 @@ export interface PlanDayInput {
   allergies: string[];
   dislikes: string[];
   pantry: string[];
-  // The macros the user should still eat across the meals we're planning
-  // (day target minus anything already logged today).
+  // Macros the user should still eat today (day target minus anything already
+  // logged). The empty slots we invent should fill what's left of this after
+  // the meals the user has already decided.
   budget: Macros;
-  // Every slot to plan for, in order. `pinned` is the user's free-text meal
-  // for that slot when they already know what they'll eat; otherwise null and
-  // the app should invent a pantry dish.
-  slots: { slot: string; pinned: string | null }[];
+  // Meals the user has already built for themselves — fixed, not to be changed.
+  // We only send their totals so the AI can budget around them.
+  fixed: Macros;
+  // The slots with no meal yet, in order — invent one dish for each.
+  emptySlots: string[];
 }
 
-// Plan the day in one pass: for each slot return a meal. Pinned slots keep the
-// user's meal and just get macro estimates; empty slots get a pantry dish. The
-// totals across all slots should land on the day's budget.
+// Invent a pantry dish for each empty slot so the day's totals land on target.
+// Meals the user already built are fixed; we just budget around their macros.
 export async function planDay(input: PlanDayInput): Promise<PlannedSlot[]> {
   const client = await getClient();
 
+  const remaining = {
+    kcal: Math.max(0, Math.round(input.budget.kcal - input.fixed.kcal)),
+    protein_g: Math.max(0, Math.round(input.budget.protein_g - input.fixed.protein_g)),
+    carbs_g: Math.max(0, Math.round(input.budget.carbs_g - input.fixed.carbs_g)),
+    fat_g: Math.max(0, Math.round(input.budget.fat_g - input.fixed.fat_g)),
+  };
+
   const system =
-    "You plan a full day of eating, slot by slot, to hit a macro budget.\n" +
+    "You fill in the empty meal slots of a user's day with simple dishes they " +
+    "can make from their pantry.\n" +
     `${dietRule(input.diet)}\n` +
     "This diet rule is absolute: never include a forbidden ingredient, EVEN IF " +
     "it's in the pantry. Also avoid the user's allergies and dislikes.\n" +
-    "Rules:\n" +
-    "- For a slot with a `pinned` meal: keep that exact meal as the `name`, set " +
-    "origin 'manual', leave `portions` empty, and just ESTIMATE its macros.\n" +
-    "- For a slot with no pinned meal: invent one simple dish the user can make " +
-    "from their pantry, set origin 'ai', and give EXACT `portions` in grams per " +
-    "ingredient plus a couple of optional `swaps` and a one-line `why`.\n" +
-    "- Choose the empty-slot dishes so the TOTAL macros across ALL slots (pinned " +
-    "estimates included) land as close as possible to the day's budget.\n" +
-    "- Return exactly one meal per slot, in the given order.";
+    "The user has already decided some meals (their macros are given as " +
+    "`already_planned`). Invent ONE dish for each slot in `empty_slots`, set " +
+    "origin 'ai', echo the `slot` name, and give EXACT `portions` in grams per " +
+    "ingredient plus a couple of optional `swaps` and a one-line `why`. Choose " +
+    "the dishes so their COMBINED macros land as close as possible to " +
+    "`macros_to_fill` (what's left of the day after the decided meals). Prefer " +
+    "pantry items. Return exactly one meal per empty slot, in order.";
 
   const res = await client.messages.parse({
     model: MODEL,
@@ -393,8 +400,9 @@ export async function planDay(input: PlanDayInput): Promise<PlannedSlot[]> {
           pantry: input.pantry,
           allergies: input.allergies,
           dislikes: input.dislikes,
-          day_budget: input.budget,
-          slots: input.slots,
+          already_planned: input.fixed,
+          macros_to_fill: remaining,
+          empty_slots: input.emptySlots,
         }),
       },
     ],
@@ -402,11 +410,9 @@ export async function planDay(input: PlanDayInput): Promise<PlannedSlot[]> {
   });
 
   const meals = res.parsed_output?.meals ?? [];
-  // Guard the AI-invented dishes against the diet; never drop a pinned meal
-  // (that's the user's own choice — we only estimated its macros).
+  // Guard the AI dishes against the diet.
   return meals.filter(
     (m) =>
-      m.origin === "manual" ||
       !violatesDiet(
         `${m.name} ${m.portions.map((p) => p.name).join(" ")}`,
         input.diet,

@@ -77,7 +77,7 @@ export async function getTodayPlan(): Promise<PlannedMeal[]> {
   const { data } = await supabase
     .from("planned_meals")
     .select(
-      "id, date, slot, position, origin, name, portions, swaps, why, kcal, protein_g, carbs_g, fat_g, logged_food_id",
+      "id, date, slot, position, origin, name, items, portions, swaps, why, kcal, protein_g, carbs_g, fat_g, logged_food_id",
     )
     .eq("date", localToday())
     .order("position", { ascending: true });

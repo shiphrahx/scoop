@@ -172,9 +172,38 @@ export interface MealSuggestion {
   fat_g: number;
 }
 
+// A food the user added to a planned meal — found in their pantry or on Open
+// Food Facts. Macros are per 100 g (as everywhere); grams is how much of it
+// this meal uses, so the meal's totals are exact and editable.
+export interface PlanItem {
+  name: string;
+  source: "pantry" | "off";
+  off_barcode: string | null;
+  grams: number;
+  kcal_100g: number;
+  protein_100g: number;
+  carbs_100g: number;
+  fat_100g: number;
+}
+
+// A search hit offered when the user is building a meal: a pantry item they
+// already have, or an Open Food Facts product. pack_size_g seeds a sensible
+// default portion.
+export interface FoodChoice {
+  name: string;
+  source: "pantry" | "off";
+  off_barcode: string | null;
+  brand: string | null;
+  kcal_100g: number;
+  protein_100g: number;
+  carbs_100g: number;
+  fat_100g: number;
+  pack_size_g: number | null;
+}
+
 // One meal in a saved day plan, tied to a named slot (Breakfast, Lunch, …).
-// origin 'manual' = the user pinned it as free text and the AI estimated its
-// macros; 'ai' = a dish the app built from the pantry. logged_food_id is set
+// origin 'manual' = the user built it from foods they picked (`items`); 'ai' =
+// a dish the app suggested from the pantry (`portions`). logged_food_id is set
 // once the user says they ate it.
 export interface PlannedMeal extends Macros {
   id: string;
@@ -183,10 +212,27 @@ export interface PlannedMeal extends Macros {
   position: number;
   origin: "manual" | "ai";
   name: string;
+  items: PlanItem[];
   portions: MealPortion[];
   swaps: string[];
   why: string | null;
   logged_food_id: string | null;
+}
+
+// Sum a list of picked foods into a meal's total macros.
+export function sumItems(items: PlanItem[]): Macros {
+  return items.reduce<Macros>(
+    (s, it) => {
+      const f = it.grams / 100;
+      return {
+        kcal: s.kcal + it.kcal_100g * f,
+        protein_g: s.protein_g + it.protein_100g * f,
+        carbs_g: s.carbs_g + it.carbs_100g * f,
+        fat_g: s.fat_g + it.fat_100g * f,
+      };
+    },
+    { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
+  );
 }
 
 // What the AI returns for one slot when planning a whole day.

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { planDay } from "@/lib/ai";
+import { searchProducts } from "@/lib/off";
 import {
   getCurrentTargets,
   getProfile,
@@ -10,6 +11,7 @@ import {
   getTodayPlan,
   localToday,
 } from "@/lib/queries";
+import { sumItems, type FoodChoice, type PlanItem, type Macros } from "@/lib/types";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -26,15 +28,84 @@ function revalidate() {
   revalidatePath("/add");
 }
 
-// Pin a meal the user already knows they'll eat, as free text. Macros stay 0
-// until they plan the day (the AI estimates them then). Slot position comes
-// from the user's configured order.
-export async function pinMeal(slot: string, text: string) {
-  const name = text.trim();
-  if (!name) return;
+// Look up foods to add to a meal. Pantry items the user already has come first
+// (they're what we most want them eating); Open Food Facts fills the rest so
+// they can add anything. Deduped so a pantry item isn't repeated from the web.
+export async function searchFoods(query: string): Promise<FoodChoice[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+  const { supabase } = await requireUser();
+
+  const { data: pantryData } = await supabase
+    .from("pantry_items")
+    .select("name, off_barcode, kcal_100g, protein_100g, carbs_100g, fat_100g, pack_size_g")
+    .ilike("name", `%${q}%`)
+    .limit(6);
+
+  const pantry: FoodChoice[] = (
+    (pantryData as Array<{
+      name: string;
+      off_barcode: string | null;
+      kcal_100g: number;
+      protein_100g: number;
+      carbs_100g: number;
+      fat_100g: number;
+      pack_size_g: number | null;
+    }>) ?? []
+  ).map((p) => ({
+    name: p.name,
+    source: "pantry",
+    off_barcode: p.off_barcode,
+    brand: null,
+    kcal_100g: Number(p.kcal_100g),
+    protein_100g: Number(p.protein_100g),
+    carbs_100g: Number(p.carbs_100g),
+    fat_100g: Number(p.fat_100g),
+    pack_size_g: p.pack_size_g != null ? Number(p.pack_size_g) : null,
+  }));
+
+  // Only reach out to the web if the pantry didn't clearly cover the query.
+  let web: FoodChoice[] = [];
+  if (pantry.length < 5) {
+    const seen = new Set(pantry.map((p) => p.name.toLowerCase()));
+    web = (await searchProducts(q, 6))
+      .filter((c) => !seen.has(c.name.toLowerCase()))
+      .map((c) => ({
+        name: c.name,
+        source: "off",
+        off_barcode: c.code,
+        brand: c.brand,
+        kcal_100g: c.kcal_100g,
+        protein_100g: c.protein_100g,
+        carbs_100g: c.carbs_100g,
+        fat_100g: c.fat_100g,
+        pack_size_g: c.pack_size_g,
+      }));
+  }
+
+  return [...pantry, ...web].slice(0, 10);
+}
+
+// Save the list of foods the user picked for a slot. Empty list clears the
+// slot. Macros are the exact sum of the items — no AI estimate needed.
+export async function setMealItems(slot: string, items: PlanItem[]) {
   const { supabase, user } = await requireUser();
+
+  if (items.length === 0) {
+    await supabase
+      .from("planned_meals")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("date", localToday())
+      .eq("slot", slot);
+    revalidate();
+    return;
+  }
+
   const profile = await getProfile();
   const position = Math.max(0, (profile?.meal_slots ?? []).indexOf(slot));
+  const totals = sumItems(items);
+  const name = items.map((i) => i.name).join(", ");
 
   const { error } = await supabase.from("planned_meals").upsert(
     {
@@ -44,13 +115,14 @@ export async function pinMeal(slot: string, text: string) {
       position,
       origin: "manual",
       name,
+      items,
       portions: [],
       swaps: [],
       why: null,
-      kcal: 0,
-      protein_g: 0,
-      carbs_g: 0,
-      fat_g: 0,
+      kcal: totals.kcal,
+      protein_g: totals.protein_g,
+      carbs_g: totals.carbs_g,
+      fat_g: totals.fat_g,
       logged_food_id: null,
     },
     { onConflict: "user_id,date,slot" },
@@ -72,9 +144,9 @@ export async function clearSlot(slot: string) {
   revalidate();
 }
 
-// Plan the whole day: estimate macros for pinned meals and fill every empty
-// slot from the pantry, so the day's totals hit the macro budget. Meals the
-// user has already eaten (logged) are left untouched and stay counted.
+// Fill every empty slot from the pantry so the day's totals hit target. Meals
+// the user already built (manual) and already ate (logged) are left untouched;
+// the AI just budgets around their macros.
 export async function planMyDay() {
   const { supabase, user } = await requireUser();
 
@@ -92,18 +164,26 @@ export async function planMyDay() {
   const slotNames = profile.meal_slots ?? [];
   const bySlot = new Map(plan.map((p) => [p.slot, p]));
 
-  // Slots to plan: everything the user hasn't already eaten. A manual row
-  // carries the user's pinned meal; anything else is treated as empty.
-  const toPlan = slotNames.filter((s) => !bySlot.get(s)?.logged_food_id);
-  const slotsInput = toPlan.map((slot) => {
-    const existing = bySlot.get(slot);
-    return {
-      slot,
-      pinned: existing?.origin === "manual" ? existing.name : null,
-    };
-  });
+  const emptySlots = slotNames.filter((s) => !bySlot.get(s));
+  if (emptySlots.length === 0) {
+    revalidate();
+    return;
+  }
 
-  const budget = {
+  // Macros of meals the user built but hasn't eaten yet — fixed, budget around.
+  const fixed: Macros = plan
+    .filter((p) => !p.logged_food_id)
+    .reduce<Macros>(
+      (s, p) => ({
+        kcal: s.kcal + p.kcal,
+        protein_g: s.protein_g + p.protein_g,
+        carbs_g: s.carbs_g + p.carbs_g,
+        fat_g: s.fat_g + p.fat_g,
+      }),
+      { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
+    );
+
+  const budget: Macros = {
     kcal: Math.max(0, Math.round(targets.kcal - consumed.kcal)),
     protein_g: Math.max(0, Math.round(targets.protein_g - consumed.protein_g)),
     carbs_g: Math.max(0, Math.round(targets.carbs_g - consumed.carbs_g)),
@@ -116,28 +196,27 @@ export async function planMyDay() {
     dislikes: profile.dislikes,
     pantry: ((pantryData as { name: string }[]) ?? []).map((p) => p.name),
     budget,
-    slots: slotsInput,
+    fixed,
+    emptySlots,
   });
 
   const bySlotResult = new Map(meals.map((m) => [m.slot, m]));
-
-  const rows = toPlan
-    .map((slot) => {
-      const m = bySlotResult.get(slot);
+  const rows = emptySlots
+    .map((slot, i) => {
+      // Match by slot name; fall back to positional if the model didn't echo it.
+      const m = bySlotResult.get(slot) ?? meals[i];
       if (!m) return null;
-      const existing = bySlot.get(slot);
-      const isManual = existing?.origin === "manual";
       return {
         user_id: user.id,
         date: localToday(),
         slot,
         position: Math.max(0, slotNames.indexOf(slot)),
-        origin: isManual ? "manual" : "ai",
-        // Keep the user's own wording for a pinned meal; only its macros are new.
-        name: isManual ? existing!.name : m.name,
-        portions: isManual ? [] : m.portions,
-        swaps: isManual ? [] : m.swaps,
-        why: isManual ? null : m.why,
+        origin: "ai",
+        name: m.name,
+        items: [],
+        portions: m.portions,
+        swaps: m.swaps,
+        why: m.why,
         kcal: m.kcal,
         protein_g: m.protein_g,
         carbs_g: m.carbs_g,
