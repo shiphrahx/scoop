@@ -43,5 +43,6 @@ create index if not exists planned_meals_user_date
 
 alter table public.planned_meals enable row level security;
 
+drop policy if exists "own planned meals" on public.planned_meals;
 create policy "own planned meals" on public.planned_meals
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
