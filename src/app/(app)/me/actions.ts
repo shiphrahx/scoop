@@ -118,6 +118,27 @@ export async function saveMealSlots(slots: string[]) {
   revalidatePath("/plan/day");
 }
 
+// Save which nutrients the user wants shown in breakdowns. Validated against
+// the known selectable keys, order preserved.
+export async function saveNutrientPrefs(prefs: string[]) {
+  const { SELECTABLE_NUTRIENTS } = await import("@/lib/nutrients");
+  const allowed = new Set<string>(SELECTABLE_NUTRIENTS);
+  const cleaned = prefs.filter((p) => allowed.has(p));
+  if (cleaned.length === 0) throw new Error("Pick at least one nutrient.");
+
+  const { supabase, user } = await requireUser();
+  const { error } = await supabase
+    .from("users")
+    .update({ nutrient_prefs: cleaned, updated_at: new Date().toISOString() })
+    .eq("id", user.id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/me");
+  revalidatePath("/dashboard");
+  revalidatePath("/plan/day");
+  revalidatePath("/add");
+}
+
 export async function clearApiKey() {
   const { supabase, user } = await requireUser();
   const { error } = await supabase

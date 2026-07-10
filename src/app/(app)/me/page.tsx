@@ -2,6 +2,7 @@ import { User } from "lucide-react";
 import ApiKeySettings from "./ApiKeySettings";
 import GoalsSettings from "./GoalsSettings";
 import MealSlotsSettings from "./MealSlotsSettings";
+import NutrientSettings from "./NutrientSettings";
 import { DEFAULT_MEAL_SLOTS } from "@/lib/types";
 import SignOutButton from "@/components/SignOutButton";
 import {
@@ -90,6 +91,7 @@ export default async function MePage({
               profile.meal_slots?.length ? profile.meal_slots : DEFAULT_MEAL_SLOTS
             }
           />
+          <NutrientSettings initial={profile.nutrient_prefs ?? []} />
         </>
       )}
 
