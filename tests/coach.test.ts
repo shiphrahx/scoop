@@ -6,6 +6,7 @@ import {
   dailyTarget,
   deficitPerDay,
   macrosForKcal,
+  proteinBasisKg,
   tdee,
   weekStart,
   weeklyReview,
@@ -99,6 +100,25 @@ describe("macrosForKcal", () => {
     expect(macrosForKcal(1999.6, 70).kcal).toBe(2000);
   });
 
+  it("caps protein at the healthy-weight basis when a height is given", () => {
+    // 120 kg at 170 cm: BMI-25 weight is 25 * 1.7^2 ≈ 72.25 kg, so protein is
+    // set from ~72 kg (~144 g), not the full 120 kg (240 g).
+    const capped = macrosForKcal(2000, 120, "regular", 170);
+    const healthyMax = 25 * (170 / 100) ** 2;
+    expect(capped.protein_g).toBe(Math.round(healthyMax * 2));
+    expect(capped.protein_g).toBeLessThan(macrosForKcal(2000, 120).protein_g);
+  });
+
+  it("does not raise protein for someone already at a healthy weight", () => {
+    // 65 kg at 175 cm is below the BMI-25 cap (76.6 kg) → basis is bodyweight.
+    const m = macrosForKcal(2000, 65, "regular", 175);
+    expect(m.protein_g).toBe(130); // 65 * 2, uncapped
+  });
+
+  it("leaves protein on bodyweight when no height is supplied", () => {
+    expect(macrosForKcal(2000, 120).protein_g).toBe(240); // 120 * 2
+  });
+
   it("pins carbs to the keto ceiling and pours the rest into fat", () => {
     const m = macrosForKcal(2000, 80, "keto");
     expect(m.protein_g).toBe(160); // 80 * 2, unchanged
@@ -108,6 +128,20 @@ describe("macrosForKcal", () => {
     // and it really is a low-carb, high-fat split vs the regular one
     expect(m.carbs_g).toBeLessThan(macrosForKcal(2000, 80).carbs_g);
     expect(m.fat_g).toBeGreaterThan(macrosForKcal(2000, 80).fat_g);
+  });
+});
+
+describe("proteinBasisKg", () => {
+  it("returns bodyweight when no height is given", () => {
+    expect(proteinBasisKg(120)).toBe(120);
+  });
+
+  it("caps at the BMI-25 weight for the height", () => {
+    expect(proteinBasisKg(120, 170)).toBeCloseTo(25 * 1.7 ** 2, 5); // 72.25
+  });
+
+  it("keeps bodyweight when it is under the healthy cap", () => {
+    expect(proteinBasisKg(65, 175)).toBe(65);
   });
 });
 

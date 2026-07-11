@@ -51,6 +51,18 @@ const MIN_KCAL: Record<Sex, number> = {
 const PROTEIN_G_PER_KG = 2.0; // high protein to protect muscle in a deficit
 const FAT_FRACTION_OF_KCAL = 0.25;
 const KETO_CARBS_G = 25; // hard carb ceiling on a ketogenic split; fat fills the rest
+const HEALTHY_BMI_MAX = 25; // top of the healthy BMI band; caps the protein basis
+
+// Protein is prescribed per kg of bodyweight, but for someone well above a
+// healthy weight that overshoots — surplus fat mass doesn't need feeding, and
+// the evidence bases protein on lean/target weight. Cap the basis at the weight
+// that puts them at BMI 25 for their height (a stand-in for target weight).
+// No height given → no cap (used by the result-based weekly review).
+export function proteinBasisKg(weightKg: number, heightCm?: number): number {
+  if (heightCm == null) return weightKg;
+  const healthyMaxKg = HEALTHY_BMI_MAX * (heightCm / 100) ** 2;
+  return Math.min(weightKg, healthyMaxKg);
+}
 
 export interface CoachInput {
   sex: Sex;
@@ -97,8 +109,9 @@ export function macrosForKcal(
   kcal: number,
   weightKg: number,
   diet: DietType = "regular",
+  heightCm?: number,
 ): Required<Macros> {
-  const protein_g = Math.round(weightKg * PROTEIN_G_PER_KG);
+  const protein_g = Math.round(proteinBasisKg(weightKg, heightCm) * PROTEIN_G_PER_KG);
 
   // Keto flips the split: carbs pinned to a low ceiling, fat fills the rest.
   if (diet === "keto") {
@@ -157,7 +170,7 @@ export function dailyTarget(input: CoachInput): Macros {
     maintenance - deficitPerDay(input.pace, input.weightKg),
     MIN_KCAL[input.sex],
   );
-  return macrosForKcal(target, input.weightKg, input.diet);
+  return macrosForKcal(target, input.weightKg, input.diet, input.heightCm);
 }
 
 // Monday (UTC) of the week that contains `date` — used to key daily_targets.
