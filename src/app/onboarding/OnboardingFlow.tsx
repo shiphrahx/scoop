@@ -12,6 +12,9 @@ import {
   Drumstick,
   Salad,
   Sprout,
+  Fish,
+  Egg,
+  WheatOff,
   Armchair,
   Footprints,
   Bike,
@@ -153,6 +156,9 @@ export default function OnboardingFlow() {
             { value: "regular", label: "Everything", icon: Drumstick },
             { value: "vegetarian", label: "Vegetarian", icon: Salad },
             { value: "vegan", label: "Vegan", icon: Sprout },
+            { value: "pescatarian", label: "Pescatarian", icon: Fish },
+            { value: "keto", label: "Keto", icon: Egg },
+            { value: "celiac", label: "Gluten-free", icon: WheatOff },
           ]}
           selected={state.diet_type}
           onPick={(v) => {

@@ -202,6 +202,7 @@ export async function getCoachData(): Promise<CoachData> {
   const review = current
     ? weeklyReview({
         sex,
+        diet: profile?.diet_type ?? "regular",
         // When we have no weigh-in this week, drop last week too so the review
         // just says "keep logging" rather than comparing against stale data.
         thisWeekAvgKg: thisWeekAvgKg ?? lastWeekAvgKg ?? 0,

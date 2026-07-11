@@ -1,5 +1,6 @@
 import type {
   ActivityLevel,
+  DietType,
   GoalPace,
   Macros,
   Sex,
@@ -18,12 +19,22 @@ const ACTIVITY_MULTIPLIER: Record<ActivityLevel, number> = {
   very_active: 1.9,
 };
 
-// Fraction of TDEE removed for weight loss.
-const PACE_DEFICIT: Record<GoalPace, number> = {
-  gentle: 0.1,
-  steady: 0.2,
-  aggressive: 0.25,
+// How fast each pace aims to lose, in kg/week. The calorie deficit is derived
+// from this rate (not a flat % of TDEE) so the number the user picks in
+// onboarding is the number the maths actually targets — see dailyTarget.
+const PACE_KG_PER_WEEK: Record<GoalPace, number> = {
+  gentle: 0.25,
+  steady: 0.5,
+  aggressive: 0.75,
 };
+
+// Energy in 1 kg of body fat (≈ 3500 kcal/lb). Standard clinical heuristic for
+// turning a target loss rate into a daily calorie deficit.
+const KCAL_PER_KG = 7700;
+
+// Never prescribe a loss faster than 1% of bodyweight/week — beyond that the
+// deficit starts costing muscle. Caps the requested rate for light people.
+const MAX_WEEKLY_LOSS_FRACTION = 0.01;
 
 // Never eat below this, whatever the maths say (safety floor).
 const MIN_KCAL: Record<Sex, number> = {
@@ -33,9 +44,11 @@ const MIN_KCAL: Record<Sex, number> = {
 
 const PROTEIN_G_PER_KG = 2.0; // high protein to protect muscle in a deficit
 const FAT_FRACTION_OF_KCAL = 0.25;
+const KETO_CARBS_G = 25; // hard carb ceiling on a ketogenic split; fat fills the rest
 
 export interface CoachInput {
   sex: Sex;
+  diet: DietType;
   weightKg: number;
   heightCm: number;
   age: number;
@@ -65,8 +78,35 @@ export function ageFromBirthYear(birthYear: number, now = new Date()) {
 //   sugar   free sugars ≤ 10% of energy
 //   satfat  saturated fat ≤ 10% of energy
 //   sodium  2300 mg/day upper limit
-export function macrosForKcal(kcal: number, weightKg: number): Required<Macros> {
+export function macrosForKcal(
+  kcal: number,
+  weightKg: number,
+  diet: DietType = "regular",
+): Required<Macros> {
   const protein_g = Math.round(weightKg * PROTEIN_G_PER_KG);
+
+  // Keto flips the split: carbs pinned to a low ceiling, fat fills the rest.
+  if (diet === "keto") {
+    const carbs_g = Math.min(
+      KETO_CARBS_G,
+      Math.max(0, Math.round((kcal - protein_g * 4) / 4)),
+    );
+    const fat_g = Math.max(
+      0,
+      Math.round((kcal - protein_g * 4 - carbs_g * 4) / 9),
+    );
+    return {
+      kcal: Math.round(kcal),
+      protein_g,
+      carbs_g,
+      fat_g,
+      fiber_g: Math.round((14 * kcal) / 1000),
+      sugar_g: Math.min(carbs_g, Math.round((0.1 * kcal) / 4)),
+      satfat_g: Math.round((0.1 * kcal) / 9),
+      sodium_mg: 2300,
+    };
+  }
+
   const fat_g = Math.round((kcal * FAT_FRACTION_OF_KCAL) / 9);
   const carbs_g = Math.max(
     0,
@@ -84,14 +124,25 @@ export function macrosForKcal(kcal: number, weightKg: number): Required<Macros> 
   };
 }
 
+// The daily calorie deficit for a chosen pace, derived from the target loss
+// rate (kg/week × 7700 kcal/kg ÷ 7 days). The rate is first capped at 1% of
+// bodyweight/week so a light person never gets an unsafe deficit.
+export function deficitPerDay(pace: GoalPace, weightKg: number): number {
+  const kgPerWeek = Math.min(
+    PACE_KG_PER_WEEK[pace],
+    MAX_WEEKLY_LOSS_FRACTION * weightKg,
+  );
+  return (kgPerWeek * KCAL_PER_KG) / 7;
+}
+
 // Full daily macro target for a user in a weight-loss deficit.
 export function dailyTarget(input: CoachInput): Macros {
   const maintenance = tdee(input);
   const target = Math.max(
-    maintenance * (1 - PACE_DEFICIT[input.pace]),
+    maintenance - deficitPerDay(input.pace, input.weightKg),
     MIN_KCAL[input.sex],
   );
-  return macrosForKcal(target, input.weightKg);
+  return macrosForKcal(target, input.weightKg, input.diet);
 }
 
 // Monday (UTC) of the week that contains `date` — used to key daily_targets.
@@ -124,6 +175,7 @@ export function average(values: number[]): number | null {
 
 export interface WeeklyReviewInput {
   sex: Sex;
+  diet?: DietType; // defaults to "regular"; keeps a keto split on recompute
   thisWeekAvgKg: number; // trailing avg over the last 7 days
   lastWeekAvgKg: number | null; // avg over the 7 days before that
   waistDeltaCm: number | null; // latest waist − previous waist (− = shrinking)
@@ -140,7 +192,14 @@ export interface WeeklyReview {
 }
 
 export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
-  const { current, thisWeekAvgKg, lastWeekAvgKg, waistDeltaCm, sex } = input;
+  const {
+    current,
+    thisWeekAvgKg,
+    lastWeekAvgKg,
+    waistDeltaCm,
+    sex,
+    diet = "regular",
+  } = input;
 
   // Not enough history yet — hold and ask for another week.
   if (lastWeekAvgKg == null) {
@@ -178,7 +237,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
   if (changePct > HEALTHY_MAX_PCT) {
     const newKcal = Math.round(current.kcal * (1 + ADD_STEP));
     return {
-      macros: macrosForKcal(newKcal, thisWeekAvgKg),
+      macros: macrosForKcal(newKcal, thisWeekAvgKg, diet),
       changed: true,
       changeKg,
       changePct,
@@ -221,7 +280,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
   const newKcal = Math.max(floor, Math.round(current.kcal * (1 - CUT_STEP)));
   const gained = changeKg < 0;
   return {
-    macros: macrosForKcal(newKcal, thisWeekAvgKg),
+    macros: macrosForKcal(newKcal, thisWeekAvgKg, diet),
     changed: true,
     changeKg,
     changePct,

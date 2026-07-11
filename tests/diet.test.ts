@@ -14,6 +14,19 @@ describe("dietRule", () => {
   it("places no restriction on regular eaters", () => {
     expect(dietRule("regular")).toMatch(/no dietary restriction/i);
   });
+
+  it("allows fish but not meat for pescatarians", () => {
+    expect(dietRule("pescatarian")).toMatch(/fish/i);
+    expect(dietRule("pescatarian")).toMatch(/meat or poultry/i);
+  });
+
+  it("tells keto to keep carbs low", () => {
+    expect(dietRule("keto")).toMatch(/carbs very low/i);
+  });
+
+  it("demands gluten-free for celiac", () => {
+    expect(dietRule("celiac")).toMatch(/gluten-free/i);
+  });
 });
 
 describe("violatesDiet", () => {
@@ -51,5 +64,21 @@ describe("violatesDiet", () => {
 
   it("passes a plainly vegan dish", () => {
     expect(violatesDiet("chickpea and spinach curry", "vegan")).toBe(false);
+  });
+
+  it("lets pescatarians eat fish but not meat", () => {
+    expect(violatesDiet("grilled salmon and greens", "pescatarian")).toBe(false);
+    expect(violatesDiet("tuna pasta bake", "pescatarian")).toBe(false);
+    expect(violatesDiet("chicken and bacon burger", "pescatarian")).toBe(true);
+  });
+
+  it("flags gluten for celiac but passes naturally GF food", () => {
+    expect(violatesDiet("wholemeal bread sandwich", "celiac")).toBe(true);
+    expect(violatesDiet("beef and barley stew", "celiac")).toBe(true);
+    expect(violatesDiet("grilled chicken and rice", "celiac")).toBe(false);
+  });
+
+  it("never keyword-flags keto (the carb budget handles it)", () => {
+    expect(violatesDiet("bread and pasta with sugar", "keto")).toBe(false);
   });
 });

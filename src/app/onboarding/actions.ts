@@ -59,6 +59,7 @@ export async function saveOnboarding(input: OnboardingInput) {
   // 3. Compute and store this week's macro target.
   const target = dailyTarget({
     sex: input.sex,
+    diet: input.diet_type,
     weightKg: input.weight_kg,
     heightCm: input.height_cm,
     age: ageFromBirthYear(input.birth_year),

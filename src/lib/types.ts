@@ -1,6 +1,12 @@
 // Shared domain types for Scoop.
 
-export type DietType = "regular" | "vegetarian" | "vegan";
+export type DietType =
+  | "regular"
+  | "vegetarian"
+  | "vegan"
+  | "pescatarian"
+  | "keto"
+  | "celiac";
 export type Sex = "male" | "female";
 export type ActivityLevel =
   | "sedentary"

@@ -75,6 +75,7 @@ export async function saveGoals(input: GoalsInput) {
   if (p?.height_cm && p.sex && p.birth_year && weightKg) {
     const target = dailyTarget({
       sex: p.sex,
+      diet: input.diet_type,
       weightKg,
       heightCm: Number(p.height_cm),
       age: ageFromBirthYear(p.birth_year),

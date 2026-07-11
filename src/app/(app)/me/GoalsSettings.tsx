@@ -5,6 +5,9 @@ import {
   Drumstick,
   Salad,
   Sprout,
+  Fish,
+  Egg,
+  WheatOff,
   Armchair,
   Footprints,
   Bike,
@@ -24,6 +27,9 @@ const DIET: Option<DietType>[] = [
   { value: "regular", label: "Everything", icon: Drumstick },
   { value: "vegetarian", label: "Vegetarian", icon: Salad },
   { value: "vegan", label: "Vegan", icon: Sprout },
+  { value: "pescatarian", label: "Pescatarian", icon: Fish },
+  { value: "keto", label: "Keto", icon: Egg },
+  { value: "celiac", label: "Gluten-free", icon: WheatOff },
 ];
 
 const ACTIVITY: Option<ActivityLevel>[] = [

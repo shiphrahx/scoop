@@ -56,6 +56,15 @@ export function dietRule(diet: DietType): string {
   if (diet === "vegetarian") {
     return "The user is VEGETARIAN. Never include meat, poultry, fish, or seafood (eggs and dairy are fine).";
   }
+  if (diet === "pescatarian") {
+    return "The user is PESCATARIAN. Never include meat or poultry (fish, seafood, eggs, and dairy are fine).";
+  }
+  if (diet === "keto") {
+    return "The user is on a KETOGENIC diet. Keep carbs very low — avoid bread, pasta, rice, potatoes, grains, sugar, and sugary fruit. Favour meat, fish, eggs, cheese, non-starchy vegetables, nuts, and healthy fats.";
+  }
+  if (diet === "celiac") {
+    return "The user has CELIAC disease. Everything must be strictly GLUTEN-FREE — never include wheat, barley, rye, malt, or ordinary bread, pasta, flour, couscous, or beer unless it is explicitly gluten-free.";
+  }
   return "The user eats everything (no dietary restriction).";
 }
 
@@ -71,12 +80,26 @@ const ANIMAL = [
   ...MEAT, "egg", "milk", "cheese", "butter", "cream", "yogurt", "yoghurt",
   "honey", "whey", "casein", "ghee",
 ];
+// Fish/seafood terms — the slice of MEAT a pescatarian is allowed to keep.
+const FISH = [
+  "fish", "salmon", "tuna", "cod", "prawn", "shrimp", "crab", "lobster",
+  "anchovy",
+];
+// Obvious gluten sources for the celiac guard.
+const GLUTEN = [
+  "wheat", "barley", "rye", "malt", "bread", "pasta", "flour", "couscous",
+  "bulgur", "semolina", "breadcrumb", "cracker", "biscuit", "pastry", "beer",
+];
 
 export function violatesDiet(text: string, diet: DietType): boolean {
-  if (diet === "regular") return false;
-  const words = (diet === "vegan" ? ANIMAL : MEAT);
+  // Keto is a macro budget, not an ingredient ban — the carb target guards it.
+  if (diet === "regular" || diet === "keto") return false;
   const hay = text.toLowerCase();
-  return words.some((w) => new RegExp(`\\b${w}s?\\b`).test(hay));
+  const hits = (words: string[]) =>
+    words.some((w) => new RegExp(`\\b${w}s?\\b`).test(hay));
+  if (diet === "celiac") return hits(GLUTEN);
+  if (diet === "pescatarian") return hits(MEAT.filter((w) => !FISH.includes(w)));
+  return hits(diet === "vegan" ? ANIMAL : MEAT);
 }
 
 // --- Grocery screenshot → ingredient list -----------------------------------
