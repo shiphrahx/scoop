@@ -19,6 +19,12 @@ const ACTIVITY_MULTIPLIER: Record<ActivityLevel, number> = {
   very_active: 1.9,
 };
 
+// BMR → non-exercise daily burn (resting + living, no workouts). When we have
+// measured exercise from a device we add the real burn on top of this baseline
+// instead of guessing the whole activity factor. 1.2 is the standard sedentary
+// multiplier — i.e. everything except deliberate exercise.
+const NEAT_MULTIPLIER = 1.2;
+
 // How fast each pace aims to lose, in kg/week. The calorie deficit is derived
 // from this rate (not a flat % of TDEE) so the number the user picks in
 // onboarding is the number the maths actually targets — see dailyTarget.
@@ -54,6 +60,9 @@ export interface CoachInput {
   age: number;
   activity: ActivityLevel;
   pace: GoalPace;
+  // Measured average daily exercise burn (kcal) from Fitbit/Apple. When
+  // present it replaces the self-reported activity multiplier with real data.
+  workoutKcalPerDay?: number | null;
 }
 
 // Mifflin–St Jeor basal metabolic rate (kcal/day).
@@ -62,9 +71,15 @@ export function bmr(sex: Sex, weightKg: number, heightCm: number, age: number) {
   return sex === "male" ? base + 5 : base - 161;
 }
 
+// Total daily energy expenditure. With a measured exercise burn we build it
+// from the non-exercise baseline plus that real burn; otherwise we fall back to
+// the self-reported activity factor.
 export function tdee(input: Omit<CoachInput, "pace">) {
-  return bmr(input.sex, input.weightKg, input.heightCm, input.age) *
-    ACTIVITY_MULTIPLIER[input.activity];
+  const base = bmr(input.sex, input.weightKg, input.heightCm, input.age);
+  if (input.workoutKcalPerDay != null && input.workoutKcalPerDay > 0) {
+    return base * NEAT_MULTIPLIER + input.workoutKcalPerDay;
+  }
+  return base * ACTIVITY_MULTIPLIER[input.activity];
 }
 
 export function ageFromBirthYear(birthYear: number, now = new Date()) {

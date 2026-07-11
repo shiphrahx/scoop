@@ -40,6 +40,36 @@ describe("tdee", () => {
     expect(tdee({ ...common, activity: "sedentary" }))
       .toBeLessThan(tdee({ ...common, activity: "very_active" }));
   });
+
+  it("uses measured burn on the non-exercise baseline when provided", () => {
+    const base = bmr("male", 80, 180, 30);
+    expect(
+      tdee({
+        sex: "male",
+        diet: "regular",
+        weightKg: 80,
+        heightCm: 180,
+        age: 30,
+        activity: "very_active",
+        workoutKcalPerDay: 500,
+      }),
+    ).toBeCloseTo(base * 1.2 + 500, 5);
+  });
+
+  it("ignores a zero or missing burn and falls back to the activity factor", () => {
+    const common = {
+      sex: "male",
+      diet: "regular",
+      weightKg: 80,
+      heightCm: 180,
+      age: 30,
+      activity: "moderate",
+    } as const;
+    const fallback = bmr("male", 80, 180, 30) * 1.55;
+    expect(tdee({ ...common, workoutKcalPerDay: 0 })).toBeCloseTo(fallback, 5);
+    expect(tdee({ ...common, workoutKcalPerDay: null })).toBeCloseTo(fallback, 5);
+    expect(tdee(common)).toBeCloseTo(fallback, 5);
+  });
 });
 
 describe("ageFromBirthYear", () => {

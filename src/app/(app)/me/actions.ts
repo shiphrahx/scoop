@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { ageFromBirthYear, dailyTarget, weekStart } from "@/lib/coach";
+import { ageFromBirthYear, average, dailyTarget, weekStart } from "@/lib/coach";
 import type { ActivityLevel, DietType, GoalPace } from "@/lib/types";
 
 async function requireUser() {
@@ -53,7 +53,10 @@ export async function saveGoals(input: GoalsInput) {
     .eq("id", user.id);
   if (error) throw new Error(error.message);
 
-  const [{ data: prof }, { data: w }] = await Promise.all([
+  // 7-day window for the trailing average exercise burn.
+  const cut7 = new Date(Date.now() - 6 * 86_400_000).toISOString().slice(0, 10);
+
+  const [{ data: prof }, { data: w }, { data: act }] = await Promise.all([
     supabase
       .from("users")
       .select("height_cm, sex, birth_year")
@@ -65,12 +68,24 @@ export async function saveGoals(input: GoalsInput) {
       .order("date", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from("activity")
+      .select("workout_kcal")
+      .gte("date", cut7),
   ]);
 
   const p = prof as
     | { height_cm: number | null; sex: "male" | "female" | null; birth_year: number | null }
     | null;
   const weightKg = w ? Number((w as { weight_kg: number }).weight_kg) : null;
+
+  // Average the days that actually reported a burn; null when no device data,
+  // which leaves dailyTarget on the self-reported activity multiplier.
+  const burns = ((act as { workout_kcal: number | null }[]) ?? [])
+    .map((r) => r.workout_kcal)
+    .filter((k): k is number => k != null)
+    .map(Number);
+  const workoutKcalPerDay = average(burns);
 
   if (p?.height_cm && p.sex && p.birth_year && weightKg) {
     const target = dailyTarget({
@@ -81,6 +96,7 @@ export async function saveGoals(input: GoalsInput) {
       age: ageFromBirthYear(p.birth_year),
       activity: input.activity_level,
       pace: input.goal_pace,
+      workoutKcalPerDay,
     });
     await supabase
       .from("daily_targets")
