@@ -1,0 +1,33 @@
+-- Scoop DEV RESET — wipes ALL user data from EVERY account.
+-- Destructive and irreversible. Development only. Never run on production.
+--
+-- Run in the Supabase SQL Editor, or:
+--   supabase db execute --file supabase/dev-reset.sql
+--
+-- Two modes below. Pick one, run its block, leave the other commented out.
+
+-- ---------------------------------------------------------------------------
+-- MODE A — Full reset (default). Deletes the accounts too.
+-- auth.users cascades into public.users, which cascades into every app table.
+-- Users sign in fresh and re-onboard from scratch.
+-- ---------------------------------------------------------------------------
+delete from auth.users;
+
+-- ---------------------------------------------------------------------------
+-- MODE B — Keep accounts, wipe app data only.
+-- Leaves auth.users + public.users rows (login + profile), clears everything
+-- the user has entered. Comment out MODE A above and uncomment this instead.
+-- ---------------------------------------------------------------------------
+-- truncate
+--   public.planned_meals,
+--   public.food_logs,
+--   public.daily_targets,
+--   public.weights,
+--   public.measurements,
+--   public.favourites,
+--   public.pantry_items,
+--   public.batches,
+--   public.recipes,
+--   public.activity,
+--   public.fitbit_tokens
+--   restart identity cascade;
