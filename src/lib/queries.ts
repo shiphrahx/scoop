@@ -198,6 +198,39 @@ export async function getCoachData(): Promise<CoachData> {
   const waistDeltaCm =
     meas.length >= 2 ? Number(meas[0].waist_cm) - Number(meas[1].waist_cm) : null;
 
+  // Consistency gate: only trust the weekly averages when the user weighed in on
+  // enough days in BOTH weeks. Patchy data → the review holds instead of guessing.
+  const MIN_WEIGH_INS = 3;
+  const consistent =
+    thisWeek.length >= MIN_WEIGH_INS && lastWeek.length >= MIN_WEIGH_INS;
+
+  // Adaptation gate: how many whole weeks the current calorie target has been
+  // unchanged. The review won't cut or add until the body has had ~2 weeks to
+  // respond. We measure it as the span from the start of the current unbroken
+  // run of same-kcal weekly targets up to this week.
+  const thisWeekStart = weekStart(now);
+  let weeksOnTarget = 0;
+  if (current) {
+    const { data: histData } = await supabase
+      .from("daily_targets")
+      .select("week_start, kcal")
+      .lte("week_start", thisWeekStart)
+      .order("week_start", { ascending: false })
+      .limit(12);
+    const hist = (histData as { week_start: string; kcal: number }[]) ?? [];
+    let runStart = thisWeekStart;
+    for (const row of hist) {
+      if (Math.round(Number(row.kcal)) === Math.round(current.kcal)) {
+        runStart = row.week_start;
+      } else {
+        break;
+      }
+    }
+    weeksOnTarget = Math.round(
+      (Date.parse(thisWeekStart) - Date.parse(runStart)) / (7 * DAY_MS),
+    );
+  }
+
   const sex = profile?.sex ?? "female";
   const review = current
     ? weeklyReview({
@@ -212,6 +245,10 @@ export async function getCoachData(): Promise<CoachData> {
         // Keep the protein cap consistent with onboarding when we recompute.
         heightCm: profile?.height_cm,
         goalWeightKg: profile?.goal_weight_kg,
+        // Cadence gates — hold unless the target is ≥2 weeks old and the
+        // weigh-ins are consistent.
+        weeksOnTarget,
+        consistent,
       })
     : {
         macros: { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
