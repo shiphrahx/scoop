@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Check, ChevronDown, Loader2, Pencil, Search, Trash2, X } from "lucide-react";
 import type { ImportedItem, OffCandidate } from "@/lib/types";
 import { addMatchedItems, matchCandidates, type PantryInput } from "./actions";
@@ -35,6 +36,7 @@ export default function MatchItems({
   onSaved: () => void;
   onCancel: () => void;
 }) {
+  const router = useRouter();
   const [rows, setRows] = useState<Row[]>(() =>
     items.map((item) => ({
       item,
@@ -128,6 +130,8 @@ export default function MatchItems({
       }));
       await addMatchedItems(payload);
       onSaved();
+      // Land the user on the pantry so they see what they just added.
+      router.push("/pantry");
     } finally {
       setSaving(false);
     }

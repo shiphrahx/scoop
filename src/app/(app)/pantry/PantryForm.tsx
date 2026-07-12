@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { ScanBarcode, Minus, Plus } from "lucide-react";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import type { ExtraPer100g, OffProduct } from "@/lib/types";
@@ -21,6 +22,7 @@ const empty = {
 // Add something to the pantry: scan its barcode (fills name + per-100g macros
 // from Open Food Facts) or type it in.
 export default function PantryForm() {
+  const router = useRouter();
   const [form, setForm] = useState(empty);
   const [barcode, setBarcode] = useState<string | null>(null);
   const [packSize, setPackSize] = useState<number | null>(null);
@@ -83,12 +85,8 @@ export default function PantryForm() {
         ...scannedExtras,
         pack_size_g: packSize,
       });
-      setForm(empty);
-      setBarcode(null);
-      setPackSize(null);
-      setScannedExtras(NO_EXTRAS);
-      setQuantity(1);
-      setNote(null);
+      // Show the item where it now lives instead of an empty add form.
+      router.push("/pantry");
     } finally {
       setSaving(false);
     }
