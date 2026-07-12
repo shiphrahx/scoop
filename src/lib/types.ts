@@ -30,6 +30,10 @@ export interface Profile {
   height_cm: number;
   sex: Sex;
   birth_year: number;
+  // Optional target weight (kg) and body-fat %. Body-fat unlocks the more
+  // accurate Katch–McArdle calorie maths; null when the user hasn't given it.
+  goal_weight_kg: number | null;
+  body_fat_pct: number | null;
   meal_slots: string[];
   nutrient_prefs: string[];
   onboarded_at: string | null;
