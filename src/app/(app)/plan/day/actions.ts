@@ -2,7 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { planDay, suggestMeals, estimateMeals, type KnownMeal } from "@/lib/ai";
+import { estimateMeals, violatesDiet, type KnownMeal } from "@/lib/ai";
+import {
+  planPantryDay,
+  suggestPantryMeals,
+  type PantryFood,
+} from "@/lib/mealplan";
 import { searchProducts } from "@/lib/off";
 import {
   getCurrentTargets,
@@ -13,6 +18,7 @@ import {
 } from "@/lib/queries";
 import {
   sumItems,
+  type DietType,
   type FoodChoice,
   type MealSuggestion,
   type PlanItem,
@@ -32,6 +38,35 @@ function revalidate() {
   revalidatePath("/plan/day");
   revalidatePath("/dashboard");
   revalidatePath("/add");
+}
+
+// Every pantry item with its per-100g macros, filtered to what the diet allows
+// (a vegan pantry shouldn't build a meal around meat someone else added). This
+// is the whole input the local planner needs — no AI, no network.
+async function pantryFoods(
+  supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
+  diet: DietType,
+): Promise<PantryFood[]> {
+  const { data } = await supabase
+    .from("pantry_items")
+    .select("name, kcal_100g, protein_100g, carbs_100g, fat_100g");
+  return (
+    (data as Array<{
+      name: string;
+      kcal_100g: number;
+      protein_100g: number;
+      carbs_100g: number;
+      fat_100g: number;
+    }>) ?? []
+  )
+    .filter((p) => !violatesDiet(p.name, diet))
+    .map((p) => ({
+      name: p.name,
+      kcal_100g: Number(p.kcal_100g),
+      protein_100g: Number(p.protein_100g),
+      carbs_100g: Number(p.carbs_100g),
+      fat_100g: Number(p.fat_100g),
+    }));
 }
 
 // Look up foods to add to a meal. Pantry items the user already has come first
@@ -174,16 +209,15 @@ export async function clearSlot(slot: string) {
 export async function planMyDay() {
   const { supabase, user } = await requireUser();
 
-  const [profile, targets, consumed, plan, { data: pantryData }] =
-    await Promise.all([
-      getProfile(),
-      getCurrentTargets(),
-      getTodayConsumed(),
-      getTodayPlan(),
-      supabase.from("pantry_items").select("name"),
-    ]);
+  const [profile, targets, consumed, plan] = await Promise.all([
+    getProfile(),
+    getCurrentTargets(),
+    getTodayConsumed(),
+    getTodayPlan(),
+  ]);
   if (!profile) throw new Error("Finish onboarding first");
   if (!targets) throw new Error("No macro target yet — finish onboarding.");
+  const pantry = await pantryFoods(supabase, profile.diet_type);
 
   const slotNames = profile.meal_slots ?? [];
   const bySlot = new Map(plan.map((p) => [p.slot, p]));
@@ -214,15 +248,7 @@ export async function planMyDay() {
     fat_g: Math.max(0, Math.round(targets.fat_g - consumed.fat_g)),
   };
 
-  const meals = await planDay({
-    diet: profile.diet_type,
-    allergies: profile.allergies,
-    dislikes: profile.dislikes,
-    pantry: ((pantryData as { name: string }[]) ?? []).map((p) => p.name),
-    budget,
-    fixed,
-    emptySlots,
-  });
+  const meals = planPantryDay({ pantry, budget, fixed, emptySlots });
 
   const bySlotResult = new Map(meals.map((m) => [m.slot, m]));
   const rows = emptySlots
@@ -344,22 +370,13 @@ export async function suggestAround(
   protein: string | null,
 ): Promise<MealSuggestion[]> {
   const { supabase } = await requireUser();
-  const [profile, remaining, { data: pantryData }] = await Promise.all([
-    getProfile(),
-    remainingToday(),
-    supabase.from("pantry_items").select("name"),
-  ]);
+  const profile = await getProfile();
   if (!profile) throw new Error("Finish onboarding first");
-
-  return suggestMeals({
-    diet: profile.diet_type,
-    allergies: profile.allergies,
-    dislikes: profile.dislikes,
-    pantry: ((pantryData as { name: string }[]) ?? []).map((p) => p.name),
-    remaining,
-    carb,
-    protein,
-  });
+  const [remaining, pantry] = await Promise.all([
+    remainingToday(),
+    pantryFoods(supabase, profile.diet_type),
+  ]);
+  return suggestPantryMeals({ pantry, remaining, carb, protein });
 }
 
 // Drop a suggested dish into a slot as an AI-origin planned meal.

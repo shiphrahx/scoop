@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { suggestMeals } from "@/lib/ai";
+import { violatesDiet } from "@/lib/ai";
+import { suggestPantryMeals, type PantryFood } from "@/lib/mealplan";
 import { getCurrentTargets, getProfile, getTodayConsumed } from "@/lib/queries";
 import type { MealSuggestion } from "@/lib/types";
 
@@ -28,11 +29,29 @@ export async function getSuggestions(
     getProfile(),
     getCurrentTargets(),
     getTodayConsumed(),
-    supabase.from("pantry_items").select("name"),
+    supabase
+      .from("pantry_items")
+      .select("name, kcal_100g, protein_100g, carbs_100g, fat_100g"),
   ]);
   if (!profile) throw new Error("Finish onboarding first");
 
-  const pantry = ((pantryData as { name: string }[]) ?? []).map((p) => p.name);
+  const pantry: PantryFood[] = (
+    (pantryData as Array<{
+      name: string;
+      kcal_100g: number;
+      protein_100g: number;
+      carbs_100g: number;
+      fat_100g: number;
+    }>) ?? []
+  )
+    .filter((p) => !violatesDiet(p.name, profile.diet_type))
+    .map((p) => ({
+      name: p.name,
+      kcal_100g: Number(p.kcal_100g),
+      protein_100g: Number(p.protein_100g),
+      carbs_100g: Number(p.carbs_100g),
+      fat_100g: Number(p.fat_100g),
+    }));
 
   const remaining = targets
     ? {
@@ -43,10 +62,7 @@ export async function getSuggestions(
       }
     : { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
 
-  return suggestMeals({
-    diet: profile.diet_type,
-    allergies: profile.allergies,
-    dislikes: profile.dislikes,
+  return suggestPantryMeals({
     pantry,
     remaining,
     carb: carb ?? null,

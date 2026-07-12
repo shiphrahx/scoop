@@ -7,8 +7,9 @@ import { Sparkles, PencilLine, ChevronRight } from "lucide-react";
 import { planMyDay } from "./actions";
 
 // The front door to planning a day: let the app do it all, or step through the
-// guided "I know what I want" wizard. Sits above the editable plan.
-export default function PlanChooser({ connected }: { connected: boolean }) {
+// guided "I know what I want" wizard. Sits above the editable plan. Both paths
+// build straight from the pantry's macros — no AI key needed.
+export default function PlanChooser() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -30,7 +31,7 @@ export default function PlanChooser({ connected }: { connected: boolean }) {
     <div className="flex flex-col gap-3">
       <button
         onClick={planForMe}
-        disabled={busy || !connected}
+        disabled={busy}
         className="flex items-center gap-3 rounded-[1.75rem] p-5 text-left text-white transition active:scale-[0.99] disabled:opacity-60"
         style={{ background: "var(--grad-primary)", boxShadow: "var(--shadow-glow)" }}
       >
@@ -67,11 +68,6 @@ export default function PlanChooser({ connected }: { connected: boolean }) {
         <ChevronRight size={20} className="ml-auto shrink-0 text-[var(--muted)]" />
       </Link>
 
-      {!connected && (
-        <p className="text-center text-sm text-[var(--muted)]">
-          Connect your AI key in Settings to plan from your pantry.
-        </p>
-      )}
       {err && (
         <p className="text-center text-sm font-medium text-[var(--danger,#e5484d)]">
           {err}

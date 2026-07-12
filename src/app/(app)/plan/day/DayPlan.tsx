@@ -94,12 +94,10 @@ function macroLine(prefs: NutrientKey[], m: Macros): string {
 export default function DayPlan({
   slots,
   target,
-  connected,
   prefs,
 }: {
   slots: Slot[];
   target: Macros | null;
-  connected: boolean;
   prefs: NutrientKey[];
 }) {
   const [busy, startTransition] = useTransition();
@@ -178,21 +176,15 @@ export default function DayPlan({
         </p>
       )}
 
-      {connected ? (
-        anyEmpty && (
-          <button
-            onClick={() => run(() => planMyDay())}
-            disabled={busy}
-            className="sc-btn sc-btn-primary py-4 text-lg"
-          >
-            <Sparkles size={22} />
-            {busy ? "Planning…" : "Plan my empty meals"}
-          </button>
-        )
-      ) : (
-        <p className="text-center text-sm text-[var(--muted)]">
-          Connect your AI key in Settings to auto-fill empty meals from your pantry.
-        </p>
+      {anyEmpty && (
+        <button
+          onClick={() => run(() => planMyDay())}
+          disabled={busy}
+          className="sc-btn sc-btn-primary py-4 text-lg"
+        >
+          <Sparkles size={22} />
+          {busy ? "Planning…" : "Plan my empty meals"}
+        </button>
       )}
     </section>
   );

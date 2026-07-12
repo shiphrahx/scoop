@@ -29,11 +29,15 @@ export default function BuildWizard({
   filled,
   carbs,
   proteins,
+  connected,
 }: {
   slots: string[];
   filled: string[];
   carbs: string[];
   proteins: string[];
+  // Typing a meal in words needs the AI macro estimate (bring-your-own-key);
+  // the carb/protein/suggest steps are all local pantry maths.
+  connected: boolean;
 }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("known");
@@ -76,7 +80,7 @@ export default function BuildWizard({
       .map(([slot, text]) => ({ slot, text: text.trim() }))
       .filter((e) => e.text);
     await run(async () => {
-      if (entries.length) {
+      if (connected && entries.length) {
         await saveKnownMeals(entries);
         setFilledSet((prev) => {
           const next = new Set(prev);
@@ -132,7 +136,12 @@ export default function BuildWizard({
             title="Anything you already know you want?"
             sub="Type a meal for any slot — we'll size the rest of the day around it. Leave the ones you're unsure about blank."
           />
-          {emptySlots.length === 0 ? (
+          {!connected ? (
+            <p className="sc-card p-4 text-sm text-[var(--muted)]">
+              Typing a meal in words needs an AI key (Settings) to estimate its
+              macros. Skip this and build from your pantry below — no key needed.
+            </p>
+          ) : emptySlots.length === 0 ? (
             <p className="sc-card p-4 text-sm text-[var(--muted)]">
               Every meal is already planned. Jump ahead to fill or tweak.
             </p>

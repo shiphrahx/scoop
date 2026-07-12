@@ -6,17 +6,15 @@ import {
   getProfile,
   getCurrentTargets,
   getTodayPlan,
-  hasApiKey,
 } from "@/lib/queries";
 import { DEFAULT_MEAL_SLOTS } from "@/lib/types";
 import { normalizePrefs } from "@/lib/nutrients";
 
 export default async function PlanDayPage() {
-  const [profile, target, plan, connected] = await Promise.all([
+  const [profile, target, plan] = await Promise.all([
     getProfile(),
     getCurrentTargets(),
     getTodayPlan(),
-    hasApiKey(),
   ]);
 
   const prefs = normalizePrefs(profile?.nutrient_prefs);
@@ -44,9 +42,9 @@ export default async function PlanDayPage() {
         </p>
       </div>
 
-      <PlanChooser connected={connected} />
+      <PlanChooser />
 
-      <DayPlan slots={slots} target={target} connected={connected} prefs={prefs} />
+      <DayPlan slots={slots} target={target} prefs={prefs} />
     </main>
   );
 }

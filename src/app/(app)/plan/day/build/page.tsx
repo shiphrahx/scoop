@@ -42,21 +42,13 @@ export default async function PlanDayBuildPage() {
         <h1 className="text-3xl font-semibold">What do you want to eat?</h1>
       </div>
 
-      {connected ? (
-        <BuildWizard
-          slots={slots}
-          filled={filled}
-          carbs={carbs}
-          proteins={proteins}
-        />
-      ) : (
-        <Link
-          href="/me"
-          className="sc-card p-5 text-sm text-[var(--muted)] transition active:scale-[0.99]"
-        >
-          Connect your AI key in Settings to build meals from your pantry.
-        </Link>
-      )}
+      <BuildWizard
+        slots={slots}
+        filled={filled}
+        carbs={carbs}
+        proteins={proteins}
+        connected={connected}
+      />
     </main>
   );
 }
