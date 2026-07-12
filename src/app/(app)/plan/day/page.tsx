@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import DayPlan from "./DayPlan";
+import PlanChooser from "./PlanChooser";
 import {
   getProfile,
   getCurrentTargets,
@@ -38,10 +39,12 @@ export default async function PlanDayPage() {
         </Link>
         <h1 className="text-3xl font-semibold">Plan my day</h1>
         <p className="text-sm text-[var(--muted)]">
-          Build the meals you already know from your pantry or the web. Leave the
-          rest empty and I&apos;ll fill them to hit today&apos;s macros.
+          Let the app plan it all, or tell it what you fancy and build the rest
+          from your pantry.
         </p>
       </div>
+
+      <PlanChooser connected={connected} />
 
       <DayPlan slots={slots} target={target} connected={connected} prefs={prefs} />
     </main>
