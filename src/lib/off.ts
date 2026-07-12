@@ -142,8 +142,12 @@ const FILLER = new Set([
   "twin", "pack", "multipack", "single", "style", "range", "finest", "taste",
   "difference", "extra", "value", "essential", "essentials", "select", "wonky",
   "loose", "fresh", "natural", "of", "the", "with", "and", "light", "original",
-  "classic", "new", "approx", "large", "medium", "small", "mini", "baby",
+  "classic", "new", "approx", "large", "medium", "small",
 ]);
+// Note: "baby"/"mini" are deliberately NOT filler. "Baby Potatoes" is a real
+// product, so a query for it must keep the word (searching bare "potatoes" on
+// OFF is swamped by crisps). When the query *didn't* ask for "baby" it's caught
+// as an unwanted qualifier instead (see QUALIFIERS / refine).
 
 // Words that turn a whole food into a different or processed product. When a
 // candidate carries one but the query never asked for it, it's the wrong item
@@ -154,6 +158,16 @@ const QUALIFIERS = new Set([
   "juice", "crisps", "crisp", "chips", "powder", "puree", "purée", "paste",
   "sauce", "ketchup", "drink", "dessert", "snack", "snacks", "dried", "canned",
   "tinned", "pickled", "baby", "mini", "dwarf",
+]);
+
+// A subset of qualifiers that mark a genuinely DIFFERENT food — a snack or
+// derivative, not a size/prep variant. A plain-food query that didn't ask for
+// one of these ("baby potatoes") should never be answered with it ("Potato
+// Crisps", "Lime Juice"): such candidates are dropped, so we return "no match"
+// rather than defaulting to the wrong food. Preservation words (tinned, dried,
+// frozen) are deliberately absent — "tinned tomatoes" is still tomatoes.
+const WRONG_FOOD = new Set([
+  "crisps", "crisp", "chips", "juice", "snack", "snacks", "dessert",
 ]);
 
 // Protein words. A query that names one ("pork stir fry strips") must not be
@@ -530,16 +544,26 @@ export async function searchProducts(
   return refine(q, await rankedSearch(q, limit));
 }
 
-// Final tidy against the ORIGINAL query: demote a candidate that adds an
-// unrequested qualifier (juice/baby/crisps) or swaps the protein, so the clean
-// whole food sits first. Stable and non-destructive — nothing is dropped, so a
-// lone qualifier product is still returned when it's all OFF has. Uses the full
-// query, so an item the user really did ask for ("British Baby Potatoes") keeps
-// its qualifier without penalty.
+// Final pass against the ORIGINAL query. Two steps:
+//  1. Drop candidates that are a genuinely different food the query never asked
+//     for ("Potato Crisps" / "Lime Juice" for potatoes / limes). If that leaves
+//     nothing, return [] — a clean "no match" beats defaulting to the wrong
+//     food. Uses the full query, so "British Baby Potatoes" is exempt (it does
+//     ask for a potato) while "Ocado Aubergine" is not.
+//  2. Among the survivors, demote a bigger/smaller size variant (baby/mini) or a
+//     protein swap so the closest match sits first. Stable — nothing dropped.
 function refine(term: string, list: OffCandidate[]): OffCandidate[] {
-  if (list.length <= 1) return list;
+  if (!list.length) return list;
   const qset = new Set(tokens(term).map(stem));
   const proteins = queryProteins(term);
+
+  const wrongFood = (c: OffCandidate): boolean =>
+    tokens(c.name).some((w) => WRONG_FOOD.has(w) && !qset.has(stem(w)));
+
+  const kept = list.filter((c) => !wrongFood(c));
+  if (!kept.length) return [];
+  if (kept.length === 1) return kept;
+
   const demerit = (c: OffCandidate): number => {
     const names = tokens(c.name);
     const nameSet = new Set(names.map(stem));
@@ -548,7 +572,7 @@ function refine(term: string, list: OffCandidate[]): OffCandidate[] {
     for (const p of proteins) if (!nameSet.has(p)) d += 2;
     return d;
   };
-  return list
+  return kept
     .map((c, i) => ({ c, d: demerit(c), i }))
     .sort((a, b) => a.d - b.d || a.i - b.i)
     .map((r) => r.c);

@@ -347,6 +347,36 @@ describe("searchProducts — real wrong-answer regressions", () => {
     expect(out.some((c) => /lay/i.test(c.name))).toBe(false);
   });
 
+  it("returns no match rather than crisps when OFF has only crisps", async () => {
+    // Every hit for a potato query is a crisp — raw potatoes aren't in OFF's
+    // pool. Defaulting to Lay's is worse than nothing, so expect an empty set.
+    installOff((q) => {
+      if (has(q, "potato")) {
+        return {
+          hits: [
+            prod("Lay's Classic Potato Crisps", "Lay's"),
+            prod("Walkers Ready Salted Crisps", "Walkers"),
+          ],
+        };
+      }
+      return {};
+    });
+    const out = await searchProducts("Ocado British Baby Potatoes");
+    expect(out).toHaveLength(0);
+  });
+
+  it("searches 'baby potatoes', not bare 'potatoes', on fallback", async () => {
+    // The right produce is only found by the full "baby potatoes" phrase; bare
+    // "potatoes" returns a crisp. Keeping "baby" in the query is what finds it.
+    installOff((q) => {
+      if (has(q, "baby", "potato")) return { hits: [prod("Baby Potatoes")] };
+      if (has(q, "potato")) return { hits: [prod("Potato Crisps")] };
+      return {};
+    });
+    const out = await searchProducts("British Baby Potatoes");
+    expect(out[0].name).toBe("Baby Potatoes");
+  });
+
   it("prefers whole limes over lime juice", async () => {
     installOff((q) => {
       if (has(q, "ocado")) return { hits: [prod("Lime Juice")] };
