@@ -55,13 +55,23 @@ const HEALTHY_BMI_MAX = 25; // top of the healthy BMI band; caps the protein bas
 
 // Protein is prescribed per kg of bodyweight, but for someone well above a
 // healthy weight that overshoots — surplus fat mass doesn't need feeding, and
-// the evidence bases protein on lean/target weight. Cap the basis at the weight
+// the evidence bases protein on lean/target weight. Cap the basis at a target
+// weight: the user's own goal weight when they gave one, otherwise the weight
 // that puts them at BMI 25 for their height (a stand-in for target weight).
-// No height given → no cap (used by the result-based weekly review).
-export function proteinBasisKg(weightKg: number, heightCm?: number): number {
-  if (heightCm == null) return weightKg;
-  const healthyMaxKg = HEALTHY_BMI_MAX * (heightCm / 100) ** 2;
-  return Math.min(weightKg, healthyMaxKg);
+// No target and no height → no cap (used by the result-based weekly review).
+export function proteinBasisKg(
+  weightKg: number,
+  heightCm?: number,
+  goalWeightKg?: number | null,
+): number {
+  const targetKg =
+    goalWeightKg != null && goalWeightKg > 0
+      ? goalWeightKg
+      : heightCm != null
+        ? HEALTHY_BMI_MAX * (heightCm / 100) ** 2
+        : null;
+  if (targetKg == null) return weightKg;
+  return Math.min(weightKg, targetKg);
 }
 
 export interface CoachInput {
@@ -75,19 +85,43 @@ export interface CoachInput {
   // Measured average daily exercise burn (kcal) from Fitbit/Apple. When
   // present it replaces the self-reported activity multiplier with real data.
   workoutKcalPerDay?: number | null;
+  // Body-fat fraction as a percentage (e.g. 22 for 22%). Optional — when known
+  // the resting rate switches to Katch–McArdle (driven by lean mass), which is
+  // more accurate than Mifflin for both lean and very-heavy bodies.
+  bodyFatPct?: number | null;
+  // The user's target weight, if set. Caps the protein basis (see proteinBasisKg).
+  goalWeightKg?: number | null;
 }
 
-// Mifflin–St Jeor basal metabolic rate (kcal/day).
+// Mifflin–St Jeor basal metabolic rate (kcal/day). The default when we have no
+// body-composition data — the best-validated equation for the general population.
 export function bmr(sex: Sex, weightKg: number, heightCm: number, age: number) {
   const base = 10 * weightKg + 6.25 * heightCm - 5 * age;
   return sex === "male" ? base + 5 : base - 161;
+}
+
+// Katch–McArdle basal metabolic rate (kcal/day) from lean body mass. Resting
+// metabolism tracks lean mass, not total weight, so when body-fat % is known
+// this beats Mifflin — it doesn't over- or under-count fat mass.
+export function bmrKatch(weightKg: number, bodyFatPct: number) {
+  const leanKg = weightKg * (1 - bodyFatPct / 100);
+  return 370 + 21.6 * leanKg;
+}
+
+// The resting metabolic rate to build TDEE from: Katch–McArdle when we have a
+// body-fat reading, Mifflin–St Jeor otherwise.
+export function restingRate(input: Pick<CoachInput, "sex" | "weightKg" | "heightCm" | "age" | "bodyFatPct">) {
+  if (input.bodyFatPct != null && input.bodyFatPct > 0) {
+    return bmrKatch(input.weightKg, input.bodyFatPct);
+  }
+  return bmr(input.sex, input.weightKg, input.heightCm, input.age);
 }
 
 // Total daily energy expenditure. With a measured exercise burn we build it
 // from the non-exercise baseline plus that real burn; otherwise we fall back to
 // the self-reported activity factor.
 export function tdee(input: Omit<CoachInput, "pace">) {
-  const base = bmr(input.sex, input.weightKg, input.heightCm, input.age);
+  const base = restingRate(input);
   if (input.workoutKcalPerDay != null && input.workoutKcalPerDay > 0) {
     return base * NEAT_MULTIPLIER + input.workoutKcalPerDay;
   }
@@ -110,8 +144,11 @@ export function macrosForKcal(
   weightKg: number,
   diet: DietType = "regular",
   heightCm?: number,
+  goalWeightKg?: number | null,
 ): Required<Macros> {
-  const protein_g = Math.round(proteinBasisKg(weightKg, heightCm) * PROTEIN_G_PER_KG);
+  const protein_g = Math.round(
+    proteinBasisKg(weightKg, heightCm, goalWeightKg) * PROTEIN_G_PER_KG,
+  );
 
   // Keto flips the split: carbs pinned to a low ceiling, fat fills the rest.
   if (diet === "keto") {
@@ -170,7 +207,13 @@ export function dailyTarget(input: CoachInput): Macros {
     maintenance - deficitPerDay(input.pace, input.weightKg),
     MIN_KCAL[input.sex],
   );
-  return macrosForKcal(target, input.weightKg, input.diet, input.heightCm);
+  return macrosForKcal(
+    target,
+    input.weightKg,
+    input.diet,
+    input.heightCm,
+    input.goalWeightKg,
+  );
 }
 
 // Monday (UTC) of the week that contains `date` — used to key daily_targets.
@@ -208,6 +251,8 @@ export interface WeeklyReviewInput {
   lastWeekAvgKg: number | null; // avg over the 7 days before that
   waistDeltaCm: number | null; // latest waist − previous waist (− = shrinking)
   current: Macros; // the target in force now
+  heightCm?: number; // caps the protein basis on recompute (same as onboarding)
+  goalWeightKg?: number | null; // preferred target weight for the protein cap
 }
 
 export interface WeeklyReview {
@@ -227,6 +272,8 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
     waistDeltaCm,
     sex,
     diet = "regular",
+    heightCm,
+    goalWeightKg,
   } = input;
 
   // Not enough history yet — hold and ask for another week.
@@ -265,7 +312,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
   if (changePct > HEALTHY_MAX_PCT) {
     const newKcal = Math.round(current.kcal * (1 + ADD_STEP));
     return {
-      macros: macrosForKcal(newKcal, thisWeekAvgKg, diet),
+      macros: macrosForKcal(newKcal, thisWeekAvgKg, diet, heightCm, goalWeightKg),
       changed: true,
       changeKg,
       changePct,
@@ -308,7 +355,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
   const newKcal = Math.max(floor, Math.round(current.kcal * (1 - CUT_STEP)));
   const gained = changeKg < 0;
   return {
-    macros: macrosForKcal(newKcal, thisWeekAvgKg, diet),
+    macros: macrosForKcal(newKcal, thisWeekAvgKg, diet, heightCm, goalWeightKg),
     changed: true,
     changeKg,
     changePct,
