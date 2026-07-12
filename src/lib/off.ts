@@ -9,6 +9,11 @@ const OFF_BASE = "https://world.openfoodfacts.org/api/v2/product";
 // the whole DB by popularity), so we use the Search-a-licious API, which is
 // relevance-ranked and OFF's recommended replacement for the legacy cgi search.
 const OFF_SEARCH = "https://search.openfoodfacts.org/search";
+// Legacy CGI full-text search. Relevance-ranked and still live when the newer
+// Search-a-licious service is down (it 502s under load). Used only as a
+// fallback when a Search-a-licious request outright fails, so a search-service
+// outage degrades to "found via the old endpoint" instead of "no match".
+const OFF_CGI_SEARCH = "https://world.openfoodfacts.org/cgi/search.pl";
 const USER_AGENT = "Scoop/0.1 (weight-loss coach app)";
 
 // OFF can accept a connection and then stall without responding (its search
@@ -409,8 +414,41 @@ async function brandSize(tag: string): Promise<number> {
   }
 }
 
-// One OFF full-text search. Returns unranked candidates (best-effort); empty
-// array on any failure so callers never block the batch.
+// Legacy CGI full-text search — the fallback when Search-a-licious is down.
+// Returns the same candidate shape (its `products` records carry product_name,
+// brands, quantity, nutriments just like the v2 APIs). Empty on any failure.
+// Note: passing `fields` makes the CGI serve an HTML page, so we request the
+// full product records instead and let `toCandidate` pick what it needs.
+async function cgiSearch(term: string, limit: number): Promise<OffCandidate[]> {
+  const q = term.trim();
+  if (!q) return [];
+
+  const url =
+    `${OFF_CGI_SEARCH}?search_terms=${encodeURIComponent(q)}` +
+    `&search_simple=1&action=process&json=1&page_size=${limit}`;
+
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": USER_AGENT },
+      next: { revalidate: 86400 },
+      signal: timeoutSignal(),
+    });
+    if (!res.ok) return [];
+    const body = (await res.json()) as {
+      products?: Array<Parameters<typeof toCandidate>[0]>;
+    };
+    return (body.products ?? [])
+      .map(toCandidate)
+      .filter((c) => c.name && c.name !== "Unknown item");
+  } catch {
+    return [];
+  }
+}
+
+// One OFF full-text search. Returns unranked candidates (best-effort). When the
+// Search-a-licious request itself FAILS (5xx / timeout — the service is down),
+// we retry the same term on the legacy CGI search. A healthy empty result is
+// left as-is (no wasteful second hit — matters for the fuzzy fan-out).
 async function rawSearch(term: string, limit: number): Promise<OffCandidate[]> {
   const q = term.trim();
   if (!q) return [];
@@ -426,7 +464,7 @@ async function rawSearch(term: string, limit: number): Promise<OffCandidate[]> {
       next: { revalidate: 86400 },
       signal: timeoutSignal(),
     });
-    if (!res.ok) return [];
+    if (!res.ok) return cgiSearch(q, limit);
     // Search-a-licious returns matches under `hits` (relevance-ranked). OFF can
     // serve an HTML error page with a 2xx — parse inside the try so a non-JSON
     // body degrades to "no match" instead of throwing.
@@ -438,7 +476,7 @@ async function rawSearch(term: string, limit: number): Promise<OffCandidate[]> {
       // Drop hits with no usable name.
       .filter((c) => c.name && c.name !== "Unknown item");
   } catch {
-    return [];
+    return cgiSearch(q, limit);
   }
 }
 
@@ -468,7 +506,10 @@ async function searchWithBrands(
       next: { revalidate: 86400 },
       signal: timeoutSignal(),
     });
-    if (!res.ok) return { pool: [], brands: [] };
+    // Search-a-licious is down — fall back to the legacy CGI for the pool. It
+    // has no brand facet, so brand-led detection simply won't fire (a generic
+    // idf ranking still finds the food).
+    if (!res.ok) return { pool: await cgiSearch(q, limit), brands: [] };
     // Parse inside the try — a non-JSON error page must degrade to empty.
     const body = (await res.json()) as {
       hits?: Array<Parameters<typeof toCandidate>[0]>;
@@ -479,7 +520,7 @@ async function searchWithBrands(
       .filter((c) => c.name && c.name !== "Unknown item");
     return { pool, brands: body.facets?.brands_tags?.items ?? [] };
   } catch {
-    return { pool: [], brands: [] };
+    return { pool: await cgiSearch(q, limit), brands: [] };
   }
 }
 

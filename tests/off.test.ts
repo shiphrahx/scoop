@@ -389,6 +389,46 @@ describe("searchProducts — real wrong-answer regressions", () => {
   });
 });
 
+// --- Search-a-licious outage → legacy CGI fallback --------------------------
+// The newer search.openfoodfacts.org service 502s under load. When a request to
+// it fails, we retry the legacy /cgi/search.pl endpoint (which returns products
+// under `products`) so a search-service outage still finds the food.
+
+describe("searchProducts — legacy CGI fallback", () => {
+  it("falls back to the CGI search when Search-a-licious is down", async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      const u = new URL(url);
+      // Search-a-licious is down.
+      if (u.hostname === "search.openfoodfacts.org") {
+        return jsonResponse({}, false, 502);
+      }
+      // Legacy CGI is up — returns matches under `products`.
+      if (u.pathname.includes("search.pl")) {
+        return jsonResponse({ products: [prod("Bananas")] });
+      }
+      return jsonResponse({});
+    });
+    const out = await searchProducts("bananas");
+    expect(out[0].name).toBe("Bananas");
+  });
+
+  it("does not hit the CGI when Search-a-licious returns a healthy empty", async () => {
+    let cgiCalls = 0;
+    fetchMock.mockImplementation(async (url: string) => {
+      const u = new URL(url);
+      if (u.pathname.includes("search.pl")) {
+        cgiCalls++;
+        return jsonResponse({ products: [prod("Bananas")] });
+      }
+      // Search-a-licious is healthy but has nothing for this term.
+      return jsonResponse({ hits: [], facets: { brands_tags: { items: [] } } });
+    });
+    const out = await searchProducts("nonexistentfood");
+    expect(out).toEqual([]);
+    expect(cgiCalls).toBe(0);
+  });
+});
+
 describe("lookupBarcode", () => {
   it("returns a product on status 1", async () => {
     fetchMock.mockResolvedValueOnce(
