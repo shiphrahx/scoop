@@ -24,6 +24,7 @@ import {
   Flame,
   Venus,
   Mars,
+  PieChart,
   type LucideIcon,
 } from "lucide-react";
 import { saveOnboarding, type OnboardingInput } from "./actions";
@@ -68,6 +69,8 @@ type State = {
   sex?: Sex;
   height_cm: number;
   weight_kg: number;
+  goal_weight_kg?: number;
+  body_fat_pct?: number; // undefined = user skipped it
   age: number;
 };
 
@@ -92,8 +95,13 @@ export default function OnboardingFlow() {
     "sex",
     "height",
     "weight",
+    "goal_weight",
+    "bodyfat",
     "age",
   ] as const;
+
+  // Sensible default goal: 10% below current weight, never under the slider min.
+  const defaultGoal = Math.max(35, Math.round(state.weight_kg * 0.9));
 
   const total = steps.length;
   const next = () => setStep((s) => Math.min(s + 1, total - 1));
@@ -116,6 +124,8 @@ export default function OnboardingFlow() {
       sex: state.sex!,
       height_cm: Math.round(state.height_cm),
       weight_kg: Math.round(state.weight_kg * 10) / 10,
+      goal_weight_kg: Math.round((state.goal_weight_kg ?? defaultGoal) * 10) / 10,
+      body_fat_pct: state.body_fat_pct ?? null,
       birth_year: CURRENT_YEAR - state.age,
     };
     await saveOnboarding(input);
@@ -309,6 +319,33 @@ export default function OnboardingFlow() {
           maxMetric={250}
           onChange={(v) => setState({ ...state, weight_kg: v })}
           onNext={next}
+        />
+      )}
+
+      {current === "goal_weight" && (
+        <MeasureStepper
+          title="What's your goal weight?"
+          hint="A target to aim for. You can change it later in settings."
+          kind="weight"
+          valueMetric={state.goal_weight_kg ?? defaultGoal}
+          minMetric={35}
+          maxMetric={Math.round(state.weight_kg)}
+          onChange={(v) => setState({ ...state, goal_weight_kg: v })}
+          onNext={next}
+        />
+      )}
+
+      {current === "bodyfat" && (
+        <BodyFatStep
+          initial={state.body_fat_pct ?? (state.sex === "male" ? 20 : 28)}
+          onUse={(v) => {
+            setState({ ...state, body_fat_pct: v });
+            next();
+          }}
+          onSkip={() => {
+            setState({ ...state, body_fat_pct: undefined });
+            next();
+          }}
         />
       )}
 
@@ -581,6 +618,7 @@ const CM_PER_IN = 2.54;
 // Height/weight stepper with a metric ⇄ imperial toggle. Always stores metric.
 function MeasureStepper({
   title,
+  hint,
   kind,
   valueMetric,
   minMetric,
@@ -589,6 +627,7 @@ function MeasureStepper({
   onNext,
 }: {
   title: string;
+  hint?: string;
   kind: "height" | "weight";
   valueMetric: number;
   minMetric: number;
@@ -636,7 +675,8 @@ function MeasureStepper({
 
   return (
     <section className="flex flex-1 flex-col">
-      <h1 className="mb-6 text-2xl font-semibold">{title}</h1>
+      <h1 className={`text-2xl font-semibold ${hint ? "" : "mb-6"}`}>{title}</h1>
+      {hint && <p className="mb-6 mt-1 text-sm text-[var(--muted)]">{hint}</p>}
 
       {/* unit toggle */}
       <div className="mx-auto mb-8 flex rounded-full bg-[var(--fill)] p-1">
@@ -724,6 +764,68 @@ function StepperRow({
         <Plus size={24} />
       </button>
     </div>
+  );
+}
+
+// Optional body-fat step. "Use this %" commits the shown value; "I don't know"
+// leaves it null so the Coach estimates from height/weight (Mifflin) instead.
+function BodyFatStep({
+  initial,
+  onUse,
+  onSkip,
+}: {
+  initial: number;
+  onUse: (value: number) => void;
+  onSkip: () => void;
+}) {
+  const [bf, setBf] = useState(Math.round(initial));
+  const clamp = (v: number) => Math.min(60, Math.max(3, v));
+  return (
+    <section className="flex flex-1 flex-col">
+      <h1 className="text-2xl font-semibold">Body-fat %? (optional)</h1>
+      <p className="mb-6 mt-1 text-sm text-[var(--muted)]">
+        Not required — skip and we&apos;ll estimate it from your height and
+        weight. If you know it (smart scale, calipers, DEXA), telling us makes
+        your calorie target more accurate.
+      </p>
+
+      <div className="mb-8 flex justify-center">
+        <span
+          className="grid h-16 w-16 place-items-center rounded-2xl text-[var(--ink-teal)]"
+          style={{ background: "var(--fill)" }}
+          aria-hidden
+        >
+          <PieChart size={28} />
+        </span>
+      </div>
+
+      <StepperRow
+        onMinus={() => setBf(clamp(bf - 1))}
+        onPlus={() => setBf(clamp(bf + 1))}
+        big={`${bf}`}
+        unit="%"
+      />
+
+      <input
+        type="range"
+        min={3}
+        max={60}
+        step={1}
+        value={bf}
+        onChange={(e) => setBf(Number(e.target.value))}
+        className="mt-8 w-full accent-[var(--g-teal)]"
+      />
+
+      <div className="mt-auto flex flex-col gap-3 pt-8">
+        <NextButton onClick={() => onUse(bf)} label="Use this %" />
+        <button
+          onClick={onSkip}
+          className="py-2 text-sm font-medium text-[var(--muted)] transition active:scale-95"
+        >
+          I don&apos;t know — estimate it for me
+        </button>
+      </div>
+    </section>
   );
 }
 
