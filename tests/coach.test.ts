@@ -3,10 +3,12 @@ import {
   ageFromBirthYear,
   average,
   bmr,
+  bmrKatch,
   dailyTarget,
   deficitPerDay,
   macrosForKcal,
   proteinBasisKg,
+  restingRate,
   tdee,
   weekStart,
   weeklyReview,
@@ -29,7 +31,37 @@ describe("bmr (Mifflin–St Jeor)", () => {
   });
 });
 
+describe("bmrKatch (Katch–McArdle)", () => {
+  it("computes 370 + 21.6 × lean mass", () => {
+    // 80 kg at 20% fat → 64 kg lean → 370 + 21.6*64 = 1752.4
+    expect(bmrKatch(80, 20)).toBeCloseTo(1752.4, 5);
+  });
+});
+
+describe("restingRate", () => {
+  it("uses Katch–McArdle when body-fat % is given", () => {
+    expect(
+      restingRate({ sex: "male", weightKg: 80, heightCm: 180, age: 30, bodyFatPct: 20 }),
+    ).toBeCloseTo(bmrKatch(80, 20), 5);
+  });
+
+  it("falls back to Mifflin when body-fat is missing or zero", () => {
+    const mifflin = bmr("male", 80, 180, 30);
+    expect(
+      restingRate({ sex: "male", weightKg: 80, heightCm: 180, age: 30 }),
+    ).toBeCloseTo(mifflin, 5);
+    expect(
+      restingRate({ sex: "male", weightKg: 80, heightCm: 180, age: 30, bodyFatPct: 0 }),
+    ).toBeCloseTo(mifflin, 5);
+  });
+});
+
 describe("tdee", () => {
+  it("builds from the Katch–McArdle rate when body-fat is known", () => {
+    const common = { sex: "male", diet: "regular", weightKg: 80, heightCm: 180, age: 30, activity: "moderate" } as const;
+    expect(tdee({ ...common, bodyFatPct: 20 })).toBeCloseTo(bmrKatch(80, 20) * 1.55, 5);
+  });
+
   it("multiplies BMR by the activity factor", () => {
     const base = bmr("male", 80, 180, 30);
     expect(tdee({ sex: "male", diet: "regular", weightKg: 80, heightCm: 180, age: 30, activity: "moderate" }))
@@ -142,6 +174,19 @@ describe("proteinBasisKg", () => {
 
   it("keeps bodyweight when it is under the healthy cap", () => {
     expect(proteinBasisKg(65, 175)).toBe(65);
+  });
+
+  it("prefers an explicit goal weight over the BMI-25 proxy", () => {
+    // Goal 80 kg wins over the BMI-25 weight (72.25); capped at min(120, 80).
+    expect(proteinBasisKg(120, 170, 80)).toBe(80);
+  });
+
+  it("never caps above current weight even with a higher goal", () => {
+    expect(proteinBasisKg(120, 170, 130)).toBe(120);
+  });
+
+  it("uses the goal weight even when no height is given", () => {
+    expect(proteinBasisKg(120, undefined, 85)).toBe(85);
   });
 });
 
