@@ -350,6 +350,69 @@ export async function suggestMeals(
   );
 }
 
+// --- Estimate macros for meals the user described in words ------------------
+
+const EstimateSchema = z.object({
+  meals: z.array(
+    z.object({
+      slot: z.string(),
+      name: z.string(),
+      kcal: z.number(),
+      protein_g: z.number(),
+      carbs_g: z.number(),
+      fat_g: z.number(),
+    }),
+  ),
+});
+
+export interface KnownMeal {
+  slot: string;
+  text: string;
+}
+
+export interface EstimatedMeal extends Macros {
+  slot: string;
+  name: string;
+}
+
+// The user typed what they already know they want for one or more meals (e.g.
+// "porridge with banana and honey"). Estimate the macros of a single serving of
+// each from nutrition knowledge, so we can fix them into the day and budget the
+// rest around them. Echoes each `slot` back and tidies the name.
+export async function estimateMeals(
+  entries: KnownMeal[],
+  diet: DietType,
+): Promise<EstimatedMeal[]> {
+  const clean = entries.filter((e) => e.text.trim());
+  if (clean.length === 0) return [];
+  const client = await getClient();
+
+  const system =
+    "You estimate the macros of meals a user has described in their own words. " +
+    "For each entry, return a tidy dish `name`, echo its `slot`, and estimate " +
+    "the macros of ONE serving as described: kcal, protein_g, carbs_g, fat_g. " +
+    `${dietRule(diet)}\n` +
+    "Estimate from typical recipes; don't refuse — give your best numeric guess.";
+
+  const res = await client.messages.parse({
+    model: MODEL,
+    max_tokens: 2048,
+    thinking: { type: "adaptive" },
+    system,
+    messages: [
+      {
+        role: "user",
+        content: JSON.stringify({
+          meals: clean.map((e) => ({ slot: e.slot, description: e.text.trim() })),
+        }),
+      },
+    ],
+    output_config: { format: zodOutputFormat(EstimateSchema) },
+  });
+
+  return res.parsed_output?.meals ?? [];
+}
+
 // --- Plan a whole day: fill the empty meal slots to hit the day's macros -----
 
 const PlanDaySchema = z.object({

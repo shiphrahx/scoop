@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { planDay } from "@/lib/ai";
+import { planDay, suggestMeals, estimateMeals, type KnownMeal } from "@/lib/ai";
 import { searchProducts } from "@/lib/off";
 import {
   getCurrentTargets,
@@ -11,7 +11,13 @@ import {
   getTodayPlan,
   localToday,
 } from "@/lib/queries";
-import { sumItems, type FoodChoice, type PlanItem, type Macros } from "@/lib/types";
+import {
+  sumItems,
+  type FoodChoice,
+  type MealSuggestion,
+  type PlanItem,
+  type Macros,
+} from "@/lib/types";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -255,6 +261,138 @@ export async function planMyDay() {
       .upsert(rows, { onConflict: "user_id,date,slot" });
     if (error) throw new Error(error.message);
   }
+  revalidate();
+}
+
+// --- "I know what I want" guided wizard -------------------------------------
+
+// Macros still to eat today = target minus what's already been logged minus the
+// meals the user has planned but not yet eaten. What the wizard should fill.
+async function remainingToday(): Promise<Macros> {
+  const [targets, consumed, plan] = await Promise.all([
+    getCurrentTargets(),
+    getTodayConsumed(),
+    getTodayPlan(),
+  ]);
+  const zero = { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
+  if (!targets) return zero;
+  const planned = plan
+    .filter((p) => !p.logged_food_id)
+    .reduce<Macros>(
+      (s, p) => ({
+        kcal: s.kcal + p.kcal,
+        protein_g: s.protein_g + p.protein_g,
+        carbs_g: s.carbs_g + p.carbs_g,
+        fat_g: s.fat_g + p.fat_g,
+      }),
+      zero,
+    );
+  return {
+    kcal: Math.max(0, Math.round(targets.kcal - consumed.kcal - planned.kcal)),
+    protein_g: Math.max(0, Math.round(targets.protein_g - consumed.protein_g - planned.protein_g)),
+    carbs_g: Math.max(0, Math.round(targets.carbs_g - consumed.carbs_g - planned.carbs_g)),
+    fat_g: Math.max(0, Math.round(targets.fat_g - consumed.fat_g - planned.fat_g)),
+  };
+}
+
+// Save the meals the user typed in words: estimate each one's macros (AI) and
+// fix them into their slots as manual meals, so the rest of the day budgets
+// around them. Returns how many were saved.
+export async function saveKnownMeals(entries: KnownMeal[]): Promise<number> {
+  const { supabase, user } = await requireUser();
+  const profile = await getProfile();
+  if (!profile) throw new Error("Finish onboarding first");
+
+  const estimates = await estimateMeals(entries, profile.diet_type);
+  if (estimates.length === 0) return 0;
+
+  const slotNames = profile.meal_slots ?? [];
+  const rows = estimates.map((m) => ({
+    user_id: user.id,
+    date: localToday(),
+    slot: m.slot,
+    position: Math.max(0, slotNames.indexOf(m.slot)),
+    origin: "manual",
+    name: m.name,
+    items: [],
+    portions: [],
+    swaps: [],
+    why: null,
+    kcal: m.kcal,
+    protein_g: m.protein_g,
+    carbs_g: m.carbs_g,
+    fat_g: m.fat_g,
+    fiber_g: 0,
+    sugar_g: 0,
+    satfat_g: 0,
+    sodium_mg: 0,
+    logged_food_id: null,
+  }));
+
+  const { error } = await supabase
+    .from("planned_meals")
+    .upsert(rows, { onConflict: "user_id,date,slot" });
+  if (error) throw new Error(error.message);
+  revalidate();
+  return rows.length;
+}
+
+// Suggest dishes built around a chosen carb + protein from the pantry, sized to
+// what's left of today after the meals the user has already decided.
+export async function suggestAround(
+  carb: string | null,
+  protein: string | null,
+): Promise<MealSuggestion[]> {
+  const { supabase } = await requireUser();
+  const [profile, remaining, { data: pantryData }] = await Promise.all([
+    getProfile(),
+    remainingToday(),
+    supabase.from("pantry_items").select("name"),
+  ]);
+  if (!profile) throw new Error("Finish onboarding first");
+
+  return suggestMeals({
+    diet: profile.diet_type,
+    allergies: profile.allergies,
+    dislikes: profile.dislikes,
+    pantry: ((pantryData as { name: string }[]) ?? []).map((p) => p.name),
+    remaining,
+    carb,
+    protein,
+  });
+}
+
+// Drop a suggested dish into a slot as an AI-origin planned meal.
+export async function assignSuggestion(slot: string, meal: MealSuggestion) {
+  const { supabase, user } = await requireUser();
+  const profile = await getProfile();
+  const position = Math.max(0, (profile?.meal_slots ?? []).indexOf(slot));
+
+  const { error } = await supabase.from("planned_meals").upsert(
+    {
+      user_id: user.id,
+      date: localToday(),
+      slot,
+      position,
+      origin: "ai",
+      name: meal.name,
+      items: [],
+      portions: meal.portions,
+      swaps: meal.swaps,
+      why: meal.why,
+      kcal: meal.kcal,
+      protein_g: meal.protein_g,
+      carbs_g: meal.carbs_g,
+      fat_g: meal.fat_g,
+      fiber_g: 0,
+      sugar_g: 0,
+      satfat_g: 0,
+      sodium_mg: 0,
+      logged_food_id: null,
+    },
+    { onConflict: "user_id,date,slot" },
+  );
+  if (error) throw new Error(error.message);
   revalidate();
 }
 
