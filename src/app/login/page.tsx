@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -25,12 +26,15 @@ export default function LoginPage() {
   return (
     <main className="flex flex-1 flex-col items-center justify-center gap-10 px-6 text-center">
       <div className="flex flex-col items-center gap-3">
-        <span
-          className="grid h-24 w-24 place-items-center rounded-[2rem] text-white"
-          style={{ background: "var(--grad-primary)", boxShadow: "var(--shadow-glow)" }}
-        >
-          <span className="text-6xl font-bold">S</span>
-        </span>
+        <Image
+          src="/logos/icon.png"
+          alt="Scoop"
+          width={96}
+          height={96}
+          className="rounded-[2rem]"
+          style={{ boxShadow: "var(--shadow-glow)" }}
+          priority
+        />
         <h1 className="mt-2 text-5xl font-semibold tracking-tight">Scoop</h1>
         <p className="max-w-xs text-lg text-[var(--muted)]">
           Your portion coach. We tell you what to eat to hit your macros.

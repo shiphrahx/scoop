@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { sidebarNav } from "@/components/nav-items";
@@ -11,12 +12,14 @@ export default function Sidebar() {
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col gap-2 p-5 lg:flex">
       <Link href="/dashboard" className="mb-4 flex items-center gap-2.5 px-2">
-        <span
-          className="grid h-9 w-9 place-items-center rounded-xl text-white"
-          style={{ background: "var(--grad-primary)" }}
-        >
-          <span className="text-lg font-bold">S</span>
-        </span>
+        <Image
+          src="/logos/icon.png"
+          alt="Scoop"
+          width={36}
+          height={36}
+          className="rounded-xl"
+          priority
+        />
         <span className="text-xl font-semibold tracking-tight">Scoop</span>
       </Link>
 

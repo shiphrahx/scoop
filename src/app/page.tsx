@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -31,12 +32,14 @@ export default async function LandingPage() {
       {/* ---------- Header ---------- */}
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-5">
         <div className="flex items-center gap-2.5">
-          <span
-            className="grid h-9 w-9 place-items-center rounded-xl text-white"
-            style={{ background: "var(--grad-primary)" }}
-          >
-            <span className="text-lg font-bold">S</span>
-          </span>
+          <Image
+            src="/logos/icon.png"
+            alt="Scoop"
+            width={36}
+            height={36}
+            className="rounded-xl"
+            priority
+          />
           <span className="text-xl font-semibold tracking-tight">Scoop</span>
         </div>
         <Link
