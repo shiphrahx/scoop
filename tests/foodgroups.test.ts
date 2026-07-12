@@ -2,10 +2,31 @@ import { describe, expect, it } from "vitest";
 import {
   foodRole,
   isCarb,
+  isFat,
   isProtein,
+  macroRole,
   pantryCarbs,
   pantryProteins,
 } from "@/lib/foodgroups";
+
+describe("macroRole (data-driven)", () => {
+  it("classifies by the dominant macro", () => {
+    expect(macroRole({ protein_100g: 25, carbs_100g: 0, fat_100g: 3 })).toBe("protein");
+    expect(macroRole({ protein_100g: 2.7, carbs_100g: 28, fat_100g: 0.3 })).toBe("carb");
+    expect(macroRole({ protein_100g: 0, carbs_100g: 0, fat_100g: 100 })).toBe("fat");
+  });
+  it("returns null for negligible-macro foods", () => {
+    expect(macroRole({ protein_100g: 1, carbs_100g: 3, fat_100g: 0 })).toBeNull();
+  });
+});
+
+describe("isFat", () => {
+  it("recognises fat sources", () => {
+    expect(isFat("Extra Virgin Olive Oil")).toBe(true);
+    expect(isFat("Whole Almonds")).toBe(true);
+    expect(isFat("Ripe Avocado")).toBe(true);
+  });
+});
 
 describe("isCarb / isProtein", () => {
   it("recognises base carbs behind brand/marketing words", () => {

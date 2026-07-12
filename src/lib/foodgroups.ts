@@ -31,6 +31,15 @@ const PROTEIN_WORDS = new Set([
   "peanuts", "protein",
 ]);
 
+// Fat-source words: oils, butter/dairy fats, nuts/seeds, avocado, spreads.
+const FAT_WORDS = new Set([
+  "oil", "olive", "butter", "ghee", "lard", "dripping", "margarine", "avocado",
+  "avocados", "mayonnaise", "mayo", "tahini", "cream", "coconut", "nut", "nuts",
+  "almond", "almonds", "cashew", "cashews", "walnut", "walnuts", "pecan",
+  "pistachio", "hazelnut", "seed", "seeds", "sesame", "sunflower", "pumpkin",
+  "flaxseed", "chia", "peanut", "peanuts", "cheese", "mascarpone",
+]);
+
 function tokenize(name: string): string[] {
   return name
     .toLowerCase()
@@ -63,6 +72,31 @@ export function isProtein(name: string): boolean {
   return hasWordFrom(name, PROTEIN_WORDS);
 }
 
+// True when the item name reads as a fat source.
+export function isFat(name: string): boolean {
+  return hasWordFrom(name, FAT_WORDS);
+}
+
+// The macro that dominates a food's calories — the reliable, data-driven
+// classification the day planner uses (we already store every pantry item's
+// per-100g macros, so no name-guessing needed). null for foods with negligible
+// macros (water, black coffee, most vegetables), which aren't a meal base.
+export interface FoodMacros {
+  protein_100g: number;
+  carbs_100g: number;
+  fat_100g: number;
+}
+export function macroRole(m: FoodMacros): "protein" | "carb" | "fat" | null {
+  const p = m.protein_100g * 4;
+  const c = m.carbs_100g * 4;
+  const f = m.fat_100g * 9;
+  // Below this the item carries too little of anything to anchor a meal.
+  if (p + c + f < 40) return null;
+  if (f >= p && f >= c) return "fat";
+  if (p >= c) return "protein";
+  return "carb";
+}
+
 // The single role of a food, protein taking priority when a name reads as both
 // (the protein is the "star" of the meal). null when it's neither (a vegetable,
 // sauce, snack…).
@@ -80,4 +114,9 @@ export function pantryCarbs(names: string[]): string[] {
 // The pantry items that can serve as a protein, in the given order.
 export function pantryProteins(names: string[]): string[] {
   return names.filter(isProtein);
+}
+
+// The pantry items that can serve as a fat source, in the given order.
+export function pantryFats(names: string[]): string[] {
+  return names.filter(isFat);
 }
