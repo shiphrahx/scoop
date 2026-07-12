@@ -305,6 +305,60 @@ describe("searchProducts — own-brand & marketing-noise fallback", () => {
   });
 });
 
+// --- Real wrong-answer regressions -----------------------------------------
+// The branded/full query surfaces the wrong product (a protein swap, a juice, a
+// crisp, a "baby" variant); the clean food query surfaces the right one. The
+// matcher must reject the wrong top hit and fall back to the clean food.
+
+describe("searchProducts — real wrong-answer regressions", () => {
+  it("does not accept beef strips for a pork query", async () => {
+    installOff((q) => {
+      // The noisy branded query lands on beef stir-fry strips.
+      if (has(q, "outdoor")) return { hits: [prod("Beef Stir-Fry Strips")] };
+      if (has(q, "pork")) return { hits: [prod("Pork Stir-Fry Strips")] };
+      return {};
+    });
+    const out = await searchProducts("M&S British Outdoor Bred Pork Stir Fry Strips");
+    expect(out[0].name).toMatch(/pork/i);
+    expect(out.some((c) => /beef/i.test(c.name))).toBe(false);
+  });
+
+  it("prefers plain aubergine over the retailer's baby aubergine", async () => {
+    installOff((q) => {
+      if (has(q, "ocado")) return { hits: [prod("Baby Aubergine")] };
+      if (has(q, "aubergine")) return { hits: [prod("Aubergine")] };
+      return {};
+    });
+    const out = await searchProducts("Ocado Aubergine");
+    expect(out[0].name).toBe("Aubergine");
+  });
+
+  it("prefers potatoes over Lay's crisps that carry the word 'potato'", async () => {
+    installOff((q) => {
+      if (has(q, "ocado")) {
+        return { hits: [prod("Lay's Classic Potato Crisps", "Lay's")] };
+      }
+      if (has(q, "potato")) return { hits: [prod("Baby Potatoes")] };
+      return {};
+    });
+    const out = await searchProducts("Ocado British Baby Potatoes");
+    expect(out[0].name).toMatch(/potato/i);
+    expect(out[0].name).not.toMatch(/crisp/i);
+    expect(out.some((c) => /lay/i.test(c.name))).toBe(false);
+  });
+
+  it("prefers whole limes over lime juice", async () => {
+    installOff((q) => {
+      if (has(q, "ocado")) return { hits: [prod("Lime Juice")] };
+      if (has(q, "lime")) return { hits: [prod("Limes")] };
+      return {};
+    });
+    const out = await searchProducts("Ocado Limes Twin Pack");
+    expect(out[0].name).toBe("Limes");
+    expect(out.some((c) => /juice/i.test(c.name))).toBe(false);
+  });
+});
+
 describe("lookupBarcode", () => {
   it("returns a product on status 1", async () => {
     fetchMock.mockResolvedValueOnce(
