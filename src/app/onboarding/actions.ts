@@ -19,6 +19,8 @@ export interface OnboardingInput {
   sex: Sex;
   height_cm: number;
   weight_kg: number;
+  goal_weight_kg: number;
+  body_fat_pct: number | null;
   birth_year: number;
 }
 
@@ -40,6 +42,8 @@ export async function saveOnboarding(input: OnboardingInput) {
     goal_pace: input.goal_pace,
     activity_level: input.activity_level,
     height_cm: input.height_cm,
+    goal_weight_kg: input.goal_weight_kg,
+    body_fat_pct: input.body_fat_pct,
     sex: input.sex,
     birth_year: input.birth_year,
     onboarded_at: new Date().toISOString(),
@@ -65,6 +69,8 @@ export async function saveOnboarding(input: OnboardingInput) {
     age: ageFromBirthYear(input.birth_year),
     activity: input.activity_level,
     pace: input.goal_pace,
+    bodyFatPct: input.body_fat_pct,
+    goalWeightKg: input.goal_weight_kg,
   });
 
   const { error: targetError } = await supabase
