@@ -11,6 +11,15 @@ const OFF_BASE = "https://world.openfoodfacts.org/api/v2/product";
 const OFF_SEARCH = "https://search.openfoodfacts.org/search";
 const USER_AGENT = "Scoop/0.1 (weight-loss coach app)";
 
+// OFF can accept a connection and then stall without responding (its search
+// service is sometimes overloaded). Without a deadline a `fetch` hangs forever
+// and the import UI spins on "Searching…". Abort each request so a stall
+// degrades to "no match" quickly instead of never resolving.
+const REQUEST_TIMEOUT_MS = 7000;
+function timeoutSignal(): AbortSignal {
+  return AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+}
+
 function num(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -376,6 +385,7 @@ async function brandSize(tag: string): Promise<number> {
     const res = await fetch(url, {
       headers: { "User-Agent": USER_AGENT },
       next: { revalidate: 86400 },
+      signal: timeoutSignal(),
     });
     if (!res.ok) return 0;
     const body = (await res.json()) as { count?: number };
@@ -400,6 +410,7 @@ async function rawSearch(term: string, limit: number): Promise<OffCandidate[]> {
     const res = await fetch(url, {
       headers: { "User-Agent": USER_AGENT },
       next: { revalidate: 86400 },
+      signal: timeoutSignal(),
     });
     if (!res.ok) return [];
     // Search-a-licious returns matches under `hits` (relevance-ranked). OFF can
@@ -441,6 +452,7 @@ async function searchWithBrands(
     const res = await fetch(url, {
       headers: { "User-Agent": USER_AGENT },
       next: { revalidate: 86400 },
+      signal: timeoutSignal(),
     });
     if (!res.ok) return { pool: [], brands: [] };
     // Parse inside the try — a non-JSON error page must degrade to empty.
@@ -680,14 +692,7 @@ export async function lookupBarcode(
     `${OFF_BASE}/${encodeURIComponent(barcode)}.json` +
     `?fields=product_name,brands,quantity,nutriments`;
 
-  const res = await fetch(url, {
-    headers: { "User-Agent": USER_AGENT },
-    // OFF data changes rarely; let Next cache it for a day.
-    next: { revalidate: 86400 },
-  });
-  if (!res.ok) return null;
-
-  const body = (await res.json()) as {
+  let body: {
     status?: number;
     product?: {
       product_name?: string;
@@ -696,6 +701,20 @@ export async function lookupBarcode(
       nutriments?: Record<string, unknown>;
     };
   };
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": USER_AGENT },
+      // OFF data changes rarely; let Next cache it for a day.
+      next: { revalidate: 86400 },
+      signal: timeoutSignal(),
+    });
+    if (!res.ok) return null;
+    // Parse inside the try so a stall/abort or non-JSON body returns null
+    // instead of throwing to the caller.
+    body = await res.json();
+  } catch {
+    return null;
+  }
 
   // status 1 = found, 0 = not found.
   if (body.status !== 1 || !body.product) return null;
