@@ -209,6 +209,9 @@ export async function getCoachData(): Promise<CoachData> {
         lastWeekAvgKg: thisWeekAvgKg == null ? null : lastWeekAvgKg,
         waistDeltaCm,
         current,
+        // Keep the protein cap consistent with onboarding when we recompute.
+        heightCm: profile?.height_cm,
+        goalWeightKg: profile?.goal_weight_kg,
       })
     : {
         macros: { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
