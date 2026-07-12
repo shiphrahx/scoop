@@ -391,3 +391,50 @@ describe("weeklyReview", () => {
     expect(r.headline).toMatch(/floor/i);
   });
 });
+
+describe("weeklyReview cadence gates", () => {
+  const current: Macros = { kcal: 2000, protein_g: 160, carbs_g: 180, fat_g: 56 };
+  // A stall that WOULD trigger a cut once the gates are open.
+  const stall = {
+    sex: "male" as const,
+    thisWeekAvgKg: 90,
+    lastWeekAvgKg: 90,
+    waistDeltaCm: 0,
+    current,
+  };
+
+  it("holds a stalled target that is still new (under 2 weeks)", () => {
+    const r = weeklyReview({ ...stall, weeksOnTarget: 1, consistent: true });
+    expect(r.changed).toBe(false);
+    expect(r.macros).toEqual(current);
+    expect(r.headline).toMatch(/settling/i);
+  });
+
+  it("holds when weigh-ins are inconsistent, even after 2 weeks", () => {
+    const r = weeklyReview({ ...stall, weeksOnTarget: 3, consistent: false });
+    expect(r.changed).toBe(false);
+    expect(r.macros).toEqual(current);
+    expect(r.headline).toMatch(/fuller/i);
+  });
+
+  it("adjusts once the target is ≥2 weeks old and logging is consistent", () => {
+    const r = weeklyReview({ ...stall, weeksOnTarget: 2, consistent: true });
+    expect(r.changed).toBe(true);
+    expect(r.macros.kcal).toBeLessThan(current.kcal);
+  });
+
+  it("also holds a too-fast loss while the target is new (one noisy week)", () => {
+    // 90 → 88 = 2.2%/week: normally an add, but one week isn't enough to act.
+    const r = weeklyReview({
+      sex: "male",
+      thisWeekAvgKg: 88,
+      lastWeekAvgKg: 90,
+      waistDeltaCm: null,
+      current,
+      weeksOnTarget: 1,
+      consistent: true,
+    });
+    expect(r.changed).toBe(false);
+    expect(r.headline).toMatch(/settling/i);
+  });
+});
