@@ -73,6 +73,13 @@ export default function MatchItems({
     };
   }, [items, fallbacks]);
 
+  // Every item finished searching and none found a match. Usually the food
+  // database is unreachable (a stalled request that timed out), not that every
+  // item is genuinely unknown — flag it so the user isn't left guessing.
+  const searchUnavailable =
+    rows.length > 0 &&
+    rows.every((r) => !r.loading && r.candidates.length === 0);
+
   const patch = (i: number, next: Partial<Row>) =>
     setRows((prev) => prev.map((r, j) => (j === i ? { ...r, ...next } : r)));
 
@@ -133,6 +140,13 @@ export default function MatchItems({
         Tap a row to pick a different match, or keep it as-is and add macros
         later.
       </p>
+
+      {searchUnavailable && (
+        <p className="rounded-2xl bg-amber-50 px-4 py-3 text-center text-sm font-medium text-amber-700">
+          No matches found. The food database may be busy or offline — you can
+          add these items now and set macros later, or try again in a moment.
+        </p>
+      )}
 
       {rows.length === 0 && (
         <p className="rounded-2xl bg-[var(--fill-soft)] px-4 py-6 text-center text-sm text-[var(--muted)]">
