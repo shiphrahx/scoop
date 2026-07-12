@@ -238,6 +238,12 @@ const HEALTHY_MAX_PCT = 0.01;
 const CUT_STEP = 0.07; // trim 7 % when stalled
 const ADD_STEP = 0.05; // add 5 % when dropping too fast
 
+// Give the body time before judging a target. One week of scale movement is
+// mostly water and noise — the body needs about two weeks on a set of macros to
+// show whether it's really adapting. We hold (never cut or add) until the
+// current target has been in force this long AND the user logged consistently.
+const MIN_WEEKS_ON_TARGET = 2;
+
 // Plain mean of a list of weights; null when the list is empty.
 export function average(values: number[]): number | null {
   if (values.length === 0) return null;
@@ -253,6 +259,12 @@ export interface WeeklyReviewInput {
   current: Macros; // the target in force now
   heightCm?: number; // caps the protein basis on recompute (same as onboarding)
   goalWeightKg?: number | null; // preferred target weight for the protein cap
+  // Cadence gates. Whole weeks the current target has been unchanged, and
+  // whether the user weighed in often enough to trust the trend. When either
+  // says "not ready" we hold rather than guess. Omitted = no opinion (the field
+  // is only supplied by the live review; unit tests exercise a ready state).
+  weeksOnTarget?: number;
+  consistent?: boolean;
 }
 
 export interface WeeklyReview {
@@ -274,6 +286,8 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
     diet = "regular",
     heightCm,
     goalWeightKg,
+    weeksOnTarget,
+    consistent,
   } = input;
 
   // Not enough history yet — hold and ask for another week.
@@ -286,6 +300,34 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       headline: "Keep going",
       detail:
         "Log your weight for another week and I'll review your targets against your trend.",
+    };
+  }
+
+  // Patchy weigh-ins → the weekly average can't be trusted. Hold rather than
+  // change targets on thin data.
+  if (consistent === false) {
+    return {
+      macros: current,
+      changed: false,
+      changeKg: null,
+      changePct: null,
+      headline: "Need a fuller week",
+      detail:
+        "You've only logged a few weigh-ins, so I can't trust the trend yet. Weigh in on most days and I'll give you an accurate review.",
+    };
+  }
+
+  // Current target is still new — give the body ~2 weeks to respond before
+  // judging it. Changing now would just be reacting to water weight.
+  if ((weeksOnTarget ?? MIN_WEEKS_ON_TARGET) < MIN_WEEKS_ON_TARGET) {
+    return {
+      macros: current,
+      changed: false,
+      changeKg: null,
+      changePct: null,
+      headline: "Settling in",
+      detail:
+        "Your targets are still new — your body needs a couple of weeks to respond before I can tell if they're working. Keep logging and I'll review then.",
     };
   }
 
