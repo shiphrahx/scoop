@@ -136,6 +136,37 @@ const FILLER = new Set([
   "classic", "new", "approx", "large", "medium", "small", "mini", "baby",
 ]);
 
+// Words that turn a whole food into a different or processed product. When a
+// candidate carries one but the query never asked for it, it's the wrong item
+// ("Lime Juice" for limes, "Baby Aubergine" for aubergine, "Potato Crisps" for
+// potatoes). Note "baby"/"mini" are also FILLER — stripped from a query, so a
+// candidate that adds them is more specific than what the user typed.
+const QUALIFIERS = new Set([
+  "juice", "crisps", "crisp", "chips", "powder", "puree", "purée", "paste",
+  "sauce", "ketchup", "drink", "dessert", "snack", "snacks", "dried", "canned",
+  "tinned", "pickled", "baby", "mini", "dwarf",
+]);
+
+// Protein words. A query that names one ("pork stir fry strips") must not be
+// satisfied by a hit that swaps it ("beef stir fry strips") — a different
+// animal is never the right match.
+const PROTEINS = new Set([
+  "pork", "beef", "chicken", "turkey", "lamb", "duck", "salmon", "tuna", "cod",
+  "haddock", "prawn", "prawns", "bacon", "ham", "sausage", "sausages", "mince",
+  "venison", "gammon",
+]);
+
+// True when a candidate's name introduces a qualifier the query never asked for.
+function addsUnwantedQualifier(query: string, name: string): boolean {
+  const qset = new Set(tokens(query).map(stem));
+  return tokens(name).some((w) => QUALIFIERS.has(w) && !qset.has(stem(w)));
+}
+
+// The (stemmed, deduped) protein words a query names.
+function queryProteins(query: string): string[] {
+  return [...new Set(tokens(query).filter((w) => PROTEINS.has(w)).map(stem))];
+}
+
 // The essential food words in a query — brand, retailer and marketing words
 // stripped. Order preserved (the base noun tends to sit last).
 function coreTerms(q: string): string[] {
@@ -168,6 +199,17 @@ function fallbackVariants(q: string): string[] {
 // (only "red" overlaps, and the noun "peppers" is missing).
 function isStrong(query: string, results: OffCandidate[]): boolean {
   if (!results.length) return false;
+  // A different protein is never the right match — force a fallback that
+  // actually searches the protein the user typed.
+  const proteins = queryProteins(query);
+  if (proteins.length) {
+    const top = stemSet(results[0].name);
+    if (proteins.some((p) => !top.has(p))) return false;
+  }
+  // A top hit that adds an unrequested qualifier ("Lime Juice", "Baby
+  // Aubergine", "Potato Crisps") is the wrong specificity — fall back to the
+  // clean food.
+  if (addsUnwantedQualifier(query, results[0].name)) return false;
   const core = coreTerms(query).map(stem);
   if (!core.length) return true;
   const top = stemSet(results[0].name);
@@ -442,6 +484,11 @@ function impliedBrand(
       (b) =>
         b.words.length > 0 &&
         b.words.every((w) => qset.has(w)) &&
+        // A retailer (Ocado, Tesco…) is not a product brand — its own-label
+        // catalogue spans every food, so constraining to it just surfaces the
+        // retailer's arbitrary variant ("Ocado Baby Aubergine") instead of the
+        // plain food. Find those generically by food, not by brand.
+        !b.words.some((w) => STORE_BRANDS.has(w)) &&
         // Multi-word brands are safe; a one-word brand must be well represented
         // (Heinz, Walkers) to avoid gating on a common word (Vegan, Almond).
         (b.words.length >= 2 || b.count >= SINGLE_WORD_BRAND_MIN),
@@ -463,6 +510,39 @@ function impliedBrand(
 //   progressively shorter tails, so the base food is still found.
 // Empty array on any failure — callers keep the item unmatched, never blocking.
 export async function searchProducts(
+  term: string,
+  limit = 5,
+): Promise<OffCandidate[]> {
+  const q = term.trim();
+  if (!q) return [];
+  return refine(q, await rankedSearch(q, limit));
+}
+
+// Final tidy against the ORIGINAL query: demote a candidate that adds an
+// unrequested qualifier (juice/baby/crisps) or swaps the protein, so the clean
+// whole food sits first. Stable and non-destructive — nothing is dropped, so a
+// lone qualifier product is still returned when it's all OFF has. Uses the full
+// query, so an item the user really did ask for ("British Baby Potatoes") keeps
+// its qualifier without penalty.
+function refine(term: string, list: OffCandidate[]): OffCandidate[] {
+  if (list.length <= 1) return list;
+  const qset = new Set(tokens(term).map(stem));
+  const proteins = queryProteins(term);
+  const demerit = (c: OffCandidate): number => {
+    const names = tokens(c.name);
+    const nameSet = new Set(names.map(stem));
+    let d = 0;
+    for (const w of names) if (QUALIFIERS.has(w) && !qset.has(stem(w))) d += 1;
+    for (const p of proteins) if (!nameSet.has(p)) d += 2;
+    return d;
+  };
+  return list
+    .map((c, i) => ({ c, d: demerit(c), i }))
+    .sort((a, b) => a.d - b.d || a.i - b.i)
+    .map((r) => r.c);
+}
+
+async function rankedSearch(
   term: string,
   limit = 5,
 ): Promise<OffCandidate[]> {
@@ -503,7 +583,12 @@ async function brandAwareSearch(
   // If the query leads with a real two-word brand, honour it so we stay in-brand
   // rather than leaking other brands.
   const qWords = queryTokens(q);
-  if (!brand && qWords.length >= 3) {
+  if (
+    !brand &&
+    qWords.length >= 3 &&
+    !STORE_BRANDS.has(qWords[0]) &&
+    !STORE_BRANDS.has(qWords[1])
+  ) {
     const tag = `${qWords[0]}-${qWords[1]}`;
     if ((await brandSize(tag)) >= MULTIWORD_BRAND_MIN) {
       brand = { tag, words: [qWords[0], qWords[1]] };
