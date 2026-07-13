@@ -344,22 +344,32 @@ function ItemPicker({
           {items.map((it, i) => (
             <li
               key={i}
-              className="flex items-center gap-2 rounded-2xl bg-[var(--fill-soft)] p-3"
+              className="flex flex-col gap-2 rounded-2xl bg-[var(--fill-soft)] p-3"
             >
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-1.5 truncate font-medium">
-                  {it.source === "pantry" ? (
-                    <Package size={14} className="shrink-0 text-[var(--ink-teal)]" />
-                  ) : (
-                    <Globe size={14} className="shrink-0 text-[var(--muted)]" />
-                  )}
-                  <span className="truncate">{it.name}</span>
-                </span>
-                <span className="block text-xs text-[var(--muted)]">
-                  {itemMacroLine(it)}
-                </span>
+              {/* Name + remove */}
+              <div className="flex items-center gap-1.5 font-medium">
+                {it.source === "pantry" ? (
+                  <Package size={14} className="shrink-0 text-[var(--ink-teal)]" />
+                ) : (
+                  <Globe size={14} className="shrink-0 text-[var(--muted)]" />
+                )}
+                <span className="min-w-0 flex-1 truncate">{it.name}</span>
+                <button
+                  onClick={() => save(items.filter((_, j) => j !== i))}
+                  disabled={busy}
+                  className="shrink-0 text-[var(--muted)] transition active:scale-90"
+                  aria-label={`Remove ${it.name}`}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <span className="block text-xs text-[var(--muted)]">
+                {itemMacroLine(it)}
               </span>
-              <div className="flex shrink-0 items-center gap-1">
+
+              {/* Grams stepper */}
+              <div className="flex items-center gap-1">
                 <button
                   onClick={() => setGrams(i, it.grams - 25)}
                   disabled={busy || it.grams <= 0}
@@ -372,7 +382,7 @@ function ItemPicker({
                   type="number"
                   value={it.grams}
                   onChange={(e) => setGrams(i, Number(e.target.value))}
-                  className="w-12 bg-transparent text-center text-sm font-semibold tabular-nums outline-none"
+                  className="w-12 rounded-lg bg-[var(--fill)] py-1 text-center text-sm font-semibold tabular-nums outline-none"
                   aria-label={`${it.name} grams`}
                 />
                 <span className="text-xs text-[var(--muted)]">g</span>
@@ -385,14 +395,6 @@ function ItemPicker({
                   <Plus size={14} />
                 </button>
               </div>
-              <button
-                onClick={() => save(items.filter((_, j) => j !== i))}
-                disabled={busy}
-                className="shrink-0 text-[var(--muted)] transition active:scale-90"
-                aria-label={`Remove ${it.name}`}
-              >
-                <X size={16} />
-              </button>
             </li>
           ))}
         </ul>
