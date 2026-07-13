@@ -292,46 +292,24 @@ function FitVerdict({
   );
 }
 
-// A user-built meal: a searchable list of foods (pantry first, then the web).
-function ItemPicker({
-  slot,
-  initial,
-  mealId,
-  prefs,
-  busy,
-  onError,
-  onLog,
+// Search the pantry (or scan a barcode) to pick a food, handing the chosen
+// FoodChoice and the grams to use back to the parent. Shared by the meal
+// builder and the AI-meal editor so both add foods the same way. Typing an
+// amount with the item ("50g shreddies") sets the grams; otherwise the pack
+// size (or 100 g) seeds it.
+function FoodSearchBox({
+  onPick,
+  disabled,
 }: {
-  slot: string;
-  initial: PlanItem[];
-  mealId: string | null;
-  prefs: NutrientKey[];
-  busy: boolean;
-  onError: (msg: string) => void;
-  onLog?: () => void;
+  onPick: (c: FoodChoice, grams: number) => void;
+  disabled: boolean;
 }) {
-  const [items, setItems] = useState<PlanItem[]>(initial);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FoodChoice[]>([]);
   const [searching, setSearching] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanNote, setScanNote] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
 
-  // Persist the list whenever it changes.
-  function save(next: PlanItem[]) {
-    setItems(next);
-    startTransition(async () => {
-      try {
-        await setMealItems(slot, next);
-      } catch (e) {
-        onError(e instanceof Error ? e.message : "Couldn't save the meal.");
-      }
-    });
-  }
-
-  // The user can type the amount with the item ("50g shreddies") — split it so
-  // we search the food name and remember the grams they gave.
   const parsed = useMemo(() => parseFoodQuery(query), [query]);
 
   // Debounced search on the food name only. All state updates happen inside the
@@ -363,34 +341,13 @@ function ItemPicker({
     // Honour the amount the user typed; otherwise seed from the pack size.
     const grams =
       parsed.grams ?? (c.pack_size_g && c.pack_size_g <= 500 ? c.pack_size_g : 100);
-    save([
-      ...items,
-      {
-        name: c.name,
-        source: c.source,
-        off_barcode: c.off_barcode,
-        grams,
-        kcal_100g: c.kcal_100g,
-        protein_100g: c.protein_100g,
-        carbs_100g: c.carbs_100g,
-        fat_100g: c.fat_100g,
-        fiber_100g: c.fiber_100g,
-        sugar_100g: c.sugar_100g,
-        satfat_100g: c.satfat_100g,
-        sodium_mg_100g: c.sodium_mg_100g,
-      },
-    ]);
+    onPick(c, grams);
     setQuery("");
     setResults([]);
   }
 
-  function setGrams(i: number, grams: number) {
-    const g = Math.max(0, Math.round(grams));
-    save(items.map((it, j) => (j === i ? { ...it, grams: g } : it)));
-  }
-
-  // Scan a barcode straight into this meal: look the product up on Open Food
-  // Facts (same endpoint the pantry/batch scanners use) and add it as an item.
+  // Scan a barcode straight in: look the product up on Open Food Facts (same
+  // endpoint the pantry/batch scanners use) and add it.
   async function handleScan(barcode: string) {
     setScanning(false);
     setScanNote("Looking up…");
@@ -422,71 +379,8 @@ function ItemPicker({
     }
   }
 
-  const total = sumItems(items);
-
   return (
-    <div className="flex flex-col gap-3">
-      {items.length > 0 && (
-        <ul className="flex flex-col gap-2">
-          {items.map((it, i) => (
-            <li
-              key={i}
-              className="flex flex-col gap-2 rounded-2xl bg-[var(--fill-soft)] p-3"
-            >
-              {/* Name + remove */}
-              <div className="flex items-center gap-1.5 font-medium">
-                {it.source === "pantry" ? (
-                  <Package size={14} className="shrink-0 text-[var(--ink-teal)]" />
-                ) : (
-                  <Globe size={14} className="shrink-0 text-[var(--muted)]" />
-                )}
-                <span className="min-w-0 flex-1 truncate">{it.name}</span>
-                <button
-                  onClick={() => save(items.filter((_, j) => j !== i))}
-                  disabled={busy}
-                  className="shrink-0 text-[var(--muted)] transition active:scale-90"
-                  aria-label={`Remove ${it.name}`}
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              <span className="block text-xs text-[var(--muted)]">
-                {itemMacroLine(it)}
-              </span>
-
-              {/* Grams stepper */}
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setGrams(i, it.grams - 25)}
-                  disabled={busy || it.grams <= 0}
-                  className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90 disabled:opacity-40"
-                  aria-label="Less"
-                >
-                  <Minus size={14} />
-                </button>
-                <input
-                  type="number"
-                  value={it.grams}
-                  onChange={(e) => setGrams(i, Number(e.target.value))}
-                  className="w-12 rounded-lg bg-[var(--fill)] py-1 text-center text-sm font-semibold tabular-nums outline-none"
-                  aria-label={`${it.name} grams`}
-                />
-                <span className="text-xs text-[var(--muted)]">g</span>
-                <button
-                  onClick={() => setGrams(i, it.grams + 25)}
-                  disabled={busy}
-                  className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90"
-                  aria-label="More"
-                >
-                  <Plus size={14} />
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-
+    <>
       {/* Search + add */}
       <div className="relative">
         <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]">
@@ -561,7 +455,7 @@ function ItemPicker({
           setScanNote(null);
           setScanning(true);
         }}
-        disabled={busy}
+        disabled={disabled}
         className="sc-btn sc-btn-soft"
       >
         <ScanBarcode size={18} /> Scan a barcode
@@ -579,6 +473,135 @@ function ItemPicker({
           onClose={() => setScanning(false)}
         />
       )}
+    </>
+  );
+}
+
+// A user-built meal: a searchable list of foods (pantry first, then the web).
+function ItemPicker({
+  slot,
+  initial,
+  mealId,
+  prefs,
+  busy,
+  onError,
+  onLog,
+}: {
+  slot: string;
+  initial: PlanItem[];
+  mealId: string | null;
+  prefs: NutrientKey[];
+  busy: boolean;
+  onError: (msg: string) => void;
+  onLog?: () => void;
+}) {
+  const [items, setItems] = useState<PlanItem[]>(initial);
+  const [, startTransition] = useTransition();
+
+  // Persist the list whenever it changes.
+  function save(next: PlanItem[]) {
+    setItems(next);
+    startTransition(async () => {
+      try {
+        await setMealItems(slot, next);
+      } catch (e) {
+        onError(e instanceof Error ? e.message : "Couldn't save the meal.");
+      }
+    });
+  }
+
+  // Append a picked food at the grams the search box resolved.
+  function add(c: FoodChoice, grams: number) {
+    save([
+      ...items,
+      {
+        name: c.name,
+        source: c.source,
+        off_barcode: c.off_barcode,
+        grams,
+        kcal_100g: c.kcal_100g,
+        protein_100g: c.protein_100g,
+        carbs_100g: c.carbs_100g,
+        fat_100g: c.fat_100g,
+        fiber_100g: c.fiber_100g,
+        sugar_100g: c.sugar_100g,
+        satfat_100g: c.satfat_100g,
+        sodium_mg_100g: c.sodium_mg_100g,
+      },
+    ]);
+  }
+
+  function setGrams(i: number, grams: number) {
+    const g = Math.max(0, Math.round(grams));
+    save(items.map((it, j) => (j === i ? { ...it, grams: g } : it)));
+  }
+
+  const total = sumItems(items);
+
+  return (
+    <div className="flex flex-col gap-3">
+      {items.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {items.map((it, i) => (
+            <li
+              key={i}
+              className="flex flex-col gap-2 rounded-2xl bg-[var(--fill-soft)] p-3"
+            >
+              {/* Name + remove */}
+              <div className="flex items-center gap-1.5 font-medium">
+                {it.source === "pantry" ? (
+                  <Package size={14} className="shrink-0 text-[var(--ink-teal)]" />
+                ) : (
+                  <Globe size={14} className="shrink-0 text-[var(--muted)]" />
+                )}
+                <span className="min-w-0 flex-1 truncate">{it.name}</span>
+                <button
+                  onClick={() => save(items.filter((_, j) => j !== i))}
+                  disabled={busy}
+                  className="shrink-0 text-[var(--muted)] transition active:scale-90"
+                  aria-label={`Remove ${it.name}`}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <span className="block text-xs text-[var(--muted)]">
+                {itemMacroLine(it)}
+              </span>
+
+              {/* Grams stepper */}
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setGrams(i, it.grams - 25)}
+                  disabled={busy || it.grams <= 0}
+                  className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90 disabled:opacity-40"
+                  aria-label="Less"
+                >
+                  <Minus size={14} />
+                </button>
+                <input
+                  type="number"
+                  value={it.grams}
+                  onChange={(e) => setGrams(i, Number(e.target.value))}
+                  className="w-12 rounded-lg bg-[var(--fill)] py-1 text-center text-sm font-semibold tabular-nums outline-none"
+                  aria-label={`${it.name} grams`}
+                />
+                <span className="text-xs text-[var(--muted)]">g</span>
+                <button
+                  onClick={() => setGrams(i, it.grams + 25)}
+                  disabled={busy}
+                  className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90"
+                  aria-label="More"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <FoodSearchBox onPick={add} disabled={busy} />
 
       {items.length > 0 && (
         <>
@@ -823,6 +846,24 @@ function AiMealEditor({
     setPorts((prev) => prev.map((p, j) => (j === i ? { ...p, grams: g } : p)));
   }
 
+  // Add a pantry/scanned food to the dish as a new portion. Its per-gram macros
+  // come from the food's per-100g values, so it rescales like the AI portions.
+  function addFood(c: FoodChoice, grams: number) {
+    setPorts((prev) => [
+      ...prev,
+      {
+        name: c.name,
+        grams,
+        per: {
+          kcal: c.kcal_100g / 100,
+          protein_g: c.protein_100g / 100,
+          carbs_g: c.carbs_100g / 100,
+          fat_g: c.fat_100g / 100,
+        },
+      },
+    ]);
+  }
+
   const built = ports.map(fromEdit);
   const total = built.reduce<Macros>(
     (s, p) => ({
@@ -909,6 +950,8 @@ function AiMealEditor({
           No ingredients left — saving will clear this meal.
         </p>
       )}
+
+      <FoodSearchBox onPick={addFood} disabled={saving} />
 
       <p className="text-xs font-medium text-[var(--muted)]">
         Meal total: {macroLine(prefs, total)}
