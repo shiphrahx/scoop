@@ -190,6 +190,23 @@ export async function setMealItems(slot: string, items: PlanItem[]) {
   revalidate();
 }
 
+// Remove everything the app planned for today that the user hasn't eaten yet —
+// for when they don't like the auto-plan and want to start over. Meals they
+// built themselves (origin 'manual') and anything already logged are left
+// untouched (deleting a logged meal would orphan its food-log entry).
+export async function clearAppPlan() {
+  const { supabase, user } = await requireUser();
+  const { error } = await supabase
+    .from("planned_meals")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("date", localToday())
+    .eq("origin", "ai")
+    .is("logged_food_id", null);
+  if (error) throw new Error(error.message);
+  revalidate();
+}
+
 // Empty a slot again.
 export async function clearSlot(slot: string) {
   const { supabase, user } = await requireUser();

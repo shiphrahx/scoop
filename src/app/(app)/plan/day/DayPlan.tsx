@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Sparkles, Check, X, Search, Plus, Minus, Package, Globe } from "lucide-react";
+import { Sparkles, Check, X, Search, Plus, Minus, Package, Globe, Trash2 } from "lucide-react";
 import type { FoodChoice, Macros, PlannedMeal, PlanItem } from "@/lib/types";
 import { sumItems } from "@/lib/types";
 import { NUTRIENTS, valueOf, formatNutrient, type NutrientKey } from "@/lib/nutrients";
@@ -10,6 +10,7 @@ import {
   searchFoods,
   setMealItems,
   clearSlot,
+  clearAppPlan,
   planMyDay,
   logPlannedMeal,
 } from "./actions";
@@ -79,8 +80,15 @@ function toGrams(value: string, unit: string): number {
   return Math.max(1, Math.round(g));
 }
 
-// Compact kcal line for a single ingredient row.
-const kcalLine = (m: Macros) => `${Math.round(m.kcal)} kcal`;
+// The macros a single item contributes at its current portion — shown under
+// each food so the user sees what it costs, not just the meal total.
+function itemMacroLine(it: PlanItem): string {
+  const m = sumItems([it]);
+  return (
+    `${Math.round(m.kcal)} kcal · ` +
+    `${Math.round(m.protein_g)} P · ${Math.round(m.carbs_g)} C · ${Math.round(m.fat_g)} F`
+  );
+}
 
 // The chosen-nutrient breakdown for a meal, one line: "420 kcal · Protein 34 g …"
 function macroLine(prefs: NutrientKey[], m: Macros): string {
@@ -105,6 +113,11 @@ export default function DayPlan({
 
   const total = dayTotal(slots);
   const anyEmpty = slots.some((s) => !s.meal);
+  // Meals the app planned that the user hasn't eaten — the ones "Remove the
+  // app's plan" clears (their own built meals and eaten meals are kept).
+  const anyAppPlanned = slots.some(
+    (s) => s.meal?.origin === "ai" && !s.meal.logged_food_id,
+  );
 
   function run(fn: () => Promise<void>) {
     setErr(null);
@@ -184,6 +197,17 @@ export default function DayPlan({
         >
           <Sparkles size={22} />
           {busy ? "Planning…" : "Plan my empty meals"}
+        </button>
+      )}
+
+      {anyAppPlanned && (
+        <button
+          onClick={() => run(() => clearAppPlan())}
+          disabled={busy}
+          className="sc-btn sc-btn-neutral py-3"
+        >
+          <Trash2 size={18} />
+          {busy ? "Removing…" : "Remove the app's plan"}
         </button>
       )}
     </section>
@@ -305,8 +329,8 @@ function ItemPicker({
                   )}
                   <span className="truncate">{it.name}</span>
                 </span>
-                <span className="text-xs text-[var(--muted)]">
-                  {kcalLine(sumItems([it]))}
+                <span className="block text-xs text-[var(--muted)]">
+                  {itemMacroLine(it)}
                 </span>
               </span>
               <div className="flex shrink-0 items-center gap-1">
