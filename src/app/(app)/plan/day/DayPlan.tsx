@@ -11,6 +11,7 @@ import BarcodeScanner from "@/components/BarcodeScanner";
 import {
   searchFoods,
   setMealItems,
+  setMealPortions,
   clearSlot,
   clearAppPlan,
   logPlannedMeal,
@@ -179,7 +180,13 @@ export default function DayPlan({
             />
           ) : meal?.origin === "ai" ? (
             /* AI-suggested dish */
-            <AiMeal meal={meal} prefs={prefs} busy={busy} onLog={() => run(() => logPlannedMeal(meal.id))} />
+            <AiMeal
+              meal={meal}
+              prefs={prefs}
+              busy={busy}
+              onError={setErr}
+              onLog={() => run(() => logPlannedMeal(meal.id))}
+            />
           ) : (
             /* Empty or user-built: pick a list of foods */
             <ItemPicker
@@ -623,13 +630,28 @@ function AiMeal({
   meal,
   prefs,
   busy,
+  onError,
   onLog,
 }: {
   meal: PlannedMeal;
   prefs: NutrientKey[];
   busy: boolean;
+  onError: (msg: string) => void;
   onLog: () => void;
 }) {
+  const [editing, setEditing] = useState(false);
+
+  if (editing) {
+    return (
+      <AiMealEditor
+        meal={meal}
+        prefs={prefs}
+        onError={onError}
+        onDone={() => setEditing(false)}
+      />
+    );
+  }
+
   return (
     <>
       <p className="text-lg font-semibold">{meal.name}</p>
@@ -651,10 +673,194 @@ function AiMeal({
         Meal total: {macroLine(prefs, meal)}
       </p>
 
-      <button onClick={onLog} disabled={busy} className="sc-btn sc-btn-soft mt-1">
-        I ate this — log it
-      </button>
+      <div className="mt-1 flex gap-2">
+        {meal.portions.length > 0 && (
+          <button
+            onClick={() => setEditing(true)}
+            disabled={busy}
+            className="sc-btn sc-btn-neutral flex-1"
+          >
+            <Pencil size={16} /> Edit
+          </button>
+        )}
+        <button
+          onClick={onLog}
+          disabled={busy}
+          className="sc-btn sc-btn-soft flex-1"
+        >
+          I ate this — log it
+        </button>
+      </div>
     </>
+  );
+}
+
+// One portion mid-edit: its new grams, plus the per-gram macros captured from the
+// stored portion so we can rescale exactly (linear in grams) without drift.
+type EditPortion = {
+  name: string;
+  grams: number;
+  per: { kcal: number; protein_g: number; carbs_g: number; fat_g: number } | null;
+};
+
+// Grams the AI portioned it at → per-gram macros, or null when an old plan
+// didn't store macros (then we can't rescale, and just keep the grams).
+function toEdit(p: MealPortion): EditPortion {
+  const per =
+    p.kcal != null && p.grams > 0
+      ? {
+          kcal: p.kcal / p.grams,
+          protein_g: (p.protein_g ?? 0) / p.grams,
+          carbs_g: (p.carbs_g ?? 0) / p.grams,
+          fat_g: (p.fat_g ?? 0) / p.grams,
+        }
+      : null;
+  return { name: p.name, grams: p.grams, per };
+}
+
+// Rebuild a stored MealPortion from an edited one, rescaling macros to the new
+// grams when we have a per-gram basis.
+function fromEdit(e: EditPortion): MealPortion {
+  if (!e.per) return { name: e.name, grams: e.grams };
+  return {
+    name: e.name,
+    grams: e.grams,
+    kcal: Math.round(e.per.kcal * e.grams),
+    protein_g: Math.round(e.per.protein_g * e.grams),
+    carbs_g: Math.round(e.per.carbs_g * e.grams),
+    fat_g: Math.round(e.per.fat_g * e.grams),
+  };
+}
+
+// Edit an AI dish: change each ingredient's grams or drop it. Macros rescale
+// live from the grams; Save persists the new portions and re-sums the totals.
+function AiMealEditor({
+  meal,
+  prefs,
+  onError,
+  onDone,
+}: {
+  meal: PlannedMeal;
+  prefs: NutrientKey[];
+  onError: (msg: string) => void;
+  onDone: () => void;
+}) {
+  const [ports, setPorts] = useState<EditPortion[]>(() => meal.portions.map(toEdit));
+  const [saving, startSave] = useTransition();
+
+  function setGrams(i: number, grams: number) {
+    const g = Math.max(0, Math.round(grams));
+    setPorts((prev) => prev.map((p, j) => (j === i ? { ...p, grams: g } : p)));
+  }
+
+  const built = ports.map(fromEdit);
+  const total = built.reduce<Macros>(
+    (s, p) => ({
+      kcal: s.kcal + (p.kcal ?? 0),
+      protein_g: s.protein_g + (p.protein_g ?? 0),
+      carbs_g: s.carbs_g + (p.carbs_g ?? 0),
+      fat_g: s.fat_g + (p.fat_g ?? 0),
+    }),
+    { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
+  );
+
+  function save() {
+    onError("");
+    startSave(async () => {
+      try {
+        await setMealPortions(meal.id, built);
+        onDone();
+      } catch (e) {
+        onError(e instanceof Error ? e.message : "Couldn't save the meal.");
+      }
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-lg font-semibold">{meal.name}</p>
+
+      {ports.length > 0 ? (
+        <ul className="flex flex-col gap-2">
+          {ports.map((p, i) => (
+            <li
+              key={i}
+              className="flex flex-col gap-2 rounded-2xl bg-[var(--fill-soft)] p-3"
+            >
+              <div className="flex items-center gap-1.5 font-medium">
+                <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                <button
+                  onClick={() => setPorts((prev) => prev.filter((_, j) => j !== i))}
+                  disabled={saving}
+                  className="shrink-0 text-[var(--muted)] transition active:scale-90"
+                  aria-label={`Remove ${p.name}`}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {p.per && (
+                <span className="block text-xs text-[var(--muted)]">
+                  {portionMacroLine(fromEdit(p))}
+                </span>
+              )}
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setGrams(i, p.grams - 25)}
+                  disabled={saving || p.grams <= 0}
+                  className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90 disabled:opacity-40"
+                  aria-label="Less"
+                >
+                  <Minus size={14} />
+                </button>
+                <input
+                  type="number"
+                  value={p.grams}
+                  onChange={(e) => setGrams(i, Number(e.target.value))}
+                  className="w-12 rounded-lg bg-[var(--fill)] py-1 text-center text-sm font-semibold tabular-nums outline-none"
+                  aria-label={`${p.name} grams`}
+                />
+                <span className="text-xs text-[var(--muted)]">g</span>
+                <button
+                  onClick={() => setGrams(i, p.grams + 25)}
+                  disabled={saving}
+                  className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90"
+                  aria-label="More"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-[var(--muted)]">
+          No ingredients left — saving will clear this meal.
+        </p>
+      )}
+
+      <p className="text-xs font-medium text-[var(--muted)]">
+        Meal total: {macroLine(prefs, total)}
+      </p>
+
+      <div className="mt-1 flex gap-2">
+        <button
+          onClick={onDone}
+          disabled={saving}
+          className="sc-btn sc-btn-neutral flex-1"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={save}
+          disabled={saving}
+          className="sc-btn sc-btn-soft flex-1"
+        >
+          {saving ? "Saving…" : "Save"}
+        </button>
+      </div>
+    </div>
   );
 }
 
