@@ -1,12 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, ScanBarcode, Pencil } from "lucide-react";
+import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, ScanBarcode, Pencil, AlertTriangle, AlertCircle } from "lucide-react";
 import type { FoodChoice, Macros, MealPortion, OffProduct, PlannedMeal, PlanItem } from "@/lib/types";
 import { sumItems } from "@/lib/types";
-import { NUTRIENTS, valueOf, formatNutrient, type NutrientKey } from "@/lib/nutrients";
-import { NutrientStats } from "@/components/NutrientBreakdown";
+import {
+  NUTRIENTS,
+  valueOf,
+  formatNutrient,
+  nutrientFit,
+  worstFit,
+  type FitStatus,
+  type NutrientKey,
+} from "@/lib/nutrients";
+import { NutrientStats, FIT_TEXT } from "@/components/NutrientBreakdown";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import {
   searchFoods,
@@ -146,8 +154,9 @@ export default function DayPlan({
   return (
     <section className="flex flex-col gap-4">
       {target && (
-        <div className="sc-card p-4">
-          <NutrientStats prefs={prefs} consumed={total} target={target} />
+        <div className="sc-card flex flex-col gap-3 p-4">
+          <NutrientStats prefs={prefs} consumed={total} target={target} showFit />
+          <FitVerdict total={total} target={target} prefs={prefs} />
         </div>
       )}
 
@@ -219,6 +228,67 @@ export default function DayPlan({
         </button>
       )}
     </section>
+  );
+}
+
+// Plain words for how the whole day lands on target, under the tiles: green when
+// every nutrient is within 5 g, amber when something is drifting (up to 10 g),
+// red when something is past that and has to change. Names the nutrients at
+// fault so the user knows what to fix without reading every number.
+function FitVerdict({
+  total,
+  target,
+  prefs,
+}: {
+  total: Macros;
+  target: Macros;
+  prefs: NutrientKey[];
+}) {
+  // Nothing planned yet: the day is "off" by definition, but saying so helps
+  // nobody. Ask for meals instead.
+  if (total.kcal <= 0) {
+    return (
+      <p className="text-center text-sm text-[var(--muted)]">
+        Add meals to see how the day lands against your targets.
+      </p>
+    );
+  }
+
+  const keys: NutrientKey[] = ["kcal", ...prefs];
+  const status = worstFit(total, target, keys);
+
+  // The nutrients that earned the verdict, worst first.
+  const named = keys
+    .filter((k) => nutrientFit(total, target, k)?.status === status)
+    .map((k) => NUTRIENTS[k].label);
+
+  const list = named.join(", ").replace(/, ([^,]*)$/, " and $1");
+
+  const copy: Record<FitStatus, { icon: ReactNode; text: string }> = {
+    ok: {
+      icon: <Check size={16} className="shrink-0" />,
+      text: "This plan lands on your targets.",
+    },
+    warn: {
+      icon: <AlertTriangle size={16} className="shrink-0" />,
+      text: `${list} slightly off — nudge the portions.`,
+    },
+    off: {
+      icon: <AlertCircle size={16} className="shrink-0" />,
+      text: `${list} too far off — change the portions.`,
+    },
+  };
+
+  const { icon, text } = copy[status];
+
+  return (
+    <p
+      className={`flex items-center justify-center gap-1.5 text-center text-sm font-semibold ${FIT_TEXT[status]}`}
+      role="status"
+    >
+      {icon}
+      {text}
+    </p>
   );
 }
 
