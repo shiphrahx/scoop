@@ -67,6 +67,11 @@ function PantryRow({ item }: { item: PantryItem }) {
   const step = (delta: number) =>
     startTransition(() => setPantryQuantity(item.id, item.quantity + delta));
 
+  function remove() {
+    if (!window.confirm(`Remove ${item.name} from your pantry?`)) return;
+    startTransition(() => deletePantryItem(item.id));
+  }
+
   if (editing) {
     return <EditRow item={item} onDone={() => setEditing(false)} />;
   }
@@ -101,6 +106,14 @@ function PantryRow({ item }: { item: PantryItem }) {
           className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] active:scale-90"
         >
           <Pencil size={16} />
+        </button>
+        <button
+          onClick={remove}
+          disabled={pending}
+          aria-label="Delete"
+          className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] text-rose-600 active:scale-90 disabled:opacity-40"
+        >
+          <Trash2 size={16} />
         </button>
         <button
           onClick={() => step(-1)}
