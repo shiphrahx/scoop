@@ -61,14 +61,17 @@ const capFor = (food: PantryFood, key: MacroKey) =>
 const perGram = (food: PantryFood, key: MacroKey) =>
   (food[KEY_TO_100[key]] as number) / 100;
 
-// The macros of `grams` of a food.
+// The macros of `grams` of a food, ROUNDED to whole numbers — the same figures
+// the user is shown on the portion line. Every total downstream is summed from
+// these, so a meal's total always equals the portions printed under it, and
+// re-saving an untouched meal can't shift its numbers.
 function macrosOf(food: PantryFood, grams: number): Macros {
   const f = grams / 100;
   return {
-    kcal: food.kcal_100g * f,
-    protein_g: food.protein_100g * f,
-    carbs_g: food.carbs_100g * f,
-    fat_g: food.fat_100g * f,
+    kcal: Math.round(food.kcal_100g * f),
+    protein_g: Math.round(food.protein_100g * f),
+    carbs_g: Math.round(food.carbs_100g * f),
+    fat_g: Math.round(food.fat_100g * f),
   };
 }
 
@@ -219,25 +222,12 @@ function mealName(portions: Portion[]): string {
 }
 
 function toPortions(chosen: Portion[]): MealPortion[] {
-  return chosen.map((c) => {
-    const f = c.grams / 100;
-    return {
-      name: c.food.name,
-      grams: c.grams,
-      kcal: Math.round(c.food.kcal_100g * f),
-      protein_g: Math.round(c.food.protein_100g * f),
-      carbs_g: Math.round(c.food.carbs_100g * f),
-      fat_g: Math.round(c.food.fat_100g * f),
-    };
-  });
+  return chosen.map((c) => ({
+    name: c.food.name,
+    grams: c.grams,
+    ...macrosOf(c.food, c.grams),
+  }));
 }
-
-const roundMacros = (m: Macros): Macros => ({
-  kcal: Math.round(m.kcal),
-  protein_g: Math.round(m.protein_g),
-  carbs_g: Math.round(m.carbs_g),
-  fat_g: Math.round(m.fat_g),
-});
 
 // One macro's choice in the "plan my day" wizard:
 //   null        → "suggest for me": use the densest pantry source of that macro
@@ -340,7 +330,7 @@ export function planPantryDay(input: PlanDayInput): PlannedSlot[] {
       portions: toPortions(m.portions),
       swaps: [],
       why: "Portioned from your pantry to hit this meal's macros.",
-      ...roundMacros(m.totals),
+      ...m.totals,
     });
   });
   return out;
@@ -393,7 +383,7 @@ export function suggestPantryMeals(input: SuggestInput): MealSuggestion[] {
       portions: toPortions(portions),
       swaps,
       why: "Built from your pantry to fit the macros you have left.",
-      ...roundMacros(totals),
+      ...totals,
     });
   }
   return out;

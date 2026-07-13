@@ -103,6 +103,36 @@ describe("planPantryDay", () => {
     expect(plan[0].protein_g).toBeLessThan(45);
   });
 
+  it("shows a meal total that equals the portions printed under it", () => {
+    // The card shows a total AND the portion lines that make it up. If the total
+    // is rounded separately from the portions they disagree on screen, and
+    // re-saving the meal (which re-sums the portions) silently changes it.
+    const plan = planPantryDay({
+      pantry: [chicken, rice, oil],
+      budget,
+      fixed: zero,
+      emptySlots: ["Breakfast", "Lunch", "Dinner"],
+    });
+    expect(plan.length).toBeGreaterThan(0);
+    for (const meal of plan) {
+      const summed = meal.portions.reduce(
+        (s, p) => ({
+          kcal: s.kcal + p.kcal,
+          protein_g: s.protein_g + p.protein_g,
+          carbs_g: s.carbs_g + p.carbs_g,
+          fat_g: s.fat_g + p.fat_g,
+        }),
+        { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
+      );
+      expect(summed).toEqual({
+        kcal: meal.kcal,
+        protein_g: meal.protein_g,
+        carbs_g: meal.carbs_g,
+        fat_g: meal.fat_g,
+      });
+    }
+  });
+
   it("returns nothing when there are no empty slots", () => {
     expect(
       planPantryDay({ pantry: [chicken], budget, fixed: zero, emptySlots: [] }),
