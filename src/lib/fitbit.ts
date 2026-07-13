@@ -8,6 +8,10 @@ const TOKEN_URL = "https://api.fitbit.com/oauth2/token";
 const API_BASE = "https://api.fitbit.com";
 const SCOPE = "activity sleep";
 
+// Every Fitbit call gets a deadline so a stalled request can't hang a server
+// action or wedge the nightly cron loop on one slow user.
+const REQUEST_TIMEOUT_MS = 8000;
+
 export interface FitbitTokens {
   access_token: string;
   refresh_token: string;
@@ -89,6 +93,7 @@ export async function exchangeCode(
       code,
       redirect_uri: redirectUri(origin),
     }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`Fitbit token exchange failed (${res.status}).`);
@@ -110,6 +115,7 @@ export async function refreshTokens(
       grant_type: "refresh_token",
       refresh_token: refreshToken,
     }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`Fitbit token refresh failed (${res.status}).`);
@@ -123,8 +129,9 @@ async function getJson(
 ): Promise<Record<string, unknown> | null> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!res.ok) return null;
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  }).catch(() => null);
+  if (!res || !res.ok) return null;
   return res.json();
 }
 
