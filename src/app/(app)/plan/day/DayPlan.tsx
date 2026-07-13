@@ -612,23 +612,32 @@ function AiMeal({
   return (
     <>
       <p className="text-lg font-semibold">{meal.name}</p>
+
       {meal.portions.length > 0 && (
-        <ul className="flex flex-col gap-1 rounded-2xl bg-[var(--fill-soft)] p-3 text-sm">
+        <ul className="flex flex-col gap-2">
           {meal.portions.map((p, i) => (
-            <li key={i} className="flex justify-between gap-3">
-              <span className="min-w-0 truncate">{p.name}</span>
-              <span className="shrink-0 font-semibold tabular-nums">
+            <li
+              key={i}
+              className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--fill-soft)] p-3"
+            >
+              <span className="min-w-0 truncate font-medium">{p.name}</span>
+              <span className="shrink-0 text-sm font-semibold text-[var(--muted)] tabular-nums">
                 {Math.round(p.grams)} g
               </span>
             </li>
           ))}
         </ul>
       )}
+
       {meal.why && <p className="text-sm text-[var(--muted)]">{meal.why}</p>}
       {meal.swaps.length > 0 && (
         <p className="text-xs text-[var(--muted)]">Swaps: {meal.swaps.join(" · ")}</p>
       )}
-      <p className="text-xs text-[var(--muted)]">{macroLine(prefs, meal)}</p>
+
+      <p className="text-xs font-medium text-[var(--muted)]">
+        Meal total: {macroLine(prefs, meal)}
+      </p>
+
       <button onClick={onLog} disabled={busy} className="sc-btn sc-btn-soft mt-1">
         I ate this — log it
       </button>
