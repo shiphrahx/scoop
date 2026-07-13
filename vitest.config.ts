@@ -10,6 +10,25 @@ export default defineConfig({
     environment: "node",
     include: ["tests/**/*.test.ts"],
     globals: true,
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "lcov"],
+      // Only the code that decides what a user eats and what they're told to
+      // eat. UI components are covered by the end-to-end tests, not here.
+      include: ["src/lib/**/*.ts", "src/app/**/actions.ts"],
+      // Thin wrappers over Supabase/Anthropic clients: nothing to assert without
+      // mocking the SDK itself, which tests the mock rather than our code.
+      exclude: ["src/lib/supabase/**", "src/lib/log.ts"],
+      // A ratchet, not a target: set just under where we are today, so coverage
+      // can only go up. Raise it when you add tests; never lower it to make a
+      // build pass.
+      thresholds: {
+        lines: 50,
+        functions: 78,
+        branches: 85,
+        statements: 50,
+      },
+    },
   },
   resolve: {
     alias: {
