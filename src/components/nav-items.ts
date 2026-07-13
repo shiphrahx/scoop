@@ -1,6 +1,5 @@
 import {
   Home,
-  ChefHat,
   Plus,
   LineChart,
   User,
@@ -21,7 +20,6 @@ export type NavItem = {
 // food is scanned and logged per meal) in the centre.
 export const bottomNav: NavItem[] = [
   { href: "/dashboard", label: "Home", icon: Home },
-  { href: "/plan", label: "Plan", icon: ChefHat },
   { href: "/plan/day", label: "Log", icon: Plus, center: true },
   { href: "/progress", label: "Progress", icon: LineChart },
   { href: "/me", label: "Me", icon: User },
@@ -31,7 +29,6 @@ export const bottomNav: NavItem[] = [
 export const sidebarNav: NavItem[] = [
   { href: "/dashboard", label: "Home", icon: Home },
   { href: "/plan/day", label: "Log food", icon: Plus },
-  { href: "/plan", label: "Plan a meal", icon: ChefHat },
   { href: "/pantry", label: "Pantry", icon: Package },
   { href: "/batches", label: "Batches", icon: CookingPot },
   { href: "/progress", label: "Progress", icon: LineChart },
