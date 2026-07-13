@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, ScanBarcode } from "lucide-react";
+import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, ScanBarcode, Pencil } from "lucide-react";
 import type { FoodChoice, Macros, OffProduct, PlannedMeal, PlanItem } from "@/lib/types";
 import { sumItems } from "@/lib/types";
 import { NUTRIENTS, valueOf, formatNutrient, type NutrientKey } from "@/lib/nutrients";
@@ -14,6 +14,8 @@ import {
   clearSlot,
   clearAppPlan,
   logPlannedMeal,
+  unlogPlannedMeal,
+  removePlannedMeal,
 } from "./actions";
 
 type Slot = { slot: string; meal: PlannedMeal | null };
@@ -158,13 +160,13 @@ export default function DayPlan({
 
           {/* Eaten already */}
           {meal?.logged_food_id ? (
-            <>
-              <p className="text-lg font-semibold">{meal.name}</p>
-              <p className="text-xs text-[var(--muted)]">{macroLine(prefs, meal)}</p>
-              <p className="mt-1 inline-flex items-center gap-1 text-sm font-semibold text-[var(--ink-teal)]">
-                <Check size={16} /> Eaten
-              </p>
-            </>
+            <EatenMeal
+              meal={meal}
+              prefs={prefs}
+              busy={busy}
+              onEdit={() => run(() => unlogPlannedMeal(meal.id))}
+              onRemove={() => run(() => removePlannedMeal(meal.id))}
+            />
           ) : meal?.origin === "ai" ? (
             /* AI-suggested dish */
             <AiMeal meal={meal} prefs={prefs} busy={busy} onLog={() => run(() => logPlannedMeal(meal.id))} />
@@ -502,6 +504,95 @@ function ItemPicker({
         </>
       )}
     </div>
+  );
+}
+
+// An eaten meal, laid out for reading: each food on its own row with its
+// macros, then the meal total, then Edit (un-log back to editable) and Remove.
+function EatenMeal({
+  meal,
+  prefs,
+  busy,
+  onEdit,
+  onRemove,
+}: {
+  meal: PlannedMeal;
+  prefs: NutrientKey[];
+  busy: boolean;
+  onEdit: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <>
+      <p className="inline-flex items-center gap-1 text-sm font-semibold text-[var(--ink-teal)]">
+        <Check size={16} /> Eaten
+      </p>
+
+      {meal.items.length > 0 ? (
+        // A meal the user built — show every food with what it contributed.
+        <ul className="flex flex-col gap-2">
+          {meal.items.map((it, i) => (
+            <li
+              key={i}
+              className="rounded-2xl bg-[var(--fill-soft)] p-3"
+            >
+              <span className="flex items-center gap-1.5 font-medium">
+                {it.source === "pantry" ? (
+                  <Package size={14} className="shrink-0 text-[var(--ink-teal)]" />
+                ) : (
+                  <Globe size={14} className="shrink-0 text-[var(--muted)]" />
+                )}
+                <span className="truncate">{it.name}</span>
+                <span className="ml-auto shrink-0 text-sm text-[var(--muted)] tabular-nums">
+                  {Math.round(it.grams)} g
+                </span>
+              </span>
+              <span className="mt-0.5 block text-xs text-[var(--muted)]">
+                {itemMacroLine(it)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : meal.portions.length > 0 ? (
+        // An AI dish — portions carry grams but not per-item macros.
+        <ul className="flex flex-col gap-2">
+          {meal.portions.map((p, i) => (
+            <li
+              key={i}
+              className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--fill-soft)] p-3"
+            >
+              <span className="min-w-0 truncate font-medium">{p.name}</span>
+              <span className="shrink-0 text-sm font-semibold text-[var(--muted)] tabular-nums">
+                {Math.round(p.grams)} g
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-lg font-semibold">{meal.name}</p>
+      )}
+
+      <p className="text-xs font-medium text-[var(--muted)]">
+        Meal total: {macroLine(prefs, meal)}
+      </p>
+
+      <div className="mt-1 flex gap-2">
+        <button
+          onClick={onEdit}
+          disabled={busy}
+          className="sc-btn sc-btn-soft flex-1"
+        >
+          <Pencil size={16} /> Edit
+        </button>
+        <button
+          onClick={onRemove}
+          disabled={busy}
+          className="sc-btn sc-btn-neutral flex-1"
+        >
+          <Trash2 size={16} /> Remove
+        </button>
+      </div>
+    </>
   );
 }
 
