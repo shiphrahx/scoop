@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { ReceiptText, Check, Square, KeyRound } from "lucide-react";
-import { readImageFile } from "@/lib/image";
+import { readImageForUpload } from "@/lib/image";
 import type { GroceryItem, ImportedItem, OffCandidate } from "@/lib/types";
 import { scanGroceries } from "./actions";
 import MatchItems from "./MatchItems";
@@ -29,7 +29,7 @@ export default function GroceryScan({ connected }: { connected: boolean }) {
     setNote("Reading your groceries…");
     setBusy(true);
     try {
-      const { base64, mediaType } = await readImageFile(file);
+      const { base64, mediaType } = await readImageForUpload(file);
       const found = await scanGroceries(base64, mediaType);
       setItems(found);
       setChosen(new Set(found.map((_, i) => i)));

@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { Camera, Minus, Plus } from "lucide-react";
 import type { ParsedRecipe } from "@/lib/ai";
-import { readImageFile } from "@/lib/image";
+import { readImageForUpload } from "@/lib/image";
 import {
   importRecipeImage,
   importRecipeUrl,
@@ -63,7 +63,7 @@ export default function RecipeImport({
     setBusy(true);
     setNote("Reading the recipe…");
     try {
-      const { base64, mediaType } = await readImageFile(file);
+      const { base64, mediaType } = await readImageForUpload(file);
       const r = await importRecipeImage(base64, mediaType);
       onResult(r, null);
     } catch (e) {
