@@ -6,9 +6,14 @@ import { fileURLToPath } from "node:url";
 // per-file with `// @vitest-environment jsdom`. The `@/` alias mirrors
 // tsconfig so tests import the same way the app does.
 export default defineConfig({
+  // JSX for the component tests (the ones that drive the meal-building UI the
+  // way a user does). esbuild compiles it with React's automatic runtime —
+  // @vitejs/plugin-react is built against a newer vite than vitest ships, and
+  // the tests need no fast-refresh.
+  esbuild: { jsx: "automatic" },
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts"],
+    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
     globals: true,
     coverage: {
       provider: "v8",
