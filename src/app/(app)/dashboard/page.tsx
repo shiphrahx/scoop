@@ -13,6 +13,7 @@ import {
   getProfile,
 } from "@/lib/queries";
 import { normalizePrefs } from "@/lib/nutrients";
+import { sumMacros } from "@/lib/types";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -48,6 +49,12 @@ export default async function DashboardPage() {
 
   const prefs = normalizePrefs(profile?.nutrient_prefs);
 
+  // Meals lined up in the day planner but not eaten yet. "Calories left" counts
+  // these against the target too, so the home ring reflects the day the user
+  // planned — not only what they've already eaten. Eaten planned meals are
+  // excluded here (they already show up in `consumed` via their food log).
+  const planned = sumMacros(plan.filter((p) => !p.logged_food_id));
+
   const coach = {
     headline: coachData.review.headline,
     detail: coachData.review.detail,
@@ -65,6 +72,7 @@ export default async function DashboardPage() {
         name={name}
         targets={targets}
         consumed={consumed}
+        planned={planned}
         coach={coach}
         planPrompt={planPrompt}
         prefs={prefs}
@@ -73,6 +81,7 @@ export default async function DashboardPage() {
         name={name}
         targets={targets}
         consumed={consumed}
+        planned={planned}
         coach={coach}
         weightHistory={weightHistory}
         activity={activity}

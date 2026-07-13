@@ -4,7 +4,7 @@ import ProgressRing from "@/components/ProgressRing";
 import { NutrientBars } from "@/components/NutrientBreakdown";
 import SignOutButton from "@/components/SignOutButton";
 import { WeightTrendChart, WeightVsExercise, SleepChart } from "@/components/Charts";
-import type { Activity, DailyTargets, Macros } from "@/lib/types";
+import { sumMacros, type Activity, type DailyTargets, type Macros } from "@/lib/types";
 import type { NutrientKey } from "@/lib/nutrients";
 
 function StatCard({
@@ -43,6 +43,7 @@ export default function DesktopDashboard({
   name,
   targets,
   consumed,
+  planned,
   coach,
   weightHistory,
   activity,
@@ -53,6 +54,7 @@ export default function DesktopDashboard({
   name: string;
   targets: DailyTargets | null;
   consumed: Macros;
+  planned: Macros;
   coach: { headline: string; detail: string };
   weightHistory: { date: string; weight_kg: number }[];
   activity: Activity[];
@@ -60,9 +62,12 @@ export default function DesktopDashboard({
   planPrompt: { hasPlan: boolean } | null;
   prefs: NutrientKey[];
 }) {
-  const kcalLeft = targets ? Math.max(0, Math.round(targets.kcal - consumed.kcal)) : 0;
+  // Eaten food plus meals planned for later today — what the day is committed
+  // to. "Left" figures budget against this, not eaten alone.
+  const committed = sumMacros([consumed, planned]);
+  const kcalLeft = targets ? Math.max(0, Math.round(targets.kcal - committed.kcal)) : 0;
   const proteinLeft = targets
-    ? Math.max(0, Math.round(targets.protein_g - consumed.protein_g))
+    ? Math.max(0, Math.round(targets.protein_g - committed.protein_g))
     : 0;
 
   const weightPts = weightHistory.map((w) => ({
@@ -188,7 +193,7 @@ export default function DesktopDashboard({
             <h2 className="self-start text-lg font-semibold">Today</h2>
             {targets ? (
               <>
-                <ProgressRing value={consumed.kcal} max={targets.kcal} size={190} stroke={18}>
+                <ProgressRing value={committed.kcal} max={targets.kcal} size={190} stroke={18}>
                   <div>
                     <p className="text-5xl font-bold tabular-nums leading-tight">
                       {kcalLeft}
@@ -197,7 +202,7 @@ export default function DesktopDashboard({
                   </div>
                 </ProgressRing>
                 <div className="flex w-full flex-col gap-3">
-                  <NutrientBars prefs={prefs} consumed={consumed} target={targets} />
+                  <NutrientBars prefs={prefs} consumed={committed} target={targets} />
                 </div>
               </>
             ) : (

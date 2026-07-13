@@ -254,6 +254,23 @@ export interface PlannedMeal extends Macros {
   logged_food_id: string | null;
 }
 
+// Sum any list of macro-bearing rows (food logs, planned meals) into one total.
+export function sumMacros(rows: Macros[]): Required<Macros> {
+  return rows.reduce<Required<Macros>>(
+    (s, r) => ({
+      kcal: s.kcal + Number(r.kcal),
+      protein_g: s.protein_g + Number(r.protein_g),
+      carbs_g: s.carbs_g + Number(r.carbs_g),
+      fat_g: s.fat_g + Number(r.fat_g),
+      fiber_g: s.fiber_g + Number(r.fiber_g ?? 0),
+      sugar_g: s.sugar_g + Number(r.sugar_g ?? 0),
+      satfat_g: s.satfat_g + Number(r.satfat_g ?? 0),
+      sodium_mg: s.sodium_mg + Number(r.sodium_mg ?? 0),
+    }),
+    { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, fiber_g: 0, sugar_g: 0, satfat_g: 0, sodium_mg: 0 },
+  );
+}
+
 // Sum a list of picked foods into a meal's total macros (all nutrients).
 export function sumItems(items: PlanItem[]): Required<Macros> {
   return items.reduce<Required<Macros>>(

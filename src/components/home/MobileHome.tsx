@@ -3,7 +3,7 @@ import { UtensilsCrossed, Scale, CookingPot, Package, Sparkles, ChevronRight, Ca
 import ProgressRing from "@/components/ProgressRing";
 import { NutrientBars } from "@/components/NutrientBreakdown";
 import SignOutButton from "@/components/SignOutButton";
-import type { DailyTargets, Macros } from "@/lib/types";
+import { sumMacros, type DailyTargets, type Macros } from "@/lib/types";
 import type { NutrientKey } from "@/lib/nutrients";
 
 const quickActions = [
@@ -17,6 +17,7 @@ export default function MobileHome({
   name,
   targets,
   consumed,
+  planned,
   coach,
   planPrompt,
   prefs,
@@ -24,11 +25,15 @@ export default function MobileHome({
   name: string;
   targets: DailyTargets | null;
   consumed: Macros;
+  planned: Macros;
   coach: { headline: string; detail: string };
   planPrompt: { hasPlan: boolean } | null;
   prefs: NutrientKey[];
 }) {
-  const kcalLeft = targets ? Math.max(0, Math.round(targets.kcal - consumed.kcal)) : 0;
+  // Everything the day is spoken for: eaten food + meals lined up but not yet
+  // eaten. The ring and "left" figures budget against this, not eaten alone.
+  const committed = sumMacros([consumed, planned]);
+  const kcalLeft = targets ? Math.max(0, Math.round(targets.kcal - committed.kcal)) : 0;
 
   return (
     <main className="flex flex-1 flex-col gap-5 px-5 pt-8 pb-6 lg:hidden">
@@ -67,7 +72,7 @@ export default function MobileHome({
         <>
           {/* Hero: the signature calorie ring. */}
           <section className="sc-card flex flex-col items-center gap-2 px-6 py-8">
-            <ProgressRing value={consumed.kcal} max={targets.kcal} size={230} stroke={20}>
+            <ProgressRing value={committed.kcal} max={targets.kcal} size={230} stroke={20}>
               <div>
                 <p className="text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
                   Calories left
@@ -81,13 +86,14 @@ export default function MobileHome({
               </div>
             </ProgressRing>
             <p className="text-sm text-[var(--muted)]">
-              {Math.round(consumed.kcal)} eaten today
+              {Math.round(consumed.kcal)} eaten
+              {planned.kcal > 0 && ` · ${Math.round(planned.kcal)} planned`}
             </p>
           </section>
 
           {/* Macros left */}
           <section className="sc-card flex flex-col gap-4 p-5">
-            <NutrientBars prefs={prefs} consumed={consumed} target={targets} />
+            <NutrientBars prefs={prefs} consumed={committed} target={targets} />
           </section>
         </>
       ) : (
