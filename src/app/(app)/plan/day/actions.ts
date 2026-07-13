@@ -35,7 +35,7 @@ async function pantryFoods(
 ): Promise<PantryFood[]> {
   const { data } = await supabase
     .from("pantry_items")
-    .select("name, kcal_100g, protein_100g, carbs_100g, fat_100g");
+    .select("name, kcal_100g, protein_100g, carbs_100g, fat_100g, pack_size_g, quantity");
   return (
     (data as Array<{
       name: string;
@@ -43,18 +43,27 @@ async function pantryFoods(
       protein_100g: number;
       carbs_100g: number;
       fat_100g: number;
+      pack_size_g: number | null;
+      quantity: number | null;
     }>) ?? []
   )
     // Only offer foods the user can actually eat — diet, allergies and dislikes
     // all excluded, so nothing they'd reject reaches the plan.
     .filter((p) => isFoodAllowed(p.name, diet, allergies, dislikes))
-    .map((p) => ({
-      name: p.name,
-      kcal_100g: Number(p.kcal_100g),
-      protein_100g: Number(p.protein_100g),
-      carbs_100g: Number(p.carbs_100g),
-      fat_100g: Number(p.fat_100g),
-    }));
+    .map((p) => {
+      // How much is in stock: pack size × number of packs. Left undefined when
+      // the item has no pack size, so the planner won't cap it.
+      const pack = p.pack_size_g != null ? Number(p.pack_size_g) : null;
+      const qty = p.quantity != null ? Math.max(1, Number(p.quantity)) : 1;
+      return {
+        name: p.name,
+        kcal_100g: Number(p.kcal_100g),
+        protein_100g: Number(p.protein_100g),
+        carbs_100g: Number(p.carbs_100g),
+        fat_100g: Number(p.fat_100g),
+        available_g: pack != null ? pack * qty : undefined,
+      };
+    });
 }
 
 // Look up foods to add to a meal — only the pantry the user already has. Planning

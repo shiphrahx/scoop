@@ -120,6 +120,8 @@ export default function BuildWizard({
         protein_100g: p.protein_100g,
         carbs_100g: p.carbs_100g,
         fat_100g: p.fat_100g,
+        // Don't portion more than the pack holds (unknown → no cap).
+        available_g: p.pack_size_g != null ? p.pack_size_g : undefined,
       });
       setScanNote(null);
       next();

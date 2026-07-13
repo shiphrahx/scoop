@@ -18,13 +18,17 @@ import type {
   PlannedSlot,
 } from "@/lib/types";
 
-// A pantry item reduced to what the planner needs: a name and per-100g macros.
+// A pantry item reduced to what the planner needs: a name, per-100g macros, and
+// how much is actually in stock. available_g caps a portion — we can't suggest
+// more tofu than the pack holds. Undefined means the amount is unknown (no pack
+// size on the item), so no stock cap applies.
 export interface PantryFood {
   name: string;
   kcal_100g: number;
   protein_100g: number;
   carbs_100g: number;
   fat_100g: number;
+  available_g?: number;
 }
 
 // Generous per-portion ceilings (grams) — a safety net against an absurd amount
@@ -47,6 +51,11 @@ const KEY_TO_100: Record<MacroKey, keyof PantryFood> = {
 
 const clamp = (n: number, lo: number, hi: number) =>
   Math.max(lo, Math.min(hi, n));
+
+// The most grams of a food a single portion may use: the generous per-macro
+// ceiling, but never more than what's in stock.
+const capFor = (food: PantryFood, key: MacroKey) =>
+  Math.min(CAP[key], food.available_g ?? Infinity);
 
 // Per-gram amount of one macro in a food.
 const perGram = (food: PantryFood, key: MacroKey) =>
@@ -129,7 +138,7 @@ function buildMeal(
 
   const portions: Portion[] = [];
   srcs.forEach((s, i) => {
-    const g = clamp(Math.round(grams![i]), 0, CAP[s.key]);
+    const g = clamp(Math.round(grams![i]), 0, capFor(s.food, s.key));
     if (g >= MIN_PORTION) portions.push({ food: s.food, grams: g });
   });
   return { portions, totals: sumPortions(portions) };
@@ -147,7 +156,7 @@ function greedyMeal(
   let needCarb = target.carbs_g;
   let needFat = target.fat_g;
   const push = (food: PantryFood, grams: number, key: MacroKey) => {
-    const g = clamp(Math.round(grams), 0, CAP[key]);
+    const g = clamp(Math.round(grams), 0, capFor(food, key));
     if (g >= MIN_PORTION) portions.push({ food, grams: g });
     return g;
   };
