@@ -146,6 +146,17 @@ export interface OffProduct extends ExtraPer100g {
   pack_size_g: number | null;
 }
 
+// One grocery product read from its web page (per 100 g), for the pantry. Comes
+// from the page's structured data / Open Food Facts when possible, AI otherwise.
+export interface ParsedProduct extends ExtraPer100g {
+  name: string;
+  kcal_100g: number;
+  protein_100g: number;
+  carbs_100g: number;
+  fat_100g: number;
+  pack_size_g: number | null;
+}
+
 // One line of a parsed recipe.
 export interface RecipeIngredient {
   name: string;
