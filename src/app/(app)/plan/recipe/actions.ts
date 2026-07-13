@@ -76,7 +76,7 @@ export async function logRecipeServings(
   if (error) throw new Error(error.message);
 
   revalidatePath("/");
-  revalidatePath("/add");
+  revalidatePath("/plan/day");
 }
 
 export async function deleteRecipe(id: string) {

@@ -32,7 +32,6 @@ async function requireUser() {
 function revalidate() {
   revalidatePath("/plan/day");
   revalidatePath("/dashboard");
-  revalidatePath("/add");
 }
 
 // Every pantry item with its per-100g macros, filtered to what the diet allows

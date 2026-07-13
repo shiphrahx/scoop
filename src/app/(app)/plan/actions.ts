@@ -86,5 +86,5 @@ export async function logSuggestion(meal: MealSuggestion) {
   if (error) throw new Error(error.message);
 
   revalidatePath("/");
-  revalidatePath("/add");
+  revalidatePath("/plan/day");
 }

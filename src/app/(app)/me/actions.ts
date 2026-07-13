@@ -153,7 +153,6 @@ export async function saveNutrientPrefs(prefs: string[]) {
   revalidatePath("/me");
   revalidatePath("/dashboard");
   revalidatePath("/plan/day");
-  revalidatePath("/add");
 }
 
 export async function clearApiKey() {
