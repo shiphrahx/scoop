@@ -24,5 +24,18 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Coverage thresholds are a ratchet (see vitest.config.ts) — a change that
+      # drops coverage of the maths fails here rather than merging quietly.
       - name: Run tests
-        run: npm test
+        run: npm run test:coverage
+
+      # Nothing else proves the app still compiles: a type error inside a server
+      # component or a bad import never shows up in the unit tests.
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: build-only-placeholder

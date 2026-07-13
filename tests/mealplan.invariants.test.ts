@@ -224,10 +224,10 @@ describe("planPantryDay invariants", () => {
         for (const meal of plan) {
           const summed = meal.portions.reduce(
             (s, p) => ({
-              kcal: s.kcal + p.kcal,
-              protein_g: s.protein_g + p.protein_g,
-              carbs_g: s.carbs_g + p.carbs_g,
-              fat_g: s.fat_g + p.fat_g,
+              kcal: s.kcal + (p.kcal ?? 0),
+              protein_g: s.protein_g + (p.protein_g ?? 0),
+              carbs_g: s.carbs_g + (p.carbs_g ?? 0),
+              fat_g: s.fat_g + (p.fat_g ?? 0),
             }),
             { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
           );
