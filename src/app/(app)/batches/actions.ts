@@ -43,17 +43,35 @@ export async function createBatch(input: CreateBatchInput) {
 export async function eatFromBatch(id: string, grams: number) {
   const { supabase, user } = await requireUser();
 
+  // A serving has to be a real amount of food. A negative one logged negative
+  // macros (handing the day's budget calories back) and, through
+  // Math.max(0, remaining - grams), ADDED the weight to the pot.
+  if (!Number.isFinite(grams) || grams <= 0) {
+    throw new Error("Serving must be more than 0 g");
+  }
+
   const { data: batch, error: readError } = await supabase
     .from("batches")
     .select(
       "name, total_cooked_g, remaining_g, kcal, protein_g, carbs_g, fat_g",
     )
     .eq("id", id)
+    // Scope to the owner here as well as in RLS: the action shouldn't be the
+    // one thing standing between a guessed id and someone else's data.
+    .eq("user_id", user.id)
     .single();
   if (readError) throw new Error(readError.message);
 
   const totalG = Number(batch.total_cooked_g);
   if (totalG <= 0) throw new Error("Batch has no weight recorded");
+
+  // Don't serve food that isn't in the pot: the log would claim macros for it
+  // and the pot would silently floor at 0.
+  const remainingG = Number(batch.remaining_g);
+  if (grams > remainingG) {
+    throw new Error(`There's only ${Math.round(remainingG)} g left in this batch`);
+  }
+
   const f = grams / totalG;
 
   const { error: logError } = await supabase.from("food_logs").insert({
@@ -68,11 +86,12 @@ export async function eatFromBatch(id: string, grams: number) {
   });
   if (logError) throw new Error(logError.message);
 
-  const remaining = Math.max(0, Number(batch.remaining_g) - grams);
+  const remaining = Math.max(0, remainingG - grams);
   const { error: updateError } = await supabase
     .from("batches")
     .update({ remaining_g: remaining })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("user_id", user.id);
   if (updateError) throw new Error(updateError.message);
 
   revalidatePath("/batches");
@@ -80,8 +99,12 @@ export async function eatFromBatch(id: string, grams: number) {
 }
 
 export async function deleteBatch(id: string) {
-  const { supabase } = await requireUser();
-  const { error } = await supabase.from("batches").delete().eq("id", id);
+  const { supabase, user } = await requireUser();
+  const { error } = await supabase
+    .from("batches")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
   if (error) throw new Error(error.message);
 
   revalidatePath("/batches");
