@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { isFoodAllowed } from "@/lib/ai";
 import { planPantryDay, type DayPicks, type PantryFood } from "@/lib/mealplan";
+import { parseOrThrow, portionGramsSchema } from "@/lib/validate";
 import {
   getCurrentTargets,
   getProfile,
@@ -186,6 +187,12 @@ function portionsName(portions: MealPortion[]): string {
 // and the day stay exact. Removing every portion clears the slot.
 export async function setMealPortions(id: string, portions: MealPortion[]) {
   const { supabase, user } = await requireUser();
+
+  // The grams come off a slider. A NaN would be summed into the meal, then into
+  // the day, and every total downstream reads NaN from then on.
+  for (const p of portions) {
+    parseOrThrow(portionGramsSchema, p.grams, `Portion of ${p.name}`);
+  }
 
   if (portions.length === 0) {
     const { error } = await supabase

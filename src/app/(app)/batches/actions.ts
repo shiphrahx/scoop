@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
+import { gramsSchema, parseOrThrow } from "@/lib/validate";
 import type { SourcePack } from "@/lib/types";
 
 export interface CreateBatchInput {
@@ -14,6 +15,10 @@ export interface CreateBatchInput {
 // is derived later from these totals and total_cooked_g.
 export async function createBatch(input: CreateBatchInput) {
   const { supabase, user } = await requireUser();
+
+  // The cooked weight is the denominator for every serving taken from this pot
+  // for the next week. A zero or a typo here misprices all of them.
+  parseOrThrow(gramsSchema, input.total_cooked_g, "Cooked weight");
 
   const totals = input.source_packs.reduce(
     (sum, p) => ({
@@ -46,9 +51,7 @@ export async function eatFromBatch(id: string, grams: number) {
   // A serving has to be a real amount of food. A negative one logged negative
   // macros (handing the day's budget calories back) and, through
   // Math.max(0, remaining - grams), ADDED the weight to the pot.
-  if (!Number.isFinite(grams) || grams <= 0) {
-    throw new Error("Serving must be more than 0 g");
-  }
+  parseOrThrow(gramsSchema, grams, "Serving must be more than 0 g — this");
 
   const { data: batch, error: readError } = await supabase
     .from("batches")
