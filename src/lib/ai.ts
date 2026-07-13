@@ -47,6 +47,27 @@ async function getClient(): Promise<Anthropic> {
   return new Anthropic({ apiKey: decryptSecret(stored) });
 }
 
+// Every AI feature here is the same shape: one user turn, adaptive thinking, and
+// a Zod-validated structured output. This wraps that boilerplate so each caller
+// only supplies its schema, system prompt, and message content.
+async function parseStructured<S extends z.ZodType>(
+  client: Anthropic,
+  schema: S,
+  system: string,
+  content: Anthropic.MessageParam["content"],
+  maxTokens = 4096,
+): Promise<z.infer<S> | null> {
+  const res = await client.messages.parse({
+    model: MODEL,
+    max_tokens: maxTokens,
+    thinking: { type: "adaptive" },
+    system,
+    messages: [{ role: "user", content }],
+    output_config: { format: zodOutputFormat(schema) },
+  });
+  return res.parsed_output ?? null;
+}
+
 // --- Diet rules -------------------------------------------------------------
 
 // Human-readable rule injected into every prompt so the model never suggests
@@ -158,31 +179,23 @@ export async function parseGroceryImage(
   mediaType: "image/png" | "image/jpeg" | "image/webp",
 ): Promise<GroceryItem[]> {
   const client = await getClient();
-  const res = await client.messages.parse({
-    model: MODEL,
-    max_tokens: 4096,
-    thinking: { type: "adaptive" },
-    system:
-      "You read grocery shopping screenshots (order confirmations, receipts, " +
+  const parsed = await parseStructured(
+    client,
+    GrocerySchema,
+    "You read grocery shopping screenshots (order confirmations, receipts, " +
       "delivery baskets) and list the food items. For each item estimate " +
       "typical macros PER 100 GRAMS from your nutrition knowledge; use 0 when " +
       "you truly cannot estimate. Skip non-food items.",
-    messages: [
+    [
       {
-        role: "user",
-        content: [
-          {
-            type: "image",
-            source: { type: "base64", media_type: mediaType, data: base64 },
-          },
-          { type: "text", text: "List the food items in this screenshot." },
-        ],
+        type: "image",
+        source: { type: "base64", media_type: mediaType, data: base64 },
       },
+      { type: "text", text: "List the food items in this screenshot." },
     ],
-    output_config: { format: zodOutputFormat(GrocerySchema) },
-  });
+  );
 
-  return res.parsed_output?.items ?? [];
+  return parsed?.items ?? [];
 }
 
 // --- Recipe import (URL or screenshot) → parsed recipe ----------------------
@@ -255,22 +268,15 @@ export async function parseRecipeFromUrl(url: string): Promise<ParsedRecipe> {
   }
 
   const text = htmlToText(html);
-  const res = await client.messages.parse({
-    model: MODEL,
-    max_tokens: 4096,
-    thinking: { type: "adaptive" },
-    system: RECIPE_SYSTEM,
-    messages: [
-      {
-        role: "user",
-        content: `Read this recipe page and return the recipe.\n\n${text}`,
-      },
-    ],
-    output_config: { format: zodOutputFormat(RecipeSchema) },
-  });
+  const parsed = await parseStructured(
+    client,
+    RecipeSchema,
+    RECIPE_SYSTEM,
+    `Read this recipe page and return the recipe.\n\n${text}`,
+  );
 
-  if (!res.parsed_output) throw new Error("Couldn't read a recipe there.");
-  return res.parsed_output;
+  if (!parsed) throw new Error("Couldn't read a recipe there.");
+  return parsed;
 }
 
 export async function parseRecipeFromImage(
@@ -278,28 +284,16 @@ export async function parseRecipeFromImage(
   mediaType: "image/png" | "image/jpeg" | "image/webp",
 ): Promise<ParsedRecipe> {
   const client = await getClient();
-  const res = await client.messages.parse({
-    model: MODEL,
-    max_tokens: 4096,
-    thinking: { type: "adaptive" },
-    system: RECIPE_SYSTEM,
-    messages: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "image",
-            source: { type: "base64", media_type: mediaType, data: base64 },
-          },
-          { type: "text", text: "Read the recipe in this image." },
-        ],
-      },
-    ],
-    output_config: { format: zodOutputFormat(RecipeSchema) },
-  });
+  const parsed = await parseStructured(client, RecipeSchema, RECIPE_SYSTEM, [
+    {
+      type: "image",
+      source: { type: "base64", media_type: mediaType, data: base64 },
+    },
+    { type: "text", text: "Read the recipe in this image." },
+  ]);
 
-  if (!res.parsed_output) throw new Error("Couldn't read a recipe there.");
-  return res.parsed_output;
+  if (!parsed) throw new Error("Couldn't read a recipe there.");
+  return parsed;
 }
 
 // --- Plan a meal: dishes from pantry + diet + remaining macros --------------
@@ -355,29 +349,22 @@ export async function suggestMeals(
     "macros left today as closely as possible, plus a couple of optional " +
     "ingredient `swaps`. Keep the totals for the portions you list.";
 
-  const res = await client.messages.parse({
-    model: MODEL,
-    max_tokens: 4096,
-    thinking: { type: "adaptive" },
+  const parsed = await parseStructured(
+    client,
+    SuggestSchema,
     system,
-    messages: [
-      {
-        role: "user",
-        content: JSON.stringify({
-          pantry: input.pantry,
-          chosen_carb: input.carb ?? null,
-          chosen_protein: input.protein ?? null,
-          allergies: input.allergies,
-          dislikes: input.dislikes,
-          macros_left_today: input.remaining,
-          how_many: 3,
-        }),
-      },
-    ],
-    output_config: { format: zodOutputFormat(SuggestSchema) },
-  });
+    JSON.stringify({
+      pantry: input.pantry,
+      chosen_carb: input.carb ?? null,
+      chosen_protein: input.protein ?? null,
+      allergies: input.allergies,
+      dislikes: input.dislikes,
+      macros_left_today: input.remaining,
+      how_many: 3,
+    }),
+  );
 
-  const meals = res.parsed_output?.meals ?? [];
+  const meals = parsed?.meals ?? [];
   // Final guard: drop anything that slipped past the diet rule.
   return meals.filter(
     (m) =>
@@ -432,23 +419,17 @@ export async function estimateMeals(
     `${dietRule(diet)}\n` +
     "Estimate from typical recipes; don't refuse — give your best numeric guess.";
 
-  const res = await client.messages.parse({
-    model: MODEL,
-    max_tokens: 2048,
-    thinking: { type: "adaptive" },
+  const parsed = await parseStructured(
+    client,
+    EstimateSchema,
     system,
-    messages: [
-      {
-        role: "user",
-        content: JSON.stringify({
-          meals: clean.map((e) => ({ slot: e.slot, description: e.text.trim() })),
-        }),
-      },
-    ],
-    output_config: { format: zodOutputFormat(EstimateSchema) },
-  });
+    JSON.stringify({
+      meals: clean.map((e) => ({ slot: e.slot, description: e.text.trim() })),
+    }),
+    2048,
+  );
 
-  return res.parsed_output?.meals ?? [];
+  return parsed?.meals ?? [];
 }
 
 // --- Plan a whole day: fill the empty meal slots to hit the day's macros -----
@@ -512,28 +493,21 @@ export async function planDay(input: PlanDayInput): Promise<PlannedSlot[]> {
     "`macros_to_fill` (what's left of the day after the decided meals). Prefer " +
     "pantry items. Return exactly one meal per empty slot, in order.";
 
-  const res = await client.messages.parse({
-    model: MODEL,
-    max_tokens: 4096,
-    thinking: { type: "adaptive" },
+  const parsed = await parseStructured(
+    client,
+    PlanDaySchema,
     system,
-    messages: [
-      {
-        role: "user",
-        content: JSON.stringify({
-          pantry: input.pantry,
-          allergies: input.allergies,
-          dislikes: input.dislikes,
-          already_planned: input.fixed,
-          macros_to_fill: remaining,
-          empty_slots: input.emptySlots,
-        }),
-      },
-    ],
-    output_config: { format: zodOutputFormat(PlanDaySchema) },
-  });
+    JSON.stringify({
+      pantry: input.pantry,
+      allergies: input.allergies,
+      dislikes: input.dislikes,
+      already_planned: input.fixed,
+      macros_to_fill: remaining,
+      empty_slots: input.emptySlots,
+    }),
+  );
 
-  const meals = res.parsed_output?.meals ?? [];
+  const meals = parsed?.meals ?? [];
   // Guard the AI dishes against the diet.
   return meals.filter(
     (m) =>
