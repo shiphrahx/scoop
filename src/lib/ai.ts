@@ -296,6 +296,69 @@ export async function parseRecipeFromImage(
   return parsed;
 }
 
+// --- Product page (shop URL) → pantry item ----------------------------------
+
+const ProductSchema = z.object({
+  name: z.string(),
+  kcal_100g: z.number(),
+  protein_100g: z.number(),
+  carbs_100g: z.number(),
+  fat_100g: z.number(),
+  fiber_100g: z.number(),
+  sugar_100g: z.number(),
+  satfat_100g: z.number(),
+  sodium_mg_100g: z.number(),
+  // Grams in the whole pack, read from the product title/quantity ("500g").
+  // Null when the page doesn't say.
+  pack_size_g: z.number().nullable(),
+});
+
+export interface ParsedProduct extends ExtraPer100g {
+  name: string;
+  kcal_100g: number;
+  protein_100g: number;
+  carbs_100g: number;
+  fat_100g: number;
+  pack_size_g: number | null;
+}
+
+// Read a shop product page (Tesco, Ocado, Lidl, a brand site, anywhere) into one
+// pantry item. Grocery sites print a nutrition table per 100 g, so we pull those
+// straight through; pack size comes from the product title. Needs the user's key.
+export async function parseProductFromUrl(url: string): Promise<ParsedProduct> {
+  let html: string;
+  try {
+    html = await safeFetchText(url, {
+      userAgent: "Scoop/0.1 product importer",
+    });
+  } catch (e) {
+    if (e instanceof BlockedUrlError) throw new Error(e.message);
+    throw new Error("Couldn't fetch that page. Check the link.");
+  }
+
+  const client = await getClient();
+  const text = htmlToText(html);
+  const parsed = await parseStructured(
+    client,
+    ProductSchema,
+    "You read a single grocery product's web page and return its nutrition. " +
+      "name is the product's name (with brand and pack size if shown). The " +
+      "macro fields are PER 100 GRAMS as printed in the nutrition table: " +
+      "kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, " +
+      "satfat_100g (saturated fat), sodium_mg_100g (sodium in mg — convert from " +
+      "salt if only salt is given: sodium = salt_g / 2.5 × 1000). Use 0 for any " +
+      "macro the page doesn't give. pack_size_g is the total grams in the pack " +
+      "from the title/quantity (e.g. '500g' → 500, '1kg' → 1000), or null if " +
+      "not stated. If the page isn't a food product, return name '' and zeros.",
+    `Read this product page and return its nutrition.\n\n${text}`,
+  );
+
+  if (!parsed || !parsed.name.trim()) {
+    throw new Error("Couldn't read a product there.");
+  }
+  return parsed;
+}
+
 // --- Plan a meal: dishes from pantry + diet + remaining macros --------------
 
 const SuggestSchema = z.object({
