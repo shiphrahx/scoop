@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, ScanBarcode, Pencil, AlertTriangle, AlertCircle } from "lucide-react";
 import type { FoodChoice, Macros, MealPortion, OffProduct, PlannedMeal, PlanItem } from "@/lib/types";
 import { sumItems } from "@/lib/types";
+import { parseFoodQuery } from "@/lib/foodquery";
 import {
   NUTRIENTS,
   valueOf,
@@ -43,53 +44,6 @@ function dayTotal(slots: Slot[]): Macros {
         : s,
     { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
   );
-}
-
-// Weight units we understand in the "add a food" box, in grams.
-const UNIT_G: Record<string, number> = {
-  kg: 1000, kilo: 1000, kilos: 1000, kilogram: 1000, kilograms: 1000,
-  g: 1, gram: 1, grams: 1,
-  oz: 28.35, ounce: 28.35, ounces: 28.35,
-  l: 1000, litre: 1000, litres: 1000, liter: 1000, liters: 1000,
-  ml: 1, milliliter: 1, milliliters: 1,
-};
-const UNIT = Object.keys(UNIT_G).join("|");
-
-// Rough grams for size words when no exact weight is given. Food-agnostic
-// guesses the user can adjust after adding.
-const SIZE_G: Record<string, number> = {
-  small: 80, regular: 120, medium: 120, large: 180, big: 180, jumbo: 220, xl: 220,
-};
-const SIZE = Object.keys(SIZE_G).join("|");
-
-// Pull the amount out of a food query so the user can type the item and how
-// much in one go. Handles exact weights ("50g shreddies", "rice 200 g") and
-// size words ("medium banana"). Returns the grams (null when none given) and
-// the food name to search on — size words are stripped so the search matches
-// the food, not the adjective.
-function parseFoodQuery(raw: string): { grams: number | null; term: string } {
-  let s = raw.trim();
-
-  // Strip a size word first (it isn't part of the food name) and remember its
-  // default grams. An explicit weight, if also present, wins below.
-  let sizeGrams: number | null = null;
-  const sizeMatch = s.match(new RegExp(`(?:^|\\s)(${SIZE})(?:\\s|$)`, "i"));
-  if (sizeMatch) {
-    sizeGrams = SIZE_G[sizeMatch[1].toLowerCase()];
-    s = s.replace(new RegExp(`(?:^|\\s)(${SIZE})(?:\\s|$)`, "i"), " ").replace(/\s+/g, " ").trim();
-  }
-
-  const lead = s.match(new RegExp(`^\\s*(\\d+(?:\\.\\d+)?)\\s*(${UNIT})\\b\\s*(.+)$`, "i"));
-  if (lead) return { grams: toGrams(lead[1], lead[2]), term: lead[3].trim() };
-  const trail = s.match(new RegExp(`^(.+?)\\s+(\\d+(?:\\.\\d+)?)\\s*(${UNIT})\\b\\s*$`, "i"));
-  if (trail) return { grams: toGrams(trail[2], trail[3]), term: trail[1].trim() };
-
-  return { grams: sizeGrams, term: s };
-}
-
-function toGrams(value: string, unit: string): number {
-  const g = Number(value) * (UNIT_G[unit.toLowerCase()] ?? 1);
-  return Math.max(1, Math.round(g));
 }
 
 // The macros a single item contributes at its current portion — shown under
