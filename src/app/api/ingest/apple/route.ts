@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hashToken } from "@/lib/crypto";
+import { logError } from "@/lib/log";
 
 // POST /api/ingest/apple — the "Health Auto Export" iOS app posts Apple Watch
 // health data here on a schedule. There's no Supabase session, so it proves who
@@ -110,6 +111,7 @@ export async function POST(request: NextRequest) {
     .from("activity")
     .upsert(rows, { onConflict: "user_id,date" });
   if (error) {
+    logError("apple ingest activity upsert", error);
     return NextResponse.json({ error: "write_failed" }, { status: 500 });
   }
 

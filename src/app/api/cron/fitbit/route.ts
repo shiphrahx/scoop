@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
+import { logError } from "@/lib/log";
 import { getDay, refreshTokens, type FitbitTokens } from "@/lib/fitbit";
 
 // GET /api/cron/fitbit — scheduled pull of the last 7 days of Fitbit data for
@@ -67,8 +68,10 @@ export async function GET(request: NextRequest) {
         .from("activity")
         .upsert(activityRows, { onConflict: "user_id,date" });
       synced++;
-    } catch {
-      // One user's failure shouldn't stop the rest.
+    } catch (err) {
+      // One user's failure shouldn't stop the rest — but log it so a broken
+      // sync (revoked token, Fitbit outage) is visible rather than silent.
+      logError(`cron fitbit sync for user ${t.user_id}`, err);
       continue;
     }
   }
