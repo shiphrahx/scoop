@@ -2,10 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { estimateMeals, violatesDiet, type KnownMeal } from "@/lib/ai";
+import { estimateMeals, isFoodAllowed, type KnownMeal } from "@/lib/ai";
 import {
   planPantryDay,
   suggestPantryMeals,
+  type DayPicks,
   type PantryFood,
 } from "@/lib/mealplan";
 import { searchProducts } from "@/lib/off";
@@ -46,6 +47,8 @@ function revalidate() {
 async function pantryFoods(
   supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
   diet: DietType,
+  allergies: string[],
+  dislikes: string[],
 ): Promise<PantryFood[]> {
   const { data } = await supabase
     .from("pantry_items")
@@ -59,7 +62,9 @@ async function pantryFoods(
       fat_100g: number;
     }>) ?? []
   )
-    .filter((p) => !violatesDiet(p.name, diet))
+    // Only offer foods the user can actually eat — diet, allergies and dislikes
+    // all excluded, so nothing they'd reject reaches the plan.
+    .filter((p) => isFoodAllowed(p.name, diet, allergies, dislikes))
     .map((p) => ({
       name: p.name,
       kcal_100g: Number(p.kcal_100g),
@@ -223,7 +228,7 @@ export async function clearSlot(slot: string) {
 // Fill every empty slot from the pantry so the day's totals hit target. Meals
 // the user already built (manual) and already ate (logged) are left untouched;
 // the AI just budgets around their macros.
-export async function planMyDay() {
+export async function planMyDay(picks?: DayPicks) {
   const { supabase, user } = await requireUser();
 
   const [profile, targets, consumed, plan] = await Promise.all([
@@ -234,7 +239,12 @@ export async function planMyDay() {
   ]);
   if (!profile) throw new Error("Finish onboarding first");
   if (!targets) throw new Error("No macro target yet — finish onboarding.");
-  const pantry = await pantryFoods(supabase, profile.diet_type);
+  const pantry = await pantryFoods(
+    supabase,
+    profile.diet_type,
+    profile.allergies ?? [],
+    profile.dislikes ?? [],
+  );
 
   const slotNames = profile.meal_slots ?? [];
   const bySlot = new Map(plan.map((p) => [p.slot, p]));
@@ -265,7 +275,7 @@ export async function planMyDay() {
     fat_g: Math.max(0, Math.round(targets.fat_g - consumed.fat_g)),
   };
 
-  const meals = planPantryDay({ pantry, budget, fixed, emptySlots });
+  const meals = planPantryDay({ pantry, budget, fixed, emptySlots, picks });
 
   const bySlotResult = new Map(meals.map((m) => [m.slot, m]));
   const rows = emptySlots
@@ -391,7 +401,12 @@ export async function suggestAround(
   if (!profile) throw new Error("Finish onboarding first");
   const [remaining, pantry] = await Promise.all([
     remainingToday(),
-    pantryFoods(supabase, profile.diet_type),
+    pantryFoods(
+      supabase,
+      profile.diet_type,
+      profile.allergies ?? [],
+      profile.dislikes ?? [],
+    ),
   ]);
   return suggestPantryMeals({ pantry, remaining, carb, protein });
 }
