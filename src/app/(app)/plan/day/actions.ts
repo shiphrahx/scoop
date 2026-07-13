@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { isFoodAllowed } from "@/lib/ai";
 import { planPantryDay, type DayPicks, type PantryFood } from "@/lib/mealplan";
-import { searchProducts } from "@/lib/off";
 import {
   getCurrentTargets,
   getProfile,
@@ -67,9 +66,9 @@ async function pantryFoods(
     }));
 }
 
-// Look up foods to add to a meal. Pantry items the user already has come first
-// (they're what we most want them eating); Open Food Facts fills the rest so
-// they can add anything. Deduped so a pantry item isn't repeated from the web.
+// Look up foods to add to a meal — only the pantry the user already has. Planning
+// the day is about eating down what's in stock, so the search never reaches the
+// web; when nothing matches, the UI offers to add the item to the pantry first.
 export async function searchFoods(query: string): Promise<FoodChoice[]> {
   const q = query.trim();
   if (q.length < 2) return [];
@@ -81,9 +80,9 @@ export async function searchFoods(query: string): Promise<FoodChoice[]> {
       "name, off_barcode, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, satfat_100g, sodium_mg_100g, pack_size_g",
     )
     .ilike("name", `%${q}%`)
-    .limit(6);
+    .limit(10);
 
-  const pantry: FoodChoice[] = (
+  return (
     (pantryData as Array<{
       name: string;
       off_barcode: string | null;
@@ -112,31 +111,6 @@ export async function searchFoods(query: string): Promise<FoodChoice[]> {
     sodium_mg_100g: Number(p.sodium_mg_100g ?? 0),
     pack_size_g: p.pack_size_g != null ? Number(p.pack_size_g) : null,
   }));
-
-  // Only reach out to the web if the pantry didn't clearly cover the query.
-  let web: FoodChoice[] = [];
-  if (pantry.length < 5) {
-    const seen = new Set(pantry.map((p) => p.name.toLowerCase()));
-    web = (await searchProducts(q, 6))
-      .filter((c) => !seen.has(c.name.toLowerCase()))
-      .map((c) => ({
-        name: c.name,
-        source: "off",
-        off_barcode: c.code,
-        brand: c.brand,
-        kcal_100g: c.kcal_100g,
-        protein_100g: c.protein_100g,
-        carbs_100g: c.carbs_100g,
-        fat_100g: c.fat_100g,
-        fiber_100g: c.fiber_100g,
-        sugar_100g: c.sugar_100g,
-        satfat_100g: c.satfat_100g,
-        sodium_mg_100g: c.sodium_mg_100g,
-        pack_size_g: c.pack_size_g,
-      }));
-  }
-
-  return [...pantry, ...web].slice(0, 10);
 }
 
 // Save the list of foods the user picked for a slot. Empty list clears the

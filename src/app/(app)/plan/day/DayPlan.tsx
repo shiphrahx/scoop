@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Check, X, Search, Plus, Minus, Package, Globe, Trash2, ScanBarcode } from "lucide-react";
+import Link from "next/link";
+import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, ScanBarcode } from "lucide-react";
 import type { FoodChoice, Macros, OffProduct, PlannedMeal, PlanItem } from "@/lib/types";
 import { sumItems } from "@/lib/types";
 import { NUTRIENTS, valueOf, formatNutrient, type NutrientKey } from "@/lib/nutrients";
@@ -443,7 +444,22 @@ function ItemPicker({
               </li>
             ))}
             {!searching && results.length === 0 && (
-              <li className="px-4 py-3 text-sm text-[var(--muted)]">No matches.</li>
+              <li>
+                <Link
+                  href={`/pantry/add?name=${encodeURIComponent(parsed.term)}`}
+                  className="flex w-full items-center gap-2 px-4 py-3 text-left transition hover:bg-[var(--fill-soft)]"
+                >
+                  <PackagePlus size={15} className="shrink-0 text-[var(--ink-teal)]" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium">
+                      Not in your pantry
+                    </span>
+                    <span className="block text-xs text-[var(--muted)]">
+                      Add &ldquo;{parsed.term}&rdquo; to the pantry?
+                    </span>
+                  </span>
+                </Link>
+              </li>
             )}
           </ul>
         )}

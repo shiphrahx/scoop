@@ -20,10 +20,11 @@ const empty = {
 };
 
 // Add something to the pantry: scan its barcode (fills name + per-100g macros
-// from Open Food Facts) or type it in.
-export default function PantryForm() {
+// from Open Food Facts) or type it in. `initialName` seeds the name field when
+// arriving from the day planner's "not in your pantry" prompt.
+export default function PantryForm({ initialName = "" }: { initialName?: string }) {
   const router = useRouter();
-  const [form, setForm] = useState(empty);
+  const [form, setForm] = useState({ ...empty, name: initialName });
   const [barcode, setBarcode] = useState<string | null>(null);
   const [packSize, setPackSize] = useState<number | null>(null);
   // Extra per-100g nutrients from a scan (kept out of the visible form).
