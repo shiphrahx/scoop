@@ -300,8 +300,10 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
     consistent,
   } = input;
 
-  // Not enough history yet — hold and ask for another week.
-  if (lastWeekAvgKg == null) {
+  // Not enough history yet — hold and ask for another week. A zero (or negative)
+  // average is not a weight, it's missing data: dividing by it below would give
+  // an infinite loss rate and "add calories, you're dropping too fast".
+  if (lastWeekAvgKg == null || lastWeekAvgKg <= 0 || thisWeekAvgKg <= 0) {
     return {
       macros: current,
       changed: false,

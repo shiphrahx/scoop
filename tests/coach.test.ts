@@ -334,6 +334,28 @@ describe("weeklyReview", () => {
     expect(r.changeKg).toBeNull();
   });
 
+  it("holds instead of dividing by a zero weight", () => {
+    // getCoachData falls back to 0 when a week has no weigh-ins. Zero isn't a
+    // weight — treating it as one makes the loss rate infinite, which used to
+    // read as "losing too fast" and ADD calories.
+    for (const weights of [
+      { thisWeekAvgKg: 90, lastWeekAvgKg: 0 },
+      { thisWeekAvgKg: 0, lastWeekAvgKg: 90 },
+    ]) {
+      const r = weeklyReview({
+        sex: "male",
+        ...weights,
+        waistDeltaCm: null,
+        current,
+        weeksOnTarget: 4,
+        consistent: true,
+      });
+      expect(r.changed).toBe(false);
+      expect(r.macros).toEqual(current);
+      expect(r.changePct).toBeNull();
+    }
+  });
+
   it("keeps macros on a healthy 0.5–1% weekly loss", () => {
     // 90 → 89.4 kg = 0.6667% loss (inside the band)
     const r = weeklyReview({
@@ -346,6 +368,23 @@ describe("weeklyReview", () => {
     expect(r.changed).toBe(false);
     expect(r.macros).toEqual(current);
     expect(r.changeKg).toBeCloseTo(0.6, 5);
+  });
+
+  it("treats both edges of the healthy band as healthy", () => {
+    // Exactly 0.5% (the floor) and exactly 1.0% (the ceiling) are inside the
+    // band — the comparisons are >= and <=, and an off-by-one here would either
+    // cut a user who is doing fine or leave one who is dropping too fast.
+    for (const thisWeekAvgKg of [99.5, 99]) {
+      const r = weeklyReview({
+        sex: "male",
+        thisWeekAvgKg,
+        lastWeekAvgKg: 100,
+        waistDeltaCm: null,
+        current,
+      });
+      expect(r.changed).toBe(false);
+      expect(r.macros).toEqual(current);
+    }
   });
 
   it("adds calories when losing too fast", () => {
