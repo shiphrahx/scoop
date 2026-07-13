@@ -87,7 +87,7 @@ function itemMacroLine(it: PlanItem): string {
   const m = sumItems([it]);
   return (
     `${Math.round(m.kcal)} kcal · ` +
-    `${Math.round(m.protein_g)} P · ${Math.round(m.carbs_g)} C · ${Math.round(m.fat_g)} F`
+    `Protein ${Math.round(m.protein_g)} g · Carbs ${Math.round(m.carbs_g)} g · Fat ${Math.round(m.fat_g)} g`
   );
 }
 
