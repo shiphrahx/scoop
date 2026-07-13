@@ -69,7 +69,8 @@ export default function MobileHome({
       )}
 
       {targets ? (
-        <>
+        // Tapping the ring or macros opens today's plan to act on what's left.
+        <Link href="/plan/day" className="flex flex-col gap-5 transition active:scale-[0.99]">
           {/* Hero: the signature calorie ring. */}
           <section className="sc-card flex flex-col items-center gap-2 px-6 py-8">
             <ProgressRing value={committed.kcal} max={targets.kcal} size={230} stroke={20}>
@@ -95,7 +96,7 @@ export default function MobileHome({
           <section className="sc-card flex flex-col gap-4 p-5">
             <NutrientBars prefs={prefs} consumed={committed} target={targets} />
           </section>
-        </>
+        </Link>
       ) : (
         <section className="sc-card grid place-items-center gap-2 p-8 text-center">
           <p className="text-sm text-[var(--muted)]">

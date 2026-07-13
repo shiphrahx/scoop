@@ -189,7 +189,10 @@ export default function DesktopDashboard({
 
         {/* Today summary */}
         <div className="flex flex-col gap-6">
-          <section className="sc-card flex flex-col items-center gap-4 p-6">
+          <Link
+            href="/plan/day"
+            className="sc-card flex flex-col items-center gap-4 p-6 transition hover:brightness-[1.01]"
+          >
             <h2 className="self-start text-lg font-semibold">Today</h2>
             {targets ? (
               <>
@@ -210,7 +213,7 @@ export default function DesktopDashboard({
                 Finish onboarding to see your targets.
               </p>
             )}
-          </section>
+          </Link>
 
           <Link
             href="/coach"
