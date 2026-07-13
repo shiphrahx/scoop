@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, ScanBarcode, Pencil } from "lucide-react";
-import type { FoodChoice, Macros, OffProduct, PlannedMeal, PlanItem } from "@/lib/types";
+import type { FoodChoice, Macros, MealPortion, OffProduct, PlannedMeal, PlanItem } from "@/lib/types";
 import { sumItems } from "@/lib/types";
 import { NUTRIENTS, valueOf, formatNutrient, type NutrientKey } from "@/lib/nutrients";
 import { NutrientStats } from "@/components/NutrientBreakdown";
@@ -90,6 +90,16 @@ function itemMacroLine(it: PlanItem): string {
   return (
     `${Math.round(m.kcal)} kcal · ` +
     `Protein ${Math.round(m.protein_g)} g · Carbs ${Math.round(m.carbs_g)} g · Fat ${Math.round(m.fat_g)} g`
+  );
+}
+
+// One AI portion's macros, when the plan stored them (older plans didn't).
+function portionMacroLine(p: MealPortion): string | null {
+  if (p.kcal == null) return null;
+  return (
+    `${Math.round(p.kcal)} kcal · ` +
+    `Protein ${Math.round(p.protein_g ?? 0)} g · ` +
+    `Carbs ${Math.round(p.carbs_g ?? 0)} g · Fat ${Math.round(p.fat_g ?? 0)} g`
   );
 }
 
@@ -509,6 +519,25 @@ function ItemPicker({
   );
 }
 
+// One AI-dish ingredient as a card: name + grams, and its macros beneath when
+// the plan stored them. Shared by the planned and the eaten views.
+function PortionRow({ portion }: { portion: MealPortion }) {
+  const macros = portionMacroLine(portion);
+  return (
+    <li className="rounded-2xl bg-[var(--fill-soft)] p-3">
+      <span className="flex items-center gap-1.5 font-medium">
+        <span className="min-w-0 flex-1 truncate">{portion.name}</span>
+        <span className="shrink-0 text-sm text-[var(--muted)] tabular-nums">
+          {Math.round(portion.grams)} g
+        </span>
+      </span>
+      {macros && (
+        <span className="mt-0.5 block text-xs text-[var(--muted)]">{macros}</span>
+      )}
+    </li>
+  );
+}
+
 // An eaten meal, laid out for reading: each food on its own row with its
 // macros, then the meal total, then Edit (un-log back to editable) and Remove.
 function EatenMeal({
@@ -556,18 +585,10 @@ function EatenMeal({
           ))}
         </ul>
       ) : meal.portions.length > 0 ? (
-        // An AI dish — portions carry grams but not per-item macros.
+        // An AI dish — one card per ingredient, with its macros when stored.
         <ul className="flex flex-col gap-2">
           {meal.portions.map((p, i) => (
-            <li
-              key={i}
-              className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--fill-soft)] p-3"
-            >
-              <span className="min-w-0 truncate font-medium">{p.name}</span>
-              <span className="shrink-0 text-sm font-semibold text-[var(--muted)] tabular-nums">
-                {Math.round(p.grams)} g
-              </span>
-            </li>
+            <PortionRow key={i} portion={p} />
           ))}
         </ul>
       ) : (
@@ -616,15 +637,7 @@ function AiMeal({
       {meal.portions.length > 0 && (
         <ul className="flex flex-col gap-2">
           {meal.portions.map((p, i) => (
-            <li
-              key={i}
-              className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--fill-soft)] p-3"
-            >
-              <span className="min-w-0 truncate font-medium">{p.name}</span>
-              <span className="shrink-0 text-sm font-semibold text-[var(--muted)] tabular-nums">
-                {Math.round(p.grams)} g
-              </span>
-            </li>
+            <PortionRow key={i} portion={p} />
           ))}
         </ul>
       )}

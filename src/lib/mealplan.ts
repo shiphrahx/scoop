@@ -210,7 +210,17 @@ function mealName(portions: Portion[]): string {
 }
 
 function toPortions(chosen: Portion[]): MealPortion[] {
-  return chosen.map((c) => ({ name: c.food.name, grams: c.grams }));
+  return chosen.map((c) => {
+    const f = c.grams / 100;
+    return {
+      name: c.food.name,
+      grams: c.grams,
+      kcal: Math.round(c.food.kcal_100g * f),
+      protein_g: Math.round(c.food.protein_100g * f),
+      carbs_g: Math.round(c.food.carbs_100g * f),
+      fat_g: Math.round(c.food.fat_100g * f),
+    };
+  });
 }
 
 const roundMacros = (m: Macros): Macros => ({

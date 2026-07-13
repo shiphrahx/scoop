@@ -182,10 +182,15 @@ export interface Activity {
   source: ActivitySource;
 }
 
-// One ingredient in a suggested dish, with the exact amount to use.
+// One ingredient in a suggested dish, with the exact amount to use. Macros are
+// what that portion contributes (optional — older stored plans only have grams).
 export interface MealPortion {
   name: string;
   grams: number;
+  kcal?: number;
+  protein_g?: number;
+  carbs_g?: number;
+  fat_g?: number;
 }
 
 // One dish the AI suggests from the pantry that fits the user's diet and
