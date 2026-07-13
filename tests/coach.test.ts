@@ -10,7 +10,6 @@ import {
   proteinBasisKg,
   restingRate,
   tdee,
-  weekStart,
   weeklyReview,
   type CoachInput,
   type Macros,
@@ -285,22 +284,6 @@ describe("dailyTarget", () => {
       pace: "aggressive",
     });
     expect(t.kcal).toBeGreaterThanOrEqual(1500);
-  });
-});
-
-describe("weekStart", () => {
-  it("returns the Monday of a mid-week date", () => {
-    // 2026-07-10 is a Friday → Monday is 2026-07-06
-    expect(weekStart(new Date("2026-07-10T12:00:00Z"))).toBe("2026-07-06");
-  });
-
-  it("maps a Sunday back to the previous Monday (not forward)", () => {
-    // 2026-07-12 is a Sunday → Monday is 2026-07-06
-    expect(weekStart(new Date("2026-07-12T12:00:00Z"))).toBe("2026-07-06");
-  });
-
-  it("returns the same day when the date is already a Monday", () => {
-    expect(weekStart(new Date("2026-07-06T00:00:00Z"))).toBe("2026-07-06");
   });
 });
 

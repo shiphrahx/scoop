@@ -134,7 +134,7 @@ export async function setMealItems(slot: string, items: PlanItem[]) {
       .from("planned_meals")
       .delete()
       .eq("user_id", user.id)
-      .eq("date", localToday())
+      .eq("date", await localToday())
       .eq("slot", slot);
     revalidate();
     return;
@@ -148,7 +148,7 @@ export async function setMealItems(slot: string, items: PlanItem[]) {
   const { error } = await supabase.from("planned_meals").upsert(
     {
       user_id: user.id,
-      date: localToday(),
+      date: await localToday(),
       slot,
       position,
       origin: "manual",
@@ -246,7 +246,7 @@ export async function clearAppPlan() {
     .from("planned_meals")
     .delete()
     .eq("user_id", user.id)
-    .eq("date", localToday())
+    .eq("date", await localToday())
     .eq("origin", "ai")
     .is("logged_food_id", null);
   if (error) throw new Error(error.message);
@@ -260,7 +260,7 @@ export async function clearSlot(slot: string) {
     .from("planned_meals")
     .delete()
     .eq("user_id", user.id)
-    .eq("date", localToday())
+    .eq("date", await localToday())
     .eq("slot", slot);
   if (error) throw new Error(error.message);
   revalidate();
@@ -370,6 +370,7 @@ export async function planMyDay(picks?: DayPicks) {
 
   const meals = planPantryDay({ pantry, budget, fixed, emptySlots, picks });
 
+  const date = await localToday();
   const bySlotResult = new Map(meals.map((m) => [m.slot, m]));
   const rows = emptySlots
     .map((slot, i) => {
@@ -378,7 +379,7 @@ export async function planMyDay(picks?: DayPicks) {
       if (!m) return null;
       return {
         user_id: user.id,
-        date: localToday(),
+        date,
         slot,
         position: Math.max(0, slotNames.indexOf(slot)),
         origin: "ai",

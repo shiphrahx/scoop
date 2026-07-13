@@ -1,6 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { decryptSecret } from "@/lib/crypto";
-import { average, weekStart, weeklyReview, type WeeklyReview } from "@/lib/coach";
+import { average, weeklyReview, type WeeklyReview } from "@/lib/coach";
+import {
+  DEFAULT_TIMEZONE,
+  localDate,
+  localWeekStart,
+  safeTimezone,
+  startOfLocalDay,
+} from "@/lib/time";
 import type {
   Activity,
   DailyTargets,
@@ -9,13 +16,29 @@ import type {
   Profile,
 } from "@/lib/types";
 
-// Today's date in the user's local timezone as YYYY-MM-DD. Used for the
-// planned_meals.date column so a plan lines up with the calendar day, matching
-// how getTodayConsumed sums food from local midnight.
-export function localToday(): string {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+// The timezone the signed-in user lives in, falling back to UTC. Every day
+// boundary below is drawn with it: the server's clock is UTC, which is not the
+// user's day (see src/lib/time.ts).
+export async function getTimezone(): Promise<string> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return DEFAULT_TIMEZONE;
+
+  const { data } = await supabase
+    .from("users")
+    .select("timezone")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  return safeTimezone((data as { timezone: string | null } | null)?.timezone);
+}
+
+// Today's date where the user is, as YYYY-MM-DD. Used for the planned_meals.date
+// column so a plan lines up with the calendar day they're actually living in.
+export async function localToday(): Promise<string> {
+  return localDate(await getTimezone());
 }
 
 // Server-side reads. Each returns the current user's data (RLS enforces scope).
@@ -38,11 +61,13 @@ export async function getProfile(): Promise<Profile | null> {
 
 export async function getCurrentTargets(): Promise<DailyTargets | null> {
   const supabase = await createClient();
-  // Prefer this week's target; fall back to the most recent one.
+  const tz = await getTimezone();
+  // Prefer this week's target; fall back to the most recent one. The week turns
+  // over on the user's Monday, not the server's.
   const { data } = await supabase
     .from("daily_targets")
     .select("week_start, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg")
-    .lte("week_start", weekStart())
+    .lte("week_start", localWeekStart(tz))
     .order("week_start", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -52,8 +77,9 @@ export async function getCurrentTargets(): Promise<DailyTargets | null> {
 
 export async function getTodayConsumed(): Promise<Macros> {
   const supabase = await createClient();
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
+  // From midnight where the user is. setHours(0,0,0,0) drew the line at the
+  // server's midnight, which in UTC is not theirs.
+  const start = startOfLocalDay(await getTimezone());
 
   const { data } = await supabase
     .from("food_logs")
@@ -84,7 +110,7 @@ export async function getTodayPlan(): Promise<PlannedMeal[]> {
     .select(
       "id, date, slot, position, origin, name, items, portions, swaps, why, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg, logged_food_id",
     )
-    .eq("date", localToday())
+    .eq("date", await localToday())
     .order("position", { ascending: true });
 
   return ((data as PlannedMeal[]) ?? []).map((m) => ({
@@ -104,8 +130,7 @@ export async function getTodayPlan(): Promise<PlannedMeal[]> {
 // nudge them to plan the day.
 export async function hasTrackedToday(): Promise<boolean> {
   const supabase = await createClient();
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
+  const start = startOfLocalDay(await getTimezone());
   const { count } = await supabase
     .from("food_logs")
     .select("id", { count: "exact", head: true })
@@ -155,8 +180,14 @@ export async function getCoachData(): Promise<CoachData> {
   } = await supabase.auth.getUser();
 
   const now = new Date();
-  const cut7 = isoDay(new Date(now.getTime() - 6 * DAY_MS)); // last 7 days incl today
-  const cut14 = isoDay(new Date(now.getTime() - 13 * DAY_MS));
+  const tz = await getTimezone();
+  // The weeks the review compares are the user's weeks: both cut-offs and the
+  // week boundary are drawn in their zone, or a weigh-in near midnight lands in
+  // the wrong week and skews the average the coach acts on.
+  const cutDay = (daysBack: number) =>
+    localDate(tz, new Date(now.getTime() - daysBack * DAY_MS));
+  const cut7 = cutDay(6); // last 7 days incl today
+  const cut14 = cutDay(13);
 
   const [profile, current, weightsRes, measRes, activityRes, fitbitRes, tokenRes] =
     await Promise.all([
@@ -209,7 +240,7 @@ export async function getCoachData(): Promise<CoachData> {
   // unchanged. The review won't cut or add until the body has had ~2 weeks to
   // respond. We measure it as the span from the start of the current unbroken
   // run of same-kcal weekly targets up to this week.
-  const thisWeekStart = weekStart(now);
+  const thisWeekStart = localWeekStart(tz, now);
   let weeksOnTarget = 0;
   if (current) {
     const { data: histData } = await supabase

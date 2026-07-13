@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { encryptSecret } from "@/lib/crypto";
-import { ageFromBirthYear, average, dailyTarget, weekStart } from "@/lib/coach";
+import { ageFromBirthYear, average, dailyTarget } from "@/lib/coach";
+import { getTimezone } from "@/lib/queries";
+import { localWeekStart } from "@/lib/time";
 import type { ActivityLevel, DietType, GoalPace } from "@/lib/types";
 
 // Save the user's own Anthropic API key. It's read server-side only (never
@@ -97,7 +99,7 @@ export async function saveGoals(input: GoalsInput) {
     await supabase
       .from("daily_targets")
       .upsert(
-        { user_id: user.id, week_start: weekStart(), ...target },
+        { user_id: user.id, week_start: localWeekStart(await getTimezone()), ...target },
         { onConflict: "user_id,week_start" },
       );
   }

@@ -226,16 +226,8 @@ export function dailyTarget(input: CoachInput): Macros {
   );
 }
 
-// Monday (UTC) of the week that contains `date` — used to key daily_targets.
-export function weekStart(date = new Date()): string {
-  const d = new Date(
-    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
-  );
-  const day = d.getUTCDay(); // 0 = Sun
-  const diff = (day === 0 ? -6 : 1) - day; // shift back to Monday
-  d.setUTCDate(d.getUTCDate() + diff);
-  return d.toISOString().slice(0, 10);
-}
+// Week boundaries live in src/lib/time.ts (localWeekStart), which draws them in
+// the user's timezone. This used to mix the server's local calendar with UTC.
 
 // --- The weekly review ------------------------------------------------------
 // Compare this week's trailing average weight to last week's and nudge the

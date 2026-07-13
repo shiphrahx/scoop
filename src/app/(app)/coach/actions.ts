@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { encryptSecret, decryptSecret, hashToken } from "@/lib/crypto";
 import { getCoachData } from "@/lib/queries";
-import { weekStart } from "@/lib/coach";
+import { getTimezone } from "@/lib/queries";
+import { localWeekStart } from "@/lib/time";
 import { getDay, refreshTokens, type FitbitTokens } from "@/lib/fitbit";
 
 const DAY_MS = 86_400_000;
@@ -18,7 +19,7 @@ export async function applyReview() {
   const { review } = await getCoachData();
   if (review.macros.kcal <= 0) throw new Error("No target to apply yet.");
 
-  const nextWeek = weekStart(new Date(Date.now() + 7 * DAY_MS));
+  const nextWeek = localWeekStart(await getTimezone(), new Date(Date.now() + 7 * DAY_MS));
   const { error } = await supabase.from("daily_targets").upsert(
     { user_id: user.id, week_start: nextWeek, ...review.macros },
     { onConflict: "user_id,week_start" },
