@@ -15,6 +15,7 @@ import {
   sumItems,
   type DietType,
   type FoodChoice,
+  type MealPortion,
   type PlanItem,
   type Macros,
 } from "@/lib/types";
@@ -158,6 +159,59 @@ export async function setMealItems(slot: string, items: PlanItem[]) {
     },
     { onConflict: "user_id,date,slot" },
   );
+  if (error) throw new Error(error.message);
+  revalidate();
+}
+
+// A short dish name from its portions: "Chicken with Rice", or the single food.
+function portionsName(portions: MealPortion[]): string {
+  const names = portions.map((p) => p.name);
+  if (names.length === 0) return "Pantry meal";
+  if (names.length === 1) return names[0];
+  return `${names[0]} with ${names[1]}`;
+}
+
+// Save an edited AI dish: the user changed the portions (grams, or dropped an
+// ingredient). Totals are re-summed from the portions' own macros, so the meal
+// and the day stay exact. Removing every portion clears the slot.
+export async function setMealPortions(id: string, portions: MealPortion[]) {
+  const { supabase, user } = await requireUser();
+
+  if (portions.length === 0) {
+    const { error } = await supabase
+      .from("planned_meals")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .is("logged_food_id", null);
+    if (error) throw new Error(error.message);
+    revalidate();
+    return;
+  }
+
+  const totals = portions.reduce(
+    (s, p) => ({
+      kcal: s.kcal + (p.kcal ?? 0),
+      protein_g: s.protein_g + (p.protein_g ?? 0),
+      carbs_g: s.carbs_g + (p.carbs_g ?? 0),
+      fat_g: s.fat_g + (p.fat_g ?? 0),
+    }),
+    { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
+  );
+
+  const { error } = await supabase
+    .from("planned_meals")
+    .update({
+      name: portionsName(portions),
+      portions,
+      kcal: Math.round(totals.kcal),
+      protein_g: Math.round(totals.protein_g),
+      carbs_g: Math.round(totals.carbs_g),
+      fat_g: Math.round(totals.fat_g),
+    })
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .is("logged_food_id", null);
   if (error) throw new Error(error.message);
   revalidate();
 }
