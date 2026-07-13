@@ -86,15 +86,25 @@ export interface FoodMacros {
   carbs_100g: number;
   fat_100g: number;
 }
+// A food is a protein source once protein carries this much of its calories.
+// Not a majority: fat is 9 kcal/g against protein's 4, so on a "biggest share of
+// calories" test almost every real protein loses to its own fat — salmon, eggs,
+// beef mince and tofu all read as fat sources, which left the planner with no
+// protein to build on and a day that quietly missed its protein target. Protein
+// is the macro the whole plan is built to hit, so it anchors the meal whenever
+// it is a serious part of the food.
+const PROTEIN_SHARE = 0.25;
+
 export function macroRole(m: FoodMacros): "protein" | "carb" | "fat" | null {
   const p = m.protein_100g * 4;
   const c = m.carbs_100g * 4;
   const f = m.fat_100g * 9;
+  const total = p + c + f;
   // Below this the item carries too little of anything to anchor a meal.
-  if (p + c + f < 40) return null;
-  if (f >= p && f >= c) return "fat";
-  if (p >= c) return "protein";
-  return "carb";
+  if (total < 40) return null;
+  if (p / total >= PROTEIN_SHARE) return "protein";
+  // Otherwise it's a carb or a fat, whichever carries more of the calories.
+  return c >= f ? "carb" : "fat";
 }
 
 // The single role of a food, protein taking priority when a name reads as both
