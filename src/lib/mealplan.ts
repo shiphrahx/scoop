@@ -220,6 +220,16 @@ const roundMacros = (m: Macros): Macros => ({
   fat_g: Math.round(m.fat_g),
 });
 
+// The carb / protein / fat the user chose in the "plan my day" wizard. A name
+// pins every meal to that pantry food; null means "suggest for me" — use the
+// densest pantry source of that macro. When `picks` is given the planner builds
+// ONLY from these foods: nothing else from the pantry is added.
+export interface DayPicks {
+  carb: string | null;
+  protein: string | null;
+  fat: string | null;
+}
+
 export interface PlanDayInput {
   pantry: PantryFood[];
   // Macros still to eat today (day target minus what's already logged).
@@ -227,6 +237,8 @@ export interface PlanDayInput {
   // Macros of meals the user has planned but not eaten — budget around them.
   fixed: Macros;
   emptySlots: string[];
+  // When set, restrict every meal to these chosen foods (see DayPicks).
+  picks?: DayPicks;
 }
 
 // Fill each empty slot with a pantry meal so the day's totals land on target.
@@ -238,6 +250,23 @@ export function planPantryDay(input: PlanDayInput): PlannedSlot[] {
   const slots = input.emptySlots;
   const n = slots.length;
   if (n === 0) return [];
+
+  // With explicit picks, every meal is built from the same three chosen foods —
+  // a named pick wins, a null pick falls back to the densest source ("suggest
+  // for me"). Without picks we rotate the pools for variety across the day.
+  const picks = input.picks;
+  const fixedProtein = picks
+    ? byName(input.pantry, picks.protein) ?? protein[0] ?? null
+    : null;
+  const fixedCarb = picks
+    ? byName(input.pantry, picks.carb) ?? carb[0] ?? null
+    : null;
+  const fixedFat = picks
+    ? byName(input.pantry, picks.fat) ?? fat[0] ?? null
+    : null;
+  const proteinFor = (i: number) => (picks ? fixedProtein : at(protein, i));
+  const carbFor = (i: number) => (picks ? fixedCarb : at(carb, i));
+  const fatFor = (i: number) => (picks ? fixedFat : at(fat, i));
 
   const left: Macros = {
     kcal: Math.max(0, input.budget.kcal - input.fixed.kcal),
@@ -258,7 +287,7 @@ export function planPantryDay(input: PlanDayInput): PlannedSlot[] {
     new Array(n).fill(null);
   let others = ZERO;
   for (let i = 1; i < n; i++) {
-    const m = buildMeal(share, at(protein, i), at(carb, i), at(fat, i));
+    const m = buildMeal(share, proteinFor(i), carbFor(i), fatFor(i));
     built[i] = m;
     others = addMacros(others, m.totals);
   }
@@ -271,7 +300,7 @@ export function planPantryDay(input: PlanDayInput): PlannedSlot[] {
     carbs_g: Math.max(0, left.carbs_g - others.carbs_g),
     fat_g: Math.max(0, left.fat_g - others.fat_g),
   };
-  built[0] = buildMeal(balTarget, protein[0] ?? null, carb[0] ?? null, fat[0] ?? null);
+  built[0] = buildMeal(balTarget, proteinFor(0), carbFor(0), fatFor(0));
 
   const out: PlannedSlot[] = [];
   slots.forEach((slot, i) => {

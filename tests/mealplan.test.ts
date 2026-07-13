@@ -108,6 +108,84 @@ describe("planPantryDay", () => {
       planPantryDay({ pantry: [chicken], budget, fixed: zero, emptySlots: [] }),
     ).toEqual([]);
   });
+
+  describe("with explicit picks", () => {
+    const tofu: PantryFood = {
+      name: "Firm Tofu",
+      kcal_100g: 144,
+      protein_100g: 15,
+      carbs_100g: 3,
+      fat_100g: 9,
+    };
+    const oats: PantryFood = {
+      name: "Rolled Oats",
+      kcal_100g: 379,
+      protein_100g: 13,
+      carbs_100g: 67,
+      fat_100g: 7,
+    };
+    const butter: PantryFood = {
+      name: "Peanut Butter",
+      kcal_100g: 588,
+      protein_100g: 25,
+      carbs_100g: 20,
+      fat_100g: 50,
+    };
+
+    it("builds every meal from ONLY the chosen foods", () => {
+      const plan = planPantryDay({
+        pantry: [chicken, tofu, rice, oats, oil, butter],
+        budget,
+        fixed: zero,
+        emptySlots: ["Lunch", "Dinner"],
+        picks: { carb: "Basmati Rice", protein: "Firm Tofu", fat: "Olive Oil" },
+      });
+      expect(plan.length).toBeGreaterThan(0);
+      const chosen = new Set(["Basmati Rice", "Firm Tofu", "Olive Oil"]);
+      for (const meal of plan) {
+        for (const p of meal.portions) {
+          // Nothing outside what the user asked for is ever added.
+          expect(chosen.has(p.name)).toBe(true);
+        }
+      }
+    });
+
+    it("falls back to the densest source when a pick is null (suggest)", () => {
+      const plan = planPantryDay({
+        pantry: [chicken, tofu, rice, oil],
+        budget,
+        fixed: zero,
+        emptySlots: ["Lunch"],
+        // Suggest the protein → chicken (31 g) is denser than tofu (15 g).
+        picks: { carb: "Basmati Rice", protein: null, fat: "Olive Oil" },
+      });
+      const names = plan.flatMap((m) => m.portions.map((p) => p.name));
+      expect(names).toContain("Chicken Breast");
+      expect(names).not.toContain("Firm Tofu");
+    });
+
+    it("still lands the day on the macro budget from the chosen foods", () => {
+      const target = { kcal: 2000, protein_g: 150, carbs_g: 200, fat_g: 65 };
+      const plan = planPantryDay({
+        pantry: [chicken, rice, oil],
+        budget: target,
+        fixed: zero,
+        emptySlots: ["Breakfast", "Lunch", "Dinner"],
+        picks: { carb: "Basmati Rice", protein: "Chicken Breast", fat: "Olive Oil" },
+      });
+      const tot = plan.reduce(
+        (s, m) => ({
+          protein_g: s.protein_g + m.protein_g,
+          carbs_g: s.carbs_g + m.carbs_g,
+          fat_g: s.fat_g + m.fat_g,
+        }),
+        { protein_g: 0, carbs_g: 0, fat_g: 0 },
+      );
+      expect(Math.abs(tot.protein_g - target.protein_g)).toBeLessThanOrEqual(5);
+      expect(Math.abs(tot.carbs_g - target.carbs_g)).toBeLessThanOrEqual(5);
+      expect(Math.abs(tot.fat_g - target.fat_g)).toBeLessThanOrEqual(5);
+    });
+  });
 });
 
 describe("suggestPantryMeals", () => {
