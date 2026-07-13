@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { rateLimit } from "@/lib/ratelimit";
 import {
   parseRecipeFromImage,
   parseRecipeFromUrl,
@@ -19,7 +20,12 @@ async function requireUser() {
 }
 
 export async function importRecipeUrl(url: string): Promise<ParsedRecipe> {
-  await requireUser();
+  const { user } = await requireUser();
+  // The URL importer makes an outbound fetch — throttle per user so it can't be
+  // driven in a tight loop (as a scanner or to burn the AI key).
+  if (!rateLimit(`recipe-url:${user.id}`, 10, 60_000)) {
+    throw new Error("Too many imports — give it a minute and try again.");
+  }
   return parseRecipeFromUrl(url);
 }
 
