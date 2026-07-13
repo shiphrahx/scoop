@@ -7,7 +7,7 @@ import type { DailyTargets, Macros } from "@/lib/types";
 import type { NutrientKey } from "@/lib/nutrients";
 
 const quickActions = [
-  { href: "/add", label: "Log food", icon: UtensilsCrossed },
+  { href: "/plan/day", label: "Log food", icon: UtensilsCrossed },
   { href: "/progress", label: "Log weight", icon: Scale },
   { href: "/batches", label: "Batches", icon: CookingPot },
   { href: "/pantry", label: "Pantry", icon: Package },

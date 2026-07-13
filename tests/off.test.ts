@@ -387,6 +387,43 @@ describe("searchProducts — real wrong-answer regressions", () => {
     expect(out[0].name).toBe("Limes");
     expect(out.some((c) => /juice/i.test(c.name))).toBe(false);
   });
+
+  it("prefers the plain fruit over processed products that merely name it", async () => {
+    // What the popularity-ranked legacy search actually returns for "banana":
+    // banana-flavoured yogurt, muesli, cookies — plus the real fruit further
+    // down. The plain food must win, not the most popular derivative.
+    installOff((q) =>
+      has(q, "banana")
+        ? {
+            hits: [
+              prod("Banana Flavour Yogurt", "Jaouda"),
+              prod("Crunchy Muesli With Banana", "Santé"),
+              prod("Chocolate Cookie With Banana", "Gerblé"),
+              prod("Banana"),
+            ],
+          }
+        : {},
+    );
+    const out = await searchProducts("banana");
+    expect(out[0].name).toBe("Banana");
+    expect(out.some((c) => /yogurt|muesli|cookie/i.test(c.name))).toBe(false);
+  });
+
+  it("returns no match rather than a banana yogurt when only derivatives exist", async () => {
+    // Every hit is a processed banana product; the raw fruit isn't in the pool.
+    // A clean "no match" beats logging a banana yogurt with the wrong macros.
+    installOff((q) =>
+      has(q, "banana")
+        ? {
+            hits: [
+              prod("Banana Flavour Yogurt", "Jaouda"),
+              prod("Banana Smoothie", "Innocent"),
+            ],
+          }
+        : {},
+    );
+    expect(await searchProducts("banana")).toHaveLength(0);
+  });
 });
 
 // --- Search-a-licious outage → legacy CGI fallback --------------------------

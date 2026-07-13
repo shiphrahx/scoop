@@ -165,14 +165,25 @@ const QUALIFIERS = new Set([
   "tinned", "pickled", "baby", "mini", "dwarf",
 ]);
 
-// A subset of qualifiers that mark a genuinely DIFFERENT food — a snack or
-// derivative, not a size/prep variant. A plain-food query that didn't ask for
-// one of these ("baby potatoes") should never be answered with it ("Potato
-// Crisps", "Lime Juice"): such candidates are dropped, so we return "no match"
-// rather than defaulting to the wrong food. Preservation words (tinned, dried,
-// frozen) are deliberately absent — "tinned tomatoes" is still tomatoes.
+// Words that mark a genuinely DIFFERENT food — a snack, a drink, or a processed
+// product built AROUND an ingredient rather than the ingredient itself. A
+// plain-food query that didn't ask for one of these ("banana", "baby potatoes")
+// should never be answered with it ("Banana Yogurt", "Potato Crisps", "Lime
+// Juice"): such candidates are dropped, so we return "no match" rather than the
+// wrong food. This matters most when OFF's relevance search is down and we fall
+// back to the popularity-ranked legacy search, which floods a bare food word
+// with popular derivatives (a search for "banana" returns banana-flavoured
+// yogurt, muesli and cookies long before the fruit). The drop is self-exempt:
+// someone who types "banana yogurt" keeps it, since their query asked for it.
+// Preservation words (tinned, dried, frozen) are deliberately absent — "tinned
+// tomatoes" is still tomatoes.
 const WRONG_FOOD = new Set([
   "crisps", "crisp", "chips", "juice", "snack", "snacks", "dessert",
+  // Dairy / breakfast / bakery derivatives that carry a fruit or grain name.
+  "yogurt", "yoghurt", "yog", "muesli", "granola", "cereal", "cookie",
+  "cookies", "biscuit", "biscuits", "smoothie", "milkshake", "mousse",
+  "pudding", "custard", "jam", "marmalade", "cake", "cakes", "muffin",
+  "muffins",
 ]);
 
 // Protein words. A query that names one ("pork stir fry strips") must not be

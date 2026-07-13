@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Check, X, Search, Plus, Minus, Package, Globe, Trash2 } from "lucide-react";
-import type { FoodChoice, Macros, PlannedMeal, PlanItem } from "@/lib/types";
+import { Check, X, Search, Plus, Minus, Package, Globe, Trash2, ScanBarcode } from "lucide-react";
+import type { FoodChoice, Macros, OffProduct, PlannedMeal, PlanItem } from "@/lib/types";
 import { sumItems } from "@/lib/types";
 import { NUTRIENTS, valueOf, formatNutrient, type NutrientKey } from "@/lib/nutrients";
 import { NutrientStats } from "@/components/NutrientBreakdown";
+import BarcodeScanner from "@/components/BarcodeScanner";
 import {
   searchFoods,
   setMealItems,
@@ -223,6 +224,8 @@ function ItemPicker({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FoodChoice[]>([]);
   const [searching, setSearching] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanNote, setScanNote] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   // Persist the list whenever it changes.
@@ -294,6 +297,39 @@ function ItemPicker({
   function setGrams(i: number, grams: number) {
     const g = Math.max(0, Math.round(grams));
     save(items.map((it, j) => (j === i ? { ...it, grams: g } : it)));
+  }
+
+  // Scan a barcode straight into this meal: look the product up on Open Food
+  // Facts (same endpoint the pantry/batch scanners use) and add it as an item.
+  async function handleScan(barcode: string) {
+    setScanning(false);
+    setScanNote("Looking up…");
+    try {
+      const res = await fetch(`/api/off/${encodeURIComponent(barcode)}`);
+      if (!res.ok) {
+        setScanNote(`No match for ${barcode}. Try the search instead.`);
+        return;
+      }
+      const p = (await res.json()) as OffProduct;
+      add({
+        name: p.name,
+        source: "off",
+        off_barcode: p.barcode,
+        brand: null,
+        kcal_100g: p.kcal_100g,
+        protein_100g: p.protein_100g,
+        carbs_100g: p.carbs_100g,
+        fat_100g: p.fat_100g,
+        fiber_100g: p.fiber_100g,
+        sugar_100g: p.sugar_100g,
+        satfat_100g: p.satfat_100g,
+        sodium_mg_100g: p.sodium_mg_100g,
+        pack_size_g: p.pack_size_g,
+      });
+      setScanNote(`Added ${p.name} — set the grams.`);
+    } catch {
+      setScanNote("Lookup failed. Try the search instead.");
+    }
   }
 
   const total = sumItems(items);
@@ -412,6 +448,30 @@ function ItemPicker({
           </ul>
         )}
       </div>
+
+      <button
+        onClick={() => {
+          setScanNote(null);
+          setScanning(true);
+        }}
+        disabled={busy}
+        className="sc-btn sc-btn-soft"
+      >
+        <ScanBarcode size={18} /> Scan a barcode
+      </button>
+
+      {scanNote && (
+        <p className="text-center text-xs font-medium text-[var(--muted)]">
+          {scanNote}
+        </p>
+      )}
+
+      {scanning && (
+        <BarcodeScanner
+          onDetected={handleScan}
+          onClose={() => setScanning(false)}
+        />
+      )}
 
       {items.length > 0 && (
         <>
