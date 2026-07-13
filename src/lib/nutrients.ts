@@ -73,6 +73,62 @@ export const NUTRIENTS: Record<NutrientKey, NutrientDef> = {
   },
 };
 
+// How close a planned day has to land on target before it counts as a good fit.
+// The user's rule is in grams: within 5 g either way is fine, up to 10 g is a
+// warning, past that it needs changing. kcal and mg are scaled to the same feel
+// so a big-number nutrient isn't flagged for a rounding-sized miss.
+const TOLERANCE: Record<NutrientDef["unit"], { ok: number; warn: number }> = {
+  g: { ok: 5, warn: 10 },
+  kcal: { ok: 50, warn: 100 },
+  mg: { ok: 100, warn: 200 },
+};
+
+// "ok" = on target, "warn" = drifting, "off" = must be changed.
+export type FitStatus = "ok" | "warn" | "off";
+
+export interface NutrientFit {
+  diff: number; // planned minus target, signed: + is over, - is under
+  status: FitStatus;
+}
+
+// How a planned total sits against the target for one nutrient. Null when there
+// is no target to judge against.
+export function nutrientFit(
+  planned: Macros,
+  target: Macros | null | undefined,
+  key: NutrientKey,
+): NutrientFit | null {
+  if (!target) return null;
+  const t = valueOf(target, key);
+  if (t <= 0) return null;
+
+  const diff = valueOf(planned, key) - t;
+  const { ok, warn } = TOLERANCE[NUTRIENTS[key].unit];
+
+  // A limit (sugar, saturates, sodium) is only a problem when you go over it —
+  // being under is exactly what we want. A goal is judged in both directions.
+  const miss = NUTRIENTS[key].kind === "limit" ? diff : Math.abs(diff);
+
+  const status: FitStatus = miss <= ok ? "ok" : miss <= warn ? "warn" : "off";
+  return { diff, status };
+}
+
+// The day's overall verdict: the worst any single nutrient scores.
+export function worstFit(
+  planned: Macros,
+  target: Macros | null | undefined,
+  keys: NutrientKey[],
+): FitStatus {
+  let worst: FitStatus = "ok";
+  for (const key of keys) {
+    const fit = nutrientFit(planned, target, key);
+    if (!fit) continue;
+    if (fit.status === "off") return "off";
+    if (fit.status === "warn") worst = "warn";
+  }
+  return worst;
+}
+
 // Nutrients the user can toggle in their breakdown (everything but the kcal hero).
 export const SELECTABLE_NUTRIENTS: NutrientKey[] = [
   "protein", "carbs", "fat", "fiber", "sugar", "satfat", "sodium",
