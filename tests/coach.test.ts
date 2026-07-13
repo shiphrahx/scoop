@@ -112,13 +112,23 @@ describe("ageFromBirthYear", () => {
 });
 
 describe("macrosForKcal", () => {
+  // Expected values are written out, not recomputed from the source's own
+  // formula — an assertion that re-derives the answer the same way the code does
+  // can never catch the code changing.
   it("fixes protein at 2 g/kg and fat at a quarter of kcal", () => {
     const m = macrosForKcal(2000, 80);
-    expect(m.protein_g).toBe(160); // 80 * 2
-    expect(m.fat_g).toBe(Math.round((2000 * 0.25) / 9)); // 56
-    // carbs is the remainder of kcal after protein (×4) and fat (×9)
-    expect(m.carbs_g).toBe(Math.round((2000 - 160 * 4 - 56 * 9) / 4));
+    expect(m.protein_g).toBe(160); // 80 kg × 2 g/kg
+    expect(m.fat_g).toBe(56); // 25% of 2000 kcal ÷ 9
+    expect(m.carbs_g).toBe(214); // (2000 − 640 − 504) ÷ 4
     expect(m.kcal).toBe(2000);
+  });
+
+  it("sets the extra nutrient targets from the calorie total", () => {
+    const m = macrosForKcal(2000, 80);
+    expect(m.fiber_g).toBe(28); // 14 g per 1000 kcal
+    expect(m.sugar_g).toBe(50); // 10% of kcal ÷ 4
+    expect(m.satfat_g).toBe(22); // 10% of kcal ÷ 9
+    expect(m.sodium_mg).toBe(2300); // flat daily limit
   });
 
   it("never returns negative carbs when protein+fat exceed kcal", () => {
@@ -133,12 +143,10 @@ describe("macrosForKcal", () => {
   });
 
   it("caps protein at the healthy-weight basis when a height is given", () => {
-    // 120 kg at 170 cm: BMI-25 weight is 25 * 1.7^2 ≈ 72.25 kg, so protein is
-    // set from ~72 kg (~144 g), not the full 120 kg (240 g).
-    const capped = macrosForKcal(2000, 120, "regular", 170);
-    const healthyMax = 25 * (170 / 100) ** 2;
-    expect(capped.protein_g).toBe(Math.round(healthyMax * 2));
-    expect(capped.protein_g).toBeLessThan(macrosForKcal(2000, 120).protein_g);
+    // 120 kg at 170 cm: BMI-25 weight is 25 × 1.7² ≈ 72.25 kg, so protein is set
+    // from that (144 g), not the full 120 kg (240 g).
+    expect(macrosForKcal(2000, 120, "regular", 170).protein_g).toBe(144);
+    expect(macrosForKcal(2000, 120).protein_g).toBe(240);
   });
 
   it("does not raise protein for someone already at a healthy weight", () => {
@@ -153,10 +161,9 @@ describe("macrosForKcal", () => {
 
   it("pins carbs to the keto ceiling and pours the rest into fat", () => {
     const m = macrosForKcal(2000, 80, "keto");
-    expect(m.protein_g).toBe(160); // 80 * 2, unchanged
+    expect(m.protein_g).toBe(160); // 80 × 2, unchanged
     expect(m.carbs_g).toBe(25); // hard keto carb ceiling
-    // fat absorbs everything left after protein (×4) and carbs (×4)
-    expect(m.fat_g).toBe(Math.round((2000 - 160 * 4 - 25 * 4) / 9));
+    expect(m.fat_g).toBe(140); // (2000 − 640 − 100) ÷ 9
     // and it really is a low-carb, high-fat split vs the regular one
     expect(m.carbs_g).toBeLessThan(macrosForKcal(2000, 80).carbs_g);
     expect(m.fat_g).toBeGreaterThan(macrosForKcal(2000, 80).fat_g);
