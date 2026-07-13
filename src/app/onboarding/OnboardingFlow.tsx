@@ -127,6 +127,8 @@ export default function OnboardingFlow() {
       goal_weight_kg: Math.round((state.goal_weight_kg ?? defaultGoal) * 10) / 10,
       body_fat_pct: state.body_fat_pct ?? null,
       birth_year: CURRENT_YEAR - state.age,
+      // The browser knows where the user is; the server (UTC) doesn't.
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     };
     await saveOnboarding(input);
   }

@@ -2,7 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { ageFromBirthYear, dailyTarget, weekStart } from "@/lib/coach";
+import { ageFromBirthYear, dailyTarget } from "@/lib/coach";
+import { localWeekStart, safeTimezone } from "@/lib/time";
 import type {
   ActivityLevel,
   DietType,
@@ -22,6 +23,9 @@ export interface OnboardingInput {
   goal_weight_kg: number;
   body_fat_pct: number | null;
   birth_year: number;
+  // Read from the browser, because the server's clock is UTC and the user's day
+  // is not. Decides when their day (and their week) rolls over.
+  timezone: string;
 }
 
 export async function saveOnboarding(input: OnboardingInput) {
@@ -46,6 +50,7 @@ export async function saveOnboarding(input: OnboardingInput) {
     body_fat_pct: input.body_fat_pct,
     sex: input.sex,
     birth_year: input.birth_year,
+    timezone: safeTimezone(input.timezone),
     onboarded_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   });
@@ -76,7 +81,11 @@ export async function saveOnboarding(input: OnboardingInput) {
   const { error: targetError } = await supabase
     .from("daily_targets")
     .upsert(
-      { user_id: user.id, week_start: weekStart(), ...target },
+      {
+        user_id: user.id,
+        week_start: localWeekStart(safeTimezone(input.timezone)),
+        ...target,
+      },
       { onConflict: "user_id,week_start" },
     );
   if (targetError) throw new Error(targetError.message);

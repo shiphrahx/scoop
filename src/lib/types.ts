@@ -36,6 +36,9 @@ export interface Profile {
   body_fat_pct: number | null;
   meal_slots: string[];
   nutrient_prefs: string[];
+  // IANA zone the user lives in ("Europe/London"). Decides where their day
+  // starts — the server's clock is UTC and is not the user's day.
+  timezone: string;
   onboarded_at: string | null;
 }
 
