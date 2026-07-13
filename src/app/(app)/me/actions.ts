@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { encryptSecret } from "@/lib/crypto";
 import { ageFromBirthYear, average, dailyTarget, weekStart } from "@/lib/coach";
 import type { ActivityLevel, DietType, GoalPace } from "@/lib/types";
 
@@ -22,9 +23,13 @@ export async function saveApiKey(key: string) {
     throw new Error("That doesn't look like an Anthropic key (starts sk-ant-).");
   }
   const { supabase, user } = await requireUser();
+  // Store encrypted — a DB dump then yields ciphertext, not a live billable key.
   const { error } = await supabase
     .from("users")
-    .update({ anthropic_api_key: trimmed, updated_at: new Date().toISOString() })
+    .update({
+      anthropic_api_key: encryptSecret(trimmed),
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", user.id);
   if (error) throw new Error(error.message);
 

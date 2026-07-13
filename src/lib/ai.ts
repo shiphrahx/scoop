@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { decryptSecret } from "@/lib/crypto";
 import { extractRecipeJsonLd } from "@/lib/recipe";
 import type {
   DietType,
@@ -38,11 +39,11 @@ async function getClient(): Promise<Anthropic> {
     .eq("id", user.id)
     .maybeSingle();
 
-  const key = (data as { anthropic_api_key: string | null } | null)
+  const stored = (data as { anthropic_api_key: string | null } | null)
     ?.anthropic_api_key;
-  if (!key) throw new NoApiKeyError();
+  if (!stored) throw new NoApiKeyError();
 
-  return new Anthropic({ apiKey: key });
+  return new Anthropic({ apiKey: decryptSecret(stored) });
 }
 
 // --- Diet rules -------------------------------------------------------------
