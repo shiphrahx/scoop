@@ -1,16 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth";
 
 // Log a weight. Defaults to today; pass an ISO date (YYYY-MM-DD) to back-fill a
 // day the user forgot. Upserts on (user_id, date) so re-logging a day overwrites.
 export async function logWeight(weightKg: number, dateISO?: string) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not signed in");
+  const { supabase, user } = await requireUser();
 
   const row: { user_id: string; weight_kg: number; date?: string } = {
     user_id: user.id,
@@ -40,11 +36,7 @@ export interface MeasurementInput {
 
 // Weekly measurements. Upserts on the current date.
 export async function logMeasurements(input: MeasurementInput) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not signed in");
+  const { supabase, user } = await requireUser();
 
   const { error } = await supabase
     .from("measurements")

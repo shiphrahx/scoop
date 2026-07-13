@@ -1,19 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth";
 import { encryptSecret } from "@/lib/crypto";
 import { ageFromBirthYear, average, dailyTarget, weekStart } from "@/lib/coach";
 import type { ActivityLevel, DietType, GoalPace } from "@/lib/types";
-
-async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not signed in");
-  return { supabase, user };
-}
 
 // Save the user's own Anthropic API key. It's read server-side only (never
 // sent back to the browser) and powers the AI features on this account.

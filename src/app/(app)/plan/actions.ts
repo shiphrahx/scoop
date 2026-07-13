@@ -1,20 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth";
 import { violatesDiet } from "@/lib/ai";
 import { suggestPantryMeals, type PantryFood } from "@/lib/mealplan";
 import { getCurrentTargets, getProfile, getTodayConsumed } from "@/lib/queries";
 import type { MealSuggestion } from "@/lib/types";
-
-async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not signed in");
-  return { supabase, user };
-}
 
 // Ask the AI for dishes the user can make from their pantry that fit their
 // diet and the macros they have left today, optionally built around a chosen

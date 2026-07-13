@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth";
 import { rateLimit } from "@/lib/ratelimit";
 import {
   parseRecipeFromImage,
@@ -9,15 +9,6 @@ import {
   type ParsedRecipe,
 } from "@/lib/ai";
 import type { ImageMediaType } from "@/lib/image";
-
-async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not signed in");
-  return { supabase, user };
-}
 
 export async function importRecipeUrl(url: string): Promise<ParsedRecipe> {
   const { user } = await requireUser();

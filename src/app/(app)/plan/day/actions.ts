@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth";
 import { isFoodAllowed } from "@/lib/ai";
 import { planPantryDay, type DayPicks, type PantryFood } from "@/lib/mealplan";
 import {
@@ -18,15 +18,6 @@ import {
   type PlanItem,
   type Macros,
 } from "@/lib/types";
-
-async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not signed in");
-  return { supabase, user };
-}
 
 function revalidate() {
   revalidatePath("/plan/day");

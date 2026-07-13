@@ -1,20 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth";
 import { encryptSecret, decryptSecret, hashToken } from "@/lib/crypto";
 import { getCoachData } from "@/lib/queries";
 import { weekStart } from "@/lib/coach";
 import { getDay, refreshTokens, type FitbitTokens } from "@/lib/fitbit";
-
-async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not signed in");
-  return { supabase, user };
-}
 
 const DAY_MS = 86_400_000;
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
