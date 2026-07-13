@@ -11,6 +11,7 @@ import {
   FitbitButton,
 } from "@/app/(app)/coach/Controls";
 import { createClient } from "@/lib/supabase/server";
+import { decryptSecret } from "@/lib/crypto";
 import { getProfile, hasApiKey } from "@/lib/queries";
 
 // Turn the ?fitbit= result of the OAuth round-trip into a one-line banner.
@@ -48,9 +49,10 @@ export default async function MePage({
   const fitbitConnected = Boolean(
     (fitbitRes.data as { user_id: string } | null)?.user_id,
   );
-  const appleToken =
+  const storedAppleToken =
     (tokenRes.data as { apple_ingest_token: string | null } | null)
       ?.apple_ingest_token ?? null;
+  const appleToken = storedAppleToken ? decryptSecret(storedAppleToken) : null;
   const note = fitbit ? FITBIT_NOTES[fitbit] : null;
 
   return (

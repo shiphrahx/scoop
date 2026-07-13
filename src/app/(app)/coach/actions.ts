@@ -159,14 +159,20 @@ export async function clearMockActivity() {
   revalidatePath("/coach");
 }
 
-// Mint (or rotate) the secret token Health Auto Export uses to post data.
+// Mint (or rotate) the secret token Health Auto Export uses to post data. We
+// store the token encrypted (so Settings can re-display it) plus a sha256 hash
+// (what the ingest endpoint matches on). The raw token is returned once here.
 export async function generateAppleToken(): Promise<string> {
   const { supabase, user } = await requireUser();
   const token = (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
 
   const { error } = await supabase
     .from("users")
-    .update({ apple_ingest_token: token, updated_at: new Date().toISOString() })
+    .update({
+      apple_ingest_token: encryptSecret(token),
+      apple_ingest_token_hash: hashToken(token),
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", user.id);
   if (error) throw new Error(error.message);
 

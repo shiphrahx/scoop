@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { decryptSecret } from "@/lib/crypto";
 import { average, weekStart, weeklyReview, type WeeklyReview } from "@/lib/coach";
 import type {
   Activity,
@@ -267,9 +268,11 @@ export async function getCoachData(): Promise<CoachData> {
     waistDeltaCm,
     activity: (activityRes.data as Activity[]) ?? [],
     fitbitConnected: Boolean((fitbitRes.data as { user_id: string } | null)?.user_id),
-    appleIngestToken:
-      (tokenRes.data as { apple_ingest_token: string | null } | null)
-        ?.apple_ingest_token ?? null,
+    appleIngestToken: (() => {
+      const stored = (tokenRes.data as { apple_ingest_token: string | null } | null)
+        ?.apple_ingest_token;
+      return stored ? decryptSecret(stored) : null;
+    })(),
   };
 }
 

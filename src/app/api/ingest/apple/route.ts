@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { hashToken } from "@/lib/crypto";
 
 // POST /api/ingest/apple — the "Health Auto Export" iOS app posts Apple Watch
 // health data here on a schedule. There's no Supabase session, so it proves who
@@ -27,9 +28,12 @@ function num(v: unknown): number | null {
 }
 
 export async function POST(request: NextRequest) {
+  // Prefer the Authorization header — a token in the query string leaks into
+  // access logs, proxies and Referer headers. The ?token= form stays supported
+  // for Health Auto Export configs that can't set a header.
   const token =
-    request.nextUrl.searchParams.get("token") ??
     request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
+    request.nextUrl.searchParams.get("token") ??
     null;
   if (!token) {
     return NextResponse.json({ error: "missing_token" }, { status: 401 });
@@ -47,7 +51,7 @@ export async function POST(request: NextRequest) {
   const { data: userRow } = await supabase
     .from("users")
     .select("id")
-    .eq("apple_ingest_token", token)
+    .eq("apple_ingest_token_hash", hashToken(token))
     .maybeSingle();
   const userId = (userRow as { id: string } | null)?.id;
   if (!userId) {
