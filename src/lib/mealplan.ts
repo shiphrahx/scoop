@@ -29,6 +29,14 @@ export interface PantryFood {
   carbs_100g: number;
   fat_100g: number;
   available_g?: number;
+  // The extras the day's nutrient verdict judges. Optional: a scanned product
+  // may not report them, and they don't take part in the portion solve — they
+  // just come along for the ride so the planned day's fibre, sugar, saturates
+  // and sodium are the real numbers instead of zero.
+  fiber_100g?: number;
+  sugar_100g?: number;
+  satfat_100g?: number;
+  sodium_mg_100g?: number;
 }
 
 // Generous per-portion ceilings (grams) — a safety net against an absurd amount
@@ -65,24 +73,41 @@ const perGram = (food: PantryFood, key: MacroKey) =>
 // the user is shown on the portion line. Every total downstream is summed from
 // these, so a meal's total always equals the portions printed under it, and
 // re-saving an untouched meal can't shift its numbers.
-function macrosOf(food: PantryFood, grams: number): Macros {
+function macrosOf(food: PantryFood, grams: number): Required<Macros> {
   const f = grams / 100;
   return {
     kcal: Math.round(food.kcal_100g * f),
     protein_g: Math.round(food.protein_100g * f),
     carbs_g: Math.round(food.carbs_100g * f),
     fat_g: Math.round(food.fat_100g * f),
+    fiber_g: Math.round((food.fiber_100g ?? 0) * f),
+    sugar_g: Math.round((food.sugar_100g ?? 0) * f),
+    satfat_g: Math.round((food.satfat_100g ?? 0) * f),
+    sodium_mg: Math.round((food.sodium_mg_100g ?? 0) * f),
   };
 }
 
-const ZERO: Macros = { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
+const ZERO: Required<Macros> = {
+  kcal: 0,
+  protein_g: 0,
+  carbs_g: 0,
+  fat_g: 0,
+  fiber_g: 0,
+  sugar_g: 0,
+  satfat_g: 0,
+  sodium_mg: 0,
+};
 
-function addMacros(a: Macros, b: Macros): Macros {
+function addMacros(a: Required<Macros>, b: Required<Macros>): Required<Macros> {
   return {
     kcal: a.kcal + b.kcal,
     protein_g: a.protein_g + b.protein_g,
     carbs_g: a.carbs_g + b.carbs_g,
     fat_g: a.fat_g + b.fat_g,
+    fiber_g: a.fiber_g + b.fiber_g,
+    sugar_g: a.sugar_g + b.sugar_g,
+    satfat_g: a.satfat_g + b.satfat_g,
+    sodium_mg: a.sodium_mg + b.sodium_mg,
   };
 }
 
@@ -122,7 +147,7 @@ function buildMeal(
   protein: PantryFood | null,
   carb: PantryFood | null,
   fat: PantryFood | null,
-): { portions: Portion[]; totals: Macros } {
+): { portions: Portion[]; totals: Required<Macros> } {
   const srcs: { food: PantryFood; key: MacroKey }[] = [];
   if (protein && protein.protein_100g > 0)
     srcs.push({ food: protein, key: "protein_g" });
@@ -154,7 +179,7 @@ function greedyMeal(
   protein: PantryFood | null,
   carb: PantryFood | null,
   fat: PantryFood | null,
-): { portions: Portion[]; totals: Macros } {
+): { portions: Portion[]; totals: Required<Macros> } {
   const portions: Portion[] = [];
   let needCarb = target.carbs_g;
   let needFat = target.fat_g;
@@ -178,8 +203,8 @@ function greedyMeal(
   return { portions, totals: sumPortions(portions) };
 }
 
-function sumPortions(portions: Portion[]): Macros {
-  return portions.reduce<Macros>(
+function sumPortions(portions: Portion[]): Required<Macros> {
+  return portions.reduce<Required<Macros>>(
     (s, { food, grams }) => addMacros(s, macrosOf(food, grams)),
     ZERO,
   );
@@ -300,7 +325,7 @@ export function planPantryDay(input: PlanDayInput): PlannedSlot[] {
 
   // Build the non-balancer slots first (rotating sources for variety) and track
   // what they used, so the balancer can fill the exact remainder.
-  const built: ({ portions: Portion[]; totals: Macros } | null)[] =
+  const built: ({ portions: Portion[]; totals: Required<Macros> } | null)[] =
     new Array(n).fill(null);
   let others = ZERO;
   for (let i = 1; i < n; i++) {

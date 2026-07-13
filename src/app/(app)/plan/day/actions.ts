@@ -36,7 +36,9 @@ async function pantryFoods(
 ): Promise<PantryFood[]> {
   const { data } = await supabase
     .from("pantry_items")
-    .select("name, kcal_100g, protein_100g, carbs_100g, fat_100g, pack_size_g, quantity");
+    .select(
+      "name, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, satfat_100g, sodium_mg_100g, pack_size_g, quantity",
+    );
   return (
     (data as Array<{
       name: string;
@@ -44,6 +46,10 @@ async function pantryFoods(
       protein_100g: number;
       carbs_100g: number;
       fat_100g: number;
+      fiber_100g: number | null;
+      sugar_100g: number | null;
+      satfat_100g: number | null;
+      sodium_mg_100g: number | null;
       pack_size_g: number | null;
       quantity: number | null;
     }>) ?? []
@@ -62,6 +68,10 @@ async function pantryFoods(
         protein_100g: Number(p.protein_100g),
         carbs_100g: Number(p.carbs_100g),
         fat_100g: Number(p.fat_100g),
+        fiber_100g: Number(p.fiber_100g ?? 0),
+        sugar_100g: Number(p.sugar_100g ?? 0),
+        satfat_100g: Number(p.satfat_100g ?? 0),
+        sodium_mg_100g: Number(p.sodium_mg_100g ?? 0),
         available_g: pack != null ? pack * qty : undefined,
       };
     });
@@ -189,14 +199,20 @@ export async function setMealPortions(id: string, portions: MealPortion[]) {
     return;
   }
 
+  // Re-sum every nutrient the portions carry, extras included — dropping them
+  // here would zero a meal's fibre and sodium the moment the user edited it.
   const totals = portions.reduce(
     (s, p) => ({
       kcal: s.kcal + (p.kcal ?? 0),
       protein_g: s.protein_g + (p.protein_g ?? 0),
       carbs_g: s.carbs_g + (p.carbs_g ?? 0),
       fat_g: s.fat_g + (p.fat_g ?? 0),
+      fiber_g: s.fiber_g + (p.fiber_g ?? 0),
+      sugar_g: s.sugar_g + (p.sugar_g ?? 0),
+      satfat_g: s.satfat_g + (p.satfat_g ?? 0),
+      sodium_mg: s.sodium_mg + (p.sodium_mg ?? 0),
     }),
-    { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
+    { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, fiber_g: 0, sugar_g: 0, satfat_g: 0, sodium_mg: 0 },
   );
 
   const { error } = await supabase
@@ -208,6 +224,10 @@ export async function setMealPortions(id: string, portions: MealPortion[]) {
       protein_g: Math.round(totals.protein_g),
       carbs_g: Math.round(totals.carbs_g),
       fat_g: Math.round(totals.fat_g),
+      fiber_g: Math.round(totals.fiber_g),
+      sugar_g: Math.round(totals.sugar_g),
+      satfat_g: Math.round(totals.satfat_g),
+      sodium_mg: Math.round(totals.sodium_mg),
     })
     .eq("id", id)
     .eq("user_id", user.id)
@@ -371,11 +391,13 @@ export async function planMyDay(picks?: DayPicks) {
         protein_g: m.protein_g,
         carbs_g: m.carbs_g,
         fat_g: m.fat_g,
-        // AI dishes don't carry the extra nutrients — leave them at 0.
-        fiber_g: 0,
-        sugar_g: 0,
-        satfat_g: 0,
-        sodium_mg: 0,
+        // The extras come from the pantry items the dish is built from. They
+        // used to be written as 0, which made the day's fibre read as a total
+        // miss and threw off the nutrient verdict on every auto-planned day.
+        fiber_g: m.fiber_g ?? 0,
+        sugar_g: m.sugar_g ?? 0,
+        satfat_g: m.satfat_g ?? 0,
+        sodium_mg: m.sodium_mg ?? 0,
         logged_food_id: null,
       };
     })
@@ -400,6 +422,9 @@ export async function logPlannedMeal(id: string) {
       "name, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg, logged_food_id",
     )
     .eq("id", id)
+    // Scope to the owner as well as in RLS. Without it a guessed id would log
+    // someone else's meal into this user's diary and move their day's calories.
+    .eq("user_id", user.id)
     .maybeSingle();
   if (!meal) throw new Error("Meal not found");
   const m = meal as {
@@ -439,7 +464,8 @@ export async function logPlannedMeal(id: string) {
   await supabase
     .from("planned_meals")
     .update({ logged_food_id: (log as { id: string }).id })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("user_id", user.id);
 
   revalidate();
 }

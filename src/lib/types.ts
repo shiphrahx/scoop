@@ -195,6 +195,8 @@ export interface Activity {
 
 // One ingredient in a suggested dish, with the exact amount to use. Macros are
 // what that portion contributes (optional — older stored plans only have grams).
+// The extras ride along too, so a meal's fibre/sugar/saturates/sodium survive
+// being edited and re-summed, and the day's nutrient verdict can judge them.
 export interface MealPortion {
   name: string;
   grams: number;
@@ -202,6 +204,10 @@ export interface MealPortion {
   protein_g?: number;
   carbs_g?: number;
   fat_g?: number;
+  fiber_g?: number;
+  sugar_g?: number;
+  satfat_g?: number;
+  sodium_mg?: number;
 }
 
 // One dish the AI suggests from the pantry that fits the user's diet and

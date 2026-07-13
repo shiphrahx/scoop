@@ -790,10 +790,21 @@ function AiMeal({
 
 // One portion mid-edit: its new grams, plus the per-gram macros captured from the
 // stored portion so we can rescale exactly (linear in grams) without drift.
+type PerGram = {
+  kcal: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  fiber_g: number;
+  sugar_g: number;
+  satfat_g: number;
+  sodium_mg: number;
+};
+
 type EditPortion = {
   name: string;
   grams: number;
-  per: { kcal: number; protein_g: number; carbs_g: number; fat_g: number } | null;
+  per: PerGram | null;
 };
 
 // Grams the AI portioned it at → per-gram macros, or null when an old plan
@@ -806,6 +817,10 @@ function toEdit(p: MealPortion): EditPortion {
           protein_g: (p.protein_g ?? 0) / p.grams,
           carbs_g: (p.carbs_g ?? 0) / p.grams,
           fat_g: (p.fat_g ?? 0) / p.grams,
+          fiber_g: (p.fiber_g ?? 0) / p.grams,
+          sugar_g: (p.sugar_g ?? 0) / p.grams,
+          satfat_g: (p.satfat_g ?? 0) / p.grams,
+          sodium_mg: (p.sodium_mg ?? 0) / p.grams,
         }
       : null;
   return { name: p.name, grams: p.grams, per };
@@ -822,6 +837,10 @@ function fromEdit(e: EditPortion): MealPortion {
     protein_g: Math.round(e.per.protein_g * e.grams),
     carbs_g: Math.round(e.per.carbs_g * e.grams),
     fat_g: Math.round(e.per.fat_g * e.grams),
+    fiber_g: Math.round(e.per.fiber_g * e.grams),
+    sugar_g: Math.round(e.per.sugar_g * e.grams),
+    satfat_g: Math.round(e.per.satfat_g * e.grams),
+    sodium_mg: Math.round(e.per.sodium_mg * e.grams),
   };
 }
 
@@ -859,6 +878,10 @@ function AiMealEditor({
           protein_g: c.protein_100g / 100,
           carbs_g: c.carbs_100g / 100,
           fat_g: c.fat_100g / 100,
+          fiber_g: c.fiber_100g / 100,
+          sugar_g: c.sugar_100g / 100,
+          satfat_g: c.satfat_100g / 100,
+          sodium_mg: c.sodium_mg_100g / 100,
         },
       },
     ]);
