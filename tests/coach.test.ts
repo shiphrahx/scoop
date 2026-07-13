@@ -138,6 +138,23 @@ describe("macrosForKcal", () => {
     expect(m.carbs_g).toBeGreaterThanOrEqual(0);
   });
 
+  it("trims protein to fit the calories rather than overshooting them", () => {
+    // 120 kg wants 240 g protein (960 kcal) — more than the whole 400 kcal
+    // target. Prescribing it would tell the user to eat 1059 kcal of macros on a
+    // 400 kcal day. Protein gives way instead: fat takes its 25% (11 g = 99
+    // kcal), protein takes what's left (75 g = 300 kcal), carbs get nothing.
+    const m = macrosForKcal(400, 120);
+    expect(m.fat_g).toBe(11);
+    expect(m.protein_g).toBe(75);
+    expect(m.carbs_g).toBe(0);
+    expect(m.protein_g * 4 + m.carbs_g * 4 + m.fat_g * 9).toBeLessThanOrEqual(400);
+  });
+
+  it("leaves a normal target's protein untouched (the cap only bites when tight)", () => {
+    // Room for the full 2 g/kg here, so nothing is trimmed.
+    expect(macrosForKcal(2000, 80).protein_g).toBe(160);
+  });
+
   it("rounds kcal", () => {
     expect(macrosForKcal(1999.6, 70).kcal).toBe(2000);
   });

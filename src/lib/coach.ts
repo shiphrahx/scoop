@@ -146,16 +146,25 @@ export function macrosForKcal(
   heightCm?: number,
   goalWeightKg?: number | null,
 ): Required<Macros> {
-  const protein_g = Math.round(
+  const wanted = Math.round(
     proteinBasisKg(weightKg, heightCm, goalWeightKg) * PROTEIN_G_PER_KG,
   );
+
+  // 2 g/kg is what we'd LIKE. On a small calorie target for a heavy person it
+  // doesn't fit — 240 g of protein is 960 kcal, which on its own blows a 1200
+  // kcal day. Prescribing it anyway hands the user a split that contradicts the
+  // calorie number printed beside it. So protein only ever gets the calories
+  // that are actually left, and the deficit costs protein last.
+  const fitProtein = (kcalLeft: number) =>
+    Math.max(0, Math.min(wanted, Math.floor(kcalLeft / 4)));
 
   // Keto flips the split: carbs pinned to a low ceiling, fat fills the rest.
   if (diet === "keto") {
     const carbs_g = Math.min(
       KETO_CARBS_G,
-      Math.max(0, Math.round((kcal - protein_g * 4) / 4)),
+      Math.max(0, Math.round(kcal / 4)),
     );
+    const protein_g = fitProtein(kcal - carbs_g * 4);
     const fat_g = Math.max(
       0,
       Math.round((kcal - protein_g * 4 - carbs_g * 4) / 9),
@@ -173,6 +182,7 @@ export function macrosForKcal(
   }
 
   const fat_g = Math.round((kcal * FAT_FRACTION_OF_KCAL) / 9);
+  const protein_g = fitProtein(kcal - fat_g * 9);
   const carbs_g = Math.max(
     0,
     Math.round((kcal - protein_g * 4 - fat_g * 9) / 4),
