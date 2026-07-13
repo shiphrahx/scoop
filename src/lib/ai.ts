@@ -102,6 +102,41 @@ export function violatesDiet(text: string, diet: DietType): boolean {
   return hits(diet === "vegan" ? ANIMAL : MEAT);
 }
 
+// User free text (allergies/dislikes) may contain regex metacharacters — escape
+// before building a matcher.
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// True when a food name matches any of the user's avoid terms (their allergies
+// or their dislikes). Word-boundary and plural-tolerant, case-insensitive — so
+// "peanut" flags "Crunchy Peanut Butter" but not "coconut", and "mushroom"
+// catches "Chestnut Mushrooms". Blank terms are ignored.
+export function matchesAvoided(name: string, terms: string[]): boolean {
+  const hay = name.toLowerCase();
+  return terms.some((raw) => {
+    const t = raw.trim().toLowerCase();
+    if (!t) return false;
+    return new RegExp(`\\b${escapeRegExp(t)}s?\\b`).test(hay);
+  });
+}
+
+// The one predicate the meal planner uses to decide a pantry item is fair game:
+// it must break neither the diet, nor an allergy, nor a dislike. Keeps every
+// "can the user eat this?" rule in one place.
+export function isFoodAllowed(
+  name: string,
+  diet: DietType,
+  allergies: string[] = [],
+  dislikes: string[] = [],
+): boolean {
+  return (
+    !violatesDiet(name, diet) &&
+    !matchesAvoided(name, allergies) &&
+    !matchesAvoided(name, dislikes)
+  );
+}
+
 // --- Grocery screenshot → ingredient list -----------------------------------
 
 const GrocerySchema = z.object({
