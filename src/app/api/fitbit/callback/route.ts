@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { encryptSecret } from "@/lib/crypto";
 import { exchangeCode } from "@/lib/fitbit";
 
 // GET /api/fitbit/callback — Fitbit sends the user back here with a one-time
@@ -33,8 +34,8 @@ export async function GET(request: NextRequest) {
   const { error } = await supabase.from("fitbit_tokens").upsert(
     {
       user_id: user.id,
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
+      access_token: encryptSecret(tokens.access_token),
+      refresh_token: encryptSecret(tokens.refresh_token),
       expires_at: tokens.expires_at,
       scope: tokens.scope,
       fitbit_user_id: tokens.fitbit_user_id,

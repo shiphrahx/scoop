@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { encryptSecret, decryptSecret, hashToken } from "@/lib/crypto";
 import { getCoachData } from "@/lib/queries";
 import { weekStart } from "@/lib/coach";
 import { getDay, refreshTokens, type FitbitTokens } from "@/lib/fitbit";
@@ -53,16 +54,16 @@ export async function syncFitbit() {
   > | null;
   if (!tokens) throw new Error("Connect Fitbit first.");
 
-  let accessToken = tokens.access_token;
+  let accessToken = decryptSecret(tokens.access_token);
   // Refresh a minute early to avoid racing the clock.
   if (new Date(tokens.expires_at).getTime() <= Date.now() + 60_000) {
-    const fresh = await refreshTokens(tokens.refresh_token);
+    const fresh = await refreshTokens(decryptSecret(tokens.refresh_token));
     accessToken = fresh.access_token;
     await supabase
       .from("fitbit_tokens")
       .update({
-        access_token: fresh.access_token,
-        refresh_token: fresh.refresh_token,
+        access_token: encryptSecret(fresh.access_token),
+        refresh_token: encryptSecret(fresh.refresh_token),
         expires_at: fresh.expires_at,
         scope: fresh.scope,
         updated_at: new Date().toISOString(),

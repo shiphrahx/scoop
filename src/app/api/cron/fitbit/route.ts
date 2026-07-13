@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { encryptSecret, decryptSecret } from "@/lib/crypto";
 import { getDay, refreshTokens, type FitbitTokens } from "@/lib/fitbit";
 
 // GET /api/cron/fitbit — scheduled pull of the last 7 days of Fitbit data for
@@ -32,15 +33,15 @@ export async function GET(request: NextRequest) {
 
   for (const t of rows) {
     try {
-      let accessToken = t.access_token;
+      let accessToken = decryptSecret(t.access_token);
       if (new Date(t.expires_at).getTime() <= now + 60_000) {
-        const fresh = await refreshTokens(t.refresh_token);
+        const fresh = await refreshTokens(decryptSecret(t.refresh_token));
         accessToken = fresh.access_token;
         await supabase
           .from("fitbit_tokens")
           .update({
-            access_token: fresh.access_token,
-            refresh_token: fresh.refresh_token,
+            access_token: encryptSecret(fresh.access_token),
+            refresh_token: encryptSecret(fresh.refresh_token),
             expires_at: fresh.expires_at,
             scope: fresh.scope,
             updated_at: new Date().toISOString(),
