@@ -29,7 +29,7 @@ export default async function AddToPantryPage({
         <h1 className="text-3xl font-semibold">Add to pantry</h1>
       </div>
 
-      <PantryForm initialName={name ?? ""} />
+      <PantryForm initialName={name ?? ""} connected={connected} />
       <ListImport />
       <InvoiceImport />
       <GroceryScan connected={connected} />

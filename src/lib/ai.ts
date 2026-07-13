@@ -313,12 +313,16 @@ const ProductSchema = z.object({
   pack_size_g: z.number().nullable(),
 });
 
-export interface ParsedProduct extends ExtraPer100g {
+export interface ParsedProduct {
   name: string;
   kcal_100g: number;
   protein_100g: number;
   carbs_100g: number;
   fat_100g: number;
+  fiber_100g: number;
+  sugar_100g: number;
+  satfat_100g: number;
+  sodium_mg_100g: number;
   pack_size_g: number | null;
 }
 

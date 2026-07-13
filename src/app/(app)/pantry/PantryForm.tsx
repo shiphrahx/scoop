@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ScanBarcode, Minus, Plus } from "lucide-react";
+import Link from "next/link";
+import { ScanBarcode, Minus, Plus, Link2, KeyRound } from "lucide-react";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import type { ExtraPer100g, OffProduct } from "@/lib/types";
-import { addPantryItem } from "./actions";
+import { addPantryItem, importPantryUrl } from "./actions";
 
 const NO_EXTRAS: ExtraPer100g = {
   fiber_100g: 0, sugar_100g: 0, satfat_100g: 0, sodium_mg_100g: 0,
@@ -20,9 +21,17 @@ const empty = {
 };
 
 // Add something to the pantry: scan its barcode (fills name + per-100g macros
-// from Open Food Facts) or type it in. `initialName` seeds the name field when
-// arriving from the day planner's "not in your pantry" prompt.
-export default function PantryForm({ initialName = "" }: { initialName?: string }) {
+// from Open Food Facts), paste a shop product link (AI reads its nutrition), or
+// type it in. `initialName` seeds the name field when arriving from the day
+// planner's "not in your pantry" prompt. `connected` gates the link import,
+// which needs the user's own AI key.
+export default function PantryForm({
+  initialName = "",
+  connected = false,
+}: {
+  initialName?: string;
+  connected?: boolean;
+}) {
   const router = useRouter();
   const [form, setForm] = useState({ ...empty, name: initialName });
   const [barcode, setBarcode] = useState<string | null>(null);
@@ -32,6 +41,8 @@ export default function PantryForm({ initialName = "" }: { initialName?: string 
   const [quantity, setQuantity] = useState(1);
   const [scanning, setScanning] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [url, setUrl] = useState("");
+  const [importing, setImporting] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
   const set = (key: keyof typeof empty, value: string) =>
@@ -71,6 +82,41 @@ export default function PantryForm({ initialName = "" }: { initialName?: string 
     }
   }
 
+  // Paste a shop product link → AI reads the page's nutrition → fill the form.
+  // Fills the same fields the barcode path does, so the user reviews and edits
+  // before saving. It's not a barcode, so off_barcode stays null.
+  async function importUrl() {
+    const link = url.trim();
+    if (!link) return;
+    setNote("Reading the link…");
+    setImporting(true);
+    try {
+      const p = await importPantryUrl(link);
+      setBarcode(null);
+      setPackSize(p.pack_size_g);
+      setScannedExtras({
+        fiber_100g: p.fiber_100g,
+        sugar_100g: p.sugar_100g,
+        satfat_100g: p.satfat_100g,
+        sodium_mg_100g: p.sodium_mg_100g,
+      });
+      setForm({
+        name: p.name,
+        kcal_100g: String(p.kcal_100g),
+        protein_100g: String(p.protein_100g),
+        carbs_100g: String(p.carbs_100g),
+        fat_100g: String(p.fat_100g),
+      });
+      setNote(
+        p.pack_size_g ? `Found: ${p.name} (${p.pack_size_g} g)` : `Found: ${p.name}`,
+      );
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Import failed.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function add() {
     if (!form.name.trim()) return;
     setSaving(true);
@@ -106,6 +152,34 @@ export default function PantryForm({ initialName = "" }: { initialName?: string 
       >
         <ScanBarcode size={22} /> Scan barcode
       </button>
+
+      <div className="flex gap-2">
+        <input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="Paste a shop product link"
+          inputMode="url"
+          disabled={!connected}
+          className="sc-input min-w-0 flex-1"
+        />
+        <button
+          onClick={importUrl}
+          disabled={importing || !connected || !url.trim()}
+          aria-label="Import from link"
+          className="sc-btn sc-btn-soft shrink-0"
+        >
+          <Link2 size={20} /> {importing ? "Reading…" : "Import"}
+        </button>
+      </div>
+
+      {!connected && (
+        <Link
+          href="/me"
+          className="flex items-center justify-center gap-1.5 text-center text-sm text-[var(--muted)]"
+        >
+          <KeyRound size={14} /> Connect your key to import from a link.
+        </Link>
+      )}
 
       {note && (
         <p className="text-center text-sm font-medium text-[var(--muted)]">
