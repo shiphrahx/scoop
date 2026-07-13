@@ -10,17 +10,27 @@ import {
   Wheat,
   Drumstick,
   Droplet,
+  ScanBarcode,
 } from "lucide-react";
+import BarcodeScanner from "@/components/BarcodeScanner";
+import type { OffProduct } from "@/lib/types";
+import type { DayPick } from "@/lib/mealplan";
 import { planMyDay } from "../actions";
 
 type Macro = "carb" | "protein" | "fat";
 type Step = Macro | "confirm";
 const STEP_ORDER: Step[] = ["carb", "protein", "fat", "confirm"];
 
-// A pick per macro: a string = the chosen pantry item; null = "suggest for me"
-// (the app uses the densest source of that macro). Undecided steps default to
-// suggest, so tapping straight through simply plans the whole day for you.
-type Picks = { carb: string | null; protein: string | null; fat: string | null };
+// A pick per macro (see DayPick): a pantry item name, a scanned product with its
+// own macros, or null = "suggest for me" (the densest source of that macro).
+// Undecided steps default to suggest, so tapping straight through plans the day.
+type Picks = { carb: DayPick; protein: DayPick; fat: DayPick };
+
+// A pick's display name, or null for "suggest for me".
+function pickLabel(pick: DayPick): string | null {
+  if (pick == null) return null;
+  return typeof pick === "string" ? pick : pick.name;
+}
 
 const MACRO_META: Record<
   Macro,
@@ -67,6 +77,8 @@ export default function BuildWizard({
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanNote, setScanNote] = useState<string | null>(null);
 
   const stepIndex = STEP_ORDER.indexOf(step);
   const optionsFor: Record<Macro, string[]> = {
@@ -77,13 +89,43 @@ export default function BuildWizard({
 
   const go = (s: Step) => {
     setErr(null);
+    setScanNote(null);
     setStep(s);
   };
   const next = () => go(STEP_ORDER[Math.min(stepIndex + 1, STEP_ORDER.length - 1)]);
   const back = () => go(STEP_ORDER[Math.max(stepIndex - 1, 0)]);
 
-  function choose(macro: Macro, value: string | null) {
+  function choose(macro: Macro, value: DayPick) {
     setPicks((p) => ({ ...p, [macro]: value }));
+  }
+
+  // Scan a barcode as this macro's pick: look the product up on Open Food Facts
+  // (same endpoint the pantry scanner uses), keep its per-100g macros, and move
+  // to the next step. The scanned food needn't be in the pantry — the user chose
+  // exactly it, so the planner portions the day around it directly.
+  async function handleScan(barcode: string) {
+    if (step === "confirm") return;
+    setScanning(false);
+    setScanNote("Looking up…");
+    try {
+      const res = await fetch(`/api/off/${encodeURIComponent(barcode)}`);
+      if (!res.ok) {
+        setScanNote(`No match for ${barcode}. Pick from your pantry instead.`);
+        return;
+      }
+      const p = (await res.json()) as OffProduct;
+      choose(step, {
+        name: p.name,
+        kcal_100g: p.kcal_100g,
+        protein_100g: p.protein_100g,
+        carbs_100g: p.carbs_100g,
+        fat_100g: p.fat_100g,
+      });
+      setScanNote(null);
+      next();
+    } catch {
+      setScanNote("Lookup failed. Pick from your pantry instead.");
+    }
   }
 
   async function build() {
@@ -113,10 +155,15 @@ export default function BuildWizard({
           macro={step}
           options={optionsFor[step]}
           selected={picks[step]}
+          scanNote={scanNote}
           onSelect={(v) => choose(step, v)}
           onSuggest={() => {
             choose(step, null);
             next();
+          }}
+          onScan={() => {
+            setScanNote(null);
+            setScanning(true);
           }}
           onBack={stepIndex > 0 ? back : undefined}
           onNext={next}
@@ -129,6 +176,13 @@ export default function BuildWizard({
           onBuild={build}
         />
       )}
+
+      {scanning && (
+        <BarcodeScanner
+          onDetected={handleScan}
+          onClose={() => setScanning(false)}
+        />
+      )}
     </section>
   );
 }
@@ -139,20 +193,27 @@ function MacroStep({
   macro,
   options,
   selected,
+  scanNote,
   onSelect,
   onSuggest,
+  onScan,
   onBack,
   onNext,
 }: {
   macro: Macro;
   options: string[];
-  selected: string | null;
-  onSelect: (v: string | null) => void;
+  selected: DayPick;
+  scanNote: string | null;
+  onSelect: (v: DayPick) => void;
   onSuggest: () => void;
+  onScan: () => void;
   onBack?: () => void;
   onNext: () => void;
 }) {
   const meta = MACRO_META[macro];
+  // A scanned pick is an object; a pantry chip is a string. Only a string can
+  // light a chip — a scanned item is shown on its own line below.
+  const scanned = selected != null && typeof selected !== "string" ? selected : null;
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2">
@@ -185,12 +246,27 @@ function MacroStep({
         </div>
       )}
 
-      <button
-        onClick={onSuggest}
-        className="sc-btn sc-btn-soft"
-      >
-        <Wand2 size={18} /> Suggest one for me
-      </button>
+      {scanned && (
+        <p className="sc-card flex items-center gap-2 p-3 text-sm font-medium">
+          <ScanBarcode size={16} className="shrink-0 text-[var(--ink-teal)]" />
+          <span className="min-w-0 truncate">Scanned: {scanned.name}</span>
+        </p>
+      )}
+
+      <div className="flex gap-2">
+        <button onClick={onSuggest} className="sc-btn sc-btn-soft flex-1">
+          <Wand2 size={18} /> Suggest one
+        </button>
+        <button onClick={onScan} className="sc-btn sc-btn-soft flex-1">
+          <ScanBarcode size={18} /> Scan a barcode
+        </button>
+      </div>
+
+      {scanNote && (
+        <p className="text-center text-xs font-medium text-[var(--muted)]">
+          {scanNote}
+        </p>
+      )}
 
       <div className="flex gap-2">
         {onBack && (
@@ -217,7 +293,7 @@ function ConfirmStep({
   onBack: () => void;
   onBuild: () => void;
 }) {
-  const rows: { macro: Macro; label: string; value: string | null }[] = [
+  const rows: { macro: Macro; label: string; value: DayPick }[] = [
     { macro: "carb", label: "Carb", value: picks.carb },
     { macro: "protein", label: "Protein", value: picks.protein },
     { macro: "fat", label: "Fat", value: picks.fat },
@@ -241,7 +317,7 @@ function ConfirmStep({
               {label}
             </span>
             <span className="min-w-0 truncate text-right font-medium">
-              {value ?? (
+              {pickLabel(value) ?? (
                 <span className="inline-flex items-center gap-1 text-[var(--ink-teal)]">
                   <Wand2 size={15} /> Suggest for me
                 </span>

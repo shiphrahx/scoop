@@ -38,8 +38,8 @@ export default async function PlanDayBuildPage() {
         </Link>
         <h1 className="text-3xl font-semibold">Plan the day for me</h1>
         <p className="text-sm text-[var(--muted)]">
-          Pick a carb, a protein and a fat from your pantry — or let us suggest
-          each. We&apos;ll portion the whole day from just those.
+          Pick a carb, a protein and a fat from your pantry, scan a barcode, or
+          let us suggest each. We&apos;ll portion the whole day from just those.
         </p>
       </div>
 

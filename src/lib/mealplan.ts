@@ -220,14 +220,19 @@ const roundMacros = (m: Macros): Macros => ({
   fat_g: Math.round(m.fat_g),
 });
 
-// The carb / protein / fat the user chose in the "plan my day" wizard. A name
-// pins every meal to that pantry food; null means "suggest for me" — use the
-// densest pantry source of that macro. When `picks` is given the planner builds
-// ONLY from these foods: nothing else from the pantry is added.
+// One macro's choice in the "plan my day" wizard:
+//   null        → "suggest for me": use the densest pantry source of that macro
+//   string      → a pantry item chosen by name
+//   PantryFood  → a scanned barcode product, carrying its own per-100g macros
+//                 (needn't be in the pantry — the user scanned exactly this)
+export type DayPick = string | PantryFood | null;
+
+// The carb / protein / fat the user chose. When `picks` is given the planner
+// builds ONLY from these foods: nothing else from the pantry is added.
 export interface DayPicks {
-  carb: string | null;
-  protein: string | null;
-  fat: string | null;
+  carb: DayPick;
+  protein: DayPick;
+  fat: DayPick;
 }
 
 export interface PlanDayInput {
@@ -255,15 +260,18 @@ export function planPantryDay(input: PlanDayInput): PlannedSlot[] {
   // a named pick wins, a null pick falls back to the densest source ("suggest
   // for me"). Without picks we rotate the pools for variety across the day.
   const picks = input.picks;
-  const fixedProtein = picks
-    ? byName(input.pantry, picks.protein) ?? protein[0] ?? null
-    : null;
-  const fixedCarb = picks
-    ? byName(input.pantry, picks.carb) ?? carb[0] ?? null
-    : null;
-  const fixedFat = picks
-    ? byName(input.pantry, picks.fat) ?? fat[0] ?? null
-    : null;
+  // Resolve one pick to a food: a scanned product is used as-is (its own
+  // macros); a name is looked up in the pantry; either falling back to the
+  // densest source of that macro when it can't be found.
+  const resolve = (pick: DayPick, fallback: PantryFood | null): PantryFood | null =>
+    pick == null
+      ? fallback
+      : typeof pick === "string"
+        ? byName(input.pantry, pick) ?? fallback
+        : pick;
+  const fixedProtein = picks ? resolve(picks.protein, protein[0] ?? null) : null;
+  const fixedCarb = picks ? resolve(picks.carb, carb[0] ?? null) : null;
+  const fixedFat = picks ? resolve(picks.fat, fat[0] ?? null) : null;
   const proteinFor = (i: number) => (picks ? fixedProtein : at(protein, i));
   const carbFor = (i: number) => (picks ? fixedCarb : at(carb, i));
   const fatFor = (i: number) => (picks ? fixedFat : at(fat, i));
