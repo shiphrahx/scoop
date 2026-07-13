@@ -1,8 +1,14 @@
 // Local, deterministic meal planner. Every pantry item already carries its
 // per-100g macros, so building a day of meals is just arithmetic: classify each
-// item by its dominant macro (protein / carb / fat), then solve the grams of a
+// item by its dominant macro (protein / carb / fat), then SOLVE the grams of a
 // protein + carb + fat source that land a meal on its macro budget. No AI, no
 // network — the pantry is the whole source of truth.
+//
+// Accuracy: each meal is solved as a small linear system (grams of each source
+// vs the protein/carbs/fat targets), and the day's first meal is a "balancer"
+// sized to whatever the other meals left over — so the DAY totals land within a
+// gram or two of target (well inside ±5), as long as the pantry has a protein,
+// a carb AND a fat source to move each macro independently.
 
 import { macroRole } from "@/lib/foodgroups";
 import type {
@@ -21,15 +27,30 @@ export interface PantryFood {
   fat_100g: number;
 }
 
-// Sensible per-meal portion ceilings (grams) so a single food can't blow up.
-const MAX = { protein: 300, carb: 350, fat: 60 } as const;
-// Drop any portion below this — not worth listing a smear of something.
-const MIN_PORTION = 5;
+// Generous per-portion ceilings (grams) — a safety net against an absurd amount
+// of one low-density food, set high enough not to bind in normal planning.
+const CAP: Record<MacroKey, number> = {
+  protein_g: 500,
+  carbs_g: 600,
+  fat_g: 150,
+};
+// Keep any portion of at least this many grams (finer than before, so the solve
+// can hit the target closely). Below this a food isn't worth listing.
+const MIN_PORTION = 2;
+
+type MacroKey = "protein_g" | "carbs_g" | "fat_g";
+const KEY_TO_100: Record<MacroKey, keyof PantryFood> = {
+  protein_g: "protein_100g",
+  carbs_g: "carbs_100g",
+  fat_g: "fat_100g",
+};
 
 const clamp = (n: number, lo: number, hi: number) =>
   Math.max(lo, Math.min(hi, n));
-const round5 = (n: number) => Math.round(n / 5) * 5;
-const perG = (per100: number) => per100 / 100;
+
+// Per-gram amount of one macro in a food.
+const perGram = (food: PantryFood, key: MacroKey) =>
+  (food[KEY_TO_100[key]] as number) / 100;
 
 // The macros of `grams` of a food.
 function macrosOf(food: PantryFood, grams: number): Macros {
@@ -42,6 +63,8 @@ function macrosOf(food: PantryFood, grams: number): Macros {
   };
 }
 
+const ZERO: Macros = { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
+
 function addMacros(a: Macros, b: Macros): Macros {
   return {
     kcal: a.kcal + b.kcal,
@@ -51,48 +74,103 @@ function addMacros(a: Macros, b: Macros): Macros {
   };
 }
 
-const ZERO: Macros = { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
+// Solve a small (n≤3) linear system A·x = b by Gauss–Jordan with partial
+// pivoting. Returns null when singular (e.g. two sources of the same macro).
+function solveLinear(A: number[][], b: number[]): number[] | null {
+  const n = A.length;
+  const M = A.map((row, i) => [...row, b[i]]);
+  for (let col = 0; col < n; col++) {
+    let piv = col;
+    for (let r = col + 1; r < n; r++) {
+      if (Math.abs(M[r][col]) > Math.abs(M[piv][col])) piv = r;
+    }
+    if (Math.abs(M[piv][col]) < 1e-9) return null;
+    [M[col], M[piv]] = [M[piv], M[col]];
+    const d = M[col][col];
+    for (let j = col; j <= n; j++) M[col][j] /= d;
+    for (let r = 0; r < n; r++) {
+      if (r === col) continue;
+      const f = M[r][col];
+      for (let j = col; j <= n; j++) M[r][j] -= f * M[col][j];
+    }
+  }
+  return M.map((row) => row[n]);
+}
 
-// Solve one meal: size the protein source to the protein target, the carb
-// source to the carbs still needed after it, then the fat source to top up the
-// remaining fat. Greedy but explainable, and each source is a distinct food.
+type Portion = { food: PantryFood; grams: number };
+
+// Size a protein + carb + fat source so the meal hits its macro target. Each
+// present source anchors one macro (protein→protein_g …); solving that square
+// system hits every anchored macro exactly (three sources → all three macros).
+// Falls back to a greedy fill if the system is singular. Grams are rounded to
+// whole numbers and clamped; a negative solve (a macro already overshot by the
+// other sources) drops to zero.
 function buildMeal(
   target: Macros,
   protein: PantryFood | null,
   carb: PantryFood | null,
   fat: PantryFood | null,
-): { portions: { food: PantryFood; grams: number }[]; totals: Macros } {
-  const chosen: { food: PantryFood; grams: number }[] = [];
+): { portions: Portion[]; totals: Macros } {
+  const srcs: { food: PantryFood; key: MacroKey }[] = [];
+  if (protein && protein.protein_100g > 0)
+    srcs.push({ food: protein, key: "protein_g" });
+  if (carb && carb.carbs_100g > 0) srcs.push({ food: carb, key: "carbs_g" });
+  if (fat && fat.fat_100g > 0) srcs.push({ food: fat, key: "fat_g" });
+
+  let grams: number[] | null = null;
+  if (srcs.length) {
+    const A = srcs.map((si) => srcs.map((sj) => perGram(sj.food, si.key)));
+    const b = srcs.map((si) => target[si.key]);
+    grams = solveLinear(A, b);
+  }
+  if (!grams || grams.some((g) => !Number.isFinite(g))) {
+    return greedyMeal(target, protein, carb, fat);
+  }
+
+  const portions: Portion[] = [];
+  srcs.forEach((s, i) => {
+    const g = clamp(Math.round(grams![i]), 0, CAP[s.key]);
+    if (g >= MIN_PORTION) portions.push({ food: s.food, grams: g });
+  });
+  return { portions, totals: sumPortions(portions) };
+}
+
+// Fallback when the linear solve can't run: fill protein, then carbs, then fat
+// in sequence. Less exact, but only reached for degenerate pantries.
+function greedyMeal(
+  target: Macros,
+  protein: PantryFood | null,
+  carb: PantryFood | null,
+  fat: PantryFood | null,
+): { portions: Portion[]; totals: Macros } {
+  const portions: Portion[] = [];
   let needCarb = target.carbs_g;
   let needFat = target.fat_g;
-
+  const push = (food: PantryFood, grams: number, key: MacroKey) => {
+    const g = clamp(Math.round(grams), 0, CAP[key]);
+    if (g >= MIN_PORTION) portions.push({ food, grams: g });
+    return g;
+  };
   if (protein && protein.protein_100g > 0) {
-    const g = clamp(round5(target.protein_g / perG(protein.protein_100g)), 0, MAX.protein);
-    if (g >= MIN_PORTION) {
-      chosen.push({ food: protein, grams: g });
-      needCarb -= g * perG(protein.carbs_100g);
-      needFat -= g * perG(protein.fat_100g);
-    }
+    const g = push(protein, target.protein_g / perGram(protein, "protein_g"), "protein_g");
+    needCarb -= g * perGram(protein, "carbs_g");
+    needFat -= g * perGram(protein, "fat_g");
   }
-
   if (carb && carb.carbs_100g > 0) {
-    const g = clamp(round5(needCarb / perG(carb.carbs_100g)), 0, MAX.carb);
-    if (g >= MIN_PORTION) {
-      chosen.push({ food: carb, grams: g });
-      needFat -= g * perG(carb.fat_100g);
-    }
+    const g = push(carb, needCarb / perGram(carb, "carbs_g"), "carbs_g");
+    needFat -= g * perGram(carb, "fat_g");
   }
-
   if (fat && fat.fat_100g > 0) {
-    const g = clamp(round5(needFat / perG(fat.fat_100g)), 0, MAX.fat);
-    if (g >= MIN_PORTION) chosen.push({ food: fat, grams: g });
+    push(fat, needFat / perGram(fat, "fat_g"), "fat_g");
   }
+  return { portions, totals: sumPortions(portions) };
+}
 
-  const totals = chosen.reduce<Macros>(
+function sumPortions(portions: Portion[]): Macros {
+  return portions.reduce<Macros>(
     (s, { food, grams }) => addMacros(s, macrosOf(food, grams)),
     ZERO,
   );
-  return { portions: chosen, totals };
 }
 
 // Split a food list into protein / carb / fat pools by dominant macro, each
@@ -124,14 +202,14 @@ const at = <T,>(arr: T[], i: number): T | null =>
   arr.length ? arr[i % arr.length] : null;
 
 // A short dish name from its portions: "Chicken with Rice", or the single food.
-function mealName(portions: { food: PantryFood }[]): string {
+function mealName(portions: Portion[]): string {
   const names = portions.map((p) => p.food.name);
   if (names.length === 0) return "Pantry meal";
   if (names.length === 1) return names[0];
   return `${names[0]} with ${names[1]}`;
 }
 
-function toPortions(chosen: { food: PantryFood; grams: number }[]): MealPortion[] {
+function toPortions(chosen: Portion[]): MealPortion[] {
   return chosen.map((c) => ({ name: c.food.name, grams: c.grams }));
 }
 
@@ -152,11 +230,13 @@ export interface PlanDayInput {
 }
 
 // Fill each empty slot with a pantry meal so the day's totals land on target.
-// Splits what's left of the budget evenly across the empty slots and rotates
-// through the pantry so meals vary. Returns one slot per meal it could build.
+// Slots after the first each take an even share of what's left; the FIRST slot
+// is the balancer — it's sized to the exact remainder, so rounding in the other
+// meals can't push the day total off. Returns one slot per meal it could build.
 export function planPantryDay(input: PlanDayInput): PlannedSlot[] {
   const { protein, carb, fat } = pools(input.pantry);
-  const n = input.emptySlots.length;
+  const slots = input.emptySlots;
+  const n = slots.length;
   if (n === 0) return [];
 
   const left: Macros = {
@@ -165,30 +245,46 @@ export function planPantryDay(input: PlanDayInput): PlannedSlot[] {
     carbs_g: Math.max(0, input.budget.carbs_g - input.fixed.carbs_g),
     fat_g: Math.max(0, input.budget.fat_g - input.fixed.fat_g),
   };
-  const perSlot: Macros = {
+  const share: Macros = {
     kcal: left.kcal / n,
     protein_g: left.protein_g / n,
     carbs_g: left.carbs_g / n,
     fat_g: left.fat_g / n,
   };
 
+  // Build the non-balancer slots first (rotating sources for variety) and track
+  // what they used, so the balancer can fill the exact remainder.
+  const built: ({ portions: Portion[]; totals: Macros } | null)[] =
+    new Array(n).fill(null);
+  let others = ZERO;
+  for (let i = 1; i < n; i++) {
+    const m = buildMeal(share, at(protein, i), at(carb, i), at(fat, i));
+    built[i] = m;
+    others = addMacros(others, m.totals);
+  }
+
+  // The balancer: densest sources, targeting whatever the others left of the
+  // day's budget — this is what keeps the day total on target.
+  const balTarget: Macros = {
+    kcal: Math.max(0, left.kcal - others.kcal),
+    protein_g: Math.max(0, left.protein_g - others.protein_g),
+    carbs_g: Math.max(0, left.carbs_g - others.carbs_g),
+    fat_g: Math.max(0, left.fat_g - others.fat_g),
+  };
+  built[0] = buildMeal(balTarget, protein[0] ?? null, carb[0] ?? null, fat[0] ?? null);
+
   const out: PlannedSlot[] = [];
-  input.emptySlots.forEach((slot, i) => {
-    const { portions, totals } = buildMeal(
-      perSlot,
-      at(protein, i),
-      at(carb, i),
-      at(fat, i),
-    );
-    if (portions.length === 0) return;
+  slots.forEach((slot, i) => {
+    const m = built[i];
+    if (!m || m.portions.length === 0) return;
     out.push({
       slot,
       origin: "ai",
-      name: mealName(portions),
-      portions: toPortions(portions),
+      name: mealName(m.portions),
+      portions: toPortions(m.portions),
       swaps: [],
       why: "Portioned from your pantry to hit this meal's macros.",
-      ...roundMacros(totals),
+      ...roundMacros(m.totals),
     });
   });
   return out;
@@ -231,7 +327,6 @@ export function suggestPantryMeals(input: SuggestInput): MealSuggestion[] {
     const key = portions.map((p) => `${p.food.name}:${p.grams}`).join("|");
     if (seen.has(key)) continue;
     seen.add(key);
-    // Alternative sources the user could swap in.
     const swaps = [
       ...cPool.filter((f) => f !== carb).slice(0, 1),
       ...pPool.filter((f) => f !== protein).slice(0, 1),
