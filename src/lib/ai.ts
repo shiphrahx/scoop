@@ -3,6 +3,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { decryptSecret } from "@/lib/crypto";
+import { safeFetchText, BlockedUrlError } from "@/lib/fetchguard";
 import { extractRecipeJsonLd } from "@/lib/recipe";
 import type {
   DietType,
@@ -228,12 +229,13 @@ function htmlToText(html: string): string {
 export async function parseRecipeFromUrl(url: string): Promise<ParsedRecipe> {
   let html: string;
   try {
-    const page = await fetch(url, {
-      headers: { "User-Agent": "Scoop/0.1 recipe importer" },
+    html = await safeFetchText(url, {
+      userAgent: "Scoop/0.1 recipe importer",
     });
-    if (!page.ok) throw new Error();
-    html = await page.text();
-  } catch {
+  } catch (e) {
+    // Surface a blocked/private URL as its own message; anything else is a
+    // generic fetch failure.
+    if (e instanceof BlockedUrlError) throw new Error(e.message);
     throw new Error("Couldn't fetch that page. Check the link.");
   }
 
