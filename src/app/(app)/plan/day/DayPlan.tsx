@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import Link from "next/link";
-import { Sparkles, Check, X, Search, Plus, Minus, Package, Globe, Trash2 } from "lucide-react";
+import { Check, X, Search, Plus, Minus, Package, Globe, Trash2 } from "lucide-react";
 import type { FoodChoice, Macros, PlannedMeal, PlanItem } from "@/lib/types";
 import { sumItems } from "@/lib/types";
 import { NUTRIENTS, valueOf, formatNutrient, type NutrientKey } from "@/lib/nutrients";
@@ -112,7 +111,6 @@ export default function DayPlan({
   const [err, setErr] = useState<string | null>(null);
 
   const total = dayTotal(slots);
-  const anyEmpty = slots.some((s) => !s.meal);
   // Meals the app planned that the user hasn't eaten — the ones "Remove the
   // app's plan" clears (their own built meals and eaten meals are kept).
   const anyAppPlanned = slots.some(
@@ -187,12 +185,6 @@ export default function DayPlan({
         <p className="text-center text-sm font-medium text-[var(--danger,#e5484d)]">
           {err}
         </p>
-      )}
-
-      {anyEmpty && (
-        <Link href="/plan/day/build" className="sc-btn sc-btn-primary py-4 text-lg">
-          <Sparkles size={22} /> Plan my empty meals
-        </Link>
       )}
 
       {anyAppPlanned && (
