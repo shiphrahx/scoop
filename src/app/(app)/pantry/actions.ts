@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
-import { parseGroceryImage } from "@/lib/ai";
+import { rateLimit } from "@/lib/ratelimit";
+import { parseGroceryImage, parseProductFromUrl, type ParsedProduct } from "@/lib/ai";
 import type { GroceryItem } from "@/lib/types";
 
 export interface PantryInput {
@@ -152,6 +153,17 @@ export async function clearPantry() {
   if (error) throw new Error(error.message);
 
   revalidatePath("/pantry");
+}
+
+// Read a shop product page (a link the user pasted) into one pantry item, ready
+// to review in the form. AI, user's own key. Rate-limited per user because it
+// makes an outbound fetch — can't be driven in a tight loop.
+export async function importPantryUrl(url: string): Promise<ParsedProduct> {
+  const { user } = await requireUser();
+  if (!rateLimit(`pantry-url:${user.id}`, 10, 60_000)) {
+    throw new Error("Too many imports — give it a minute and try again.");
+  }
+  return parseProductFromUrl(url);
 }
 
 // Read a grocery screenshot into a list of items (AI, user's own key). Returns
