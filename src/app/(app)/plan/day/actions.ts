@@ -192,6 +192,58 @@ export async function clearSlot(slot: string) {
   revalidate();
 }
 
+// Undo "I ate this": drop the food-log entry and clear the mark so the slot
+// goes back to being editable. The plan's foods are kept — the user is just
+// correcting a meal they logged too soon.
+export async function unlogPlannedMeal(id: string) {
+  const { supabase, user } = await requireUser();
+
+  const { data: meal } = await supabase
+    .from("planned_meals")
+    .select("logged_food_id")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!meal) throw new Error("Meal not found");
+  const logId = (meal as { logged_food_id: string | null }).logged_food_id;
+  if (!logId) return; // not logged — nothing to undo
+
+  await supabase.from("food_logs").delete().eq("id", logId).eq("user_id", user.id);
+  const { error } = await supabase
+    .from("planned_meals")
+    .update({ logged_food_id: null })
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) throw new Error(error.message);
+  revalidate();
+}
+
+// Remove a planned meal outright, eaten or not. Its food-log entry (if it was
+// eaten) goes too, so the day's totals drop back.
+export async function removePlannedMeal(id: string) {
+  const { supabase, user } = await requireUser();
+
+  const { data: meal } = await supabase
+    .from("planned_meals")
+    .select("logged_food_id")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!meal) throw new Error("Meal not found");
+  const logId = (meal as { logged_food_id: string | null }).logged_food_id;
+
+  if (logId) {
+    await supabase.from("food_logs").delete().eq("id", logId).eq("user_id", user.id);
+  }
+  const { error } = await supabase
+    .from("planned_meals")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) throw new Error(error.message);
+  revalidate();
+}
+
 // Fill every empty slot from the pantry so the day's totals hit target. Meals
 // the user already built (manual) and already ate (logged) are left untouched;
 // the AI just budgets around their macros.
