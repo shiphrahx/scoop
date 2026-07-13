@@ -37,8 +37,8 @@ export default async function PlanDayPage() {
         </Link>
         <h1 className="text-3xl font-semibold">Plan my day</h1>
         <p className="text-sm text-[var(--muted)]">
-          Let the app plan it all, or tell it what you fancy and build the rest
-          from your pantry.
+          Let the app plan it, or add the meals you already know below and it
+          builds the rest around them.
         </p>
       </div>
 

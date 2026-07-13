@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { Sparkles, Check, X, Search, Plus, Minus, Package, Globe, Trash2 } from "lucide-react";
 import type { FoodChoice, Macros, PlannedMeal, PlanItem } from "@/lib/types";
 import { sumItems } from "@/lib/types";
@@ -11,7 +12,6 @@ import {
   setMealItems,
   clearSlot,
   clearAppPlan,
-  planMyDay,
   logPlannedMeal,
 } from "./actions";
 
@@ -190,14 +190,9 @@ export default function DayPlan({
       )}
 
       {anyEmpty && (
-        <button
-          onClick={() => run(() => planMyDay())}
-          disabled={busy}
-          className="sc-btn sc-btn-primary py-4 text-lg"
-        >
-          <Sparkles size={22} />
-          {busy ? "Planning…" : "Plan my empty meals"}
-        </button>
+        <Link href="/plan/day/build" className="sc-btn sc-btn-primary py-4 text-lg">
+          <Sparkles size={22} /> Plan my empty meals
+        </Link>
       )}
 
       {anyAppPlanned && (
