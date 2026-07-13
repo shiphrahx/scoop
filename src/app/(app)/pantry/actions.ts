@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { rateLimit } from "@/lib/ratelimit";
-import { parseGroceryImage, parseProductFromUrl, type ParsedProduct } from "@/lib/ai";
-import type { GroceryItem } from "@/lib/types";
+import { parseGroceryImage, parseProductFromUrl } from "@/lib/ai";
+import type { GroceryItem, ParsedProduct } from "@/lib/types";
 
 export interface PantryInput {
   name: string;

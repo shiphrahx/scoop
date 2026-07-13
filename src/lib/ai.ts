@@ -5,11 +5,13 @@ import { createClient } from "@/lib/supabase/server";
 import { decryptSecret } from "@/lib/crypto";
 import { safeFetchText, BlockedUrlError } from "@/lib/fetchguard";
 import { extractRecipeJsonLd } from "@/lib/recipe";
+import { keylessProduct } from "@/lib/product";
 import type {
   DietType,
   GroceryItem,
   Macros,
   MealSuggestion,
+  ParsedProduct,
   PlannedSlot,
   RecipeIngredient,
 } from "@/lib/types";
@@ -313,22 +315,11 @@ const ProductSchema = z.object({
   pack_size_g: z.number().nullable(),
 });
 
-export interface ParsedProduct {
-  name: string;
-  kcal_100g: number;
-  protein_100g: number;
-  carbs_100g: number;
-  fat_100g: number;
-  fiber_100g: number;
-  sugar_100g: number;
-  satfat_100g: number;
-  sodium_mg_100g: number;
-  pack_size_g: number | null;
-}
-
 // Read a shop product page (Tesco, Ocado, Lidl, a brand site, anywhere) into one
-// pantry item. Grocery sites print a nutrition table per 100 g, so we pull those
-// straight through; pack size comes from the product title. Needs the user's key.
+// pantry item. Keyless first — the page's structured data and Open Food Facts
+// cover most products (see keylessProduct). AI only reads the page text when
+// that finds no macros AND the user has a key; without a key we return whatever
+// the keyless pass got (often name + pack size for the user to fill in).
 export async function parseProductFromUrl(url: string): Promise<ParsedProduct> {
   let html: string;
   try {
@@ -340,7 +331,20 @@ export async function parseProductFromUrl(url: string): Promise<ParsedProduct> {
     throw new Error("Couldn't fetch that page. Check the link.");
   }
 
-  const client = await getClient();
+  const keyless = await keylessProduct(html);
+  // Good enough when we actually got calories — hand it straight back.
+  if (keyless && keyless.kcal_100g > 0) return keyless;
+
+  // No macros yet. Fall back to the model — but if the user has no key, return
+  // the keyless result (name + pack size) so they can type the numbers in.
+  let client: Anthropic;
+  try {
+    client = await getClient();
+  } catch (e) {
+    if (keyless && keyless.name.trim()) return keyless;
+    throw e;
+  }
+
   const text = htmlToText(html);
   const parsed = await parseStructured(
     client,
@@ -357,10 +361,10 @@ export async function parseProductFromUrl(url: string): Promise<ParsedProduct> {
     `Read this product page and return its nutrition.\n\n${text}`,
   );
 
-  if (!parsed || !parsed.name.trim()) {
-    throw new Error("Couldn't read a product there.");
-  }
-  return parsed;
+  if (parsed && parsed.name.trim()) return parsed;
+  // Model drew a blank too — fall back to the keyless name/pack if we have it.
+  if (keyless && keyless.name.trim()) return keyless;
+  throw new Error("Couldn't read a product there.");
 }
 
 // --- Plan a meal: dishes from pantry + diet + remaining macros --------------
