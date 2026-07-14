@@ -29,10 +29,10 @@ export default defineConfig({
       // denominator genuinely changed (new code landing with its own untested
       // branches) — never to get a red build through.
       thresholds: {
-        lines: 62,
-        functions: 80,
+        lines: 67,
+        functions: 85,
         branches: 83,
-        statements: 62,
+        statements: 67,
       },
     },
   },
