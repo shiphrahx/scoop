@@ -6,12 +6,14 @@ import { isFoodAllowed } from "@/lib/ai";
 import { planPantryDay, type DayPicks, type PantryFood } from "@/lib/mealplan";
 import { parseOrThrow, portionGramsSchema } from "@/lib/validate";
 import {
+  getConsumedForDate,
   getCurrentTargets,
+  getPlanForDate,
   getProfile,
-  getTodayConsumed,
-  getTodayPlan,
+  getTimezone,
   localToday,
 } from "@/lib/queries";
+import { dayRangeFor } from "@/lib/time";
 import {
   sumItems,
   type DietType,
@@ -24,6 +26,14 @@ import {
 function revalidate() {
   revalidatePath("/plan/day");
   revalidatePath("/dashboard");
+}
+
+// The day an action targets. Slots are keyed by (user, date, slot), so a bad
+// value would write onto the wrong calendar day; only YYYY-MM-DD is accepted,
+// and anything missing or malformed falls back to today.
+async function resolveDate(date?: string): Promise<string> {
+  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+  return localToday();
 }
 
 // Every pantry item with its per-100g macros, filtered to what the diet allows
@@ -127,15 +137,16 @@ export async function searchFoods(query: string): Promise<FoodChoice[]> {
 
 // Save the list of foods the user picked for a slot. Empty list clears the
 // slot. Macros are the exact sum of the items — no AI estimate needed.
-export async function setMealItems(slot: string, items: PlanItem[]) {
+export async function setMealItems(slot: string, items: PlanItem[], date?: string) {
   const { supabase, user } = await requireUser();
+  const day = await resolveDate(date);
 
   if (items.length === 0) {
     await supabase
       .from("planned_meals")
       .delete()
       .eq("user_id", user.id)
-      .eq("date", await localToday())
+      .eq("date", day)
       .eq("slot", slot);
     revalidate();
     return;
@@ -149,7 +160,7 @@ export async function setMealItems(slot: string, items: PlanItem[]) {
   const { error } = await supabase.from("planned_meals").upsert(
     {
       user_id: user.id,
-      date: await localToday(),
+      date: day,
       slot,
       position,
       origin: "manual",
@@ -247,13 +258,13 @@ export async function setMealPortions(id: string, portions: MealPortion[]) {
 // for when they don't like the auto-plan and want to start over. Meals they
 // built themselves (origin 'manual') and anything already logged are left
 // untouched (deleting a logged meal would orphan its food-log entry).
-export async function clearAppPlan() {
+export async function clearAppPlan(date?: string) {
   const { supabase, user } = await requireUser();
   const { error } = await supabase
     .from("planned_meals")
     .delete()
     .eq("user_id", user.id)
-    .eq("date", await localToday())
+    .eq("date", await resolveDate(date))
     .eq("origin", "ai")
     .is("logged_food_id", null);
   if (error) throw new Error(error.message);
@@ -261,13 +272,13 @@ export async function clearAppPlan() {
 }
 
 // Empty a slot again.
-export async function clearSlot(slot: string) {
+export async function clearSlot(slot: string, date?: string) {
   const { supabase, user } = await requireUser();
   const { error } = await supabase
     .from("planned_meals")
     .delete()
     .eq("user_id", user.id)
-    .eq("date", await localToday())
+    .eq("date", await resolveDate(date))
     .eq("slot", slot);
   if (error) throw new Error(error.message);
   revalidate();
@@ -328,14 +339,15 @@ export async function removePlannedMeal(id: string) {
 // Fill every empty slot from the pantry so the day's totals hit target. Meals
 // the user already built (manual) and already ate (logged) are left untouched;
 // the AI just budgets around their macros.
-export async function planMyDay(picks?: DayPicks) {
+export async function planMyDay(picks?: DayPicks, date?: string) {
   const { supabase, user } = await requireUser();
+  const day = await resolveDate(date);
 
   const [profile, targets, consumed, plan] = await Promise.all([
     getProfile(),
     getCurrentTargets(),
-    getTodayConsumed(),
-    getTodayPlan(),
+    getConsumedForDate(day),
+    getPlanForDate(day),
   ]);
   if (!profile) throw new Error("Finish onboarding first");
   if (!targets) throw new Error("No macro target yet — finish onboarding.");
@@ -377,7 +389,6 @@ export async function planMyDay(picks?: DayPicks) {
 
   const meals = planPantryDay({ pantry, budget, fixed, emptySlots, picks });
 
-  const date = await localToday();
   const bySlotResult = new Map(meals.map((m) => [m.slot, m]));
   const rows = emptySlots
     .map((slot, i) => {
@@ -386,7 +397,7 @@ export async function planMyDay(picks?: DayPicks) {
       if (!m) return null;
       return {
         user_id: user.id,
-        date,
+        date: day,
         slot,
         position: Math.max(0, slotNames.indexOf(slot)),
         origin: "ai",
@@ -420,9 +431,12 @@ export async function planMyDay(picks?: DayPicks) {
   revalidate();
 }
 
-// Log a planned meal to today's food and mark the slot done.
-export async function logPlannedMeal(id: string) {
+// Log a planned meal to the day's food and mark the slot done. When the meal is
+// on another calendar day, stamp the log at that day's local midnight so it
+// counts toward that day's totals, not now's.
+export async function logPlannedMeal(id: string, date?: string) {
   const { supabase, user } = await requireUser();
+  const day = await resolveDate(date);
 
   const { data: meal } = await supabase
     .from("planned_meals")
@@ -449,6 +463,12 @@ export async function logPlannedMeal(id: string) {
   };
   if (m.logged_food_id) return; // already eaten
 
+  // Today logs at now(); another day logs at that day's local midnight so it
+  // lands in the right day's [midnight, midnight) window.
+  const today = await localToday();
+  const loggedAt =
+    day === today ? undefined : dayRangeFor(await getTimezone(), day).start.toISOString();
+
   const { data: log, error } = await supabase
     .from("food_logs")
     .insert({
@@ -456,6 +476,7 @@ export async function logPlannedMeal(id: string) {
       name: m.name,
       source: "manual",
       grams: null,
+      ...(loggedAt ? { logged_at: loggedAt } : {}),
       kcal: m.kcal,
       protein_g: m.protein_g,
       carbs_g: m.carbs_g,
