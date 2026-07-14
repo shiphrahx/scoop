@@ -56,6 +56,9 @@ async function runWizard(
 
 const buildButton = () => screen.getByRole("button", { name: /build my day/i });
 
+// The picks the wizard handed the planner — the first argument of the call.
+const picksSentToPlanner = () => planMyDay.mock.calls[0]?.[0];
+
 describe("BuildWizard", () => {
   it("sends the foods the user picked to the planner", async () => {
     const user = userEvent.setup();
@@ -69,7 +72,9 @@ describe("BuildWizard", () => {
     await user.click(buildButton());
 
     expect(planMyDay).toHaveBeenCalledTimes(1);
-    expect(planMyDay).toHaveBeenCalledWith({
+    // Assert the picks argument itself rather than the whole call, so the test
+    // survives the action growing another parameter.
+    expect(picksSentToPlanner()).toEqual({
       carb: "Basmati Rice",
       protein: "Firm Tofu",
       fat: "Olive Oil",
@@ -86,7 +91,7 @@ describe("BuildWizard", () => {
     await runWizard(user, { carb: "Rolled Oats" }); // protein and fat left to suggest
     await user.click(buildButton());
 
-    expect(planMyDay).toHaveBeenCalledWith({
+    expect(picksSentToPlanner()).toEqual({
       carb: "Rolled Oats",
       protein: null,
       fat: null,
@@ -131,9 +136,7 @@ describe("BuildWizard", () => {
     await user.click(screen.getByRole("button", { name: /suggest one/i })); // fat
     await user.click(buildButton());
 
-    expect(planMyDay).toHaveBeenCalledWith(
-      expect.objectContaining({ carb: "Rolled Oats" }),
-    );
+    expect(picksSentToPlanner()).toMatchObject({ carb: "Rolled Oats" });
   });
 
   it("still works when the pantry has nothing of a given macro", async () => {
@@ -144,7 +147,7 @@ describe("BuildWizard", () => {
     await runWizard(user, { carb: "Basmati Rice" });
     await user.click(buildButton());
 
-    expect(planMyDay).toHaveBeenCalledWith({
+    expect(picksSentToPlanner()).toEqual({
       carb: "Basmati Rice",
       protein: null,
       fat: null,
