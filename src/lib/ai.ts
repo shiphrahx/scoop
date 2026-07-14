@@ -6,6 +6,11 @@ import { decryptSecret } from "@/lib/crypto";
 import { safeFetchText, BlockedUrlError } from "@/lib/fetchguard";
 import { extractRecipeJsonLd } from "@/lib/recipe";
 import { keylessProduct } from "@/lib/product";
+import {
+  isPlausibleFood,
+  isPlausibleMeal,
+  macrosExplainKcal,
+} from "@/lib/validate";
 import type {
   DietType,
   GroceryItem,
@@ -162,16 +167,45 @@ export function isFoodAllowed(
   );
 }
 
+// --- What the model is allowed to say ---------------------------------------
+//
+// These bounds go to the API as part of the structured-output format, so they
+// steer the model as well as check it. They are NOT the whole guard: coherence
+// (do these macros add up to these calories?) can't be expressed in a JSON
+// schema, so every result is run past isPlausibleMeal/isPlausibleFood below
+// before it goes anywhere near the database. See src/lib/validate.ts.
+
+const per100gField = z.number().min(0).max(100);
+const kcal100gField = z.number().min(0).max(1000);
+const gramsField = z.number().min(0).max(10_000);
+const mealKcalField = z.number().min(0).max(5000);
+const mealMacroField = z.number().min(0).max(1000);
+
+// Drop the items the model got wrong, keeping the ones it got right. A response
+// that is entirely implausible is a failed read, not an empty shopping list —
+// say so rather than handing back nothing and looking like it worked.
+function keepPlausible<T>(
+  items: T[],
+  isGood: (item: T) => boolean,
+  whatFailed: string,
+): T[] {
+  const good = items.filter(isGood);
+  if (items.length > 0 && good.length === 0) {
+    throw new Error(whatFailed);
+  }
+  return good;
+}
+
 // --- Grocery screenshot → ingredient list -----------------------------------
 
 const GrocerySchema = z.object({
   items: z.array(
     z.object({
       name: z.string(),
-      kcal_100g: z.number(),
-      protein_100g: z.number(),
-      carbs_100g: z.number(),
-      fat_100g: z.number(),
+      kcal_100g: kcal100gField,
+      protein_100g: per100gField,
+      carbs_100g: per100gField,
+      fat_100g: per100gField,
     }),
   ),
 });
@@ -197,21 +231,30 @@ export async function parseGroceryImage(
     ],
   );
 
-  return parsed?.items ?? [];
+  // Anything the model misread — a price column mistaken for calories, say —
+  // would land in the pantry and be portioned into meals from then on.
+  return keepPlausible(
+    parsed?.items ?? [],
+    isPlausibleFood,
+    "Couldn't read sensible nutrition off that screenshot. Try a clearer picture.",
+  );
 }
 
 // --- Recipe import (URL or screenshot) → parsed recipe ----------------------
 
+// A recipe's macros are for the WHOLE dish, not one plate, so the ceilings are
+// higher than a serving's — a big tray bake really is several thousand calories.
 const RecipeSchema = z.object({
   name: z.string(),
-  servings: z.number(),
+  // Servings divides every macro below. A zero would make each plate infinite.
+  servings: z.number().min(1).max(100),
   ingredients: z.array(
     z.object({ name: z.string(), quantity: z.string() }),
   ),
-  kcal: z.number(),
-  protein_g: z.number(),
-  carbs_g: z.number(),
-  fat_g: z.number(),
+  kcal: z.number().min(0).max(30_000),
+  protein_g: z.number().min(0).max(3000),
+  carbs_g: z.number().min(0).max(5000),
+  fat_g: z.number().min(0).max(3000),
 });
 
 export interface ParsedRecipe {
@@ -278,7 +321,20 @@ export async function parseRecipeFromUrl(url: string): Promise<ParsedRecipe> {
   );
 
   if (!parsed) throw new Error("Couldn't read a recipe there.");
-  return parsed;
+  return checkedRecipe(parsed);
+}
+
+// A recipe whose macros don't account for its calories has been misread — often
+// a per-serving figure reported as the whole dish, or the other way round. Both
+// scale every plate the user eats from it.
+function checkedRecipe(recipe: ParsedRecipe): ParsedRecipe {
+  const stated = { ...recipe };
+  if (stated.kcal > 0 && !macrosExplainKcal(stated)) {
+    throw new Error(
+      "The nutrition on that recipe doesn't add up — check it and enter the macros yourself.",
+    );
+  }
+  return recipe;
 }
 
 export async function parseRecipeFromImage(
@@ -302,14 +358,14 @@ export async function parseRecipeFromImage(
 
 const ProductSchema = z.object({
   name: z.string(),
-  kcal_100g: z.number(),
-  protein_100g: z.number(),
-  carbs_100g: z.number(),
-  fat_100g: z.number(),
-  fiber_100g: z.number(),
-  sugar_100g: z.number(),
-  satfat_100g: z.number(),
-  sodium_mg_100g: z.number(),
+  kcal_100g: kcal100gField,
+  protein_100g: per100gField,
+  carbs_100g: per100gField,
+  fat_100g: per100gField,
+  fiber_100g: per100gField,
+  sugar_100g: per100gField,
+  satfat_100g: per100gField,
+  sodium_mg_100g: z.number().min(0).max(40_000),
   // Grams in the whole pack, read from the product title/quantity ("500g").
   // Null when the page doesn't say.
   pack_size_g: z.number().nullable(),
@@ -361,7 +417,12 @@ export async function parseProductFromUrl(url: string): Promise<ParsedProduct> {
     `Read this product page and return its nutrition.\n\n${text}`,
   );
 
-  if (parsed && parsed.name.trim()) return parsed;
+  // Take the model's read only if the numbers hold up. A misread nutrition table
+  // becomes a pantry item, and every meal the planner builds on it inherits the
+  // error. If it doesn't hold up, we still have the keyless name and pack size
+  // for the user to fill the macros in by hand.
+  if (parsed && parsed.name.trim() && isPlausibleFood(parsed)) return parsed;
+
   // Model drew a blank too — fall back to the keyless name/pack if we have it.
   if (keyless && keyless.name.trim()) return keyless;
   throw new Error("Couldn't read a product there.");
@@ -374,13 +435,13 @@ const SuggestSchema = z.object({
     z.object({
       name: z.string(),
       uses: z.array(z.string()),
-      portions: z.array(z.object({ name: z.string(), grams: z.number() })),
+      portions: z.array(z.object({ name: z.string(), grams: gramsField })),
       swaps: z.array(z.string()),
       why: z.string(),
-      kcal: z.number(),
-      protein_g: z.number(),
-      carbs_g: z.number(),
-      fat_g: z.number(),
+      kcal: mealKcalField,
+      protein_g: mealMacroField,
+      carbs_g: mealMacroField,
+      fat_g: mealMacroField,
     }),
   ),
 });
@@ -436,14 +497,17 @@ export async function suggestMeals(
   );
 
   const meals = parsed?.meals ?? [];
-  // Final guard: drop anything that slipped past the diet rule.
-  return meals.filter(
-    (m) =>
-      !violatesDiet(
-        `${m.name} ${m.uses.join(" ")} ${m.portions.map((p) => p.name).join(" ")}`,
-        input.diet,
-      ),
-  );
+  // Final guards: drop anything that slipped past the diet rule, and anything
+  // whose macros don't add up — a suggestion the user might cook and log.
+  return meals
+    .filter(
+      (m) =>
+        !violatesDiet(
+          `${m.name} ${m.uses.join(" ")} ${m.portions.map((p) => p.name).join(" ")}`,
+          input.diet,
+        ),
+    )
+    .filter(isPlausibleMeal);
 }
 
 // --- Estimate macros for meals the user described in words ------------------
@@ -453,10 +517,10 @@ const EstimateSchema = z.object({
     z.object({
       slot: z.string(),
       name: z.string(),
-      kcal: z.number(),
-      protein_g: z.number(),
-      carbs_g: z.number(),
-      fat_g: z.number(),
+      kcal: mealKcalField,
+      protein_g: mealMacroField,
+      carbs_g: mealMacroField,
+      fat_g: mealMacroField,
     }),
   ),
 });
@@ -500,7 +564,14 @@ export async function estimateMeals(
     2048,
   );
 
-  return parsed?.meals ?? [];
+  // These get FIXED into the day: the planner budgets every other meal around
+  // them. A bad estimate here doesn't just mislog one meal, it shifts all of
+  // them — so say the estimate failed rather than quietly building on it.
+  return keepPlausible(
+    parsed?.meals ?? [],
+    isPlausibleMeal,
+    "Couldn't get a sensible estimate for that. Try describing the meal differently.",
+  );
 }
 
 // --- Plan a whole day: fill the empty meal slots to hit the day's macros -----
@@ -511,13 +582,13 @@ const PlanDaySchema = z.object({
       slot: z.string(),
       origin: z.enum(["manual", "ai"]),
       name: z.string(),
-      portions: z.array(z.object({ name: z.string(), grams: z.number() })),
+      portions: z.array(z.object({ name: z.string(), grams: gramsField })),
       swaps: z.array(z.string()),
       why: z.string(),
-      kcal: z.number(),
-      protein_g: z.number(),
-      carbs_g: z.number(),
-      fat_g: z.number(),
+      kcal: mealKcalField,
+      protein_g: mealMacroField,
+      carbs_g: mealMacroField,
+      fat_g: mealMacroField,
     }),
   ),
 });
@@ -579,12 +650,15 @@ export async function planDay(input: PlanDayInput): Promise<PlannedSlot[]> {
   );
 
   const meals = parsed?.meals ?? [];
-  // Guard the AI dishes against the diet.
-  return meals.filter(
-    (m) =>
-      !violatesDiet(
-        `${m.name} ${m.portions.map((p) => p.name).join(" ")}`,
-        input.diet,
-      ),
-  );
+  // Guard the AI dishes against the diet, and against macros that don't add up:
+  // these are written to the day's plan and logged from there.
+  return meals
+    .filter(
+      (m) =>
+        !violatesDiet(
+          `${m.name} ${m.portions.map((p) => p.name).join(" ")}`,
+          input.diet,
+        ),
+    )
+    .filter(isPlausibleMeal);
 }
