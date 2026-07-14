@@ -79,10 +79,12 @@ export default function DayPlan({
   slots,
   target,
   prefs,
+  date,
 }: {
   slots: Slot[];
   target: Macros | null;
   prefs: NutrientKey[];
+  date: string;
 }) {
   const [busy, startTransition] = useTransition();
   const [err, setErr] = useState<string | null>(null);
@@ -122,7 +124,7 @@ export default function DayPlan({
             </span>
             {meal && !meal.logged_food_id && (
               <button
-                onClick={() => run(() => clearSlot(slot))}
+                onClick={() => run(() => clearSlot(slot, date))}
                 disabled={busy}
                 className="text-[var(--muted)] transition active:scale-90"
                 aria-label={`Clear ${slot}`}
@@ -148,7 +150,7 @@ export default function DayPlan({
               prefs={prefs}
               busy={busy}
               onError={setErr}
-              onLog={() => run(() => logPlannedMeal(meal.id))}
+              onLog={() => run(() => logPlannedMeal(meal.id, date))}
             />
           ) : (
             /* Empty or user-built: pick a list of foods */
@@ -158,8 +160,9 @@ export default function DayPlan({
               mealId={meal?.id ?? null}
               prefs={prefs}
               busy={busy}
+              date={date}
               onError={setErr}
-              onLog={meal ? () => run(() => logPlannedMeal(meal.id)) : undefined}
+              onLog={meal ? () => run(() => logPlannedMeal(meal.id, date)) : undefined}
             />
           )}
         </div>
@@ -173,7 +176,7 @@ export default function DayPlan({
 
       {anyAppPlanned && (
         <button
-          onClick={() => run(() => clearAppPlan())}
+          onClick={() => run(() => clearAppPlan(date))}
           disabled={busy}
           className="sc-btn sc-btn-neutral py-3"
         >
@@ -438,6 +441,7 @@ function ItemPicker({
   mealId,
   prefs,
   busy,
+  date,
   onError,
   onLog,
 }: {
@@ -446,6 +450,7 @@ function ItemPicker({
   mealId: string | null;
   prefs: NutrientKey[];
   busy: boolean;
+  date: string;
   onError: (msg: string) => void;
   onLog?: () => void;
 }) {
@@ -457,7 +462,7 @@ function ItemPicker({
     setItems(next);
     startTransition(async () => {
       try {
-        await setMealItems(slot, next);
+        await setMealItems(slot, next, date);
       } catch (e) {
         onError(e instanceof Error ? e.message : "Couldn't save the meal.");
       }

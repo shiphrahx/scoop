@@ -63,10 +63,12 @@ export default function BuildWizard({
   carbs,
   proteins,
   fats,
+  date,
 }: {
   carbs: string[];
   proteins: string[];
   fats: string[];
+  date?: string;
 }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("carb");
@@ -134,8 +136,8 @@ export default function BuildWizard({
     setErr(null);
     setBusy(true);
     try {
-      await planMyDay(picks);
-      router.push("/plan/day");
+      await planMyDay(picks, date);
+      router.push(date ? `/plan/day?date=${date}` : "/plan/day");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Couldn't build your day.");
       setBusy(false);

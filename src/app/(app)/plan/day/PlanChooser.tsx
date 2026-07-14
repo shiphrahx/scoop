@@ -4,10 +4,10 @@ import { Sparkles, ChevronRight } from "lucide-react";
 // The one way in to auto-planning: tap it and step through picking a carb, a
 // protein and a fat (or let the app suggest each). Meals you already know go
 // straight into the plan below — no wizard needed for those.
-export default function PlanChooser() {
+export default function PlanChooser({ date }: { date?: string }) {
   return (
     <Link
-      href="/plan/day/build"
+      href={date ? `/plan/day/build?date=${date}` : "/plan/day/build"}
       className="flex items-center gap-3 rounded-[1.75rem] p-5 text-left text-white transition active:scale-[0.99]"
       style={{ background: "var(--grad-primary)", boxShadow: "var(--shadow-glow)" }}
     >

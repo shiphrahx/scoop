@@ -9,7 +9,17 @@ import { createClient } from "@/lib/supabase/server";
 // "Plan the day for me" workflow: one tap at a time, choose a base carb, a
 // protein and a fat from your pantry — or let the app suggest each — then it
 // portions the whole day from just those foods to hit today's macros.
-export default async function PlanDayBuildPage() {
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export default async function PlanDayBuildPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string }>;
+}) {
+  const { date: dateParam } = await searchParams;
+  const date = dateParam && DATE_RE.test(dateParam) ? dateParam : undefined;
+  const backHref = date ? `/plan/day?date=${date}` : "/plan/day";
+
   const supabase = await createClient();
   const [profile, { data: pantryRows }] = await Promise.all([
     getProfile(),
@@ -31,7 +41,7 @@ export default async function PlanDayBuildPage() {
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-5 pt-8 pb-6 lg:px-8">
       <div className="flex flex-col gap-1">
         <Link
-          href="/plan/day"
+          href={backHref}
           className="inline-flex items-center gap-1 text-sm text-[var(--muted)]"
         >
           <ChevronLeft size={16} /> Plan my day
@@ -43,7 +53,7 @@ export default async function PlanDayBuildPage() {
         </p>
       </div>
 
-      <BuildWizard carbs={carbs} proteins={proteins} fats={fats} />
+      <BuildWizard carbs={carbs} proteins={proteins} fats={fats} date={date} />
     </main>
   );
 }
