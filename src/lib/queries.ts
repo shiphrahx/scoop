@@ -3,6 +3,7 @@ import { decryptSecret } from "@/lib/crypto";
 import { average, weeklyReview, type WeeklyReview } from "@/lib/coach";
 import {
   DEFAULT_TIMEZONE,
+  dayRangeFor,
   localDate,
   localWeekStart,
   safeTimezone,
@@ -76,15 +77,20 @@ export async function getCurrentTargets(): Promise<DailyTargets | null> {
 }
 
 export async function getTodayConsumed(): Promise<Macros> {
+  return getConsumedForDate(await localToday());
+}
+
+// Food logged on one calendar day where the user lives, summed. Bounded on both
+// ends so a past day stops at its own midnight instead of running to now.
+export async function getConsumedForDate(date: string): Promise<Macros> {
   const supabase = await createClient();
-  // From midnight where the user is. setHours(0,0,0,0) drew the line at the
-  // server's midnight, which in UTC is not theirs.
-  const start = startOfLocalDay(await getTimezone());
+  const { start, end } = dayRangeFor(await getTimezone(), date);
 
   const { data } = await supabase
     .from("food_logs")
     .select("kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg")
-    .gte("logged_at", start.toISOString());
+    .gte("logged_at", start.toISOString())
+    .lt("logged_at", end.toISOString());
 
   const rows = (data as Macros[]) ?? [];
   return rows.reduce<Required<Macros>>(
@@ -104,13 +110,18 @@ export async function getTodayConsumed(): Promise<Macros> {
 
 // Today's saved day plan (all slots), ordered as the user arranged them.
 export async function getTodayPlan(): Promise<PlannedMeal[]> {
+  return getPlanForDate(await localToday());
+}
+
+// One calendar day's saved plan (all slots), ordered as the user arranged them.
+export async function getPlanForDate(date: string): Promise<PlannedMeal[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("planned_meals")
     .select(
       "id, date, slot, position, origin, name, items, portions, swaps, why, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg, logged_food_id",
     )
-    .eq("date", await localToday())
+    .eq("date", date)
     .order("position", { ascending: true });
 
   return ((data as PlannedMeal[]) ?? []).map((m) => ({

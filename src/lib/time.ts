@@ -62,17 +62,41 @@ export function localDate(tz: string, at: Date = new Date()): string {
   }).format(at);
 }
 
+// Midnight of a given calendar date in `zone`, as a UTC Date. Read the date as
+// if it were UTC, then shift back by the zone's offset to get the real instant.
+// The offset is taken at that midnight, so a DST changeover lands on the right
+// side.
+function localMidnight(zone: string, dateISO: string): Date {
+  const asUtcMidnight = new Date(`${dateISO}T00:00:00Z`);
+  return new Date(asUtcMidnight.getTime() - offsetMs(zone, asUtcMidnight));
+}
+
 // The instant the user's day began — midnight where they are, as a UTC Date.
 // This is what food_logs.logged_at (a timestamptz) has to be compared against
 // to sum "today's" food.
 export function startOfLocalDay(tz: string, at: Date = new Date()): Date {
   const zone = safeTimezone(tz);
-  const today = localDate(zone, at);
-  // Midnight of that calendar date, read as if it were UTC…
-  const asUtcMidnight = new Date(`${today}T00:00:00Z`);
-  // …then shifted back by the zone's offset to get the real instant. The offset
-  // is taken at that midnight, so a DST changeover lands on the right side.
-  return new Date(asUtcMidnight.getTime() - offsetMs(zone, asUtcMidnight));
+  return localMidnight(zone, localDate(zone, at));
+}
+
+// A calendar date `n` days from `dateISO`, as YYYY-MM-DD. Pure string maths in
+// UTC — no clock, no zone — so it can't drift with the server's day.
+export function addDaysISO(dateISO: string, n: number): string {
+  const [y, m, d] = dateISO.split("-").map(Number);
+  const day = new Date(Date.UTC(y, m - 1, d));
+  day.setUTCDate(day.getUTCDate() + n);
+  return day.toISOString().slice(0, 10);
+}
+
+// The [start, end) UTC instants bounding a calendar date in the user's zone —
+// midnight of that date to midnight of the next. Used to sum a specific day's
+// food, not just today's.
+export function dayRangeFor(tz: string, dateISO: string): { start: Date; end: Date } {
+  const zone = safeTimezone(tz);
+  return {
+    start: localMidnight(zone, dateISO),
+    end: localMidnight(zone, addDaysISO(dateISO, 1)),
+  };
 }
 
 // The Monday (as YYYY-MM-DD) of the week containing a calendar date. Pure string
