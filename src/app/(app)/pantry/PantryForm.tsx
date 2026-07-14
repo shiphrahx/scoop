@@ -23,8 +23,9 @@ const empty = {
 // Add something to the pantry: scan its barcode (fills name + per-100g macros
 // from Open Food Facts), paste a shop product link (AI reads its nutrition), or
 // type it in. `initialName` seeds the name field when arriving from the day
-// planner's "not in your pantry" prompt. `connected` gates the link import,
-// which needs the user's own AI key.
+// planner's "not in your pantry" prompt. The link import works without a key
+// for pages that publish structured nutrition; `connected` only drives the hint
+// that a key unlocks pages that hide it.
 export default function PantryForm({
   initialName = "",
   connected = false,
@@ -159,12 +160,11 @@ export default function PantryForm({
           onChange={(e) => setUrl(e.target.value)}
           placeholder="Paste a shop product link"
           inputMode="url"
-          disabled={!connected}
           className="sc-input min-w-0 flex-1"
         />
         <button
           onClick={importUrl}
-          disabled={importing || !connected || !url.trim()}
+          disabled={importing || !url.trim()}
           aria-label="Import from link"
           className="sc-btn sc-btn-soft shrink-0"
         >
@@ -177,7 +177,7 @@ export default function PantryForm({
           href="/me"
           className="flex items-center justify-center gap-1.5 text-center text-sm text-[var(--muted)]"
         >
-          <KeyRound size={14} /> Connect your key to import from a link.
+          <KeyRound size={14} /> Connect your key to read pages that hide their nutrition.
         </Link>
       )}
 
