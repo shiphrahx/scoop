@@ -13,7 +13,7 @@ import {
   getTimezone,
   localToday,
 } from "@/lib/queries";
-import { dayRangeFor } from "@/lib/time";
+import { addDaysISO, dayRangeFor } from "@/lib/time";
 import {
   sumItems,
   type DietType,
@@ -177,6 +177,73 @@ export async function setMealItems(slot: string, items: PlanItem[], date?: strin
       sugar_g: totals.sugar_g,
       satfat_g: totals.satfat_g,
       sodium_mg: totals.sodium_mg,
+      logged_food_id: null,
+    },
+    { onConflict: "user_id,date,slot" },
+  );
+  if (error) throw new Error(error.message);
+  revalidate();
+}
+
+// Fill a slot with the same meal the user had in it the day before — a whole
+// row copied onto this date, minus the "eaten" mark so it lands as a fresh
+// plan. Overwrites whatever is in the slot (the button only shows on empty
+// slots). Throws when the previous day had nothing planned there.
+export async function copyFromYesterday(slot: string, date?: string) {
+  const { supabase, user } = await requireUser();
+  const day = await resolveDate(date);
+  const prevDay = addDaysISO(day, -1);
+
+  const { data: src } = await supabase
+    .from("planned_meals")
+    .select(
+      "origin, name, items, portions, swaps, why, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg",
+    )
+    .eq("user_id", user.id)
+    .eq("date", prevDay)
+    .eq("slot", slot)
+    .maybeSingle();
+  if (!src) throw new Error("Nothing planned for this meal yesterday.");
+  const m = src as {
+    origin: string;
+    name: string;
+    items: PlanItem[];
+    portions: MealPortion[];
+    swaps: string[];
+    why: string | null;
+    kcal: number;
+    protein_g: number;
+    carbs_g: number;
+    fat_g: number;
+    fiber_g: number;
+    sugar_g: number;
+    satfat_g: number;
+    sodium_mg: number;
+  };
+
+  const profile = await getProfile();
+  const position = Math.max(0, (profile?.meal_slots ?? []).indexOf(slot));
+
+  const { error } = await supabase.from("planned_meals").upsert(
+    {
+      user_id: user.id,
+      date: day,
+      slot,
+      position,
+      origin: m.origin,
+      name: m.name,
+      items: m.items,
+      portions: m.portions,
+      swaps: m.swaps,
+      why: m.why,
+      kcal: m.kcal,
+      protein_g: m.protein_g,
+      carbs_g: m.carbs_g,
+      fat_g: m.fat_g,
+      fiber_g: m.fiber_g,
+      sugar_g: m.sugar_g,
+      satfat_g: m.satfat_g,
+      sodium_mg: m.sodium_mg,
       logged_food_id: null,
     },
     { onConflict: "user_id,date,slot" },
