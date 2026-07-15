@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { installFakeSupabase, type Row } from "./helpers/fake-supabase";
+import { addDaysISO } from "@/lib/time";
 
 vi.mock("@/lib/supabase/server", async () => {
   const { supabaseHolder } = await import("./helpers/fake-supabase");
@@ -7,9 +8,8 @@ vi.mock("@/lib/supabase/server", async () => {
 });
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
-const { planMyDay, setMealPortions, logPlannedMeal, unlogPlannedMeal } = await import(
-  "@/app/(app)/plan/day/actions"
-);
+const { planMyDay, setMealPortions, logPlannedMeal, unlogPlannedMeal, copyFromYesterday } =
+  await import("@/app/(app)/plan/day/actions");
 
 const today = () => {
   const d = new Date();
@@ -386,5 +386,83 @@ describe("logPlannedMeal / unlogPlannedMeal", () => {
 
     expect(db.food_logs).toHaveLength(0);
     expect(db.planned_meals[0].logged_food_id).toBeNull();
+  });
+});
+
+describe("copyFromYesterday", () => {
+  const yesterday = () => addDaysISO(today(), -1);
+
+  // A meal sitting in a slot the day before the one being planned.
+  const meal = (over: Row = {}): Row => ({
+    id: "pm-y",
+    user_id: "user-1",
+    date: yesterday(),
+    slot: "Dinner",
+    origin: "manual",
+    name: "Chicken with Rice",
+    items: [{ name: "Chicken Breast", source: "pantry", grams: 200 }],
+    portions: [],
+    swaps: [],
+    why: null,
+    kcal: 720,
+    protein_g: 70,
+    carbs_g: 84,
+    fat_g: 8,
+    fiber_g: 6,
+    sugar_g: 1,
+    satfat_g: 2,
+    sodium_mg: 163,
+    logged_food_id: null,
+    ...over,
+  });
+
+  it("copies yesterday's meal into today's empty slot with the same macros", async () => {
+    const { db } = installFakeSupabase({
+      db: { users: [profile()], planned_meals: [meal()] },
+    });
+
+    await copyFromYesterday("Dinner");
+
+    const copy = db.planned_meals.find((m) => m.date === today() && m.slot === "Dinner")!;
+    expect(copy).toBeTruthy();
+    expect(copy.kcal).toBe(720);
+    expect(copy.fiber_g).toBe(6);
+    expect(copy.items).toEqual(meal().items);
+    // The source row is left where it was.
+    expect(db.planned_meals.some((m) => m.date === yesterday())).toBe(true);
+  });
+
+  it("drops the eaten mark so the copy lands as a fresh plan", async () => {
+    const { db } = installFakeSupabase({
+      db: {
+        users: [profile()],
+        planned_meals: [meal({ logged_food_id: "log-1" })],
+      },
+    });
+
+    await copyFromYesterday("Dinner");
+
+    const copy = db.planned_meals.find((m) => m.date === today())!;
+    expect(copy.logged_food_id).toBeNull();
+  });
+
+  it("copies onto another calendar day, not just today", async () => {
+    // Planning ahead: copy the day-before into a future date's slot.
+    const future = addDaysISO(today(), 3);
+    const { db } = installFakeSupabase({
+      db: {
+        users: [profile()],
+        planned_meals: [meal({ date: addDaysISO(future, -1) })],
+      },
+    });
+
+    await copyFromYesterday("Dinner", future);
+
+    expect(db.planned_meals.some((m) => m.date === future && m.kcal === 720)).toBe(true);
+  });
+
+  it("throws when the previous day had nothing in the slot", async () => {
+    installFakeSupabase({ db: { users: [profile()], planned_meals: [] } });
+    await expect(copyFromYesterday("Dinner")).rejects.toThrow(/nothing planned/i);
   });
 });
