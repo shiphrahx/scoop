@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, ScanBarcode, Pencil, AlertTriangle, AlertCircle } from "lucide-react";
+import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, ScanBarcode, Pencil, AlertTriangle, AlertCircle, CopyPlus } from "lucide-react";
 import type { FoodChoice, Macros, MealPortion, OffProduct, PlannedMeal, PlanItem } from "@/lib/types";
 import { sumItems } from "@/lib/types";
 import { parseFoodQuery } from "@/lib/foodquery";
@@ -23,6 +23,7 @@ import {
   setMealPortions,
   clearSlot,
   clearAppPlan,
+  copyFromYesterday,
   logPlannedMeal,
   unlogPlannedMeal,
   removePlannedMeal,
@@ -153,8 +154,11 @@ export default function DayPlan({
               onLog={() => run(() => logPlannedMeal(meal.id, date))}
             />
           ) : (
-            /* Empty or user-built: pick a list of foods */
+            /* Empty or user-built: pick a list of foods. Keyed on the meal id so
+               a copied-in meal (new row) remounts with its items, rather than
+               keeping this picker's empty state. */
             <ItemPicker
+              key={meal?.id ?? "empty"}
               slot={slot}
               initial={meal?.items ?? []}
               mealId={meal?.id ?? null}
@@ -469,6 +473,18 @@ function ItemPicker({
     });
   }
 
+  // Pull yesterday's meal for this slot into today. The server refresh re-supplies
+  // the slot, so the copied meal renders itself (AI dish or the items above).
+  function copyYesterday() {
+    startTransition(async () => {
+      try {
+        await copyFromYesterday(slot, date);
+      } catch (e) {
+        onError(e instanceof Error ? e.message : "Couldn't copy yesterday's meal.");
+      }
+    });
+  }
+
   // Append a picked food at the grams the search box resolved.
   function add(c: FoodChoice, grams: number) {
     save([
@@ -558,6 +574,16 @@ function ItemPicker({
             </li>
           ))}
         </ul>
+      )}
+
+      {items.length === 0 && (
+        <button
+          onClick={copyYesterday}
+          disabled={busy}
+          className="sc-btn sc-btn-soft"
+        >
+          <CopyPlus size={18} /> Copy from yesterday
+        </button>
       )}
 
       <FoodSearchBox onPick={add} disabled={busy} />
