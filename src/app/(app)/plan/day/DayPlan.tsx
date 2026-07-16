@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, ScanBarcode, Pencil, AlertTriangle, AlertCircle, CopyPlus } from "lucide-react";
+import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, ScanBarcode, Pencil, AlertTriangle, AlertCircle, CopyPlus, UtensilsCrossed, Info } from "lucide-react";
 import type { FoodChoice, Macros, MealPortion, OffProduct, PlannedMeal, PlanItem } from "@/lib/types";
 import { sumItems } from "@/lib/types";
 import { parseFoodQuery } from "@/lib/foodquery";
@@ -144,12 +144,16 @@ export default function DayPlan({
               onEdit={() => run(() => unlogPlannedMeal(meal.id))}
               onRemove={() => run(() => removePlannedMeal(meal.id))}
             />
+          ) : meal?.origin === "ai" && meal.portions.length === 0 && meal.picks.length > 0 ? (
+            /* Foods picked, grams not solved yet — waiting for "Build my day" */
+            <PickedMeal meal={meal} date={date} />
           ) : meal?.origin === "ai" ? (
-            /* AI-suggested dish */
+            /* An app-portioned dish */
             <AiMeal
               meal={meal}
               prefs={prefs}
               busy={busy}
+              date={date}
               onError={setErr}
               onLog={() => run(() => logPlannedMeal(meal.id, date))}
             />
@@ -157,17 +161,27 @@ export default function DayPlan({
             /* Empty or user-built: pick a list of foods. Keyed on the meal id so
                a copied-in meal (new row) remounts with its items, rather than
                keeping this picker's empty state. */
-            <ItemPicker
-              key={meal?.id ?? "empty"}
-              slot={slot}
-              initial={meal?.items ?? []}
-              mealId={meal?.id ?? null}
-              prefs={prefs}
-              busy={busy}
-              date={date}
-              onError={setErr}
-              onLog={meal ? () => run(() => logPlannedMeal(meal.id, date)) : undefined}
-            />
+            <>
+              {!meal && (
+                <Link
+                  href={`/plan/day/meal?slot=${encodeURIComponent(slot)}&date=${date}`}
+                  className="sc-btn sc-btn-soft"
+                >
+                  <UtensilsCrossed size={18} /> Plan this meal
+                </Link>
+              )}
+              <ItemPicker
+                key={meal?.id ?? "empty"}
+                slot={slot}
+                initial={meal?.items ?? []}
+                mealId={meal?.id ?? null}
+                prefs={prefs}
+                busy={busy}
+                date={date}
+                onError={setErr}
+                onLog={meal ? () => run(() => logPlannedMeal(meal.id, date)) : undefined}
+              />
+            </>
           )}
         </div>
       ))}
@@ -704,16 +718,52 @@ function EatenMeal({
   );
 }
 
+// Foods picked for a meal that hasn't been portioned yet: show what's chosen
+// and where to change it. The grams arrive when the user taps "Build my day".
+function PickedMeal({ meal, date }: { meal: PlannedMeal; date: string }) {
+  const failed = meal.portions.length === 0 && meal.why != null;
+  return (
+    <div className="flex flex-col gap-3">
+      <ul className="flex flex-wrap gap-2">
+        {meal.picks.map((p) => (
+          <li key={p.name} className="sc-chip" data-active>
+            {p.name}
+          </li>
+        ))}
+      </ul>
+      {failed ? (
+        <p className="flex items-start gap-1.5 text-sm font-medium text-[var(--danger,#e5484d)]">
+          <AlertCircle size={16} className="mt-0.5 shrink-0" /> {meal.why}
+        </p>
+      ) : (
+        <p className="flex items-start gap-1.5 text-sm text-[var(--muted)]">
+          <Info size={16} className="mt-0.5 shrink-0" />
+          Foods picked — tap <span className="font-semibold">Build my day</span>{" "}
+          above and we&apos;ll work out the amounts.
+        </p>
+      )}
+      <Link
+        href={`/plan/day/meal?slot=${encodeURIComponent(meal.slot)}&date=${date}`}
+        className="sc-btn sc-btn-soft"
+      >
+        <Pencil size={16} /> Change the foods
+      </Link>
+    </div>
+  );
+}
+
 function AiMeal({
   meal,
   prefs,
   busy,
+  date,
   onError,
   onLog,
 }: {
   meal: PlannedMeal;
   prefs: NutrientKey[];
   busy: boolean;
+  date: string;
   onError: (msg: string) => void;
   onLog: () => void;
 }) {
@@ -769,6 +819,17 @@ function AiMeal({
           I ate this — log it
         </button>
       </div>
+
+      {/* A meal built from picks can have its foods changed; the new picks
+          wait for the next "Build my day". */}
+      {meal.picks.length > 0 && (
+        <Link
+          href={`/plan/day/meal?slot=${encodeURIComponent(meal.slot)}&date=${date}`}
+          className="text-center text-sm font-medium text-[var(--ink-teal)]"
+        >
+          Change the foods in this meal
+        </Link>
+      )}
     </>
   );
 }

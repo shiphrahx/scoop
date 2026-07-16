@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import DayPlan from "./DayPlan";
 import DayJump from "./DayJump";
-import PlanChooser from "./PlanChooser";
+import BuildDayCard from "./BuildDayCard";
 import {
   getProfile,
   getCurrentTargets,
@@ -59,6 +59,11 @@ export default async function PlanDayPage({
     meal: bySlot.get(slot) ?? null,
   }));
 
+  // Meals with picks waiting (or already solved): they decide whether the big
+  // button reads "Build my day" or "Rebalance my day" — and whether it shows.
+  const pickedMeals = plan.filter((m) => m.picks.length > 0 && !m.logged_food_id);
+  const anyUnbuilt = pickedMeals.some((m) => m.portions.length === 0);
+
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-5 pt-8 pb-6 lg:px-8">
       <div className="flex flex-col gap-1">
@@ -70,8 +75,8 @@ export default async function PlanDayPage({
         </Link>
         <h1 className="text-3xl font-semibold">Plan my day</h1>
         <p className="text-sm text-[var(--muted)]">
-          Let the app plan it, or add the meals you already know below and it
-          builds the rest around them.
+          Pick what you fancy for each meal — we work out how much of each so
+          the day hits your macros.
         </p>
       </div>
 
@@ -94,7 +99,17 @@ export default async function PlanDayPage({
         </Link>
       </nav>
 
-      <PlanChooser date={date === today ? undefined : date} />
+      {pickedMeals.length > 0 ? (
+        <BuildDayCard
+          date={date === today ? undefined : date}
+          mode={anyUnbuilt ? "build" : "rebalance"}
+        />
+      ) : (
+        <p className="rounded-[1.75rem] bg-[var(--fill-soft)] p-4 text-center text-sm text-[var(--muted)]">
+          Tap <span className="font-semibold">Plan this meal</span> on a meal
+          below and pick what you fancy — then we portion the whole day for you.
+        </p>
+      )}
 
       <DayPlan slots={slots} target={target} prefs={prefs} date={date} />
     </main>
