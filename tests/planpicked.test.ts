@@ -1,0 +1,356 @@
+import fc from "fast-check";
+import { describe, expect, it } from "vitest";
+import { macroRole } from "@/lib/foodgroups";
+import { planPickedDay, type PantryFood } from "@/lib/mealplan";
+import type { PlannedSlot } from "@/lib/types";
+
+// The per-meal planner's promise: the user names the foods for each meal, the
+// solve portions ALL the meals together, and the day's totals land on the
+// budget (within ±5 of each macro) whenever the picks can reach it. Meal sizes
+// follow the slot weights, softly — they bend before the day total does.
+
+const TOLERANCE = 5;
+
+const kcalOf = (p: number, c: number, f: number) => p * 4 + c * 4 + f * 9;
+
+const food = (
+  name: string,
+  protein_100g: number,
+  carbs_100g: number,
+  fat_100g: number,
+  available_g?: number,
+): PantryFood => ({
+  name,
+  protein_100g,
+  carbs_100g,
+  fat_100g,
+  kcal_100g: kcalOf(protein_100g, carbs_100g, fat_100g),
+  available_g,
+});
+
+// Realistic staples for the example tests.
+const pasta = () => food("Pasta", 13, 71, 1.5);
+const mince = () => food("Vegan Mince", 20, 5, 5);
+const oil = () => food("Olive Oil", 0, 0, 100);
+const bagel = () => food("Bagel", 10, 49, 2);
+const tofu = () => food("Tofu", 14, 2, 8);
+const chicken = () => food("Chicken Breast", 31, 0, 3.6);
+
+const sumPlan = (plan: PlannedSlot[]) =>
+  plan.reduce(
+    (s, m) => ({
+      kcal: s.kcal + m.kcal,
+      protein_g: s.protein_g + m.protein_g,
+      carbs_g: s.carbs_g + m.carbs_g,
+      fat_g: s.fat_g + m.fat_g,
+    }),
+    { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
+  );
+
+// A budget reachable by construction: weigh out real grams of the picked foods
+// and use the sum as the day's budget, so a solution certainly exists.
+function budgetOf(parts: { food: PantryFood; grams: number }[]) {
+  return {
+    kcal: Math.round(parts.reduce((s, p) => s + (p.food.kcal_100g * p.grams) / 100, 0)),
+    protein_g: Math.round(
+      parts.reduce((s, p) => s + (p.food.protein_100g * p.grams) / 100, 0),
+    ),
+    carbs_g: Math.round(
+      parts.reduce((s, p) => s + (p.food.carbs_100g * p.grams) / 100, 0),
+    ),
+    fat_g: Math.round(parts.reduce((s, p) => s + (p.food.fat_100g * p.grams) / 100, 0)),
+  };
+}
+
+describe("planPickedDay", () => {
+  it("lands the day on target with different picks per meal", () => {
+    // Lunch: pasta + vegan mince + a little oil. Dinner: bagel + tofu. The
+    // budget is what those foods at sensible grams actually add up to.
+    const lunch = [pasta(), mince(), oil()];
+    const dinner = [bagel(), tofu()];
+    const budget = budgetOf([
+      { food: lunch[0], grams: 100 },
+      { food: lunch[1], grams: 150 },
+      { food: lunch[2], grams: 5 },
+      { food: dinner[0], grams: 85 },
+      { food: dinner[1], grams: 200 },
+    ]);
+
+    const plan = planPickedDay({
+      slots: [
+        { slot: "Lunch", foods: lunch },
+        { slot: "Dinner", foods: dinner },
+      ],
+      budget,
+    });
+
+    expect(plan.map((m) => m.slot)).toEqual(["Lunch", "Dinner"]);
+    const tot = sumPlan(plan);
+    expect(Math.abs(tot.protein_g - budget.protein_g)).toBeLessThanOrEqual(TOLERANCE);
+    expect(Math.abs(tot.carbs_g - budget.carbs_g)).toBeLessThanOrEqual(TOLERANCE);
+    expect(Math.abs(tot.fat_g - budget.fat_g)).toBeLessThanOrEqual(TOLERANCE);
+  });
+
+  it("uses every picked food when the budget has room for it", () => {
+    const plan = planPickedDay({
+      slots: [
+        { slot: "Lunch", foods: [pasta(), mince(), oil()] },
+        { slot: "Dinner", foods: [bagel(), tofu()] },
+      ],
+      budget: { kcal: 1800, protein_g: 110, carbs_g: 180, fat_g: 55 },
+    });
+    const names = plan.flatMap((m) => m.portions.map((p) => p.name));
+    expect(names).toContain("Pasta");
+    expect(names).toContain("Vegan Mince");
+    expect(names).toContain("Bagel");
+    expect(names).toContain("Tofu");
+  });
+
+  it("sizes meals by the slot weights", () => {
+    // Same picks in both meals so size differences come only from the weights.
+    const budget = { kcal: 1600, protein_g: 120, carbs_g: 150, fat_g: 50 };
+    const plan = planPickedDay({
+      slots: [
+        { slot: "Lunch", foods: [chicken(), pasta(), oil()] },
+        { slot: "Dinner", foods: [chicken(), pasta(), oil()] },
+      ],
+      budget,
+      weights: { Lunch: 25, Dinner: 75 },
+    });
+    const lunch = plan.find((m) => m.slot === "Lunch")!;
+    const dinner = plan.find((m) => m.slot === "Dinner")!;
+    // Dinner should be about three times lunch. Allow slack for rounding.
+    expect(dinner.kcal).toBeGreaterThan(lunch.kcal * 2);
+  });
+
+  it("splits evenly when no weights are given", () => {
+    const budget = { kcal: 1600, protein_g: 120, carbs_g: 150, fat_g: 50 };
+    const plan = planPickedDay({
+      slots: [
+        { slot: "Lunch", foods: [chicken(), pasta(), oil()] },
+        { slot: "Dinner", foods: [chicken(), pasta(), oil()] },
+      ],
+      budget,
+    });
+    const [a, b] = plan;
+    expect(Math.abs(a.kcal - b.kcal)).toBeLessThanOrEqual(budget.kcal * 0.05);
+  });
+
+  it("gives a single picked meal the whole budget", () => {
+    const budget = { kcal: 900, protein_g: 60, carbs_g: 90, fat_g: 30 };
+    const plan = planPickedDay({
+      slots: [{ slot: "Dinner", foods: [chicken(), pasta(), oil()] }],
+      budget,
+    });
+    expect(plan).toHaveLength(1);
+    expect(Math.abs(plan[0].protein_g - 60)).toBeLessThanOrEqual(TOLERANCE);
+    expect(Math.abs(plan[0].carbs_g - 90)).toBeLessThanOrEqual(TOLERANCE);
+    expect(Math.abs(plan[0].fat_g - 30)).toBeLessThanOrEqual(TOLERANCE);
+  });
+
+  it("shrinks a pick that barely fits and says so", () => {
+    // Almost no carbs in the budget, but the user insists on pasta for dinner.
+    const plan = planPickedDay({
+      slots: [
+        { slot: "Lunch", foods: [chicken()] },
+        { slot: "Dinner", foods: [pasta()] },
+      ],
+      budget: { kcal: 280, protein_g: 60, carbs_g: 5, fat_g: 8 },
+    });
+    const dinner = plan.find((m) => m.slot === "Dinner");
+    expect(dinner).toBeDefined();
+    expect(dinner!.portions[0].grams).toBeLessThan(10);
+    expect(dinner!.why).toMatch(/came out small/i);
+  });
+
+  it("drops a pick there is no room for at all", () => {
+    // Zero carbs left: pasta cannot appear even tiny, so dinner falls out of
+    // the result entirely (the caller explains on the slot).
+    const plan = planPickedDay({
+      slots: [
+        { slot: "Lunch", foods: [chicken()] },
+        { slot: "Dinner", foods: [pasta()] },
+      ],
+      budget: { kcal: 248, protein_g: 62, carbs_g: 0, fat_g: 7 },
+    });
+    expect(plan.find((m) => m.slot === "Lunch")).toBeDefined();
+    expect(plan.find((m) => m.slot === "Dinner")).toBeUndefined();
+  });
+
+  it("never portions more of a food than the stock across the whole day", () => {
+    // 150 g of tofu in stock, picked for BOTH meals: together they must not
+    // exceed the pack.
+    const plan = planPickedDay({
+      slots: [
+        { slot: "Lunch", foods: [food("Tofu", 14, 2, 8, 150), pasta()] },
+        { slot: "Dinner", foods: [food("Tofu", 14, 2, 8, 150), bagel()] },
+      ],
+      budget: { kcal: 1800, protein_g: 120, carbs_g: 180, fat_g: 55 },
+    });
+    const tofuTotal = plan
+      .flatMap((m) => m.portions)
+      .filter((p) => p.name === "Tofu")
+      .reduce((s, p) => s + p.grams, 0);
+    expect(tofuTotal).toBeLessThanOrEqual(150);
+  });
+
+  it("returns nothing for no picks", () => {
+    expect(
+      planPickedDay({
+        slots: [],
+        budget: { kcal: 2000, protein_g: 150, carbs_g: 200, fat_g: 65 },
+      }),
+    ).toEqual([]);
+    expect(
+      planPickedDay({
+        slots: [{ slot: "Lunch", foods: [] }],
+        budget: { kcal: 2000, protein_g: 150, carbs_g: 200, fat_g: 65 },
+      }),
+    ).toEqual([]);
+  });
+
+  it("shows a meal total equal to the portions listed under it", () => {
+    const plan = planPickedDay({
+      slots: [
+        { slot: "Lunch", foods: [pasta(), mince(), oil()] },
+        { slot: "Dinner", foods: [bagel(), tofu()] },
+      ],
+      budget: { kcal: 1800, protein_g: 110, carbs_g: 180, fat_g: 55 },
+    });
+    for (const meal of plan) {
+      const summed = meal.portions.reduce(
+        (s, p) => ({
+          kcal: s.kcal + (p.kcal ?? 0),
+          protein_g: s.protein_g + (p.protein_g ?? 0),
+          carbs_g: s.carbs_g + (p.carbs_g ?? 0),
+          fat_g: s.fat_g + (p.fat_g ?? 0),
+        }),
+        { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
+      );
+      expect(summed.kcal).toBe(meal.kcal);
+      expect(summed.protein_g).toBe(meal.protein_g);
+      expect(summed.carbs_g).toBe(meal.carbs_g);
+      expect(summed.fat_g).toBe(meal.fat_g);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Property tests: the ±5 promise for picks the solver has never seen.
+// ---------------------------------------------------------------------------
+
+// One meal's picks: a protein, a carb and a fat source with incidental amounts
+// of the other macros, like real food. Filtered so the app classifies each as
+// the role we meant (mirrors mealplan.invariants.test.ts).
+const mealFoodsOf = (tag: string) =>
+  fc
+    .record({
+      p: fc.record({
+        protein: fc.integer({ min: 12, max: 35 }),
+        carbs: fc.integer({ min: 0, max: 6 }),
+        fat: fc.integer({ min: 0, max: 12 }),
+      }),
+      c: fc.record({
+        protein: fc.integer({ min: 0, max: 9 }),
+        carbs: fc.integer({ min: 18, max: 75 }),
+        fat: fc.integer({ min: 0, max: 6 }),
+      }),
+      f: fc.record({
+        protein: fc.integer({ min: 0, max: 6 }),
+        carbs: fc.integer({ min: 0, max: 6 }),
+        fat: fc.integer({ min: 30, max: 100 }),
+      }),
+    })
+    .map(({ p, c, f }) => [
+      food(`Protein ${tag}`, p.protein, p.carbs, p.fat),
+      food(`Carb ${tag}`, c.protein, c.carbs, c.fat),
+      food(`Fat ${tag}`, f.protein, f.carbs, f.fat),
+    ])
+    .filter(
+      ([p, c, f]) =>
+        macroRole(p) === "protein" && macroRole(c) === "carb" && macroRole(f) === "fat",
+    );
+
+// A whole picked day: 1–3 meals, each with its own three foods, and a budget
+// built by weighing out real portions of exactly those foods — reachable by
+// construction, so a miss is the solver's fault.
+const reachablePickedDay = fc
+  .integer({ min: 1, max: 3 })
+  .chain((n) =>
+    fc
+      .tuple(
+        fc.tuple(
+          ...Array.from({ length: n }, (_, i) => mealFoodsOf(String(i))),
+        ),
+        fc.tuple(
+          ...Array.from({ length: n }, () =>
+            fc.record({
+              gp: fc.integer({ min: 40, max: 120 }),
+              gc: fc.integer({ min: 40, max: 140 }),
+              gf: fc.integer({ min: 3, max: 30 }),
+            }),
+          ),
+        ),
+      )
+      .map(([meals, grams]) => {
+        const parts = meals.flatMap((foods, i) => [
+          { food: foods[0], grams: grams[i].gp },
+          { food: foods[1], grams: grams[i].gc },
+          { food: foods[2], grams: grams[i].gf },
+        ]);
+        return {
+          slots: meals.map((foods, i) => ({ slot: `Meal ${i}`, foods })),
+          budget: budgetOf(parts),
+        };
+      }),
+  );
+
+describe("planPickedDay invariants", () => {
+  it("lands the day within ±5 of every macro when the picks can reach it", () => {
+    fc.assert(
+      fc.property(reachablePickedDay, ({ slots, budget }) => {
+        const plan = planPickedDay({ slots, budget });
+        const tot = sumPlan(plan);
+        expect(Math.abs(tot.protein_g - budget.protein_g)).toBeLessThanOrEqual(TOLERANCE);
+        expect(Math.abs(tot.carbs_g - budget.carbs_g)).toBeLessThanOrEqual(TOLERANCE);
+        expect(Math.abs(tot.fat_g - budget.fat_g)).toBeLessThanOrEqual(TOLERANCE);
+      }),
+    );
+  });
+
+  it("never plans a negative, infinite or absurd portion", () => {
+    fc.assert(
+      fc.property(reachablePickedDay, ({ slots, budget }) => {
+        const plan = planPickedDay({ slots, budget });
+        for (const meal of plan) {
+          for (const p of meal.portions) {
+            expect(Number.isFinite(p.grams)).toBe(true);
+            expect(p.grams).toBeGreaterThan(0);
+            expect(p.grams).toBeLessThanOrEqual(600); // the widest per-macro ceiling
+          }
+        }
+      }),
+    );
+  });
+
+  it("keeps every portion within the stock even when it binds", () => {
+    fc.assert(
+      fc.property(
+        reachablePickedDay,
+        fc.integer({ min: 20, max: 400 }),
+        ({ slots, budget }, stockG) => {
+          const stocked = slots.map((s) => ({
+            slot: s.slot,
+            foods: s.foods.map((f) => ({ ...f, available_g: stockG })),
+          }));
+          const plan = planPickedDay({ slots: stocked, budget });
+          for (const meal of plan) {
+            for (const p of meal.portions) {
+              expect(p.grams).toBeLessThanOrEqual(stockG);
+            }
+          }
+        },
+      ),
+    );
+  });
+});

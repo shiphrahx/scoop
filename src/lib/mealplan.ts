@@ -361,6 +361,223 @@ export function planPantryDay(input: PlanDayInput): PlannedSlot[] {
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// Per-meal picks: the user chooses the foods for EACH meal ("pasta and vegan
+// mince for lunch, a bagel and tofu for dinner") and one global solve portions
+// everything together so the DAY lands on its macros. The solve is a weighted
+// least-squares: hitting the day total dominates; each meal's share of the day
+// (from the user's slot weights) is a soft preference it trades away when the
+// chosen foods can't absorb their share.
+// ---------------------------------------------------------------------------
+
+export interface PickedSlotInput {
+  slot: string;
+  foods: PantryFood[];
+}
+
+export interface PlanPickedDayInput {
+  // Only slots the user picked foods for; every food is used in its meal.
+  slots: PickedSlotInput[];
+  // What the picked meals together should sum to (day target minus what's
+  // already eaten and minus meals pinned elsewhere).
+  budget: Macros;
+  // Slot name -> relative meal size. Empty/undefined = even shares; a slot
+  // missing from a non-empty map gets the mean of the listed weights.
+  weights?: Record<string, number>;
+}
+
+// Day-total residuals cost DAY_WEIGHT² times a slot-share residual, so the day
+// lands as close as the picks allow while meal sizes bend first.
+const DAY_WEIGHT = 30;
+// Tiny ridge keeps the normal equations solvable when two picks have identical
+// macro profiles (it splits the grams evenly between them instead of failing).
+const RIDGE = 1e-6;
+// Below this a solved portion reads as "didn't really fit" and earns a warning.
+const SMALL_PORTION = 10;
+
+const MACRO_KEYS: MacroKey[] = ["protein_g", "carbs_g", "fat_g"];
+
+// The relative size of each picked slot, normalised to fractions summing to 1.
+function slotFractions(
+  slots: string[],
+  weights?: Record<string, number>,
+): number[] {
+  const given = Object.values(weights ?? {})
+    .map(Number)
+    .filter((w) => Number.isFinite(w) && w > 0);
+  const mean = given.length
+    ? given.reduce((a, b) => a + b, 0) / given.length
+    : 1;
+  const raw = slots.map((s) => {
+    const w = Number(weights?.[s]);
+    return Number.isFinite(w) && w > 0 ? w : mean;
+  });
+  const sum = raw.reduce((a, b) => a + b, 0);
+  return raw.map((w) => (sum > 0 ? w / sum : 1 / slots.length));
+}
+
+// One variable of the global solve: the grams of one food in one meal.
+type PickVar = { slotIdx: number; food: PantryFood };
+
+// Solve min ||A·x − b||² (rows pre-scaled by their weights) with x ≥ 0 and
+// x ≤ cap, by normal equations plus an active set: solve unconstrained, then
+// pin the worst out-of-bounds variable to its bound and re-solve, until every
+// free variable is in range. Bounded by 2n iterations.
+function boundedLeastSquares(
+  A: number[][],
+  b: number[],
+  caps: number[],
+): number[] {
+  const n = caps.length;
+  const x = new Array<number>(n).fill(0);
+  // null = free; otherwise pinned to that value (0 or its cap).
+  const pinned = new Array<number | null>(n).fill(null);
+
+  for (let iter = 0; iter <= 2 * n; iter++) {
+    const free: number[] = [];
+    for (let j = 0; j < n; j++) if (pinned[j] == null) free.push(j);
+    if (free.length === 0) break;
+
+    // b minus what the pinned variables already contribute.
+    const bAdj = b.map(
+      (bi, r) =>
+        bi -
+        pinned.reduce<number>(
+          (s, p, j) => (p != null ? s + A[r][j] * p : s),
+          0,
+        ),
+    );
+
+    // Normal equations over the free variables: (AᵀA + εI)x = Aᵀb.
+    const M = free.map((j1) =>
+      free.map(
+        (j2) =>
+          A.reduce((s, row) => s + row[j1] * row[j2], 0) +
+          (j1 === j2 ? RIDGE : 0),
+      ),
+    );
+    const rhs = free.map((j) => A.reduce((s, row, r) => s + row[j] * bAdj[r], 0));
+    const sol = solveLinear(M, rhs);
+    if (!sol) break; // ridge makes this unreachable, but never loop on it
+
+    // Pin the worst out-of-bounds variable (negative → 0, over cap → its cap)
+    // and re-solve; done when every free variable is in range.
+    let worst = -1;
+    let worstBy = 1e-9;
+    for (let k = 0; k < free.length; k++) {
+      const j = free[k];
+      x[j] = sol[k];
+      const by = Math.max(-sol[k], sol[k] - caps[j]);
+      if (by > worstBy) {
+        worstBy = by;
+        worst = j;
+      }
+    }
+    if (worst === -1) return x.map((v, j) => pinned[j] ?? v);
+    pinned[worst] = x[worst] < 0 ? 0 : caps[worst];
+  }
+  return x.map((v, j) => pinned[j] ?? Math.max(0, Math.min(caps[j], v)));
+}
+
+// Portion every picked meal in one go so the day's totals land on the budget.
+// Returns one PlannedSlot per meal that ended up with any food; warnings about
+// picks that had to shrink or be dropped land in that meal's `why`.
+export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
+  const slots = input.slots.filter((s) => s.foods.length > 0);
+  if (slots.length === 0) return [];
+
+  const fractions = slotFractions(
+    slots.map((s) => s.slot),
+    input.weights,
+  );
+
+  // One variable per (meal, food).
+  const vars: PickVar[] = slots.flatMap((s, slotIdx) =>
+    s.foods.map((food) => ({ slotIdx, food })),
+  );
+
+  // Per-portion gram ceiling: the generous per-macro cap for the food's role,
+  // and never more than the stock. A food picked into several meals shares its
+  // stock evenly between them (a deliberate simplification).
+  const occurrences = new Map<string, number>();
+  for (const v of vars)
+    occurrences.set(v.food.name, (occurrences.get(v.food.name) ?? 0) + 1);
+  const caps = vars.map((v) => {
+    const role = macroRole(v.food);
+    const roleCap =
+      role === "protein"
+        ? CAP.protein_g
+        : role === "carb"
+          ? CAP.carbs_g
+          : role === "fat"
+            ? CAP.fat_g
+            : 400;
+    const stock =
+      v.food.available_g != null
+        ? v.food.available_g / (occurrences.get(v.food.name) ?? 1)
+        : Infinity;
+    return Math.min(roleCap, stock);
+  });
+
+  // Rows: the day's three macro totals (heavily weighted), then each meal's
+  // share of each macro (softly weighted).
+  const A: number[][] = [];
+  const b: number[] = [];
+  for (const key of MACRO_KEYS) {
+    A.push(vars.map((v) => perGram(v.food, key) * DAY_WEIGHT));
+    b.push(Math.max(0, input.budget[key]) * DAY_WEIGHT);
+  }
+  slots.forEach((s, slotIdx) => {
+    for (const key of MACRO_KEYS) {
+      A.push(
+        vars.map((v) =>
+          v.slotIdx === slotIdx ? perGram(v.food, key) : 0,
+        ),
+      );
+      b.push(Math.max(0, input.budget[key]) * fractions[slotIdx]);
+    }
+  });
+
+  const grams = boundedLeastSquares(A, b, caps);
+
+  const out: PlannedSlot[] = [];
+  slots.forEach((s, slotIdx) => {
+    const portions: Portion[] = [];
+    const warnings: string[] = [];
+    s.foods.forEach((food) => {
+      const i = vars.findIndex((v) => v.slotIdx === slotIdx && v.food === food);
+      const g = clamp(Math.round(grams[i]), 0, caps[i]);
+      if (g < MIN_PORTION) {
+        warnings.push(`Couldn't fit ${food.name} — it would push the day off target.`);
+        return;
+      }
+      // A tiny portion of anything but a fat source usually means the pick
+      // didn't really fit; oils and butter are legitimately a few grams.
+      if (g < SMALL_PORTION && macroRole(food) !== "fat") {
+        warnings.push(`${food.name} came out small (${g} g) to keep the day on target.`);
+      }
+      portions.push({ food, grams: g });
+    });
+    // A whole meal can fall out when there's no budget left for it; the caller
+    // sees it's missing from the result and explains on the slot.
+    if (portions.length === 0) return;
+    const totals = sumPortions(portions);
+    out.push({
+      slot: s.slot,
+      origin: "ai",
+      name: mealName(portions),
+      portions: toPortions(portions),
+      swaps: [],
+      why:
+        warnings.length > 0
+          ? warnings.join(" ")
+          : "Portioned with the rest of your day so the whole day hits your macros.",
+      ...totals,
+    });
+  });
+  return out;
+}
+
 export interface SuggestInput {
   pantry: PantryFood[];
   // Macros the suggested dish should aim to fill.
