@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import DayPlan from "./DayPlan";
+import DayJump from "./DayJump";
 import PlanChooser from "./PlanChooser";
 import {
   getProfile,
@@ -83,14 +84,7 @@ export default async function PlanDayPage({
         >
           <ChevronLeft size={20} />
         </Link>
-        <div className="flex flex-col items-center">
-          <span className="text-lg font-semibold">{dayLabel(date, today, tz)}</span>
-          {date !== today && (
-            <Link href="/plan/day" className="text-xs text-[var(--muted)] underline">
-              Back to today
-            </Link>
-          )}
-        </div>
+        <DayJump date={date} today={today} label={dayLabel(date, today, tz)} />
         <Link
           href={`/plan/day?date=${next}`}
           className="grid h-11 w-11 place-items-center rounded-full bg-[var(--fill-soft)] transition active:scale-90"
