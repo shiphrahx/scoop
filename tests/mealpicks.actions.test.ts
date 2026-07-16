@@ -343,6 +343,67 @@ describe("buildMyDay", () => {
     expect(Math.abs(Number(dinner.fat_g) - 53)).toBeLessThanOrEqual(5);
   });
 
+  it("carries the pantry's fibre, sugar, saturates and sodium onto the plan", async () => {
+    // The day page judges the plan against fibre and sodium targets; writing
+    // zeros here would paint every built day's verdict red.
+    const ricePantry = {
+      ...pantryRow("Brown Rice", 130, 2.7, 28, 0.3),
+      fiber_100g: 2,
+      sugar_100g: 0.4,
+      satfat_100g: 0.1,
+      sodium_mg_100g: 5,
+    };
+    const { db } = installFakeSupabase({
+      db: {
+        users: [profile()],
+        daily_targets: targets(),
+        food_logs: [],
+        pantry_items: [ricePantry, pantryRow("Chicken Breast", 165, 31, 0, 3.6)],
+        planned_meals: [
+          {
+            id: "meal-1",
+            user_id: "user-1",
+            date: today(),
+            slot: "Dinner",
+            origin: "ai",
+            name: "",
+            items: [],
+            picks: [pick("Brown Rice", 130, 2.7, 28, 0.3), chickenPick()],
+            portions: [],
+            swaps: [],
+            why: null,
+            kcal: 0,
+            protein_g: 0,
+            carbs_g: 0,
+            fat_g: 0,
+            logged_food_id: null,
+          },
+        ],
+      },
+    });
+
+    await buildMyDay();
+
+    const meal = db.planned_meals[0];
+    expect(Number(meal.fiber_g)).toBeGreaterThan(0);
+    expect(Number(meal.sodium_mg)).toBeGreaterThan(0);
+    const portions = meal.portions as Array<{ fiber_g?: number }>;
+    expect(portions.some((p) => Number(p.fiber_g) > 0)).toBe(true);
+  });
+
+  it("refuses to build before onboarding has set a target", async () => {
+    installFakeSupabase({
+      db: {
+        users: [profile()],
+        daily_targets: [], // none yet
+        food_logs: [],
+        pantry_items: [],
+        planned_meals: [],
+      },
+    });
+    await expect(buildMyDay()).rejects.toThrow(/onboarding/i);
+  });
+
   it("throws when nothing has picks yet", async () => {
     installFakeSupabase({
       db: {
