@@ -28,67 +28,6 @@ const profile = (over: Row = {}): Row => ({
   ...over,
 });
 
-// A pantry that can move each macro independently, with real extras on it.
-const pantry = (): Row[] => [
-  {
-    user_id: "user-1",
-    name: "Chicken Breast",
-    kcal_100g: 165,
-    protein_100g: 31,
-    carbs_100g: 0,
-    fat_100g: 3.6,
-    fiber_100g: 0,
-    sugar_100g: 0,
-    satfat_100g: 1,
-    sodium_mg_100g: 74,
-    pack_size_g: null,
-    quantity: null,
-  },
-  {
-    user_id: "user-1",
-    name: "Brown Rice",
-    kcal_100g: 130,
-    protein_100g: 2.7,
-    carbs_100g: 28,
-    fat_100g: 0.3,
-    fiber_100g: 2,
-    sugar_100g: 0.4,
-    satfat_100g: 0.1,
-    sodium_mg_100g: 5,
-    pack_size_g: null,
-    quantity: null,
-  },
-  {
-    user_id: "user-1",
-    name: "Olive Oil",
-    kcal_100g: 900,
-    protein_100g: 0,
-    carbs_100g: 0,
-    fat_100g: 100,
-    fiber_100g: 0,
-    sugar_100g: 0,
-    satfat_100g: 14,
-    sodium_mg_100g: 2,
-    pack_size_g: null,
-    quantity: null,
-  },
-];
-
-const targets = (): Row[] => [
-  {
-    user_id: "user-1",
-    week_start: "2000-01-03",
-    kcal: 2000,
-    protein_g: 150,
-    carbs_g: 200,
-    fat_g: 65,
-    fiber_g: 28,
-    sugar_g: 50,
-    satfat_g: 22,
-    sodium_mg: 2300,
-  },
-];
-
 describe("setMealPortions", () => {
   const plannedMeal = (): Row => ({
     id: "pm-1",

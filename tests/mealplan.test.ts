@@ -22,16 +22,7 @@ const oil: PantryFood = {
   carbs_100g: 0,
   fat_100g: 100,
 };
-const water: PantryFood = {
-  name: "Sparkling Water",
-  kcal_100g: 0,
-  protein_100g: 0,
-  carbs_100g: 0,
-  fat_100g: 0,
-};
-
 const budget = { kcal: 1800, protein_g: 150, carbs_g: 180, fat_g: 60 };
-const zero = { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
 
 describe("suggestPantryMeals", () => {
   it("builds dishes around the chosen carb + protein", () => {
