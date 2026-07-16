@@ -119,13 +119,14 @@ export async function getPlanForDate(date: string): Promise<PlannedMeal[]> {
   const { data } = await supabase
     .from("planned_meals")
     .select(
-      "id, date, slot, position, origin, name, items, portions, swaps, why, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg, logged_food_id",
+      "id, date, slot, position, origin, name, items, picks, portions, swaps, why, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg, logged_food_id",
     )
     .eq("date", date)
     .order("position", { ascending: true });
 
   return ((data as PlannedMeal[]) ?? []).map((m) => ({
     ...m,
+    picks: m.picks ?? [],
     kcal: Number(m.kcal),
     protein_g: Number(m.protein_g),
     carbs_g: Number(m.carbs_g),

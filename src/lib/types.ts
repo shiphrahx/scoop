@@ -35,6 +35,10 @@ export interface Profile {
   goal_weight_kg: number | null;
   body_fat_pct: number | null;
   meal_slots: string[];
+  // How big each meal should be relative to the others: slot name -> relative
+  // weight. Empty/missing means an even share per meal; a slot missing from a
+  // non-empty map falls back to the mean of the listed weights.
+  slot_weights: Record<string, number> | null;
   nutrient_prefs: string[];
   // IANA zone the user lives in ("Europe/London"). Decides where their day
   // starts — the server's clock is UTC and is not the user's day.
@@ -256,10 +260,16 @@ export interface FoodChoice extends ExtraPer100g {
   pack_size_g: number | null;
 }
 
+// A food the user chose for one meal when planning their day — the app works
+// out the grams, so a pick carries no amount, just per-100g macros and where it
+// came from. pack_size_g caps a portion at what the pack holds (null = no cap).
+export type MealPick = Omit<FoodChoice, "brand">;
+
 // One meal in a saved day plan, tied to a named slot (Breakfast, Lunch, …).
 // origin 'manual' = the user built it from foods they picked (`items`); 'ai' =
-// a dish the app suggested from the pantry (`portions`). logged_food_id is set
-// once the user says they ate it.
+// a dish the app portioned from the user's per-meal picks (`picks` are the
+// foods they chose; `portions` the solved grams — empty until "Build my day").
+// logged_food_id is set once the user says they ate it.
 export interface PlannedMeal extends Macros {
   id: string;
   date: string;
@@ -268,6 +278,7 @@ export interface PlannedMeal extends Macros {
   origin: "manual" | "ai";
   name: string;
   items: PlanItem[];
+  picks: MealPick[];
   portions: MealPortion[];
   swaps: string[];
   why: string | null;
