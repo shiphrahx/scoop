@@ -1,14 +1,14 @@
-// Local, deterministic meal planner. Every pantry item already carries its
-// per-100g macros, so building a day of meals is just arithmetic: classify each
-// item by its dominant macro (protein / carb / fat), then SOLVE the grams of a
-// protein + carb + fat source that land a meal on its macro budget. No AI, no
-// network — the pantry is the whole source of truth.
+// Local, deterministic meal planner. Every food already carries its per-100g
+// macros, so portioning meals is just arithmetic — no AI, no network.
 //
-// Accuracy: each meal is solved as a small linear system (grams of each source
-// vs the protein/carbs/fat targets), and the day's first meal is a "balancer"
-// sized to whatever the other meals left over — so the DAY totals land within a
-// gram or two of target (well inside ±5), as long as the pantry has a protein,
-// a carb AND a fat source to move each macro independently.
+// Two solvers live here:
+//  - planPickedDay: the user names the foods for EACH meal and one global
+//    weighted least-squares portions everything together so the DAY lands on
+//    its macro budget (within ±5 when the picks can reach it). Meal sizes
+//    follow the user's slot weights, softly — they bend before the day total.
+//  - suggestPantryMeals: dish ideas for ONE meal built around a chosen carb +
+//    protein, each solved as a small linear system against the remaining
+//    macros.
 
 import { macroRole } from "@/lib/foodgroups";
 import type {
@@ -235,9 +235,6 @@ function pools(pantry: PantryFood[]) {
   return { protein, carb, fat };
 }
 
-const at = <T,>(arr: T[], i: number): T | null =>
-  arr.length ? arr[i % arr.length] : null;
-
 // A short dish name from its portions: "Chicken with Rice", or the single food.
 function mealName(portions: Portion[]): string {
   const names = portions.map((p) => p.food.name);
@@ -252,113 +249,6 @@ function toPortions(chosen: Portion[]): MealPortion[] {
     grams: c.grams,
     ...macrosOf(c.food, c.grams),
   }));
-}
-
-// One macro's choice in the "plan my day" wizard:
-//   null        → "suggest for me": use the densest pantry source of that macro
-//   string      → a pantry item chosen by name
-//   PantryFood  → a scanned barcode product, carrying its own per-100g macros
-//                 (needn't be in the pantry — the user scanned exactly this)
-export type DayPick = string | PantryFood | null;
-
-// The carb / protein / fat the user chose. When `picks` is given the planner
-// builds ONLY from these foods: nothing else from the pantry is added.
-export interface DayPicks {
-  carb: DayPick;
-  protein: DayPick;
-  fat: DayPick;
-}
-
-export interface PlanDayInput {
-  pantry: PantryFood[];
-  // Macros still to eat today (day target minus what's already logged).
-  budget: Macros;
-  // Macros of meals the user has planned but not eaten — budget around them.
-  fixed: Macros;
-  emptySlots: string[];
-  // When set, restrict every meal to these chosen foods (see DayPicks).
-  picks?: DayPicks;
-}
-
-// Fill each empty slot with a pantry meal so the day's totals land on target.
-// Slots after the first each take an even share of what's left; the FIRST slot
-// is the balancer — it's sized to the exact remainder, so rounding in the other
-// meals can't push the day total off. Returns one slot per meal it could build.
-export function planPantryDay(input: PlanDayInput): PlannedSlot[] {
-  const { protein, carb, fat } = pools(input.pantry);
-  const slots = input.emptySlots;
-  const n = slots.length;
-  if (n === 0) return [];
-
-  // With explicit picks, every meal is built from the same three chosen foods —
-  // a named pick wins, a null pick falls back to the densest source ("suggest
-  // for me"). Without picks we rotate the pools for variety across the day.
-  const picks = input.picks;
-  // Resolve one pick to a food: a scanned product is used as-is (its own
-  // macros); a name is looked up in the pantry; either falling back to the
-  // densest source of that macro when it can't be found.
-  const resolve = (pick: DayPick, fallback: PantryFood | null): PantryFood | null =>
-    pick == null
-      ? fallback
-      : typeof pick === "string"
-        ? byName(input.pantry, pick) ?? fallback
-        : pick;
-  const fixedProtein = picks ? resolve(picks.protein, protein[0] ?? null) : null;
-  const fixedCarb = picks ? resolve(picks.carb, carb[0] ?? null) : null;
-  const fixedFat = picks ? resolve(picks.fat, fat[0] ?? null) : null;
-  const proteinFor = (i: number) => (picks ? fixedProtein : at(protein, i));
-  const carbFor = (i: number) => (picks ? fixedCarb : at(carb, i));
-  const fatFor = (i: number) => (picks ? fixedFat : at(fat, i));
-
-  const left: Macros = {
-    kcal: Math.max(0, input.budget.kcal - input.fixed.kcal),
-    protein_g: Math.max(0, input.budget.protein_g - input.fixed.protein_g),
-    carbs_g: Math.max(0, input.budget.carbs_g - input.fixed.carbs_g),
-    fat_g: Math.max(0, input.budget.fat_g - input.fixed.fat_g),
-  };
-  const share: Macros = {
-    kcal: left.kcal / n,
-    protein_g: left.protein_g / n,
-    carbs_g: left.carbs_g / n,
-    fat_g: left.fat_g / n,
-  };
-
-  // Build the non-balancer slots first (rotating sources for variety) and track
-  // what they used, so the balancer can fill the exact remainder.
-  const built: ({ portions: Portion[]; totals: Required<Macros> } | null)[] =
-    new Array(n).fill(null);
-  let others = ZERO;
-  for (let i = 1; i < n; i++) {
-    const m = buildMeal(share, proteinFor(i), carbFor(i), fatFor(i));
-    built[i] = m;
-    others = addMacros(others, m.totals);
-  }
-
-  // The balancer: densest sources, targeting whatever the others left of the
-  // day's budget — this is what keeps the day total on target.
-  const balTarget: Macros = {
-    kcal: Math.max(0, left.kcal - others.kcal),
-    protein_g: Math.max(0, left.protein_g - others.protein_g),
-    carbs_g: Math.max(0, left.carbs_g - others.carbs_g),
-    fat_g: Math.max(0, left.fat_g - others.fat_g),
-  };
-  built[0] = buildMeal(balTarget, proteinFor(0), carbFor(0), fatFor(0));
-
-  const out: PlannedSlot[] = [];
-  slots.forEach((slot, i) => {
-    const m = built[i];
-    if (!m || m.portions.length === 0) return;
-    out.push({
-      slot,
-      origin: "ai",
-      name: mealName(m.portions),
-      portions: toPortions(m.portions),
-      swaps: [],
-      why: "Portioned from your pantry to hit this meal's macros.",
-      ...m.totals,
-    });
-  });
-  return out;
 }
 
 // ---------------------------------------------------------------------------

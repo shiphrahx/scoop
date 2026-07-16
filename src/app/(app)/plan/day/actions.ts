@@ -3,12 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { isFoodAllowed } from "@/lib/ai";
-import {
-  planPantryDay,
-  planPickedDay,
-  type DayPicks,
-  type PantryFood,
-} from "@/lib/mealplan";
+import { planPickedDay, type PantryFood } from "@/lib/mealplan";
 import { macrosPer100gSchema, parseOrThrow, portionGramsSchema } from "@/lib/validate";
 import {
   getConsumedForDate,
@@ -612,101 +607,6 @@ export async function removePlannedMeal(id: string) {
     .eq("id", id)
     .eq("user_id", user.id);
   if (error) throw new Error(error.message);
-  revalidate();
-}
-
-// Fill every empty slot from the pantry so the day's totals hit target. Meals
-// the user already built (manual) and already ate (logged) are left untouched;
-// the AI just budgets around their macros.
-export async function planMyDay(picks?: DayPicks, date?: string) {
-  const { supabase, user } = await requireUser();
-  const day = await resolveDate(date);
-
-  const [profile, targets, consumed, plan] = await Promise.all([
-    getProfile(),
-    getCurrentTargets(),
-    getConsumedForDate(day),
-    getPlanForDate(day),
-  ]);
-  if (!profile) throw new Error("Finish onboarding first");
-  if (!targets) throw new Error("No macro target yet — finish onboarding.");
-  const pantry = await pantryFoods(
-    supabase,
-    profile.diet_type,
-    profile.allergies ?? [],
-    profile.dislikes ?? [],
-  );
-
-  const slotNames = profile.meal_slots ?? [];
-  const bySlot = new Map(plan.map((p) => [p.slot, p]));
-
-  const emptySlots = slotNames.filter((s) => !bySlot.get(s));
-  if (emptySlots.length === 0) {
-    revalidate();
-    return;
-  }
-
-  // Macros of meals the user built but hasn't eaten yet — fixed, budget around.
-  const fixed: Macros = plan
-    .filter((p) => !p.logged_food_id)
-    .reduce<Macros>(
-      (s, p) => ({
-        kcal: s.kcal + p.kcal,
-        protein_g: s.protein_g + p.protein_g,
-        carbs_g: s.carbs_g + p.carbs_g,
-        fat_g: s.fat_g + p.fat_g,
-      }),
-      { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
-    );
-
-  const budget: Macros = {
-    kcal: Math.max(0, Math.round(targets.kcal - consumed.kcal)),
-    protein_g: Math.max(0, Math.round(targets.protein_g - consumed.protein_g)),
-    carbs_g: Math.max(0, Math.round(targets.carbs_g - consumed.carbs_g)),
-    fat_g: Math.max(0, Math.round(targets.fat_g - consumed.fat_g)),
-  };
-
-  const meals = planPantryDay({ pantry, budget, fixed, emptySlots, picks });
-
-  const bySlotResult = new Map(meals.map((m) => [m.slot, m]));
-  const rows = emptySlots
-    .map((slot, i) => {
-      // Match by slot name; fall back to positional if the model didn't echo it.
-      const m = bySlotResult.get(slot) ?? meals[i];
-      if (!m) return null;
-      return {
-        user_id: user.id,
-        date: day,
-        slot,
-        position: Math.max(0, slotNames.indexOf(slot)),
-        origin: "ai",
-        name: m.name,
-        items: [],
-        portions: m.portions,
-        swaps: m.swaps,
-        why: m.why,
-        kcal: m.kcal,
-        protein_g: m.protein_g,
-        carbs_g: m.carbs_g,
-        fat_g: m.fat_g,
-        // The extras come from the pantry items the dish is built from. They
-        // used to be written as 0, which made the day's fibre read as a total
-        // miss and threw off the nutrient verdict on every auto-planned day.
-        fiber_g: m.fiber_g ?? 0,
-        sugar_g: m.sugar_g ?? 0,
-        satfat_g: m.satfat_g ?? 0,
-        sodium_mg: m.sodium_mg ?? 0,
-        logged_food_id: null,
-      };
-    })
-    .filter((r): r is NonNullable<typeof r> => r !== null);
-
-  if (rows.length) {
-    const { error } = await supabase
-      .from("planned_meals")
-      .upsert(rows, { onConflict: "user_id,date,slot" });
-    if (error) throw new Error(error.message);
-  }
   revalidate();
 }
 
