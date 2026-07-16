@@ -23,6 +23,9 @@ export interface OnboardingInput {
   goal_weight_kg: number;
   body_fat_pct: number | null;
   birth_year: number;
+  // How big each meal should be relative to the others (slot name -> relative
+  // weight). Empty = every meal the same size. Used when planning a day.
+  slot_weights: Record<string, number>;
   // Read from the browser, because the server's clock is UTC and the user's day
   // is not. Decides when their day (and their week) rolls over.
   timezone: string;
@@ -50,6 +53,7 @@ export async function saveOnboarding(input: OnboardingInput) {
     body_fat_pct: input.body_fat_pct,
     sex: input.sex,
     birth_year: input.birth_year,
+    slot_weights: input.slot_weights,
     timezone: safeTimezone(input.timezone),
     onboarded_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),

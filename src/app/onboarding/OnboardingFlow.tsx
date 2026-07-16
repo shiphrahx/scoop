@@ -25,6 +25,9 @@ import {
   Venus,
   Mars,
   PieChart,
+  Scale,
+  Sun,
+  Moon,
   type LucideIcon,
 } from "lucide-react";
 import { saveOnboarding, type OnboardingInput } from "./actions";
@@ -66,12 +69,23 @@ type State = {
   dislikes: string[];
   goal_pace?: GoalPace;
   activity_level?: ActivityLevel;
+  meal_size?: MealSizeChoice;
   sex?: Sex;
   height_cm: number;
   weight_kg: number;
   goal_weight_kg?: number;
   body_fat_pct?: number; // undefined = user skipped it
   age: number;
+};
+
+// How the day's food splits across the default meals. Relative weights over the
+// default slots; "even" stores an empty map (every meal the same). Fine-tuning
+// per slot lives in Settings.
+type MealSizeChoice = "even" | "big_dinner" | "big_lunch";
+const MEAL_SIZE_WEIGHTS: Record<MealSizeChoice, Record<string, number>> = {
+  even: {},
+  big_dinner: { Breakfast: 20, Lunch: 30, Snack: 10, Dinner: 40 },
+  big_lunch: { Breakfast: 20, Lunch: 40, Snack: 10, Dinner: 30 },
 };
 
 export default function OnboardingFlow() {
@@ -92,6 +106,7 @@ export default function OnboardingFlow() {
     "dislikes",
     "activity",
     "pace",
+    "mealsize",
     "sex",
     "height",
     "weight",
@@ -127,6 +142,7 @@ export default function OnboardingFlow() {
       goal_weight_kg: Math.round((state.goal_weight_kg ?? defaultGoal) * 10) / 10,
       body_fat_pct: state.body_fat_pct ?? null,
       birth_year: CURRENT_YEAR - state.age,
+      slot_weights: MEAL_SIZE_WEIGHTS[state.meal_size ?? "even"],
       // The browser knows where the user is; the server (UTC) doesn't.
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     };
@@ -279,6 +295,38 @@ export default function OnboardingFlow() {
           selected={state.goal_pace}
           onPick={(v) => {
             setState({ ...state, goal_pace: v as GoalPace });
+            next();
+          }}
+        />
+      )}
+
+      {current === "mealsize" && (
+        <Choice
+          title="How do you like your meals sized?"
+          hint="Used when we plan your day. You can fine-tune each meal later in settings."
+          options={[
+            {
+              value: "even",
+              label: "About the same",
+              icon: Scale,
+              desc: "Every meal gets a similar share",
+            },
+            {
+              value: "big_dinner",
+              label: "Bigger dinner",
+              icon: Moon,
+              desc: "Light start, main meal in the evening",
+            },
+            {
+              value: "big_lunch",
+              label: "Bigger lunch",
+              icon: Sun,
+              desc: "Main meal in the middle of the day",
+            },
+          ]}
+          selected={state.meal_size}
+          onPick={(v) => {
+            setState({ ...state, meal_size: v as MealSizeChoice });
             next();
           }}
         />
