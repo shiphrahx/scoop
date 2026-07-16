@@ -3,8 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { isFoodAllowed } from "@/lib/ai";
-import { planPantryDay, type DayPicks, type PantryFood } from "@/lib/mealplan";
-import { parseOrThrow, portionGramsSchema } from "@/lib/validate";
+import {
+  planPantryDay,
+  planPickedDay,
+  type DayPicks,
+  type PantryFood,
+} from "@/lib/mealplan";
+import { macrosPer100gSchema, parseOrThrow, portionGramsSchema } from "@/lib/validate";
 import {
   getConsumedForDate,
   getCurrentTargets,
@@ -18,6 +23,7 @@ import {
   sumItems,
   type DietType,
   type FoodChoice,
+  type MealPick,
   type MealPortion,
   type PlanItem,
   type Macros,
@@ -166,6 +172,8 @@ export async function setMealItems(slot: string, items: PlanItem[], date?: strin
       origin: "manual",
       name,
       items,
+      // A hand-built meal replaces any waiting picks for the slot.
+      picks: [],
       portions: [],
       swaps: [],
       why: null,
@@ -185,6 +193,208 @@ export async function setMealItems(slot: string, items: PlanItem[], date?: strin
   revalidate();
 }
 
+// Save the foods the user picked for one meal, ahead of "Build my day". No
+// grams yet — the global solve works those out. Changing the picks resets any
+// previously solved portions (they were for the old picks). Empty picks clear
+// the slot back to empty.
+export async function setMealPicks(slot: string, picks: MealPick[], date?: string) {
+  const { supabase, user } = await requireUser();
+  const day = await resolveDate(date);
+
+  // Never touch an eaten meal: its macros are already in the food log.
+  const { data: existing } = await supabase
+    .from("planned_meals")
+    .select("logged_food_id")
+    .eq("user_id", user.id)
+    .eq("date", day)
+    .eq("slot", slot)
+    .maybeSingle();
+  if ((existing as { logged_food_id: string | null } | null)?.logged_food_id) {
+    throw new Error("This meal is already logged — edit it from the plan instead.");
+  }
+
+  if (picks.length === 0) {
+    await supabase
+      .from("planned_meals")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("date", day)
+      .eq("slot", slot);
+    revalidate();
+    return;
+  }
+
+  // A pick's numbers come from the pantry or a barcode lookup, but the payload
+  // itself is client-supplied — bound-check it before it can poison a build.
+  for (const p of picks) {
+    parseOrThrow(macrosPer100gSchema, p, `Pick ${p.name}`);
+  }
+
+  const profile = await getProfile();
+  const position = Math.max(0, (profile?.meal_slots ?? []).indexOf(slot));
+
+  const { error } = await supabase.from("planned_meals").upsert(
+    {
+      user_id: user.id,
+      date: day,
+      slot,
+      position,
+      origin: "ai",
+      name: picks.map((p) => p.name).join(", "),
+      items: [],
+      picks,
+      portions: [],
+      swaps: [],
+      why: null,
+      kcal: 0,
+      protein_g: 0,
+      carbs_g: 0,
+      fat_g: 0,
+      fiber_g: 0,
+      sugar_g: 0,
+      satfat_g: 0,
+      sodium_mg: 0,
+      logged_food_id: null,
+    },
+    { onConflict: "user_id,date,slot" },
+  );
+  if (error) throw new Error(error.message);
+  revalidate();
+}
+
+// Resolve one stored pick to the food the solver portions. A pantry pick reads
+// the pantry's CURRENT numbers and stock (fresher than what was saved); a
+// scanned pick carries its own, capped at the pack size when known.
+function pickToFood(pick: MealPick, pantry: PantryFood[]): PantryFood {
+  if (pick.source === "pantry") {
+    const hit = pantry.find((f) => f.name === pick.name);
+    if (hit) return hit;
+  }
+  return {
+    name: pick.name,
+    kcal_100g: Number(pick.kcal_100g),
+    protein_100g: Number(pick.protein_100g),
+    carbs_100g: Number(pick.carbs_100g),
+    fat_100g: Number(pick.fat_100g),
+    fiber_100g: Number(pick.fiber_100g ?? 0),
+    sugar_100g: Number(pick.sugar_100g ?? 0),
+    satfat_100g: Number(pick.satfat_100g ?? 0),
+    sodium_mg_100g: Number(pick.sodium_mg_100g ?? 0),
+    available_g: pick.pack_size_g != null ? Number(pick.pack_size_g) : undefined,
+  };
+}
+
+// Portion every meal the user picked foods for, together, so the day lands on
+// target. Meals the user built by hand and meals already eaten are budgeted
+// around, never touched. Picked meals split what's left of the day between
+// them by the user's slot weights. Also serves as "rebalance": running it
+// again re-portions every unlogged picked meal from its saved picks.
+export async function buildMyDay(date?: string) {
+  const { supabase, user } = await requireUser();
+  const day = await resolveDate(date);
+
+  const [profile, targets, consumed, plan] = await Promise.all([
+    getProfile(),
+    getCurrentTargets(),
+    getConsumedForDate(day),
+    getPlanForDate(day),
+  ]);
+  if (!profile) throw new Error("Finish onboarding first");
+  if (!targets) throw new Error("No macro target yet — finish onboarding.");
+
+  const picked = plan.filter((p) => p.picks.length > 0 && !p.logged_food_id);
+  if (picked.length === 0) {
+    throw new Error("Pick foods for at least one meal first.");
+  }
+
+  const pantry = await pantryFoods(
+    supabase,
+    profile.diet_type,
+    profile.allergies ?? [],
+    profile.dislikes ?? [],
+  );
+
+  // Meals that are planned but NOT being solved (built by hand, no picks) hold
+  // their macros; the picked meals absorb everything else that's left today.
+  const fixed = plan
+    .filter((p) => !p.logged_food_id && p.picks.length === 0)
+    .reduce<Macros>(
+      (s, p) => ({
+        kcal: s.kcal + p.kcal,
+        protein_g: s.protein_g + p.protein_g,
+        carbs_g: s.carbs_g + p.carbs_g,
+        fat_g: s.fat_g + p.fat_g,
+      }),
+      { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
+    );
+
+  const budget: Macros = {
+    kcal: Math.max(0, Math.round(targets.kcal - consumed.kcal - fixed.kcal)),
+    protein_g: Math.max(
+      0,
+      Math.round(targets.protein_g - consumed.protein_g - fixed.protein_g),
+    ),
+    carbs_g: Math.max(
+      0,
+      Math.round(targets.carbs_g - consumed.carbs_g - fixed.carbs_g),
+    ),
+    fat_g: Math.max(0, Math.round(targets.fat_g - consumed.fat_g - fixed.fat_g)),
+  };
+
+  const meals = planPickedDay({
+    slots: picked.map((p) => ({
+      slot: p.slot,
+      foods: p.picks.map((pick) => pickToFood(pick, pantry)),
+    })),
+    budget,
+    weights: profile.slot_weights ?? undefined,
+  });
+
+  const bySlot = new Map(meals.map((m) => [m.slot, m]));
+  const slotNames = profile.meal_slots ?? [];
+  for (const row of picked) {
+    const m = bySlot.get(row.slot);
+    const patch = m
+      ? {
+          name: m.name,
+          portions: m.portions,
+          swaps: m.swaps,
+          why: m.why,
+          kcal: m.kcal,
+          protein_g: m.protein_g,
+          carbs_g: m.carbs_g,
+          fat_g: m.fat_g,
+          fiber_g: m.fiber_g ?? 0,
+          sugar_g: m.sugar_g ?? 0,
+          satfat_g: m.satfat_g ?? 0,
+          sodium_mg: m.sodium_mg ?? 0,
+        }
+      : {
+          // Nothing fitted this meal at all — keep the picks, explain why.
+          portions: [],
+          why: "No room left in today's macros for this meal — change the picks or free something up.",
+          kcal: 0,
+          protein_g: 0,
+          carbs_g: 0,
+          fat_g: 0,
+          fiber_g: 0,
+          sugar_g: 0,
+          satfat_g: 0,
+          sodium_mg: 0,
+        };
+    const { error } = await supabase
+      .from("planned_meals")
+      .update({
+        position: Math.max(0, slotNames.indexOf(row.slot)),
+        ...patch,
+      })
+      .eq("id", row.id)
+      .eq("user_id", user.id);
+    if (error) throw new Error(error.message);
+  }
+  revalidate();
+}
+
 // Fill a slot with the same meal the user had in it the day before — a whole
 // row copied onto this date, minus the "eaten" mark so it lands as a fresh
 // plan. Overwrites whatever is in the slot (the button only shows on empty
@@ -197,7 +407,7 @@ export async function copyFromYesterday(slot: string, date?: string) {
   const { data: src } = await supabase
     .from("planned_meals")
     .select(
-      "origin, name, items, portions, swaps, why, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg",
+      "origin, name, items, picks, portions, swaps, why, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg",
     )
     .eq("user_id", user.id)
     .eq("date", prevDay)
@@ -208,6 +418,7 @@ export async function copyFromYesterday(slot: string, date?: string) {
     origin: string;
     name: string;
     items: PlanItem[];
+    picks: MealPick[] | null;
     portions: MealPortion[];
     swaps: string[];
     why: string | null;
@@ -233,6 +444,7 @@ export async function copyFromYesterday(slot: string, date?: string) {
       origin: m.origin,
       name: m.name,
       items: m.items,
+      picks: m.picks ?? [],
       portions: m.portions,
       swaps: m.swaps,
       why: m.why,
