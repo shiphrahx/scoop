@@ -133,6 +133,33 @@ export async function saveMealSlots(slots: string[]) {
   revalidatePath("/plan/day");
 }
 
+// Save how big each meal should be relative to the others (slot name ->
+// relative weight). The day planner splits the day's macros by these. Weights
+// are relative, so any positive scale works; zero/negative/NaN would starve or
+// blow up a meal's share and are refused.
+export async function saveSlotWeights(weights: Record<string, number>) {
+  const cleaned: Record<string, number> = {};
+  for (const [slot, w] of Object.entries(weights)) {
+    const name = slot.trim();
+    const n = Number(w);
+    if (!name) continue;
+    if (!Number.isFinite(n) || n <= 0) {
+      throw new Error(`Meal size for ${name} must be a positive number.`);
+    }
+    cleaned[name] = Math.round(n);
+  }
+
+  const { supabase, user } = await requireUser();
+  const { error } = await supabase
+    .from("users")
+    .update({ slot_weights: cleaned, updated_at: new Date().toISOString() })
+    .eq("id", user.id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/me");
+  revalidatePath("/plan/day");
+}
+
 // Save which nutrients the user wants shown in breakdowns. Validated against
 // the known selectable keys, order preserved.
 export async function saveNutrientPrefs(prefs: string[]) {

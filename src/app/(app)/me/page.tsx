@@ -3,6 +3,7 @@ import ApiKeySettings from "./ApiKeySettings";
 import GoalsSettings from "./GoalsSettings";
 import MealSlotsSettings from "./MealSlotsSettings";
 import NutrientSettings from "./NutrientSettings";
+import SlotWeightsSettings from "./SlotWeightsSettings";
 import { DEFAULT_MEAL_SLOTS } from "@/lib/types";
 import SignOutButton from "@/components/SignOutButton";
 import {
@@ -92,6 +93,12 @@ export default async function MePage({
             initial={
               profile.meal_slots?.length ? profile.meal_slots : DEFAULT_MEAL_SLOTS
             }
+          />
+          <SlotWeightsSettings
+            slots={
+              profile.meal_slots?.length ? profile.meal_slots : DEFAULT_MEAL_SLOTS
+            }
+            initial={profile.slot_weights}
           />
           <NutrientSettings initial={profile.nutrient_prefs ?? []} />
         </>
