@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ScanBarcode, Minus, Plus, Link2, KeyRound } from "lucide-react";
+import { ScanBarcode, Link2, KeyRound } from "lucide-react";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import type { ExtraPer100g, OffProduct } from "@/lib/types";
 import { addPantryItem, importPantryUrl } from "./actions";
@@ -43,7 +43,6 @@ export default function PantryForm({
   const [unitG, setUnitG] = useState("");
   // Extra per-100g nutrients from a scan (kept out of the visible form).
   const [scannedExtras, setScannedExtras] = useState<ExtraPer100g>(NO_EXTRAS);
-  const [quantity, setQuantity] = useState(1);
   const [scanning, setScanning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [url, setUrl] = useState("");
@@ -135,7 +134,7 @@ export default function PantryForm({
       await addPantryItem({
         name: form.name.trim(),
         off_barcode: barcode,
-        quantity,
+        quantity: 1,
         kcal_100g: Number(form.kcal_100g) || 0,
         protein_100g: Number(form.protein_100g) || 0,
         carbs_100g: Number(form.carbs_100g) || 0,
@@ -246,29 +245,6 @@ export default function PantryForm({
           />
         </label>
         <Field label="Grams per unit" value={unitG} onChange={setUnitG} />
-      </div>
-
-      <div className="mt-1 flex items-center justify-between">
-        <span className="text-sm font-semibold">How many packs</span>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-            aria-label="One fewer"
-            className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] active:scale-90"
-          >
-            <Minus size={18} />
-          </button>
-          <span className="w-6 text-center font-semibold tabular-nums">
-            {quantity}
-          </span>
-          <button
-            onClick={() => setQuantity((q) => q + 1)}
-            aria-label="One more"
-            className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] active:scale-90"
-          >
-            <Plus size={18} />
-          </button>
-        </div>
       </div>
 
       <button
