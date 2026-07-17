@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { lookupBarcode, parsePackSizeG, searchProducts } from "@/lib/off";
+import { lookupBarcode, parsePackSizeG, parseServing, searchProducts } from "@/lib/off";
 
 describe("parsePackSizeG", () => {
   it("reads grams", () => {
@@ -33,6 +33,54 @@ describe("parsePackSizeG", () => {
   it("returns null when there is no recognised unit", () => {
     expect(parsePackSizeG("one big bag")).toBeNull();
     expect(parsePackSizeG("12 pieces")).toBeNull();
+  });
+});
+
+describe("parseServing", () => {
+  it("reads grams and the unit word from a named serving", () => {
+    expect(parseServing({ serving_size: "1 bagel (85 g)", serving_quantity: 85 })).toEqual({
+      unit_g: 85,
+      unit_label: "bagel",
+    });
+    expect(parseServing({ serving_size: "1 scoop (30 g)", serving_quantity: 30 })).toEqual({
+      unit_g: 30,
+      unit_label: "scoop",
+    });
+    expect(parseServing({ serving_size: "2 biscuits (30 g)", serving_quantity: 30 })).toEqual({
+      unit_g: 30,
+      unit_label: "biscuits",
+    });
+  });
+
+  it("prefers serving_quantity, else parses grams from the text", () => {
+    expect(parseServing({ serving_size: "1 slice (40 g)" }).unit_g).toBe(40);
+    expect(parseServing({ serving_quantity: 25 }).unit_g).toBe(25);
+  });
+
+  it("gives grams but no label for a bare weight serving", () => {
+    expect(parseServing({ serving_size: "30 g", serving_quantity: 30 })).toEqual({
+      unit_g: 30,
+      unit_label: null,
+    });
+  });
+
+  it("labels a liquid serving ml", () => {
+    expect(parseServing({ serving_size: "250 ml", serving_quantity: 250, serving_quantity_unit: "ml" })).toEqual({
+      unit_g: 250,
+      unit_label: "ml",
+    });
+  });
+
+  it("returns nulls when OFF has no usable serving", () => {
+    expect(parseServing({})).toEqual({ unit_g: null, unit_label: null });
+    expect(parseServing({ serving_size: "a handful" })).toEqual({
+      unit_g: null,
+      unit_label: null,
+    });
+    expect(parseServing({ serving_quantity: 0 })).toEqual({
+      unit_g: null,
+      unit_label: null,
+    });
   });
 });
 

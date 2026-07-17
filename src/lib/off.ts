@@ -67,6 +67,41 @@ export function parsePackSizeG(quantity: unknown): number | null {
   }
 }
 
+// One serving of a product, when OFF describes one. serving_quantity is the
+// numeric grams (or ml, treated as grams) of a serving; serving_size is free
+// text we mine for a unit word: "1 bagel (85 g)" → unit_g 85, unit_label
+// "bagel"; "1 scoop (30 g)" → "scoop"; a bare "30 g" → unit_g 30 but no label
+// (nothing to count, so it's still weighed). A liquid serving with no named
+// unit takes "ml" as its label. Null grams = no usable serving.
+export function parseServing(p: {
+  serving_size?: unknown;
+  serving_quantity?: unknown;
+  serving_quantity_unit?: unknown;
+}): { unit_g: number | null; unit_label: string | null } {
+  // Grams per serving: the numeric field first, else parse the text like a pack
+  // size ("85 g", "330 ml" → grams).
+  const sq = Number(p.serving_quantity);
+  const unit_g =
+    Number.isFinite(sq) && sq > 0 ? sq : parsePackSizeG(p.serving_size);
+  if (unit_g == null) return { unit_g: null, unit_label: null };
+
+  // Unit word: whatever sits before the parenthetical grams in the serving
+  // text ("2 biscuits (30 g)" → "biscuits"). Falls back to "ml" for a liquid
+  // serving that names no unit.
+  let unit_label: string | null = null;
+  const text = typeof p.serving_size === "string" ? p.serving_size.toLowerCase() : "";
+  const m = text.match(/^\s*[\d.]+\s+([a-z][a-z -]*?)\s*\(/);
+  if (m) {
+    unit_label = m[1].trim();
+  } else if (
+    String(p.serving_quantity_unit).toLowerCase() === "ml" ||
+    /\bm?l\b/.test(text)
+  ) {
+    unit_label = "ml";
+  }
+  return { unit_g, unit_label };
+}
+
 // Shape one OFF product record into per-100g macros + pack size. `brands` comes
 // back as a comma-joined string from the product/v2 APIs but as an array from
 // the Search-a-licious search API — accept either and take the first brand.
@@ -75,6 +110,9 @@ function toCandidate(p: {
   product_name?: string;
   brands?: string | string[];
   quantity?: string;
+  serving_size?: string;
+  serving_quantity?: unknown;
+  serving_quantity_unit?: unknown;
   nutriments?: Record<string, unknown>;
 }): OffCandidate {
   const n = p.nutriments ?? {};
@@ -95,6 +133,7 @@ function toCandidate(p: {
     fat_100g: num(n["fat_100g"]),
     ...extras(n),
     pack_size_g: parsePackSizeG(p.quantity),
+    ...parseServing(p),
   };
 }
 
@@ -466,7 +505,7 @@ async function rawSearch(term: string, limit: number): Promise<OffCandidate[]> {
 
   const url =
     `${OFF_SEARCH}?q=${encodeURIComponent(q)}` +
-    `&fields=code,product_name,brands,quantity,nutriments` +
+    `&fields=code,product_name,brands,quantity,serving_size,serving_quantity,serving_quantity_unit,nutriments` +
     `&page_size=${limit}`;
 
   try {
@@ -508,7 +547,7 @@ async function searchWithBrands(
 
   const url =
     `${OFF_SEARCH}?q=${encodeURIComponent(q)}` +
-    `&fields=code,product_name,brands,quantity,nutriments` +
+    `&fields=code,product_name,brands,quantity,serving_size,serving_quantity,serving_quantity_unit,nutriments` +
     `&facets=brands_tags&page_size=${limit}`;
 
   try {
@@ -766,7 +805,7 @@ export async function lookupBarcode(
 ): Promise<OffProduct | null> {
   const url =
     `${OFF_BASE}/${encodeURIComponent(barcode)}.json` +
-    `?fields=product_name,brands,quantity,nutriments`;
+    `?fields=product_name,brands,quantity,serving_size,serving_quantity,serving_quantity_unit,nutriments`;
 
   let body: {
     status?: number;
@@ -774,6 +813,9 @@ export async function lookupBarcode(
       product_name?: string;
       brands?: string;
       quantity?: string;
+      serving_size?: string;
+      serving_quantity?: unknown;
+      serving_quantity_unit?: unknown;
       nutriments?: Record<string, unknown>;
     };
   };
@@ -811,5 +853,6 @@ export async function lookupBarcode(
     fat_100g: num(n["fat_100g"]),
     ...extras(n),
     pack_size_g: parsePackSizeG(p.quantity),
+    ...parseServing(p),
   };
 }

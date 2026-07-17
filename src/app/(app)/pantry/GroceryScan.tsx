@@ -71,6 +71,8 @@ export default function GroceryScan({ connected }: { connected: boolean }) {
         satfat_100g: 0,
         sodium_mg_100g: 0,
         pack_size_g: null,
+        unit_g: null,
+        unit_label: null,
       })),
     });
     setItems(null);

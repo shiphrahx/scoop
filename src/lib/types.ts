@@ -111,6 +111,7 @@ export interface ImportedItem {
 
 // One Open Food Facts search hit offered to the user as a match for an
 // ImportedItem. Macros are per 100 g; pack_size_g comes from OFF "quantity".
+// unit_g/unit_label carry OFF's serving when it names one (see OffProduct).
 export interface OffCandidate extends ExtraPer100g {
   code: string | null;
   name: string;
@@ -120,6 +121,8 @@ export interface OffCandidate extends ExtraPer100g {
   carbs_100g: number;
   fat_100g: number;
   pack_size_g: number | null;
+  unit_g: number | null;
+  unit_label: string | null;
 }
 
 // One pack that went into a batch cook.
@@ -143,6 +146,9 @@ export interface Batch extends Macros {
 }
 
 // What Open Food Facts gives us back for a scanned barcode (per 100 g).
+// unit_g/unit_label describe one serving when OFF reports one ("1 bagel (85 g)"
+// → unit_g 85, unit_label "bagel"), so a countable food can be logged per unit
+// rather than weighed. Both null when OFF has no usable serving.
 export interface OffProduct extends ExtraPer100g {
   barcode: string;
   name: string;
@@ -151,6 +157,8 @@ export interface OffProduct extends ExtraPer100g {
   carbs_100g: number;
   fat_100g: number;
   pack_size_g: number | null;
+  unit_g: number | null;
+  unit_label: string | null;
 }
 
 // One grocery product read from its web page (per 100 g), for the pantry. Comes
