@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, ScanBarcode, Pencil, AlertTriangle, AlertCircle, CopyPlus, UtensilsCrossed, Info } from "lucide-react";
-import type { FoodChoice, Macros, MealPortion, OffProduct, PlannedMeal, PlanItem } from "@/lib/types";
+import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, Pencil, AlertTriangle, AlertCircle, CopyPlus, UtensilsCrossed, Info } from "lucide-react";
+import type { FoodChoice, Macros, MealPortion, PlannedMeal, PlanItem } from "@/lib/types";
 import { sumItems } from "@/lib/types";
 import { parseFoodQuery } from "@/lib/foodquery";
 import {
@@ -16,7 +16,6 @@ import {
   type NutrientKey,
 } from "@/lib/nutrients";
 import { NutrientStats, FIT_TEXT } from "@/components/NutrientBreakdown";
-import BarcodeScanner from "@/components/BarcodeScanner";
 import {
   searchFoods,
   setMealItems,
@@ -267,23 +266,20 @@ function FitVerdict({
   );
 }
 
-// Search the pantry (or scan a barcode) to pick a food, handing the chosen
-// FoodChoice and the grams to use back to the parent. Shared by the meal
-// builder and the AI-meal editor so both add foods the same way. Typing an
+// Search the pantry to pick a food, handing the chosen FoodChoice and the grams
+// to use back to the parent. Shared by the meal builder and the AI-meal editor
+// so both add foods the same way. Barcode scanning lives on the "plan this meal"
+// screen, not here. Typing an
 // amount with the item ("50g shreddies") sets the grams; otherwise the pack
 // size (or 100 g) seeds it.
 function FoodSearchBox({
   onPick,
-  disabled,
 }: {
   onPick: (c: FoodChoice, grams: number) => void;
-  disabled: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FoodChoice[]>([]);
   const [searching, setSearching] = useState(false);
-  const [scanning, setScanning] = useState(false);
-  const [scanNote, setScanNote] = useState<string | null>(null);
 
   const parsed = useMemo(() => parseFoodQuery(query), [query]);
 
@@ -319,39 +315,6 @@ function FoodSearchBox({
     onPick(c, grams);
     setQuery("");
     setResults([]);
-  }
-
-  // Scan a barcode straight in: look the product up on Open Food Facts (same
-  // endpoint the pantry/batch scanners use) and add it.
-  async function handleScan(barcode: string) {
-    setScanning(false);
-    setScanNote("Looking up…");
-    try {
-      const res = await fetch(`/api/off/${encodeURIComponent(barcode)}`);
-      if (!res.ok) {
-        setScanNote(`No match for ${barcode}. Try the search instead.`);
-        return;
-      }
-      const p = (await res.json()) as OffProduct;
-      add({
-        name: p.name,
-        source: "off",
-        off_barcode: p.barcode,
-        brand: null,
-        kcal_100g: p.kcal_100g,
-        protein_100g: p.protein_100g,
-        carbs_100g: p.carbs_100g,
-        fat_100g: p.fat_100g,
-        fiber_100g: p.fiber_100g,
-        sugar_100g: p.sugar_100g,
-        satfat_100g: p.satfat_100g,
-        sodium_mg_100g: p.sodium_mg_100g,
-        pack_size_g: p.pack_size_g,
-      });
-      setScanNote(`Added ${p.name} — set the grams.`);
-    } catch {
-      setScanNote("Lookup failed. Try the search instead.");
-    }
   }
 
   return (
@@ -424,30 +387,6 @@ function FoodSearchBox({
           </ul>
         )}
       </div>
-
-      <button
-        onClick={() => {
-          setScanNote(null);
-          setScanning(true);
-        }}
-        disabled={disabled}
-        className="sc-btn sc-btn-soft"
-      >
-        <ScanBarcode size={18} /> Scan a barcode
-      </button>
-
-      {scanNote && (
-        <p className="text-center text-xs font-medium text-[var(--muted)]">
-          {scanNote}
-        </p>
-      )}
-
-      {scanning && (
-        <BarcodeScanner
-          onDetected={handleScan}
-          onClose={() => setScanning(false)}
-        />
-      )}
     </>
   );
 }
@@ -600,7 +539,7 @@ function ItemPicker({
         </button>
       )}
 
-      <FoodSearchBox onPick={add} disabled={busy} />
+      <FoodSearchBox onPick={add} />
 
       {items.length > 0 && (
         <>
@@ -1020,7 +959,7 @@ function AiMealEditor({
         </p>
       )}
 
-      <FoodSearchBox onPick={addFood} disabled={saving} />
+      <FoodSearchBox onPick={addFood} />
 
       <p className="text-xs font-medium text-[var(--muted)]">
         Meal total: {macroLine(prefs, total)}
