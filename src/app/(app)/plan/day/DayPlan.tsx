@@ -68,20 +68,21 @@ function portionAmount(p: MealPortion): string {
   return `${units} ${units === 1 ? label : `${label}s`} · ${grams} g`;
 }
 
-// The whole-unit count of a built item ("2 bagels"), or null when the food is
-// weighed (or measured in ml, where a count reads oddly). Used to caption the
-// grams stepper so the user sees units, not just grams.
-function itemUnitCount(it: PlanItem): string | null {
-  if (!it.unit_g || it.unit_g <= 0 || it.unit_label === "ml") return null;
-  const units = Math.round(it.grams / it.unit_g);
-  const label = it.unit_label ?? "unit";
-  return `${units} ${units === 1 ? label : `${label}s`}`;
+// A countable food is one split into portions ("bagel", "portion"): it has a
+// grams-per-portion. Liquids (ml) keep the grams stepper — a count reads oddly.
+function isCountable(it: PlanItem): boolean {
+  return !!it.unit_g && it.unit_g > 0 && it.unit_label !== "ml";
 }
 
-// How much to step a built item's grams by: one unit for a countable food, else
-// 25 g.
-function itemStep(it: PlanItem): number {
-  return it.unit_g && it.unit_g > 0 ? it.unit_g : 25;
+// How many whole portions the current grams work out to.
+function itemUnits(it: PlanItem): number {
+  return it.unit_g && it.unit_g > 0 ? Math.round(it.grams / it.unit_g) : 0;
+}
+
+// The portion word, singular or plural for a count ("bagel" / "bagels").
+function unitWord(it: PlanItem, count: number): string {
+  const label = it.unit_label ?? "portion";
+  return count === 1 ? label : `${label}s`;
 }
 
 // One AI portion's macros, when the plan stored them (older plans didn't).
@@ -500,6 +501,13 @@ function ItemPicker({
     save(items.map((it, j) => (j === i ? { ...it, grams: g } : it)));
   }
 
+  // Set a countable food by a portion count: grams follow from grams-per-portion.
+  function setUnits(i: number, units: number) {
+    const it = items[i];
+    const u = Math.max(0, Math.round(units));
+    setGrams(i, u * (it.unit_g || 1));
+  }
+
   const total = sumItems(items);
 
   return (
@@ -533,39 +541,62 @@ function ItemPicker({
                 {itemMacroLine(it)}
               </span>
 
-              {/* Grams stepper — steps by one unit for a countable food, and
-                  captions the current count ("2 bagels") beside the grams. */}
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setGrams(i, it.grams - itemStep(it))}
-                  disabled={busy || it.grams <= 0}
-                  className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90 disabled:opacity-40"
-                  aria-label="Less"
-                >
-                  <Minus size={14} />
-                </button>
-                <input
-                  type="number"
-                  value={it.grams}
-                  onChange={(e) => setGrams(i, Number(e.target.value))}
-                  className="w-12 rounded-lg bg-[var(--fill)] py-1 text-center text-sm font-semibold tabular-nums outline-none"
-                  aria-label={`${it.name} grams`}
-                />
-                <span className="text-xs text-[var(--muted)]">g</span>
-                <button
-                  onClick={() => setGrams(i, it.grams + itemStep(it))}
-                  disabled={busy}
-                  className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90"
-                  aria-label="More"
-                >
-                  <Plus size={14} />
-                </button>
-                {itemUnitCount(it) && (
-                  <span className="ml-1 text-xs font-medium text-[var(--ink-teal)]">
-                    {itemUnitCount(it)}
+              {isCountable(it) ? (
+                /* Countable food: step in whole portions ("1 bagel", "2
+                   portions"). Grams follow underneath — the user never weighs. */
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setUnits(i, itemUnits(it) - 1)}
+                    disabled={busy || it.grams <= 0}
+                    className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90 disabled:opacity-40"
+                    aria-label="One fewer"
+                  >
+                    <Minus size={14} />
+                  </button>
+                  <span className="min-w-[5rem] text-center text-sm font-semibold tabular-nums">
+                    {itemUnits(it)} {unitWord(it, itemUnits(it))}
                   </span>
-                )}
-              </div>
+                  <button
+                    onClick={() => setUnits(i, itemUnits(it) + 1)}
+                    disabled={busy}
+                    className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90"
+                    aria-label="One more"
+                  >
+                    <Plus size={14} />
+                  </button>
+                  <span className="text-xs text-[var(--muted)]">
+                    ≈ {Math.round(it.grams)} g
+                  </span>
+                </div>
+              ) : (
+                /* Weighed food: the grams stepper. */
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setGrams(i, it.grams - 25)}
+                    disabled={busy || it.grams <= 0}
+                    className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90 disabled:opacity-40"
+                    aria-label="Less"
+                  >
+                    <Minus size={14} />
+                  </button>
+                  <input
+                    type="number"
+                    value={it.grams}
+                    onChange={(e) => setGrams(i, Number(e.target.value))}
+                    className="w-12 rounded-lg bg-[var(--fill)] py-1 text-center text-sm font-semibold tabular-nums outline-none"
+                    aria-label={`${it.name} grams`}
+                  />
+                  <span className="text-xs text-[var(--muted)]">g</span>
+                  <button
+                    onClick={() => setGrams(i, it.grams + 25)}
+                    disabled={busy}
+                    className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90"
+                    aria-label="More"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
+              )}
             </li>
           ))}
         </ul>
