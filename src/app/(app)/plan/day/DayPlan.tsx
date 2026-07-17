@@ -56,6 +56,34 @@ function itemMacroLine(it: PlanItem): string {
   );
 }
 
+// How much of a portion to serve, as the user would measure it: a whole-unit
+// count for a countable food ("2 bagels · 170 g"), a volume for a liquid unit
+// ("250 ml"), or plain grams otherwise. Grams stays the real amount underneath.
+function portionAmount(p: MealPortion): string {
+  const grams = Math.round(p.grams);
+  if (!p.unit_g || p.unit_g <= 0) return `${grams} g`;
+  if (p.unit_label === "ml") return `${grams} ml`;
+  const units = Math.round(grams / p.unit_g);
+  const label = p.unit_label ?? "unit";
+  return `${units} ${units === 1 ? label : `${label}s`} · ${grams} g`;
+}
+
+// The whole-unit count of a built item ("2 bagels"), or null when the food is
+// weighed (or measured in ml, where a count reads oddly). Used to caption the
+// grams stepper so the user sees units, not just grams.
+function itemUnitCount(it: PlanItem): string | null {
+  if (!it.unit_g || it.unit_g <= 0 || it.unit_label === "ml") return null;
+  const units = Math.round(it.grams / it.unit_g);
+  const label = it.unit_label ?? "unit";
+  return `${units} ${units === 1 ? label : `${label}s`}`;
+}
+
+// How much to step a built item's grams by: one unit for a countable food, else
+// 25 g.
+function itemStep(it: PlanItem): number {
+  return it.unit_g && it.unit_g > 0 ? it.unit_g : 25;
+}
+
 // One AI portion's macros, when the plan stored them (older plans didn't).
 function portionMacroLine(p: MealPortion): string | null {
   if (p.kcal == null) return null;
@@ -309,9 +337,15 @@ function FoodSearchBox({
   }, [parsed.term]);
 
   function add(c: FoodChoice) {
-    // Honour the amount the user typed; otherwise seed from the pack size.
+    // Honour the amount the user typed; else seed one unit for a countable food
+    // (one bagel), otherwise the pack size, otherwise 100 g.
     const grams =
-      parsed.grams ?? (c.pack_size_g && c.pack_size_g <= 500 ? c.pack_size_g : 100);
+      parsed.grams ??
+      (c.unit_g && c.unit_g > 0
+        ? c.unit_g
+        : c.pack_size_g && c.pack_size_g <= 500
+          ? c.pack_size_g
+          : 100);
     onPick(c, grams);
     setQuery("");
     setResults([]);
@@ -455,6 +489,8 @@ function ItemPicker({
         sugar_100g: c.sugar_100g,
         satfat_100g: c.satfat_100g,
         sodium_mg_100g: c.sodium_mg_100g,
+        unit_g: c.unit_g ?? null,
+        unit_label: c.unit_label ?? null,
       },
     ]);
   }
@@ -497,10 +533,11 @@ function ItemPicker({
                 {itemMacroLine(it)}
               </span>
 
-              {/* Grams stepper */}
+              {/* Grams stepper — steps by one unit for a countable food, and
+                  captions the current count ("2 bagels") beside the grams. */}
               <div className="flex items-center gap-1">
                 <button
-                  onClick={() => setGrams(i, it.grams - 25)}
+                  onClick={() => setGrams(i, it.grams - itemStep(it))}
                   disabled={busy || it.grams <= 0}
                   className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90 disabled:opacity-40"
                   aria-label="Less"
@@ -516,13 +553,18 @@ function ItemPicker({
                 />
                 <span className="text-xs text-[var(--muted)]">g</span>
                 <button
-                  onClick={() => setGrams(i, it.grams + 25)}
+                  onClick={() => setGrams(i, it.grams + itemStep(it))}
                   disabled={busy}
                   className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90"
                   aria-label="More"
                 >
                   <Plus size={14} />
                 </button>
+                {itemUnitCount(it) && (
+                  <span className="ml-1 text-xs font-medium text-[var(--ink-teal)]">
+                    {itemUnitCount(it)}
+                  </span>
+                )}
               </div>
             </li>
           ))}
@@ -566,7 +608,7 @@ function PortionRow({ portion }: { portion: MealPortion }) {
       <span className="flex items-center gap-1.5 font-medium">
         <span className="min-w-0 flex-1 truncate">{portion.name}</span>
         <span className="shrink-0 text-sm text-[var(--muted)] tabular-nums">
-          {Math.round(portion.grams)} g
+          {portionAmount(portion)}
         </span>
       </span>
       {macros && (
