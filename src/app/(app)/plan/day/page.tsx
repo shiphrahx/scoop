@@ -99,16 +99,11 @@ export default async function PlanDayPage({
         </Link>
       </nav>
 
-      {pickedMeals.length > 0 ? (
+      {pickedMeals.length > 0 && (
         <BuildDayCard
           date={date === today ? undefined : date}
           mode={anyUnbuilt ? "build" : "rebalance"}
         />
-      ) : (
-        <p className="rounded-[1.75rem] bg-[var(--fill-soft)] p-4 text-center text-sm text-[var(--muted)]">
-          Tap <span className="font-semibold">Plan this meal</span> on a meal
-          below and pick what you fancy — then we portion the whole day for you.
-        </p>
       )}
 
       <DayPlan slots={slots} target={target} prefs={prefs} date={date} />
