@@ -227,6 +227,10 @@ export interface MealPortion {
   sugar_g?: number;
   satfat_g?: number;
   sodium_mg?: number;
+  // Set for a countable food: grams in one unit and its name, so the portion can
+  // read as a count ("2 bagels") — grams stays the source of truth for macros.
+  unit_g?: number | null;
+  unit_label?: string | null;
 }
 
 // One dish the AI suggests from the pantry that fits the user's diet and
@@ -255,6 +259,10 @@ export interface PlanItem extends ExtraPer100g {
   protein_100g: number;
   carbs_100g: number;
   fat_100g: number;
+  // When the food is counted, not weighed: grams in one unit and its name, so
+  // the stepper can offer whole units ("2 bagels") while grams stays exact.
+  unit_g?: number | null;
+  unit_label?: string | null;
 }
 
 // A search hit offered when the user is building a meal: a pantry item they
@@ -270,6 +278,10 @@ export interface FoodChoice extends ExtraPer100g {
   carbs_100g: number;
   fat_100g: number;
   pack_size_g: number | null;
+  // A countable food's unit, carried from the pantry so a picked/added food can
+  // be stepped in whole units (see PlanItem). Null = weighed in grams.
+  unit_g?: number | null;
+  unit_label?: string | null;
 }
 
 // A food the user chose for one meal when planning their day — the app works

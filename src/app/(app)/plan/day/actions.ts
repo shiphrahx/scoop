@@ -49,7 +49,7 @@ async function pantryFoods(
   const { data } = await supabase
     .from("pantry_items")
     .select(
-      "name, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, satfat_100g, sodium_mg_100g, pack_size_g, quantity",
+      "name, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, satfat_100g, sodium_mg_100g, pack_size_g, quantity, unit_g, unit_label",
     );
   return (
     (data as Array<{
@@ -64,6 +64,8 @@ async function pantryFoods(
       sodium_mg_100g: number | null;
       pack_size_g: number | null;
       quantity: number | null;
+      unit_g: number | null;
+      unit_label: string | null;
     }>) ?? []
   )
     // Only offer foods the user can actually eat — diet, allergies and dislikes
@@ -85,6 +87,8 @@ async function pantryFoods(
         satfat_100g: Number(p.satfat_100g ?? 0),
         sodium_mg_100g: Number(p.sodium_mg_100g ?? 0),
         available_g: pack != null ? pack * qty : undefined,
+        unit_g: p.unit_g != null ? Number(p.unit_g) : null,
+        unit_label: p.unit_label,
       };
     });
 }
@@ -100,7 +104,7 @@ export async function searchFoods(query: string): Promise<FoodChoice[]> {
   const { data: pantryData } = await supabase
     .from("pantry_items")
     .select(
-      "name, off_barcode, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, satfat_100g, sodium_mg_100g, pack_size_g",
+      "name, off_barcode, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, satfat_100g, sodium_mg_100g, pack_size_g, unit_g, unit_label",
     )
     .ilike("name", `%${q}%`)
     .limit(10);
@@ -118,6 +122,8 @@ export async function searchFoods(query: string): Promise<FoodChoice[]> {
       satfat_100g: number;
       sodium_mg_100g: number;
       pack_size_g: number | null;
+      unit_g: number | null;
+      unit_label: string | null;
     }>) ?? []
   ).map((p) => ({
     name: p.name,
@@ -133,6 +139,8 @@ export async function searchFoods(query: string): Promise<FoodChoice[]> {
     satfat_100g: Number(p.satfat_100g ?? 0),
     sodium_mg_100g: Number(p.sodium_mg_100g ?? 0),
     pack_size_g: p.pack_size_g != null ? Number(p.pack_size_g) : null,
+    unit_g: p.unit_g != null ? Number(p.unit_g) : null,
+    unit_label: p.unit_label,
   }));
 }
 
@@ -276,6 +284,8 @@ function pickToFood(pick: MealPick, pantry: PantryFood[]): PantryFood {
     satfat_100g: Number(pick.satfat_100g ?? 0),
     sodium_mg_100g: Number(pick.sodium_mg_100g ?? 0),
     available_g: pick.pack_size_g != null ? Number(pick.pack_size_g) : undefined,
+    unit_g: pick.unit_g != null ? Number(pick.unit_g) : null,
+    unit_label: pick.unit_label ?? null,
   };
 }
 

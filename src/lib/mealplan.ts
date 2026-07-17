@@ -37,6 +37,20 @@ export interface PantryFood {
   sugar_100g?: number;
   satfat_100g?: number;
   sodium_mg_100g?: number;
+  // A countable food's unit: grams in one unit and its name. When set, the
+  // planner snaps this food's portion to a whole number of units (you can't eat
+  // 1.6 bagels), and carries the label onto the portion so it shows as a count.
+  unit_g?: number | null;
+  unit_label?: string | null;
+}
+
+// Snap a solved gram amount to what the user can actually serve: whole units
+// for a countable food ("2 bagels" = 170 g, not 137 g), else the nearest gram.
+export function snapGrams(grams: number, food: PantryFood): number {
+  if (food.unit_g && food.unit_g > 0) {
+    return Math.round(grams / food.unit_g) * food.unit_g;
+  }
+  return Math.round(grams);
 }
 
 // Generous per-portion ceilings (grams) — a safety net against an absurd amount
@@ -248,6 +262,10 @@ function toPortions(chosen: Portion[]): MealPortion[] {
     name: c.food.name,
     grams: c.grams,
     ...macrosOf(c.food, c.grams),
+    // Carry the unit through so the portion can be shown as a count ("2 bagels").
+    ...(c.food.unit_g && c.food.unit_g > 0
+      ? { unit_g: c.food.unit_g, unit_label: c.food.unit_label ?? null }
+      : {}),
   }));
 }
 
@@ -436,9 +454,12 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
     const warnings: string[] = [];
     s.foods.forEach((food) => {
       const i = vars.findIndex((v) => v.slotIdx === slotIdx && v.food === food);
-      const g = clamp(Math.round(grams[i]), 0, caps[i]);
+      const g = clamp(snapGrams(grams[i], food), 0, caps[i]);
       if (g < MIN_PORTION) {
-        warnings.push(`Couldn't fit ${food.name} — it would push the day off target.`);
+        const why = food.unit_g
+          ? `Couldn't fit a whole ${food.unit_label ?? "unit"} of ${food.name} — it would push the day off target.`
+          : `Couldn't fit ${food.name} — it would push the day off target.`;
+        warnings.push(why);
         return;
       }
       // A tiny portion of anything but a fat source usually means the pick

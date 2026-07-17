@@ -31,7 +31,7 @@ export default async function PlanMealPage({
     supabase
       .from("pantry_items")
       .select(
-        "name, off_barcode, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, satfat_100g, sodium_mg_100g, pack_size_g",
+        "name, off_barcode, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, satfat_100g, sodium_mg_100g, pack_size_g, unit_g, unit_label",
       )
       .order("name"),
   ]);
@@ -64,6 +64,8 @@ export default async function PlanMealPage({
       satfat_100g: number | null;
       sodium_mg_100g: number | null;
       pack_size_g: number | null;
+      unit_g: number | null;
+      unit_label: string | null;
     }>) ?? []
   )
     .filter((p) => isFoodAllowed(p.name, diet, allergies, dislikes))
@@ -80,6 +82,8 @@ export default async function PlanMealPage({
       satfat_100g: Number(p.satfat_100g ?? 0),
       sodium_mg_100g: Number(p.sodium_mg_100g ?? 0),
       pack_size_g: p.pack_size_g != null ? Number(p.pack_size_g) : null,
+      unit_g: p.unit_g != null ? Number(p.unit_g) : null,
+      unit_label: p.unit_label,
     }));
 
   // Grouped the way people think about a plate. "Other" catches sauces, veg and

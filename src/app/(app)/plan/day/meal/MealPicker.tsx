@@ -83,6 +83,8 @@ export default function MealPicker({
         satfat_100g: c.satfat_100g,
         sodium_mg_100g: c.sodium_mg_100g,
         pack_size_g: c.pack_size_g,
+        unit_g: c.unit_g ?? null,
+        unit_label: c.unit_label ?? null,
       },
     ]);
   }
@@ -113,6 +115,8 @@ export default function MealPicker({
         satfat_100g: p.satfat_100g,
         sodium_mg_100g: p.sodium_mg_100g,
         pack_size_g: p.pack_size_g,
+        unit_g: p.unit_g,
+        unit_label: p.unit_label,
       };
       setPicks((prev) =>
         prev.some((x) => x.name === pick.name) ? prev : [...prev, pick],
@@ -143,6 +147,8 @@ export default function MealPicker({
           satfat_100g: offer.satfat_100g,
           sodium_mg_100g: offer.sodium_mg_100g,
           pack_size_g: offer.pack_size_g,
+          unit_g: offer.unit_g,
+          unit_label: offer.unit_label,
         });
         setScanNote(`${offer.name} added to your pantry too.`);
       } catch (e) {
