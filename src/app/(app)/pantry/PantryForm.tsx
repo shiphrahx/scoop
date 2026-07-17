@@ -36,11 +36,12 @@ export default function PantryForm({
   const router = useRouter();
   const [form, setForm] = useState({ ...empty, name: initialName });
   const [barcode, setBarcode] = useState<string | null>(null);
-  const [packSize, setPackSize] = useState<number | null>(null);
-  // Countable unit, seeded from OFF's serving on scan ("bagel" of 85 g). The
-  // user can edit or clear it; empty grams = weighed in grams.
+  // Pack weight (grams) and how many portions the user splits a pack into. One
+  // portion = pack ÷ portions, so a countable food ("6 bagels", "2 portions")
+  // can be picked by count and the app does the macro maths from grams.
+  const [pack, setPack] = useState("");
   const [unitLabel, setUnitLabel] = useState("");
-  const [unitG, setUnitG] = useState("");
+  const [portions, setPortions] = useState("");
   // Extra per-100g nutrients from a scan (kept out of the visible form).
   const [scannedExtras, setScannedExtras] = useState<ExtraPer100g>(NO_EXTRAS);
   const [scanning, setScanning] = useState(false);
@@ -64,9 +65,12 @@ export default function PantryForm({
       }
       const p = (await res.json()) as OffProduct;
       setBarcode(p.barcode);
-      setPackSize(p.pack_size_g);
+      setPack(p.pack_size_g == null ? "" : String(p.pack_size_g));
       setUnitLabel(p.unit_label ?? "");
-      setUnitG(p.unit_g == null ? "" : String(p.unit_g));
+      // OFF gave grams-per-serving; show it as portions-per-pack for the form.
+      setPortions(
+        p.unit_g && p.pack_size_g ? String(Math.round(p.pack_size_g / p.unit_g)) : "",
+      );
       setScannedExtras({
         fiber_100g: p.fiber_100g,
         sugar_100g: p.sugar_100g,
@@ -99,10 +103,10 @@ export default function PantryForm({
     try {
       const p = await importPantryUrl(link);
       setBarcode(null);
-      setPackSize(p.pack_size_g);
+      setPack(p.pack_size_g == null ? "" : String(p.pack_size_g));
       // A parsed web page carries no serving; clear any unit left from a scan.
       setUnitLabel("");
-      setUnitG("");
+      setPortions("");
       setScannedExtras({
         fiber_100g: p.fiber_100g,
         sugar_100g: p.sugar_100g,
@@ -130,7 +134,10 @@ export default function PantryForm({
     if (!form.name.trim()) return;
     setSaving(true);
     try {
-      const g = unitG.trim() === "" ? null : Number(unitG) || null;
+      const packG = pack.trim() === "" ? null : Number(pack) || null;
+      const n = portions.trim() === "" ? null : Number(portions) || null;
+      // Grams in one portion = pack weight ÷ portions per pack; needs both.
+      const unit_g = packG && n && n > 0 ? Math.round(packG / n) : null;
       await addPantryItem({
         name: form.name.trim(),
         off_barcode: barcode,
@@ -140,9 +147,9 @@ export default function PantryForm({
         carbs_100g: Number(form.carbs_100g) || 0,
         fat_100g: Number(form.fat_100g) || 0,
         ...scannedExtras,
-        pack_size_g: packSize,
-        unit_g: g,
-        unit_label: g ? unitLabel.trim() || null : null,
+        pack_size_g: packG,
+        unit_g,
+        unit_label: unit_g ? unitLabel.trim() || null : null,
       });
       // Show the item where it now lives instead of an empty add form.
       router.push("/pantry");
@@ -229,14 +236,17 @@ export default function PantryForm({
         />
       </div>
 
-      {/* Countable unit — a bagel, a scoop. Seeded from the scan when OFF names
-          a serving; leave grams blank to weigh the food instead. */}
+      <Field label="Pack size (g, optional)" value={pack} onChange={setPack} />
+
+      {/* Count instead of weigh: name the portion and say how many a pack makes
+          (6 bagels, 2 portions). One portion = pack ÷ portions, so the food can
+          be picked by count and the app works out the macros. */}
       <p className="mt-1 text-xs text-[var(--muted)]">
-        Counted in units? (optional)
+        Eaten in portions? Split a pack (optional)
       </p>
       <div className="grid grid-cols-2 gap-3">
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-[var(--muted)]">Unit name</span>
+          <span className="text-[var(--muted)]">Portion name</span>
           <input
             value={unitLabel}
             onChange={(e) => setUnitLabel(e.target.value)}
@@ -244,8 +254,14 @@ export default function PantryForm({
             className="sc-input text-lg"
           />
         </label>
-        <Field label="Grams per unit" value={unitG} onChange={setUnitG} />
+        <Field label="Portions per pack" value={portions} onChange={setPortions} />
       </div>
+      {pack.trim() !== "" && Number(portions) > 0 && (
+        <p className="text-xs text-[var(--muted)]">
+          One {unitLabel.trim() || "portion"} ≈{" "}
+          {Math.round(Number(pack) / Number(portions))} g
+        </p>
+      )}
 
       <button
         onClick={add}

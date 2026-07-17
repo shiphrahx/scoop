@@ -10,6 +10,14 @@ import {
   updatePantryItem,
 } from "./actions";
 
+// "6 bagels per pack (71 g each)" for a countable item — how the pantry row
+// shows a pack that's split into portions. Only called when both are known.
+function packLabel(item: PantryItem): string {
+  const n = Math.round((item.pack_size_g ?? 0) / (item.unit_g ?? 1));
+  const label = item.unit_label ?? "portion";
+  return `${n} ${n === 1 ? label : `${label}s`} per pack (${Math.round(item.unit_g ?? 0)} g each)`;
+}
+
 // The user's pantry. Tap +/− to change how many they have (zero removes it),
 // pencil to edit name/macros/pack size, trash to delete.
 export default function PantryList({ items }: { items: PantryItem[] }) {
@@ -93,10 +101,11 @@ function PantryRow({ item }: { item: PantryItem }) {
           ) : (
             <>
               {Math.round(item.kcal_100g)} kcal / 100g
-              {item.unit_g
-                ? ` · 1 ${item.unit_label ?? "unit"} = ${Math.round(item.unit_g)} g`
-                : ""}
-              {item.pack_size_g ? ` · ${item.pack_size_g} g pack` : ""}
+              {item.unit_g && item.pack_size_g
+                ? ` · ${packLabel(item)}`
+                : item.pack_size_g
+                  ? ` · ${item.pack_size_g} g pack`
+                  : ""}
             </>
           )}
         </p>
@@ -150,23 +159,31 @@ function EditRow({ item, onDone }: { item: PantryItem; onDone: () => void }) {
   const [fat, setFat] = useState(String(item.fat_100g));
   const [pack, setPack] = useState(item.pack_size_g == null ? "" : String(item.pack_size_g));
   const [unitLabel, setUnitLabel] = useState(item.unit_label ?? "");
-  const [unitG, setUnitG] = useState(item.unit_g == null ? "" : String(item.unit_g));
+  // Stored as grams-per-portion; shown here as portions-per-pack (pack ÷ unit_g).
+  const [portions, setPortions] = useState(
+    item.unit_g && item.pack_size_g
+      ? String(Math.round(item.pack_size_g / item.unit_g))
+      : "",
+  );
   const [saving, setSaving] = useState(false);
 
   async function save() {
     if (!name.trim()) return;
     setSaving(true);
     try {
-      const g = unitG.trim() === "" ? null : Number(unitG) || null;
+      const packG = pack.trim() === "" ? null : Number(pack) || null;
+      const n = portions.trim() === "" ? null : Number(portions) || null;
+      // One portion = pack weight ÷ portions per pack; needs both.
+      const unit_g = packG && n && n > 0 ? Math.round(packG / n) : null;
       await updatePantryItem(item.id, {
         name,
         kcal_100g: Number(kcal) || 0,
         protein_100g: Number(protein) || 0,
         carbs_100g: Number(carbs) || 0,
         fat_100g: Number(fat) || 0,
-        pack_size_g: pack.trim() === "" ? null : Number(pack) || null,
-        unit_g: g,
-        unit_label: g ? unitLabel.trim() || null : null,
+        pack_size_g: packG,
+        unit_g,
+        unit_label: unit_g ? unitLabel.trim() || null : null,
       });
       onDone();
     } finally {
@@ -191,14 +208,15 @@ function EditRow({ item, onDone }: { item: PantryItem; onDone: () => void }) {
       </div>
       <NumField label="Pack size (g, optional)" value={pack} onChange={setPack} />
 
-      {/* Countable unit: name it and say how many grams one weighs, and the food
-          can be logged per unit ("2 bagels") instead of by weight. */}
+      {/* Count instead of weigh: name the portion and say how many a pack makes
+          (6 bagels, 2 portions). One portion = pack ÷ portions, so it can be
+          logged by count. */}
       <p className="text-xs text-[var(--muted)]">
-        Counted in units? (e.g. a bagel, a scoop)
+        Eaten in portions? Split a pack
       </p>
       <div className="grid grid-cols-2 gap-2">
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-[var(--muted)]">Unit name</span>
+          <span className="text-[var(--muted)]">Portion name</span>
           <input
             value={unitLabel}
             onChange={(e) => setUnitLabel(e.target.value)}
@@ -206,8 +224,14 @@ function EditRow({ item, onDone }: { item: PantryItem; onDone: () => void }) {
             className="sc-input"
           />
         </label>
-        <NumField label="Grams per unit" value={unitG} onChange={setUnitG} />
+        <NumField label="Portions per pack" value={portions} onChange={setPortions} />
       </div>
+      {pack.trim() !== "" && Number(portions) > 0 && (
+        <p className="text-xs text-[var(--muted)]">
+          One {unitLabel.trim() || "portion"} ≈{" "}
+          {Math.round(Number(pack) / Number(portions))} g
+        </p>
+      )}
 
       <div className="flex gap-2">
         <button
