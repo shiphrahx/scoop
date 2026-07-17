@@ -93,6 +93,9 @@ function PantryRow({ item }: { item: PantryItem }) {
           ) : (
             <>
               {Math.round(item.kcal_100g)} kcal / 100g
+              {item.unit_g
+                ? ` · 1 ${item.unit_label ?? "unit"} = ${Math.round(item.unit_g)} g`
+                : ""}
               {item.pack_size_g ? ` · ${item.pack_size_g} g pack` : ""}
             </>
           )}
@@ -146,12 +149,15 @@ function EditRow({ item, onDone }: { item: PantryItem; onDone: () => void }) {
   const [carbs, setCarbs] = useState(String(item.carbs_100g));
   const [fat, setFat] = useState(String(item.fat_100g));
   const [pack, setPack] = useState(item.pack_size_g == null ? "" : String(item.pack_size_g));
+  const [unitLabel, setUnitLabel] = useState(item.unit_label ?? "");
+  const [unitG, setUnitG] = useState(item.unit_g == null ? "" : String(item.unit_g));
   const [saving, setSaving] = useState(false);
 
   async function save() {
     if (!name.trim()) return;
     setSaving(true);
     try {
+      const g = unitG.trim() === "" ? null : Number(unitG) || null;
       await updatePantryItem(item.id, {
         name,
         kcal_100g: Number(kcal) || 0,
@@ -159,6 +165,8 @@ function EditRow({ item, onDone }: { item: PantryItem; onDone: () => void }) {
         carbs_100g: Number(carbs) || 0,
         fat_100g: Number(fat) || 0,
         pack_size_g: pack.trim() === "" ? null : Number(pack) || null,
+        unit_g: g,
+        unit_label: g ? unitLabel.trim() || null : null,
       });
       onDone();
     } finally {
@@ -182,6 +190,24 @@ function EditRow({ item, onDone }: { item: PantryItem; onDone: () => void }) {
         <NumField label="Fat" value={fat} onChange={setFat} />
       </div>
       <NumField label="Pack size (g, optional)" value={pack} onChange={setPack} />
+
+      {/* Countable unit: name it and say how many grams one weighs, and the food
+          can be logged per unit ("2 bagels") instead of by weight. */}
+      <p className="text-xs text-[var(--muted)]">
+        Counted in units? (e.g. a bagel, a scoop)
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-[var(--muted)]">Unit name</span>
+          <input
+            value={unitLabel}
+            onChange={(e) => setUnitLabel(e.target.value)}
+            placeholder="bagel"
+            className="sc-input"
+          />
+        </label>
+        <NumField label="Grams per unit" value={unitG} onChange={setUnitG} />
+      </div>
 
       <div className="flex gap-2">
         <button

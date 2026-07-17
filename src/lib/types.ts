@@ -75,6 +75,8 @@ export interface Favourite extends Macros {
 
 // Something the user has in the kitchen. Macros are stored per 100 g, the way
 // Open Food Facts reports them. off_barcode is null for hand-entered items.
+// unit_g/unit_label make a food countable rather than weighed ("bagel" of 85 g);
+// both null = weighed in grams (see the 0015 migration and OffProduct).
 export interface PantryItem {
   id: string;
   name: string;
@@ -89,6 +91,8 @@ export interface PantryItem {
   satfat_100g: number;
   sodium_mg_100g: number;
   pack_size_g: number | null;
+  unit_g: number | null;
+  unit_label: string | null;
 }
 
 // The extra per-100g nutrients a food can carry, alongside the core four.

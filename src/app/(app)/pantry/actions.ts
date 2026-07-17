@@ -19,6 +19,8 @@ export interface PantryInput {
   satfat_100g?: number;
   sodium_mg_100g?: number;
   pack_size_g?: number | null;
+  unit_g?: number | null;
+  unit_label?: string | null;
 }
 
 // The extra per-100g nutrient columns, defaulted to 0 when a source didn't
@@ -29,6 +31,15 @@ function extraCols(it: PantryInput) {
     sugar_100g: it.sugar_100g ?? 0,
     satfat_100g: it.satfat_100g ?? 0,
     sodium_mg_100g: it.sodium_mg_100g ?? 0,
+  };
+}
+
+// The countable-unit columns, defaulted to null (weighed in grams) — shared by
+// both pantry inserts so a scanned/imported item keeps OFF's serving.
+function unitCols(it: PantryInput) {
+  return {
+    unit_g: it.unit_g ?? null,
+    unit_label: it.unit_label?.trim() || null,
   };
 }
 
@@ -46,6 +57,7 @@ export async function addPantryItem(input: PantryInput) {
     fat_100g: input.fat_100g,
     ...extraCols(input),
     pack_size_g: input.pack_size_g ?? null,
+    ...unitCols(input),
   });
   if (error) throw new Error(error.message);
 
@@ -70,6 +82,7 @@ export async function addMatchedItems(items: PantryInput[]) {
       fat_100g: it.fat_100g,
       ...extraCols(it),
       pack_size_g: it.pack_size_g ?? null,
+      ...unitCols(it),
     }));
   if (rows.length === 0) return;
 
@@ -112,12 +125,18 @@ export interface PantryPatch {
   carbs_100g: number;
   fat_100g: number;
   pack_size_g: number | null;
+  unit_g: number | null;
+  unit_label: string | null;
 }
 
-// Edit an item's name, per-100g macros, and pack size.
+// Edit an item's name, per-100g macros, pack size, and countable unit.
 export async function updatePantryItem(id: string, patch: PantryPatch) {
   const { supabase } = await requireUser();
   if (!patch.name.trim()) throw new Error("Name can't be empty.");
+
+  // A unit needs a positive grams-per-unit to convert a count to grams; without
+  // it there's nothing to count, so the food falls back to being weighed.
+  const unit_g = patch.unit_g && patch.unit_g > 0 ? patch.unit_g : null;
 
   const { error } = await supabase
     .from("pantry_items")
@@ -128,6 +147,8 @@ export async function updatePantryItem(id: string, patch: PantryPatch) {
       carbs_100g: Math.max(0, patch.carbs_100g) || 0,
       fat_100g: Math.max(0, patch.fat_100g) || 0,
       pack_size_g: patch.pack_size_g,
+      unit_g,
+      unit_label: unit_g ? patch.unit_label?.trim() || null : null,
     })
     .eq("id", id);
   if (error) throw new Error(error.message);

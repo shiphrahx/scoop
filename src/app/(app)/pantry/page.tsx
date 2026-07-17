@@ -11,7 +11,7 @@ export default async function PantryPage() {
   const { data } = await supabase
     .from("pantry_items")
     .select(
-      "id, name, off_barcode, quantity, kcal_100g, protein_100g, carbs_100g, fat_100g, pack_size_g",
+      "id, name, off_barcode, quantity, kcal_100g, protein_100g, carbs_100g, fat_100g, pack_size_g, unit_g, unit_label",
     )
     .order("created_at", { ascending: false });
 
