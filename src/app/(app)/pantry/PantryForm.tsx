@@ -37,6 +37,10 @@ export default function PantryForm({
   const [form, setForm] = useState({ ...empty, name: initialName });
   const [barcode, setBarcode] = useState<string | null>(null);
   const [packSize, setPackSize] = useState<number | null>(null);
+  // Countable unit, seeded from OFF's serving on scan ("bagel" of 85 g). The
+  // user can edit or clear it; empty grams = weighed in grams.
+  const [unitLabel, setUnitLabel] = useState("");
+  const [unitG, setUnitG] = useState("");
   // Extra per-100g nutrients from a scan (kept out of the visible form).
   const [scannedExtras, setScannedExtras] = useState<ExtraPer100g>(NO_EXTRAS);
   const [quantity, setQuantity] = useState(1);
@@ -62,6 +66,8 @@ export default function PantryForm({
       const p = (await res.json()) as OffProduct;
       setBarcode(p.barcode);
       setPackSize(p.pack_size_g);
+      setUnitLabel(p.unit_label ?? "");
+      setUnitG(p.unit_g == null ? "" : String(p.unit_g));
       setScannedExtras({
         fiber_100g: p.fiber_100g,
         sugar_100g: p.sugar_100g,
@@ -95,6 +101,9 @@ export default function PantryForm({
       const p = await importPantryUrl(link);
       setBarcode(null);
       setPackSize(p.pack_size_g);
+      // A parsed web page carries no serving; clear any unit left from a scan.
+      setUnitLabel("");
+      setUnitG("");
       setScannedExtras({
         fiber_100g: p.fiber_100g,
         sugar_100g: p.sugar_100g,
@@ -122,6 +131,7 @@ export default function PantryForm({
     if (!form.name.trim()) return;
     setSaving(true);
     try {
+      const g = unitG.trim() === "" ? null : Number(unitG) || null;
       await addPantryItem({
         name: form.name.trim(),
         off_barcode: barcode,
@@ -132,6 +142,8 @@ export default function PantryForm({
         fat_100g: Number(form.fat_100g) || 0,
         ...scannedExtras,
         pack_size_g: packSize,
+        unit_g: g,
+        unit_label: g ? unitLabel.trim() || null : null,
       });
       // Show the item where it now lives instead of an empty add form.
       router.push("/pantry");
@@ -216,6 +228,24 @@ export default function PantryForm({
           value={form.fat_100g}
           onChange={(v) => set("fat_100g", v)}
         />
+      </div>
+
+      {/* Countable unit — a bagel, a scoop. Seeded from the scan when OFF names
+          a serving; leave grams blank to weigh the food instead. */}
+      <p className="mt-1 text-xs text-[var(--muted)]">
+        Counted in units? (optional)
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-[var(--muted)]">Unit name</span>
+          <input
+            value={unitLabel}
+            onChange={(e) => setUnitLabel(e.target.value)}
+            placeholder="bagel"
+            className="sc-input text-lg"
+          />
+        </label>
+        <Field label="Grams per unit" value={unitG} onChange={setUnitG} />
       </div>
 
       <div className="mt-1 flex items-center justify-between">
