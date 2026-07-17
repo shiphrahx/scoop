@@ -63,6 +63,40 @@ function budgetOf(parts: { food: PantryFood; grams: number }[]) {
 }
 
 describe("planPickedDay", () => {
+  it("only ever portions a countable food in whole units", () => {
+    // A bagel counted at 85 g each and a portioned vegan-chicken pack (140 g a
+    // portion). Whatever the budget, neither may come out as a part of a unit.
+    const bagelUnit: PantryFood = { ...bagel(), unit_g: 85, unit_label: "bagel" };
+    const chicken: PantryFood = {
+      ...food("Vegan Chicken", 18, 3, 6),
+      unit_g: 140,
+      unit_label: "portion",
+    };
+
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 600, max: 2600 }),
+        fc.integer({ min: 40, max: 220 }),
+        fc.integer({ min: 30, max: 120 }),
+        (kcal, protein_g, fat_g) => {
+          const plan = planPickedDay({
+            slots: [
+              { slot: "Breakfast", foods: [bagelUnit] },
+              { slot: "Dinner", foods: [chicken, oil()] },
+            ],
+            budget: { kcal, protein_g, carbs_g: 200, fat_g },
+          });
+          for (const meal of plan) {
+            for (const p of meal.portions) {
+              const unit = p.name === "Bagel" ? 85 : p.name === "Vegan Chicken" ? 140 : 0;
+              if (unit) expect(p.grams % unit).toBe(0);
+            }
+          }
+        },
+      ),
+    );
+  });
+
   it("lands the day on target with different picks per meal", () => {
     // Lunch: pasta + vegan mince + a little oil. Dinner: bagel + tofu. The
     // budget is what those foods at sensible grams actually add up to.

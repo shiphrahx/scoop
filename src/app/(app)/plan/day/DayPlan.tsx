@@ -863,6 +863,8 @@ type EditPortion = {
   name: string;
   grams: number;
   per: PerGram | null;
+  unit_g?: number | null;
+  unit_label?: string | null;
 };
 
 // Grams the AI portioned it at → per-gram macros, or null when an old plan
@@ -881,13 +883,14 @@ function toEdit(p: MealPortion): EditPortion {
           sodium_mg: (p.sodium_mg ?? 0) / p.grams,
         }
       : null;
-  return { name: p.name, grams: p.grams, per };
+  return { name: p.name, grams: p.grams, per, unit_g: p.unit_g, unit_label: p.unit_label };
 }
 
 // Rebuild a stored MealPortion from an edited one, rescaling macros to the new
 // grams when we have a per-gram basis.
 function fromEdit(e: EditPortion): MealPortion {
-  if (!e.per) return { name: e.name, grams: e.grams };
+  const unit = { unit_g: e.unit_g ?? null, unit_label: e.unit_label ?? null };
+  if (!e.per) return { name: e.name, grams: e.grams, ...unit };
   return {
     name: e.name,
     grams: e.grams,
@@ -899,6 +902,7 @@ function fromEdit(e: EditPortion): MealPortion {
     sugar_g: Math.round(e.per.sugar_g * e.grams),
     satfat_g: Math.round(e.per.satfat_g * e.grams),
     sodium_mg: Math.round(e.per.sodium_mg * e.grams),
+    ...unit,
   };
 }
 
@@ -923,6 +927,11 @@ function AiMealEditor({
     setPorts((prev) => prev.map((p, j) => (j === i ? { ...p, grams: g } : p)));
   }
 
+  // Set a countable portion by a whole count; grams follow grams-per-portion.
+  function setUnits(i: number, unit_g: number, units: number) {
+    setGrams(i, Math.max(0, Math.round(units)) * unit_g);
+  }
+
   // Add a pantry/scanned food to the dish as a new portion. Its per-gram macros
   // come from the food's per-100g values, so it rescales like the AI portions.
   function addFood(c: FoodChoice, grams: number) {
@@ -941,6 +950,8 @@ function AiMealEditor({
           satfat_g: c.satfat_100g / 100,
           sodium_mg: c.sodium_mg_100g / 100,
         },
+        unit_g: c.unit_g ?? null,
+        unit_label: c.unit_label ?? null,
       },
     ]);
   }
@@ -997,32 +1008,63 @@ function AiMealEditor({
                 </span>
               )}
 
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setGrams(i, p.grams - 25)}
-                  disabled={saving || p.grams <= 0}
-                  className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90 disabled:opacity-40"
-                  aria-label="Less"
-                >
-                  <Minus size={14} />
-                </button>
-                <input
-                  type="number"
-                  value={p.grams}
-                  onChange={(e) => setGrams(i, Number(e.target.value))}
-                  className="w-12 rounded-lg bg-[var(--fill)] py-1 text-center text-sm font-semibold tabular-nums outline-none"
-                  aria-label={`${p.name} grams`}
-                />
-                <span className="text-xs text-[var(--muted)]">g</span>
-                <button
-                  onClick={() => setGrams(i, p.grams + 25)}
-                  disabled={saving}
-                  className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90"
-                  aria-label="More"
-                >
-                  <Plus size={14} />
-                </button>
-              </div>
+              {p.unit_g && p.unit_g > 0 && p.unit_label !== "ml" ? (
+                /* Countable portion: whole units only, never a part of one. */
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setUnits(i, p.unit_g!, Math.round(p.grams / p.unit_g!) - 1)}
+                    disabled={saving || p.grams <= 0}
+                    className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90 disabled:opacity-40"
+                    aria-label="One fewer"
+                  >
+                    <Minus size={14} />
+                  </button>
+                  <span className="min-w-[5rem] text-center text-sm font-semibold tabular-nums">
+                    {Math.round(p.grams / p.unit_g)}{" "}
+                    {Math.round(p.grams / p.unit_g) === 1
+                      ? (p.unit_label ?? "portion")
+                      : `${p.unit_label ?? "portion"}s`}
+                  </span>
+                  <button
+                    onClick={() => setUnits(i, p.unit_g!, Math.round(p.grams / p.unit_g!) + 1)}
+                    disabled={saving}
+                    className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90"
+                    aria-label="One more"
+                  >
+                    <Plus size={14} />
+                  </button>
+                  <span className="text-xs text-[var(--muted)]">
+                    ≈ {Math.round(p.grams)} g
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setGrams(i, p.grams - 25)}
+                    disabled={saving || p.grams <= 0}
+                    className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90 disabled:opacity-40"
+                    aria-label="Less"
+                  >
+                    <Minus size={14} />
+                  </button>
+                  <input
+                    type="number"
+                    value={p.grams}
+                    onChange={(e) => setGrams(i, Number(e.target.value))}
+                    className="w-12 rounded-lg bg-[var(--fill)] py-1 text-center text-sm font-semibold tabular-nums outline-none"
+                    aria-label={`${p.name} grams`}
+                  />
+                  <span className="text-xs text-[var(--muted)]">g</span>
+                  <button
+                    onClick={() => setGrams(i, p.grams + 25)}
+                    disabled={saving}
+                    className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90"
+                    aria-label="More"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
+              )}
             </li>
           ))}
         </ul>

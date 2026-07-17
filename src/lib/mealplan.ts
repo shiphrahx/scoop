@@ -53,6 +53,19 @@ export function snapGrams(grams: number, food: PantryFood): number {
   return Math.round(grams);
 }
 
+// The grams to actually serve of a food: whole units for a countable food, never
+// more than the stock cap. A countable food is ALWAYS a whole number of units —
+// nobody eats 3/4 of a bagel — so the cap is applied in units (floored), never
+// mid-unit. Every portion the planner emits goes through this.
+export function portionGrams(raw: number, food: PantryFood, cap: number): number {
+  if (food.unit_g && food.unit_g > 0) {
+    const maxUnits = Math.floor(Math.max(0, cap) / food.unit_g);
+    const units = Math.min(maxUnits, Math.max(0, Math.round(raw / food.unit_g)));
+    return units * food.unit_g;
+  }
+  return clamp(Math.round(raw), 0, cap);
+}
+
 // Generous per-portion ceilings (grams) — a safety net against an absurd amount
 // of one low-density food, set high enough not to bind in normal planning.
 const CAP: Record<MacroKey, number> = {
@@ -180,7 +193,7 @@ function buildMeal(
 
   const portions: Portion[] = [];
   srcs.forEach((s, i) => {
-    const g = clamp(Math.round(grams![i]), 0, capFor(s.food, s.key));
+    const g = portionGrams(grams![i], s.food, capFor(s.food, s.key));
     if (g >= MIN_PORTION) portions.push({ food: s.food, grams: g });
   });
   return { portions, totals: sumPortions(portions) };
@@ -198,7 +211,7 @@ function greedyMeal(
   let needCarb = target.carbs_g;
   let needFat = target.fat_g;
   const push = (food: PantryFood, grams: number, key: MacroKey) => {
-    const g = clamp(Math.round(grams), 0, capFor(food, key));
+    const g = portionGrams(grams, food, capFor(food, key));
     if (g >= MIN_PORTION) portions.push({ food, grams: g });
     return g;
   };
@@ -454,7 +467,7 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
     const warnings: string[] = [];
     s.foods.forEach((food) => {
       const i = vars.findIndex((v) => v.slotIdx === slotIdx && v.food === food);
-      const g = clamp(snapGrams(grams[i], food), 0, caps[i]);
+      const g = portionGrams(grams[i], food, caps[i]);
       if (g < MIN_PORTION) {
         const why = food.unit_g
           ? `Couldn't fit a whole ${food.unit_label ?? "unit"} of ${food.name} — it would push the day off target.`

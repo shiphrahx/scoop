@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { snapGrams, suggestPantryMeals, type PantryFood } from "@/lib/mealplan";
+import {
+  portionGrams,
+  snapGrams,
+  suggestPantryMeals,
+  type PantryFood,
+} from "@/lib/mealplan";
 
 const chicken: PantryFood = {
   name: "Chicken Breast",
@@ -41,6 +46,24 @@ describe("snapGrams", () => {
   it("treats a zero or missing unit as weighed", () => {
     expect(snapGrams(50.7, { ...rice, unit_g: 0 })).toBe(51);
     expect(snapGrams(50.7, { ...rice, unit_g: null })).toBe(51);
+  });
+});
+
+describe("portionGrams", () => {
+  const bagel: PantryFood = { ...rice, name: "Bagel", unit_g: 85, unit_label: "bagel" };
+
+  it("never leaves a fractional unit, even when the stock cap sits mid-unit", () => {
+    // Solver wants ~3 bagels (255 g) but only 200 g in stock: floor to 2 whole
+    // bagels (170 g), never 200 g (2.35 bagels).
+    expect(portionGrams(255, bagel, 200)).toBe(170);
+    expect(portionGrams(255, bagel, 170)).toBe(170);
+    expect(portionGrams(40, bagel, 500)).toBe(0); // under half a bagel → none
+    expect(portionGrams(130, bagel, 500)).toBe(170); // ~1.5 → 2
+  });
+
+  it("clamps a weighed food to the nearest gram within the cap", () => {
+    expect(portionGrams(137.6, rice, 500)).toBe(138);
+    expect(portionGrams(600, rice, 400)).toBe(400);
   });
 });
 
