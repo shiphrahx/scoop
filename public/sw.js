@@ -1,7 +1,7 @@
 // Scoop service worker. Keeps the app openable offline: static assets are
 // cached on first use, page navigations try the network first and fall back to
 // the last-seen page (or Home) when offline. API/auth traffic is never cached.
-const CACHE = "scoop-v1";
+const CACHE = "scoop-v2";
 
 self.addEventListener("install", () => self.skipWaiting());
 
@@ -41,14 +41,19 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Page navigations: network-first, fall back to cache when offline.
+  // Page navigations: network-first, fall back to cache when offline. Only a
+  // clean 200 is cached — never a redirect (auth bounce to /login) or an error
+  // (a 404 during a dev recompile), or the SW would serve that stale bad page
+  // back on the next offline/failed fetch and the route would look broken.
   if (req.mode === "navigate") {
     event.respondWith(
       (async () => {
         try {
           const res = await fetch(req);
-          const cache = await caches.open(CACHE);
-          cache.put(req, res.clone());
+          if (res.ok && res.type === "basic") {
+            const cache = await caches.open(CACHE);
+            cache.put(req, res.clone());
+          }
           return res;
         } catch {
           const cache = await caches.open(CACHE);
