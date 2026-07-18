@@ -66,10 +66,13 @@ export function portionGrams(raw: number, food: PantryFood, cap: number): number
   return clamp(Math.round(raw), 0, cap);
 }
 
-// Generous per-portion ceilings (grams) — a safety net against an absurd amount
-// of one low-density food, set high enough not to bind in normal planning.
+// Per-portion ceilings (grams) — the most of any one food a single meal may use,
+// so the solver can't serve a plausible-but-absurd amount (half a kilo of vegan
+// chicken) to chase a macro. Protein's is the tightest: dense mains are where a
+// runaway solve does the most damage. High enough not to bind on normal reachable
+// budgets; it only kicks in when the picks can't hit a macro any sane way.
 const CAP: Record<MacroKey, number> = {
-  protein_g: 500,
+  protein_g: 350,
   carbs_g: 600,
   fat_g: 150,
 };
@@ -308,8 +311,18 @@ export interface PlanPickedDayInput {
 }
 
 // Day-total residuals cost DAY_WEIGHT² times a slot-share residual, so the day
-// lands as close as the picks allow while meal sizes bend first.
-const DAY_WEIGHT = 30;
+// lands as close as the picks allow while meal sizes bend first. Weighted per
+// macro: protein is the anchor the whole plan is built to hit, so it (and carbs)
+// stay heavy; FAT is deliberately lighter. Fat is "the rest" — chasing an exact
+// fat gram count when the picked foods are lean would otherwise pile 500 g of
+// the single fattiest food onto one plate (and drag all its protein there too)
+// just to close a few grams of fat. A softer fat goal keeps portions realistic
+// and lets fat land a little under when the picks can't reach it cleanly.
+const DAY_WEIGHT: Record<MacroKey, number> = {
+  protein_g: 30,
+  carbs_g: 30,
+  fat_g: 3,
+};
 // Tiny ridge keeps the normal equations solvable when two picks have identical
 // macro profiles (it splits the grams evenly between them instead of failing).
 const RIDGE = 1e-6;
@@ -445,8 +458,9 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
   const A: number[][] = [];
   const b: number[] = [];
   for (const key of MACRO_KEYS) {
-    A.push(vars.map((v) => perGram(v.food, key) * DAY_WEIGHT));
-    b.push(Math.max(0, input.budget[key]) * DAY_WEIGHT);
+    const w = DAY_WEIGHT[key];
+    A.push(vars.map((v) => perGram(v.food, key) * w));
+    b.push(Math.max(0, input.budget[key]) * w);
   }
   slots.forEach((s, slotIdx) => {
     for (const key of MACRO_KEYS) {

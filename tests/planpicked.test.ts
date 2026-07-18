@@ -140,6 +140,48 @@ describe("planPickedDay", () => {
     expect(names).toContain("Tofu");
   });
 
+  it("spreads protein across meals instead of piling it on the fattiest pick", () => {
+    // Regression: lean vegan picks, one protein per meal, and a day whose fat
+    // target the picks can't cleanly reach. The solver must NOT dump the day's
+    // protein onto the single fattiest food (the vegan chicken) just to chase
+    // fat — each meal's own protein source should carry a real share.
+    const bagelUnit: PantryFood = { ...bagel(), unit_g: 85, unit_label: "bagel" };
+    const freeMince = food("Vegan Mince", 17, 5, 3);
+    const banana = food("Banana", 1.1, 23, 0.3);
+    const almond = food("Almond Drink", 0.4, 0.1, 1.1);
+    const powder = food("Vegan Protein Powder", 70, 5, 6);
+    const rigatoni = food("Rigatoni", 12, 70, 1.5);
+    const vChicken = food("Vegan Chicken", 17, 4, 9);
+
+    const plan = planPickedDay({
+      slots: [
+        { slot: "Lunch", foods: [bagelUnit, freeMince] },
+        { slot: "Snack", foods: [banana, almond, powder] },
+        { slot: "Dinner", foods: [rigatoni, vChicken] },
+      ],
+      budget: { kcal: 2000, protein_g: 150, carbs_g: 200, fat_g: 60 },
+    });
+
+    const gramsOf = (name: string) =>
+      plan.flatMap((m) => m.portions).find((p) => p.name === name)?.grams ?? 0;
+
+    // Every protein source is actually used, not squeezed to nothing.
+    expect(gramsOf("Vegan Mince")).toBeGreaterThan(50);
+    expect(gramsOf("Vegan Protein Powder")).toBeGreaterThan(20);
+    expect(gramsOf("Vegan Chicken")).toBeGreaterThan(50);
+    // No protein source balloons to an unrealistic amount chasing the fat target
+    // (before the fix the vegan chicken ran to 500 g — half a kilo — to hit fat).
+    for (const name of ["Vegan Mince", "Vegan Protein Powder", "Vegan Chicken"]) {
+      expect(gramsOf(name)).toBeLessThanOrEqual(350);
+    }
+    // Protein isn't dumped into one meal: the heaviest-protein meal stays under
+    // 60% of the day (with even weights, three protein meals should be ~a third
+    // each, not one meal carrying it all).
+    const dayProtein = plan.reduce((s, m) => s + m.protein_g, 0);
+    const maxMealProtein = Math.max(...plan.map((m) => m.protein_g));
+    expect(maxMealProtein).toBeLessThan(dayProtein * 0.6);
+  });
+
   it("sizes meals by the slot weights", () => {
     // Same picks in both meals so size differences come only from the weights.
     const budget = { kcal: 1600, protein_g: 120, carbs_g: 150, fat_g: 50 };
