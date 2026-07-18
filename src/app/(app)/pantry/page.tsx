@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, Package, Plus } from "lucide-react";
 import PantryList from "./PantryList";
 import { createClient } from "@/lib/supabase/server";
+import { pantryCategory } from "@/lib/foodgroups";
 import type { PantryItem } from "@/lib/types";
 
 // The pantry list. Adding items happens on /pantry/add.
@@ -15,7 +16,22 @@ export default async function PantryPage() {
     )
     .order("created_at", { ascending: false });
 
-  const items = (data as PantryItem[]) ?? [];
+  // Shelve any legacy item that predates the category column (or was added
+  // before it was set) so it lands on the right shelf without waiting on the
+  // one-off backfill. Only for display — the DB row keeps its null until the
+  // user moves it, at which point the choice is saved.
+  const items = ((data as PantryItem[]) ?? []).map((item) =>
+    item.category?.trim()
+      ? item
+      : {
+          ...item,
+          category: pantryCategory(item.name, {
+            protein_100g: item.protein_100g,
+            carbs_100g: item.carbs_100g,
+            fat_100g: item.fat_100g,
+          }),
+        },
+  );
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-5 pt-8 pb-6 lg:px-8">
