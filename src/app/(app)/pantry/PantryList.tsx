@@ -7,6 +7,7 @@ import { PANTRY_CATEGORIES } from "@/lib/foodgroups";
 import {
   clearPantry,
   deletePantryItem,
+  setPantryCategory,
   setPantryQuantity,
   updatePantryItem,
 } from "./actions";
@@ -143,7 +144,7 @@ function PantryRow({
 
   return (
     <li className="sc-card flex items-center justify-between gap-3 px-4 py-3">
-      <div className="min-w-0">
+      <div className="flex min-w-0 flex-col gap-1">
         <p className="truncate font-semibold">{item.name}</p>
         <p className="text-xs text-[var(--muted)]">
           {noMacros ? (
@@ -164,6 +165,7 @@ function PantryRow({
             </>
           )}
         </p>
+        <ShelfChip item={item} categories={categories} disabled={pending} />
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
@@ -203,6 +205,49 @@ function PantryRow({
         </button>
       </div>
     </li>
+  );
+}
+
+// A pill on each row showing its shelf; changing it re-files the item in one
+// tap. Only lists shelves that already exist — inventing a new one is done in
+// the edit form, which is where the free-text box lives.
+function ShelfChip({
+  item,
+  categories,
+  disabled,
+}: {
+  item: PantryItem;
+  categories: string[];
+  disabled: boolean;
+}) {
+  const [pending, startTransition] = useTransition();
+  const current = shelfOf(item);
+  const options = [
+    ...new Set<string>([
+      ...(PANTRY_CATEGORIES as readonly string[]),
+      ...categories,
+      current,
+    ]),
+  ].filter(Boolean);
+
+  return (
+    <select
+      value={current}
+      disabled={disabled || pending}
+      aria-label={`Shelf for ${item.name}`}
+      onChange={(e) => {
+        const next = e.target.value;
+        if (next === current) return;
+        startTransition(() => setPantryCategory(item.id, next));
+      }}
+      className="w-fit max-w-full self-start rounded-full bg-[var(--fill)] px-3 py-1 text-xs font-medium text-[var(--muted)] active:scale-95 disabled:opacity-50"
+    >
+      {options.map((c) => (
+        <option key={c} value={c}>
+          {c}
+        </option>
+      ))}
+    </select>
   );
 }
 
