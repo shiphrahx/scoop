@@ -413,6 +413,36 @@ function boundedLeastSquares(
   return x.map((v, j) => pinned[j] ?? Math.max(0, Math.min(caps[j], v)));
 }
 
+// Build and solve the weighted least-squares for a set of active variables. The
+// rows are the day's three macro totals (weighted per macro) then each meal's
+// share of each macro (soft). `pinnedDay`/`pinnedMeal` report macros already
+// committed by foods held OUTSIDE this solve (snapped countable portions), so
+// the active foods aim at what's LEFT of the day and of each meal's share.
+function solvePicks(
+  active: PickVar[],
+  activeCaps: number[],
+  slots: PickedSlotInput[],
+  fractions: number[],
+  budget: Macros,
+  pinnedDay: (key: MacroKey) => number = () => 0,
+  pinnedMeal: (slotIdx: number, key: MacroKey) => number = () => 0,
+): number[] {
+  const A: number[][] = [];
+  const b: number[] = [];
+  for (const key of MACRO_KEYS) {
+    const w = DAY_WEIGHT[key];
+    A.push(active.map((v) => perGram(v.food, key) * w));
+    b.push((Math.max(0, budget[key]) - pinnedDay(key)) * w);
+  }
+  slots.forEach((s, slotIdx) => {
+    for (const key of MACRO_KEYS) {
+      A.push(active.map((v) => (v.slotIdx === slotIdx ? perGram(v.food, key) : 0)));
+      b.push(Math.max(0, budget[key]) * fractions[slotIdx] - pinnedMeal(slotIdx, key));
+    }
+  });
+  return boundedLeastSquares(A, b, activeCaps);
+}
+
 // Portion every picked meal in one go so the day's totals land on the budget.
 // Returns one PlannedSlot per meal that ended up with any food; warnings about
 // picks that had to shrink or be dropped land in that meal's `why`.
@@ -453,27 +483,49 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
     return Math.min(roleCap, stock);
   });
 
-  // Rows: the day's three macro totals (heavily weighted), then each meal's
-  // share of each macro (softly weighted).
-  const A: number[][] = [];
-  const b: number[] = [];
-  for (const key of MACRO_KEYS) {
-    const w = DAY_WEIGHT[key];
-    A.push(vars.map((v) => perGram(v.food, key) * w));
-    b.push(Math.max(0, input.budget[key]) * w);
-  }
-  slots.forEach((s, slotIdx) => {
-    for (const key of MACRO_KEYS) {
-      A.push(
-        vars.map((v) =>
-          v.slotIdx === slotIdx ? perGram(v.food, key) : 0,
-        ),
-      );
-      b.push(Math.max(0, input.budget[key]) * fractions[slotIdx]);
-    }
-  });
+  // Stage 1: portion every food continuously so the day lands on its budget.
+  const grams = solvePicks(vars, caps, slots, fractions, input.budget);
 
-  const grams = boundedLeastSquares(A, b, caps);
+  // Stage 2: countable foods can only be served whole, and snapping to the
+  // nearest unit shifts a meal's macros up or down. Pin the snapped countables
+  // and re-solve the LOOSE (weighable) foods against what's LEFT, so the extra
+  // (or missing) macros are spread back across the OTHER meals — never a plate
+  // of two chicken packs while another meal goes without its protein. Only worth
+  // it when both kinds are present; with no countable food stage 1 has balanced
+  // everything already.
+  const countableIdx = vars
+    .map((v, i) => (v.food.unit_g && v.food.unit_g > 0 ? i : -1))
+    .filter((i) => i >= 0);
+  const looseIdx = vars
+    .map((v, i) => (v.food.unit_g && v.food.unit_g > 0 ? -1 : i))
+    .filter((i) => i >= 0);
+  if (countableIdx.length > 0 && looseIdx.length > 0) {
+    const snapped = new Map<number, number>();
+    for (const i of countableIdx) {
+      snapped.set(i, portionGrams(grams[i], vars[i].food, caps[i]));
+    }
+    const pinnedContribution = (key: MacroKey, inSlot?: number) =>
+      countableIdx.reduce(
+        (s, i) =>
+          inSlot === undefined || vars[i].slotIdx === inSlot
+            ? s + perGram(vars[i].food, key) * snapped.get(i)!
+            : s,
+        0,
+      );
+    const looseGrams = solvePicks(
+      looseIdx.map((i) => vars[i]),
+      looseIdx.map((i) => caps[i]),
+      slots,
+      fractions,
+      input.budget,
+      (key) => pinnedContribution(key),
+      (slotIdx, key) => pinnedContribution(key, slotIdx),
+    );
+    looseIdx.forEach((i, k) => {
+      grams[i] = looseGrams[k];
+    });
+    for (const i of countableIdx) grams[i] = snapped.get(i)!;
+  }
 
   const out: PlannedSlot[] = [];
   slots.forEach((s, slotIdx) => {

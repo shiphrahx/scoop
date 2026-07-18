@@ -182,6 +182,40 @@ describe("planPickedDay", () => {
     expect(maxMealProtein).toBeLessThan(dayProtein * 0.6);
   });
 
+  it("re-balances the other meals when a countable pick rounds to a whole unit", () => {
+    // Regression: dinner's protein is a countable pack that snaps up to 2 whole
+    // portions. Lunch and the snack must still get their protein and the DAY
+    // must stay on target — the rounding is absorbed by the weighable foods, not
+    // dumped on one meal while another goes without.
+    const freeMince = food("Vegan Mince", 17, 5, 3);
+    const powder = food("Vegan Protein Powder", 70, 5, 6);
+    const banana = food("Banana", 1.1, 23, 0.3);
+    const rigatoni = food("Rigatoni", 12, 70, 1.5);
+    const vChicken: PantryFood = {
+      ...food("Vegan Chicken", 17, 4, 9),
+      unit_g: 150,
+      unit_label: "portion",
+    };
+
+    const plan = planPickedDay({
+      slots: [
+        { slot: "Lunch", foods: [freeMince] },
+        { slot: "Snack", foods: [banana, powder] },
+        { slot: "Dinner", foods: [rigatoni, vChicken] },
+      ],
+      budget: { kcal: 2000, protein_g: 150, carbs_g: 200, fat_g: 60 },
+    });
+
+    // No meal is left without protein.
+    for (const m of plan) expect(m.protein_g).toBeGreaterThan(15);
+    // The countable chicken is still a whole number of portions.
+    const chick = plan.flatMap((m) => m.portions).find((p) => p.name === "Vegan Chicken")!;
+    expect(chick.grams % 150).toBe(0);
+    // And the day still lands on its protein target despite that rounding.
+    const dayProtein = plan.reduce((s, m) => s + m.protein_g, 0);
+    expect(Math.abs(dayProtein - 150)).toBeLessThanOrEqual(TOLERANCE);
+  });
+
   it("sizes meals by the slot weights", () => {
     // Same picks in both meals so size differences come only from the weights.
     const budget = { kcal: 1600, protein_g: 120, carbs_g: 150, fat_g: 50 };
