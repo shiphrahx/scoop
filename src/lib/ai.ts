@@ -121,6 +121,21 @@ const GLUTEN = [
   "bulgur", "semolina", "breadcrumb", "cracker", "biscuit", "pastry", "beer",
 ];
 
+// Meat-substitute products carry the meat word on purpose ("Vegan Shredded
+// Chicken", "Meat-Free Mince", "plant-based bacon"). An explicit plant-based
+// marker means the food is free of animal products, so the keyword meat/animal
+// guard must not veto it — otherwise the whole Linda McCartney / Quorn aisle
+// vanishes from a vegan's pantry. Does NOT bypass the gluten guard (seitan is
+// vegan but full of wheat).
+const PLANT_MARKERS = [
+  "vegan", "vegetarian", "plant-based", "plant based", "meat-free", "meat free",
+  "meatless", "no-meat", "no meat", "meat substitute",
+];
+
+function isPlantBased(hay: string): boolean {
+  return PLANT_MARKERS.some((m) => hay.includes(m));
+}
+
 export function violatesDiet(text: string, diet: DietType): boolean {
   // Keto is a macro budget, not an ingredient ban — the carb target guards it.
   if (diet === "regular" || diet === "keto") return false;
@@ -128,6 +143,8 @@ export function violatesDiet(text: string, diet: DietType): boolean {
   const hits = (words: string[]) =>
     words.some((w) => new RegExp(`\\b${w}s?\\b`).test(hay));
   if (diet === "celiac") return hits(GLUTEN);
+  // A product labelled plant-based satisfies every no-animal diet outright.
+  if (isPlantBased(hay)) return false;
   if (diet === "pescatarian") return hits(MEAT.filter((w) => !FISH.includes(w)));
   return hits(diet === "vegan" ? ANIMAL : MEAT);
 }

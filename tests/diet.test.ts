@@ -81,4 +81,20 @@ describe("violatesDiet", () => {
   it("never keyword-flags keto (the carb budget handles it)", () => {
     expect(violatesDiet("bread and pasta with sugar", "keto")).toBe(false);
   });
+
+  it("passes plant-based meat substitutes that carry the meat word", () => {
+    expect(violatesDiet("Linda McCartney Vegan Shredded Chicken", "vegan")).toBe(false);
+    expect(violatesDiet("Vegetarian Sausages", "vegetarian")).toBe(false);
+    expect(violatesDiet("Meat-Free Mince", "vegan")).toBe(false);
+    expect(violatesDiet("plant-based bacon", "vegetarian")).toBe(false);
+  });
+
+  it("lets pescatarians eat plant-based meat substitutes", () => {
+    expect(violatesDiet("Vegan Shredded Chicken", "pescatarian")).toBe(false);
+  });
+
+  it("still flags a vegan-labelled food that breaks the gluten guard", () => {
+    // Seitan is vegan but wheat-based — plant marker must not clear celiac.
+    expect(violatesDiet("Vegan Seitan Wheat Strips", "celiac")).toBe(true);
+  });
 });
