@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { rateLimit } from "@/lib/ratelimit";
 import { parseGroceryImage, parseProductFromUrl } from "@/lib/ai";
+import { pantryCategory } from "@/lib/foodgroups";
 import type { GroceryItem, ParsedProduct } from "@/lib/types";
 
 export interface PantryInput {
@@ -21,6 +22,23 @@ export interface PantryInput {
   pack_size_g?: number | null;
   unit_g?: number | null;
   unit_label?: string | null;
+  // The shelf to file it under. Omitted by every add path so it's assigned
+  // automatically from name + macros (see `shelf`).
+  category?: string | null;
+}
+
+// The category to file a new item under: honour an explicit one if given,
+// otherwise pick a shelf from its name and macros so every add path — barcode,
+// link, screenshot, import, manual — files itself with no extra tapping.
+function shelf(it: PantryInput): string {
+  return (
+    it.category?.trim() ||
+    pantryCategory(it.name, {
+      protein_100g: it.protein_100g,
+      carbs_100g: it.carbs_100g,
+      fat_100g: it.fat_100g,
+    })
+  );
 }
 
 // The extra per-100g nutrient columns, defaulted to 0 when a source didn't
@@ -58,6 +76,7 @@ export async function addPantryItem(input: PantryInput) {
     ...extraCols(input),
     pack_size_g: input.pack_size_g ?? null,
     ...unitCols(input),
+    category: shelf(input),
   });
   if (error) throw new Error(error.message);
 
@@ -83,6 +102,7 @@ export async function addMatchedItems(items: PantryInput[]) {
       ...extraCols(it),
       pack_size_g: it.pack_size_g ?? null,
       ...unitCols(it),
+      category: shelf(it),
     }));
   if (rows.length === 0) return;
 
@@ -127,6 +147,7 @@ export interface PantryPatch {
   pack_size_g: number | null;
   unit_g: number | null;
   unit_label: string | null;
+  category: string | null;
 }
 
 // Edit an item's name, per-100g macros, pack size, and countable unit.
@@ -149,7 +170,22 @@ export async function updatePantryItem(id: string, patch: PantryPatch) {
       pack_size_g: patch.pack_size_g,
       unit_g,
       unit_label: unit_g ? patch.unit_label?.trim() || null : null,
+      category: patch.category?.trim() || null,
     })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/pantry");
+}
+
+// Move one item to another shelf. Its own action (not the full edit) so the
+// pantry list can re-file an item in a single tap. Empty string clears it back
+// to uncategorised ("Other").
+export async function setPantryCategory(id: string, category: string) {
+  const { supabase } = await requireUser();
+  const { error } = await supabase
+    .from("pantry_items")
+    .update({ category: category.trim() || null })
     .eq("id", id);
   if (error) throw new Error(error.message);
 
