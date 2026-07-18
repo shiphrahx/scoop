@@ -40,6 +40,38 @@ const FAT_WORDS = new Set([
   "flaxseed", "chia", "peanut", "peanuts", "cheese", "mascarpone",
 ]);
 
+// Drink words: anything you pour and sip. Milk counts as a drink here even
+// though it carries protein — people shelve it as a drink, not a protein.
+const DRINK_WORDS = new Set([
+  "water", "juice", "cola", "coke", "soda", "lemonade", "squash", "cordial",
+  "coffee", "tea", "milk", "smoothie", "shake", "beer", "wine", "cider",
+  "kombucha", "drink", "drinks", "tonic", "sparkling", "espresso", "latte",
+  "cappuccino", "cocoa",
+]);
+
+// Fruit words (singular + common plurals; `singular()` folds the rest).
+const FRUIT_WORDS = new Set([
+  "apple", "apples", "banana", "bananas", "orange", "oranges", "grape",
+  "grapes", "berry", "berries", "strawberry", "strawberries", "blueberry",
+  "blueberries", "raspberry", "raspberries", "blackberry", "blackberries",
+  "mango", "mangoes", "pineapple", "pear", "pears", "peach", "peaches", "plum",
+  "plums", "melon", "watermelon", "kiwi", "cherry", "cherries", "apricot",
+  "apricots", "fig", "figs", "date", "dates", "raisin", "raisins", "lemon",
+  "lemons", "lime", "limes", "clementine", "satsuma", "nectarine", "pomegranate",
+]);
+
+// Vegetable words. Potato/avocado are left out on purpose — they read as a carb
+// and a fat respectively (they live in CARB_WORDS / FAT_WORDS).
+const VEG_WORDS = new Set([
+  "broccoli", "carrot", "carrots", "spinach", "kale", "lettuce", "cucumber",
+  "tomato", "tomatoes", "pepper", "peppers", "onion", "onions", "garlic",
+  "courgette", "courgettes", "zucchini", "aubergine", "eggplant", "cauliflower",
+  "cabbage", "celery", "mushroom", "mushrooms", "pea", "peas", "sweetcorn",
+  "beetroot", "leek", "leeks", "asparagus", "sprout", "sprouts", "salad",
+  "greens", "rocket", "spring", "radish", "turnip", "parsnip", "squash",
+  "pumpkin",
+]);
+
 function tokenize(name: string): string[] {
   return name
     .toLowerCase()
@@ -114,6 +146,47 @@ export function foodRole(name: string): "protein" | "carb" | null {
   if (isProtein(name)) return "protein";
   if (isCarb(name)) return "carb";
   return null;
+}
+
+// The pantry categories the shelf is split into. The first six are what the
+// auto-categoriser assigns; the rest exist for the user to move items into by
+// hand (they're too ambiguous to guess). "Other" is the catch-all. Users can
+// also type a brand-new category, so this list is a starting set, not a fence.
+export const PANTRY_CATEGORIES = [
+  "Protein",
+  "Carbs",
+  "Fat",
+  "Vegetables",
+  "Fruits",
+  "Dairy",
+  "Drinks",
+  "Snacks",
+  "Condiments",
+  "Other",
+] as const;
+
+export type PantryCategory = (typeof PANTRY_CATEGORIES)[number];
+
+// Pick the shelf a pantry item belongs on, from its name and per-100g macros.
+// Deterministic, no AI: a drink/fruit/veg name wins first (a banana is a fruit,
+// not "carbs"); otherwise the dominant macro decides Protein/Carbs/Fat, with a
+// name read as the tie-breaker for foods too light on macros to classify
+// (spices, black coffee). Falls back to "Other".
+export function pantryCategory(name: string, m: FoodMacros): PantryCategory {
+  if (hasWordFrom(name, DRINK_WORDS)) return "Drinks";
+  if (hasWordFrom(name, FRUIT_WORDS)) return "Fruits";
+  if (hasWordFrom(name, VEG_WORDS)) return "Vegetables";
+
+  const role = macroRole(m);
+  if (role === "protein") return "Protein";
+  if (role === "carb") return "Carbs";
+  if (role === "fat") return "Fat";
+
+  // Negligible macros — lean on what the name reads as.
+  if (isProtein(name)) return "Protein";
+  if (isCarb(name)) return "Carbs";
+  if (isFat(name)) return "Fat";
+  return "Other";
 }
 
 // The pantry items that can serve as a base carbohydrate, in the given order.

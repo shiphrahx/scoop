@@ -93,6 +93,9 @@ export interface PantryItem {
   pack_size_g: number | null;
   unit_g: number | null;
   unit_label: string | null;
+  // Which shelf it sits on (Protein, Carbs, Fruits…). Null = uncategorised,
+  // shown under "Other". Free text so the user can invent their own.
+  category: string | null;
 }
 
 // The extra per-100g nutrients a food can carry, alongside the core four.
