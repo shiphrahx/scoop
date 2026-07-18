@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Minus, Plus, Pencil, Trash2, Check, X } from "lucide-react";
 import type { PantryItem } from "@/lib/types";
+import { PANTRY_CATEGORIES } from "@/lib/foodgroups";
 import {
   clearPantry,
   deletePantryItem,
@@ -18,8 +19,37 @@ function packLabel(item: PantryItem): string {
   return `${n} ${n === 1 ? label : `${label}s`} per pack (${Math.round(item.unit_g ?? 0)} g each)`;
 }
 
-// The user's pantry. Tap +/− to change how many they have (zero removes it),
-// pencil to edit name/macros/pack size, trash to delete.
+// The shelf an item shows under. Null/blank items fall under "Other".
+function shelfOf(item: PantryItem): string {
+  return item.category?.trim() || "Other";
+}
+
+// Split the pantry into shelves, in a stable reading order: the known
+// categories in their canonical order, then any the user invented (A→Z), then
+// "Other" last as the catch-all.
+function groupByCategory(items: PantryItem[]): [string, PantryItem[]][] {
+  const groups = new Map<string, PantryItem[]>();
+  for (const item of items) {
+    const key = shelfOf(item);
+    const list = groups.get(key) ?? [];
+    list.push(item);
+    groups.set(key, list);
+  }
+
+  const known = (PANTRY_CATEGORIES as readonly string[]).filter(
+    (c) => c !== "Other" && groups.has(c),
+  );
+  const custom = [...groups.keys()]
+    .filter((c) => !(PANTRY_CATEGORIES as readonly string[]).includes(c))
+    .sort((a, b) => a.localeCompare(b));
+  const order = [...known, ...custom];
+  if (groups.has("Other")) order.push("Other");
+
+  return order.map((c) => [c, groups.get(c)!]);
+}
+
+// The user's pantry, split by shelf. Tap +/− to change how many they have (zero
+// removes it), pencil to edit name/macros/pack size/shelf, trash to delete.
 export default function PantryList({ items }: { items: PantryItem[] }) {
   if (items.length === 0) {
     return (
@@ -29,13 +59,26 @@ export default function PantryList({ items }: { items: PantryItem[] }) {
     );
   }
 
+  const groups = groupByCategory(items);
+  // Every category the user already has, offered when re-filing an item so their
+  // own shelves are one tap away alongside the built-in ones.
+  const existing = groups.map(([name]) => name);
+
   return (
-    <div className="flex flex-col gap-4">
-      <ul className="flex flex-col gap-2">
-        {items.map((item) => (
-          <PantryRow key={item.id} item={item} />
-        ))}
-      </ul>
+    <div className="flex flex-col gap-6">
+      {groups.map(([category, rows]) => (
+        <section key={category} className="flex flex-col gap-2">
+          <h2 className="flex items-baseline gap-2 px-1">
+            <span className="text-lg font-semibold">{category}</span>
+            <span className="text-sm text-[var(--muted)]">{rows.length}</span>
+          </h2>
+          <ul className="flex flex-col gap-2">
+            {rows.map((item) => (
+              <PantryRow key={item.id} item={item} categories={existing} />
+            ))}
+          </ul>
+        </section>
+      ))}
       <ClearAllButton count={items.length} />
     </div>
   );
@@ -68,7 +111,13 @@ function ClearAllButton({ count }: { count: number }) {
   );
 }
 
-function PantryRow({ item }: { item: PantryItem }) {
+function PantryRow({
+  item,
+  categories,
+}: {
+  item: PantryItem;
+  categories: string[];
+}) {
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState(false);
 
@@ -81,7 +130,13 @@ function PantryRow({ item }: { item: PantryItem }) {
   }
 
   if (editing) {
-    return <EditRow item={item} onDone={() => setEditing(false)} />;
+    return (
+      <EditRow
+        item={item}
+        categories={categories}
+        onDone={() => setEditing(false)}
+      />
+    );
   }
 
   const noMacros = item.kcal_100g === 0;
@@ -151,8 +206,17 @@ function PantryRow({ item }: { item: PantryItem }) {
   );
 }
 
-function EditRow({ item, onDone }: { item: PantryItem; onDone: () => void }) {
+function EditRow({
+  item,
+  categories,
+  onDone,
+}: {
+  item: PantryItem;
+  categories: string[];
+  onDone: () => void;
+}) {
   const [name, setName] = useState(item.name);
+  const [category, setCategory] = useState(shelfOf(item));
   const [kcal, setKcal] = useState(String(item.kcal_100g));
   const [protein, setProtein] = useState(String(item.protein_100g));
   const [carbs, setCarbs] = useState(String(item.carbs_100g));
@@ -177,6 +241,7 @@ function EditRow({ item, onDone }: { item: PantryItem; onDone: () => void }) {
       const unit_g = packG && n && n > 0 ? Math.round(packG / n) : null;
       await updatePantryItem(item.id, {
         name,
+        category: category.trim() || null,
         kcal_100g: Number(kcal) || 0,
         protein_100g: Number(protein) || 0,
         carbs_100g: Number(carbs) || 0,
@@ -199,6 +264,13 @@ function EditRow({ item, onDone }: { item: PantryItem; onDone: () => void }) {
         placeholder="Item name"
         className="sc-input"
       />
+
+      <CategoryField
+        value={category}
+        onChange={setCategory}
+        existing={categories}
+      />
+
       <p className="text-xs text-[var(--muted)]">Per 100g</p>
       <div className="grid grid-cols-2 gap-2">
         <NumField label="Calories" value={kcal} onChange={setKcal} />
@@ -254,6 +326,78 @@ function EditRow({ item, onDone }: { item: PantryItem; onDone: () => void }) {
         </button>
       </div>
     </li>
+  );
+}
+
+// Pick which shelf an item sits on. The built-in shelves plus any the user has
+// already made are offered as taps; "New shelf…" reveals a text box to name a
+// fresh one. The current value is always shown even if it isn't in either list.
+function CategoryField({
+  value,
+  onChange,
+  existing,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  existing: string[];
+}) {
+  const [creating, setCreating] = useState(false);
+
+  const options = [
+    ...new Set<string>([
+      ...(PANTRY_CATEGORIES as readonly string[]),
+      ...existing,
+      value,
+    ]),
+  ].filter(Boolean);
+
+  if (creating) {
+    return (
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="text-[var(--muted)]">New shelf</span>
+        <div className="flex gap-2">
+          <input
+            autoFocus
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="Shelf name"
+            className="sc-input min-w-0 flex-1"
+          />
+          <button
+            type="button"
+            onClick={() => setCreating(false)}
+            className="sc-btn sc-btn-neutral shrink-0"
+          >
+            Done
+          </button>
+        </div>
+      </label>
+    );
+  }
+
+  return (
+    <label className="flex flex-col gap-1 text-sm">
+      <span className="text-[var(--muted)]">Shelf</span>
+      <select
+        value={value}
+        onChange={(e) => {
+          if (e.target.value === "__new__") {
+            onChange("");
+            setCreating(true);
+          } else {
+            onChange(e.target.value);
+          }
+        }}
+        className="sc-input"
+      >
+        {options.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+        <option value="__new__">＋ New shelf…</option>
+      </select>
+    </label>
   );
 }
 
