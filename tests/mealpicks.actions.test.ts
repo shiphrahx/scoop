@@ -504,4 +504,103 @@ describe("buildMyDay", () => {
     const dinner = db.planned_meals.find((m) => m.slot === "Dinner")!;
     expect(Number(dinner.kcal)).toBeGreaterThan(Number(lunch.kcal) * 2);
   });
+
+  // A 300 g pack of tofu in the pantry, picked into a meal that wants far more
+  // protein than a pack can give. The build must never portion more than the
+  // pack holds — even when the pick itself carries no pack size (it was scanned
+  // before we knew, or added by chip), because we read the pantry's pack now.
+  const tofuPackRow = (): Row => ({
+    ...pantryRow("Tofu", 136, 14, 2, 8),
+    pack_size_g: 300,
+    quantity: 1,
+    off_barcode: "5000000000000",
+  });
+
+  it("never portions a picked food past the pantry's pack size", async () => {
+    const { db } = installFakeSupabase({
+      db: {
+        users: [profile()],
+        daily_targets: targets(),
+        food_logs: [],
+        pantry_items: [tofuPackRow(), pantryRow("Pasta", 371, 13, 71, 1.5)],
+        planned_meals: [
+          {
+            id: "meal-1",
+            user_id: "user-1",
+            date: today(),
+            slot: "Dinner",
+            origin: "ai",
+            name: "",
+            items: [],
+            // The tofu pick has no pack size of its own (source "off": scanned,
+            // OFF gave no pack): only the pantry row knows it's a 300 g pack.
+            // Old code left an "off" pick uncapped and clamped it to the 350 g
+            // protein ceiling.
+            picks: [pick("Tofu", 136, 14, 2, 8, "off"), pastaPick()],
+            portions: [],
+            swaps: [],
+            why: null,
+            kcal: 0,
+            protein_g: 0,
+            carbs_g: 0,
+            fat_g: 0,
+            logged_food_id: null,
+          },
+        ],
+      },
+    });
+
+    await buildMyDay();
+
+    const portions = db.planned_meals[0].portions as { name: string; grams: number }[];
+    const tofu = portions.find((p) => p.name === "Tofu");
+    expect(tofu).toBeDefined();
+    expect(tofu!.grams).toBeLessThanOrEqual(300);
+  });
+
+  it("recalculates an over-pack meal when rebalanced, honouring the pack size", async () => {
+    // A meal already 'built' with a stale 350 g tofu portion (over the 300 g
+    // pack). Rebalance = buildMyDay again: it must re-solve from the picks and
+    // bring tofu back within the pack, not leave the stale portion in place.
+    const { db } = installFakeSupabase({
+      db: {
+        users: [profile()],
+        daily_targets: targets(),
+        food_logs: [],
+        pantry_items: [tofuPackRow(), pantryRow("Pasta", 371, 13, 71, 1.5)],
+        planned_meals: [
+          {
+            id: "meal-1",
+            user_id: "user-1",
+            date: today(),
+            slot: "Dinner",
+            origin: "ai",
+            name: "Tofu with Pasta",
+            items: [],
+            picks: [pick("Tofu", 136, 14, 2, 8, "off"), pastaPick()],
+            portions: [
+              { name: "Tofu", grams: 350, kcal: 476, protein_g: 49, carbs_g: 7, fat_g: 28 },
+              { name: "Pasta", grams: 200, kcal: 742, protein_g: 26, carbs_g: 142, fat_g: 3 },
+            ],
+            swaps: [],
+            why: null,
+            kcal: 1218,
+            protein_g: 75,
+            carbs_g: 149,
+            fat_g: 31,
+            logged_food_id: null,
+          },
+        ],
+      },
+    });
+
+    await buildMyDay();
+
+    const meal = db.planned_meals[0];
+    const portions = meal.portions as { name: string; grams: number }[];
+    const tofu = portions.find((p) => p.name === "Tofu");
+    expect(tofu).toBeDefined();
+    expect(tofu!.grams).not.toBe(350); // the stale portion was recomputed
+    expect(tofu!.grams).toBeLessThanOrEqual(300);
+  });
 });
