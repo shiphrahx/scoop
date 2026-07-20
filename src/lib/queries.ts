@@ -187,6 +187,10 @@ export interface CoachData {
 const DAY_MS = 86_400_000;
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
+// How far back a waist measurement can be and still count as "the previous
+// one" for the weekly review.
+const WAIST_WINDOW_DAYS = 28;
+
 export async function getCoachData(): Promise<CoachData> {
   const supabase = await createClient();
   const {
@@ -202,6 +206,11 @@ export async function getCoachData(): Promise<CoachData> {
     localDate(tz, new Date(now.getTime() - daysBack * DAY_MS));
   const cut7 = cutDay(6); // last 7 days incl today
   const cut14 = cutDay(13);
+  // The waist gate can only speak for the week under review. Unbounded, the
+  // "previous" tape reading could be from months ago, and a long-since-earned
+  // -4 cm would read as this week's progress and hold a genuine plateau open
+  // for ever. Measurements are weekly, so a month covers a real pair.
+  const cutWaist = cutDay(WAIST_WINDOW_DAYS - 1);
 
   const [profile, current, weightsRes, measRes, activityRes, fitbitRes, tokenRes] =
     await Promise.all([
@@ -216,6 +225,7 @@ export async function getCoachData(): Promise<CoachData> {
         .from("measurements")
         .select("date, waist_cm")
         .not("waist_cm", "is", null)
+        .gte("date", cutWaist)
         .order("date", { ascending: false })
         .limit(2),
       supabase
