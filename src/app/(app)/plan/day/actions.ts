@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { isFoodAllowed } from "@/lib/ai";
-import { planPickedDay, type PantryFood } from "@/lib/mealplan";
+import { planPickedDay, portionGrams, type PantryFood } from "@/lib/mealplan";
 import { macrosPer100gSchema, parseOrThrow, portionGramsSchema } from "@/lib/validate";
 import {
   getConsumedForDate,
