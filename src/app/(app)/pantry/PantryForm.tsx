@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ScanBarcode, Link2 } from "lucide-react";
+import { ScanBarcode, Link2, Apple } from "lucide-react";
 import BarcodeScanner from "@/components/BarcodeScanner";
-import type { ExtraPer100g, OffProduct } from "@/lib/types";
-import { addPantryItem, importPantryUrl } from "./actions";
+import { defaultSize, pantryUnitLabel } from "@/lib/freshfoods";
+import type { ExtraPer100g, FreshFood, OffProduct, UnitOption } from "@/lib/types";
+import { addFreshFoodSize, addPantryItem, findFreshFoods, importPantryUrl } from "./actions";
 
 const NO_EXTRAS: ExtraPer100g = {
   fiber_100g: 0, sugar_100g: 0, satfat_100g: 0, sodium_mg_100g: 0,
@@ -41,6 +42,16 @@ export default function PantryForm({
   const [pack, setPack] = useState("");
   const [unitLabel, setUnitLabel] = useState("");
   const [portions, setPortions] = useState("");
+  // Fresh-food match state. `matches` are reference foods whose name looks like
+  // what's typed; picking one fills the macros and offers its sizes. `sizes` are
+  // the picked food's sizes (small/med/large…), `selectedSize` which one the
+  // user has, and `freshId` the reference id (set only for a picked reference
+  // food, so a new size can be contributed back). Typing again clears the pick.
+  const [matches, setMatches] = useState<FreshFood[]>([]);
+  const [sizes, setSizes] = useState<UnitOption[]>([]);
+  const [selectedSize, setSelectedSize] = useState<string>("");
+  const [freshId, setFreshId] = useState<string | null>(null);
+  const [picked, setPicked] = useState(false);
   // Extra per-100g nutrients from a scan (kept out of the visible form).
   const [scannedExtras, setScannedExtras] = useState<ExtraPer100g>(NO_EXTRAS);
   const [scanning, setScanning] = useState(false);
@@ -51,6 +62,94 @@ export default function PantryForm({
 
   const set = (key: keyof typeof empty, value: string) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  // Look up fresh whole foods as the user types the name, so a "banana" offers
+  // its small/medium/large sizes and macros without any numbers being typed.
+  // Debounced; skipped once a barcode or a match has filled the form (retyping
+  // the name clears the pick, which re-enables the search).
+  useEffect(() => {
+    let live = true;
+    const t = setTimeout(async () => {
+      const q = form.name.trim();
+      if (barcode || picked || q.length < 2) {
+        if (live) setMatches([]);
+        return;
+      }
+      try {
+        const found = await findFreshFoods(q);
+        if (live) setMatches(found);
+      } catch {
+        if (live) setMatches([]);
+      }
+    }, 250);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [form.name, barcode, picked]);
+
+  // Forget any picked fresh food (its sizes and reference id). Called when a
+  // scan/import takes over, or when the user retypes the name by hand.
+  function clearFresh() {
+    setPicked(false);
+    setSizes([]);
+    setSelectedSize("");
+    setFreshId(null);
+  }
+
+  // Editing the name by hand drops a previous fresh-food pick so the search runs
+  // again — the item is no longer "the banana we filled in".
+  function onNameChange(value: string) {
+    set("name", value);
+    if (picked) clearFresh();
+  }
+
+  // Take a matched fresh food: fill the macros, load its sizes, and default to a
+  // sensible size. off_barcode stays null (it isn't a packaged product).
+  function pickFresh(food: FreshFood) {
+    setBarcode(null);
+    setPicked(true);
+    setMatches([]);
+    setShowDetails(true);
+    setFreshId(food.id);
+    setSizes(food.sizes);
+    setSelectedSize(defaultSize(food.sizes)?.label ?? "");
+    // A fresh food is counted by size, not split from a pack — clear those.
+    setPack("");
+    setPortions("");
+    setUnitLabel("");
+    setScannedExtras({
+      fiber_100g: food.fiber_100g,
+      sugar_100g: food.sugar_100g,
+      satfat_100g: food.satfat_100g,
+      sodium_mg_100g: food.sodium_mg_100g,
+    });
+    setForm({
+      name: food.name,
+      kcal_100g: String(food.kcal_100g),
+      protein_100g: String(food.protein_100g),
+      carbs_100g: String(food.carbs_100g),
+      fat_100g: String(food.fat_100g),
+    });
+    setNote(`Fresh food: ${food.name}. Pick a size below.`);
+  }
+
+  // Add a new size to the picked food: keep it on this item and contribute it to
+  // the shared reference so everyone gets it next time.
+  async function addSize(label: string, grams: number) {
+    const clean = label.trim();
+    if (!clean || !(grams > 0)) return;
+    if (sizes.some((s) => s.label.toLowerCase() === clean.toLowerCase())) return;
+    setSizes((s) => [...s, { label: clean, grams }].sort((a, b) => a.grams - b.grams));
+    setSelectedSize(clean);
+    if (freshId) {
+      try {
+        await addFreshFoodSize(freshId, clean, grams);
+      } catch {
+        /* keeping it on the item is enough; the shared add is best-effort */
+      }
+    }
+  }
 
   async function handleDetected(code: string) {
     setScanning(false);
@@ -64,6 +163,7 @@ export default function PantryForm({
         return;
       }
       const p = (await res.json()) as OffProduct;
+      clearFresh();
       setShowDetails(true);
       setBarcode(p.barcode);
       setPack(p.pack_size_g == null ? "" : String(p.pack_size_g));
@@ -103,6 +203,7 @@ export default function PantryForm({
     setImporting(true);
     try {
       const p = await importPantryUrl(link);
+      clearFresh();
       setShowDetails(true);
       setBarcode(null);
       setPack(p.pack_size_g == null ? "" : String(p.pack_size_g));
@@ -138,8 +239,22 @@ export default function PantryForm({
     try {
       const packG = pack.trim() === "" ? null : Number(pack) || null;
       const n = portions.trim() === "" ? null : Number(portions) || null;
-      // Grams in one portion = pack weight ÷ portions per pack; needs both.
-      const unit_g = packG && n && n > 0 ? Math.round(packG / n) : null;
+      // A fresh food is counted by size: the whole set rides along as
+      // unit_options, and the selected size fills unit_g/unit_label ("medium
+      // banana"). Otherwise fall back to the pack-split unit (pack ÷ portions).
+      const chosen = sizes.find((s) => s.label === selectedSize) ?? null;
+      const usingSizes = sizes.length > 0 && chosen != null;
+      const unit_g = usingSizes
+        ? chosen.grams
+        : packG && n && n > 0
+          ? Math.round(packG / n)
+          : null;
+      const unit_label = usingSizes
+        ? pantryUnitLabel(form.name, chosen.label)
+        : unit_g
+          ? unitLabel.trim() || null
+          : null;
+
       await addPantryItem({
         name: form.name.trim(),
         off_barcode: barcode,
@@ -151,7 +266,8 @@ export default function PantryForm({
         ...scannedExtras,
         pack_size_g: packG,
         unit_g,
-        unit_label: unit_g ? unitLabel.trim() || null : null,
+        unit_label,
+        unit_options: usingSizes ? sizes : null,
       });
       // Show the item where it now lives instead of an empty add form.
       router.push("/pantry");
@@ -200,10 +316,38 @@ export default function PantryForm({
 
       <input
         value={form.name}
-        onChange={(e) => set("name", e.target.value)}
+        onChange={(e) => onNameChange(e.target.value)}
         placeholder="Item name"
         className="sc-input text-lg"
       />
+
+      {/* Fresh whole foods that match the name — tap one to fill its macros and
+          get its sizes, no typing. */}
+      {matches.length > 0 && (
+        <ul className="flex flex-wrap gap-2">
+          {matches.map((food) => (
+            <li key={food.id}>
+              <button
+                type="button"
+                onClick={() => pickFresh(food)}
+                className="sc-btn sc-btn-soft px-3 py-2 text-sm"
+              >
+                <Apple size={16} /> {food.name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {sizes.length > 0 && (
+        <SizePicker
+          foodName={form.name}
+          sizes={sizes}
+          selected={selectedSize}
+          onSelect={setSelectedSize}
+          onAdd={addSize}
+        />
+      )}
 
       {showDetails ? (
         <>
@@ -231,31 +375,37 @@ export default function PantryForm({
             />
           </div>
 
-          <Field label="Pack size (g, optional)" value={pack} onChange={setPack} />
+          {/* A fresh food is counted by its sizes (above), so the pack-split
+              route is only shown for packaged items. */}
+          {sizes.length === 0 && (
+            <>
+              <Field label="Pack size (g, optional)" value={pack} onChange={setPack} />
 
-          {/* Count instead of weigh: name the portion and say how many a pack
-              makes (6 bagels, 2 portions). One portion = pack ÷ portions, so the
-              food can be picked by count and the app works out the macros. */}
-          <p className="mt-1 text-xs text-[var(--muted)]">
-            Eaten in portions? Split a pack (optional)
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-[var(--muted)]">Portion name</span>
-              <input
-                value={unitLabel}
-                onChange={(e) => setUnitLabel(e.target.value)}
-                placeholder="bagel"
-                className="sc-input text-lg"
-              />
-            </label>
-            <Field label="Portions per pack" value={portions} onChange={setPortions} />
-          </div>
-          {pack.trim() !== "" && Number(portions) > 0 && (
-            <p className="text-xs text-[var(--muted)]">
-              One {unitLabel.trim() || "portion"} ≈{" "}
-              {Math.round(Number(pack) / Number(portions))} g
-            </p>
+              {/* Count instead of weigh: name the portion and say how many a pack
+                  makes (6 bagels, 2 portions). One portion = pack ÷ portions, so
+                  the food can be picked by count and the app works out macros. */}
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                Eaten in portions? Split a pack (optional)
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="flex flex-col gap-1 text-sm">
+                  <span className="text-[var(--muted)]">Portion name</span>
+                  <input
+                    value={unitLabel}
+                    onChange={(e) => setUnitLabel(e.target.value)}
+                    placeholder="bagel"
+                    className="sc-input text-lg"
+                  />
+                </label>
+                <Field label="Portions per pack" value={portions} onChange={setPortions} />
+              </div>
+              {pack.trim() !== "" && Number(portions) > 0 && (
+                <p className="text-xs text-[var(--muted)]">
+                  One {unitLabel.trim() || "portion"} ≈{" "}
+                  {Math.round(Number(pack) / Number(portions))} g
+                </p>
+              )}
+            </>
           )}
         </>
       ) : (
@@ -282,6 +432,107 @@ export default function PantryForm({
         />
       )}
     </section>
+  );
+}
+
+// Pick which size of a fresh food the user has. Each size is a tap; the one
+// picked is highlighted and shows its weight. A small form adds a size we don't
+// list (contributed back to the shared reference on save).
+function SizePicker({
+  foodName,
+  sizes,
+  selected,
+  onSelect,
+  onAdd,
+}: {
+  foodName: string;
+  sizes: UnitOption[];
+  selected: string;
+  onSelect: (label: string) => void;
+  onAdd: (label: string, grams: number) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [label, setLabel] = useState("");
+  const [grams, setGrams] = useState("");
+  const chosen = sizes.find((s) => s.label === selected) ?? null;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs text-[var(--muted)]">What size?</p>
+      <div className="flex flex-wrap gap-2">
+        {sizes.map((s) => {
+          const on = s.label === selected;
+          return (
+            <button
+              key={s.label}
+              type="button"
+              onClick={() => onSelect(s.label)}
+              className={`sc-btn px-3 py-2 text-sm capitalize ${on ? "sc-btn-primary" : "sc-btn-soft"}`}
+            >
+              {s.label}
+              <span className={on ? "opacity-80" : "text-[var(--muted)]"}>
+                {" "}
+                {Math.round(s.grams)} g
+              </span>
+            </button>
+          );
+        })}
+        {!adding && (
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="sc-btn sc-btn-soft px-3 py-2 text-sm"
+          >
+            ＋ size
+          </button>
+        )}
+      </div>
+
+      {chosen && (
+        <p className="text-xs text-[var(--muted)]">
+          One {pantryUnitLabel(foodName, chosen.label)} ≈ {Math.round(chosen.grams)} g
+        </p>
+      )}
+
+      {adding && (
+        <div className="flex items-end gap-2">
+          <label className="flex flex-1 flex-col gap-1 text-sm">
+            <span className="text-[var(--muted)]">Size name</span>
+            <input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="extra large"
+              className="sc-input"
+            />
+          </label>
+          <label className="flex w-24 flex-col gap-1 text-sm">
+            <span className="text-[var(--muted)]">Grams</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              value={grams}
+              onChange={(e) => setGrams(e.target.value)}
+              placeholder="0"
+              className="sc-input"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              onAdd(label, Number(grams));
+              setLabel("");
+              setGrams("");
+              setAdding(false);
+            }}
+            disabled={!label.trim() || !(Number(grams) > 0)}
+            className="sc-btn sc-btn-primary shrink-0 disabled:opacity-50"
+          >
+            Add
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
