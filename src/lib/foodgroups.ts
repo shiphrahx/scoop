@@ -109,6 +109,15 @@ export function isFat(name: string): boolean {
   return hasWordFrom(name, FAT_WORDS);
 }
 
+// True when the item name reads as a vegetable. Vegetables are meal FILLERS, not
+// a macro source: the day planner gives each a fixed serving instead of growing
+// it to chase a carb/protein target (nobody eats 400 g of onion to hit carbs).
+// Potato/avocado are deliberately absent from VEG_WORDS — they read as a carb and
+// a fat and stay meal bases.
+export function isVegetable(name: string): boolean {
+  return hasWordFrom(name, VEG_WORDS);
+}
+
 // The macro that dominates a food's calories — the reliable, data-driven
 // classification the day planner uses (we already store every pantry item's
 // per-100g macros, so no name-guessing needed). null for foods with negligible
