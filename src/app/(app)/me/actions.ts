@@ -62,7 +62,9 @@ export async function saveGoals(input: GoalsInput) {
   const [{ data: prof }, { data: w }, { data: act }] = await Promise.all([
     supabase
       .from("users")
-      .select("height_cm, sex, birth_year")
+      .select(
+        "height_cm, sex, birth_year, body_fat_pct, goal_weight_kg, tdee_calibration",
+      )
       .eq("id", user.id)
       .maybeSingle(),
     supabase
@@ -78,7 +80,14 @@ export async function saveGoals(input: GoalsInput) {
   ]);
 
   const p = prof as
-    | { height_cm: number | null; sex: "male" | "female" | null; birth_year: number | null }
+    | {
+        height_cm: number | null;
+        sex: "male" | "female" | null;
+        birth_year: number | null;
+        body_fat_pct: number | null;
+        goal_weight_kg: number | null;
+        tdee_calibration: number | null;
+      }
     | null;
   const weightKg = w ? Number((w as { weight_kg: number }).weight_kg) : null;
 
@@ -100,6 +109,15 @@ export async function saveGoals(input: GoalsInput) {
       activity: input.activity_level,
       pace: input.goal_pace,
       activeKcalPerDay,
+      // Everything the target depends on has to come along, or saving an
+      // unrelated preference quietly recomputes the user onto a different plan.
+      // Body fat picks the resting-rate equation, goal weight caps the protein
+      // basis, and the calibration is the correction the weekly review has spent
+      // weeks measuring — recomputing without it throws all of that away and
+      // drops the user back onto the textbook's guess.
+      bodyFatPct: p.body_fat_pct,
+      goalWeightKg: p.goal_weight_kg,
+      tdeeCalibration: p.tdee_calibration,
     });
     await supabase
       .from("daily_targets")

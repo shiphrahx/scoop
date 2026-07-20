@@ -34,6 +34,13 @@ export interface Profile {
   // accurate Katch–McArdle calorie maths; null when the user hasn't given it.
   goal_weight_kg: number | null;
   body_fat_pct: number | null;
+  // What the user actually burns, learned from intake against weight change.
+  // tdee_calibration is the ratio to the formula's prediction (1 = nothing
+  // learned yet) and is applied to every target the app computes, so a profile
+  // edit no longer discards what the weekly review worked out.
+  tdee_calibration: number;
+  tdee_observed_kcal: number | null;
+  tdee_observed_at: string | null;
   meal_slots: string[];
   // How big each meal should be relative to the others: slot name -> relative
   // weight. Empty/missing means an even share per meal; a slot missing from a

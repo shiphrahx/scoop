@@ -113,6 +113,82 @@ describe("saveGoals", () => {
     expect(Number(t.protein_g)).toBeGreaterThan(0);
   });
 
+  it("keeps the learned calibration when recomputing", async () => {
+    // The weekly review spends weeks measuring what this user actually burns.
+    // Saving an unrelated preference used to recompute the target straight from
+    // the formula and throw all of it away, dropping them back onto the
+    // textbook's guess.
+    const calibrated = installFakeSupabase({
+      db: {
+        users: [{ ...userRow(), tdee_calibration: 0.85 }],
+        weights: [{ user_id: "user-1", date: "2026-07-15", weight_kg: 80 }],
+        activity: [],
+        daily_targets: [],
+      },
+    });
+    await saveGoals({
+      diet_type: "regular",
+      activity_level: "moderate",
+      goal_pace: "steady",
+    });
+    const withCalibration = Number(calibrated.db.daily_targets[0].kcal);
+
+    const plain = installFakeSupabase({
+      db: {
+        users: [{ ...userRow(), tdee_calibration: 1 }],
+        weights: [{ user_id: "user-1", date: "2026-07-15", weight_kg: 80 }],
+        activity: [],
+        daily_targets: [],
+      },
+    });
+    await saveGoals({
+      diet_type: "regular",
+      activity_level: "moderate",
+      goal_pace: "steady",
+    });
+    const withoutCalibration = Number(plain.db.daily_targets[0].kcal);
+
+    expect(withCalibration).toBeLessThan(withoutCalibration);
+  });
+
+  it("keeps body fat and goal weight in the recompute", async () => {
+    // Body fat switches the resting-rate equation to Katch-McArdle; dropping it
+    // on a profile save silently moves the user's calorie target.
+    const lean = installFakeSupabase({
+      db: {
+        users: [{ ...userRow(), body_fat_pct: 18, goal_weight_kg: 65 }],
+        weights: [{ user_id: "user-1", date: "2026-07-15", weight_kg: 80 }],
+        activity: [],
+        daily_targets: [],
+      },
+    });
+    await saveGoals({
+      diet_type: "regular",
+      activity_level: "moderate",
+      goal_pace: "steady",
+    });
+
+    const unknown = installFakeSupabase({
+      db: {
+        users: [{ ...userRow(), body_fat_pct: null, goal_weight_kg: null }],
+        weights: [{ user_id: "user-1", date: "2026-07-15", weight_kg: 80 }],
+        activity: [],
+        daily_targets: [],
+      },
+    });
+    await saveGoals({
+      diet_type: "regular",
+      activity_level: "moderate",
+      goal_pace: "steady",
+    });
+
+    expect(Number(lean.db.daily_targets[0].kcal)).not.toBe(
+      Number(unknown.db.daily_targets[0].kcal),
+    );
+    // And the goal weight caps the protein basis at 65 kg, not the 80 on the scale.
+    expect(Number(lean.db.daily_targets[0].protein_g)).toBe(130);
+  });
+
   it("saves the profile but writes no target when there is no weigh-in yet", async () => {
     const { db } = installFakeSupabase({
       db: {
