@@ -4,10 +4,12 @@ import {
   TREND_WINDOW_DAYS,
   ageFromBirthYear,
   averageActiveKcal,
+  adherence as computeAdherence,
   observeTdee,
   tdee,
   trendChange,
   weeklyReview,
+  type Adherence,
   type DailyIntake,
   type ObservedTdee,
   type TrendChange,
@@ -197,6 +199,9 @@ export interface CoachData {
   // the formula that it feeds. Null when the data can't support a measurement.
   observed: ObservedTdee | null;
   calibration: number;
+  // How closely the user ate this week's target. The review will not cut on a
+  // stall the user never actually tested.
+  adherence: Adherence | null;
   // The formula's maintenance estimate with NO calibration applied. The
   // correction is the ratio of the measurement to this raw prediction — measure
   // it against an already-corrected number and the ratio sits at 1 for ever and
@@ -313,6 +318,7 @@ export async function getCoachData(): Promise<CoachData> {
   const weighIns = weights.map((w) => ({ date: w.date, kg: Number(w.weight_kg) }));
   const intake = await getDailyIntake(tz, TREND_WINDOW_DAYS, now);
   const observed = observeTdee(weighIns, intake);
+  const adherence = current ? computeAdherence(intake, current.kcal) : null;
   const calibration =
     profile?.tdee_calibration != null && profile.tdee_calibration > 0
       ? Number(profile.tdee_calibration)
@@ -388,6 +394,7 @@ export async function getCoachData(): Promise<CoachData> {
         // weigh-ins are consistent.
         weeksOnTarget,
         consistent,
+        adherence: adherence ?? undefined,
       })
     : {
         macros: { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
@@ -406,6 +413,7 @@ export async function getCoachData(): Promise<CoachData> {
     waistDeltaCm,
     observed,
     calibration,
+    adherence,
     predictedTdee,
     activity: activityRows,
     fitbitConnected: Boolean((fitbitRes.data as { user_id: string } | null)?.user_id),

@@ -408,6 +408,61 @@ function clamp(value: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, value));
 }
 
+// --- Adherence --------------------------------------------------------------
+
+// A day counts as "ate the plan" when intake landed within this fraction of the
+// target. Wide enough that ordinary life passes, tight enough that a 600 kcal
+// overshoot doesn't.
+const ADHERENCE_TOLERANCE = 0.15;
+
+// And this many of the week's days have to qualify before the coach will act on
+// a stall.
+const MIN_ADHERENT_DAYS = 4;
+
+export interface Adherence {
+  loggedDays: number;
+  adherentDays: number;
+  meanIntakeKcal: number | null;
+  followed: boolean;
+}
+
+// How closely the user actually ate the target they were given.
+//
+// Without this the review is measuring the wrong thing. A plateau has two quite
+// different causes — the target is too high, or the user ate more than it — and
+// the scale alone cannot tell them apart. Cutting on the second is actively
+// harmful: it makes an already-unfollowed plan harder to follow, which widens
+// the gap, which triggers another cut. The way out of that spiral is to say
+// "eat the plan" rather than to keep shrinking it.
+export function adherence(
+  intake: DailyIntake[],
+  targetKcal: number,
+  windowDays = TREND_SPAN_DAYS,
+): Adherence {
+  const recent = intake.slice(-windowDays);
+  const meanIntakeKcal = average(recent.map((d) => d.kcal));
+
+  if (targetKcal <= 0) {
+    return {
+      loggedDays: recent.length,
+      adherentDays: 0,
+      meanIntakeKcal,
+      followed: false,
+    };
+  }
+
+  const adherentDays = recent.filter(
+    (d) => Math.abs(d.kcal - targetKcal) / targetKcal <= ADHERENCE_TOLERANCE,
+  ).length;
+
+  return {
+    loggedDays: recent.length,
+    adherentDays,
+    meanIntakeKcal,
+    followed: adherentDays >= Math.min(MIN_ADHERENT_DAYS, windowDays),
+  };
+}
+
 // --- The weekly review ------------------------------------------------------
 // Compare this week's trailing average weight to last week's and nudge the
 // calorie target. Result-based (no AI): the rules read the scale + tape, not a
@@ -579,6 +634,9 @@ export interface WeeklyReviewInput {
   // is only supplied by the live review; unit tests exercise a ready state).
   weeksOnTarget?: number;
   consistent?: boolean;
+  // How closely the user ate the target this week. Omitted = no opinion, which
+  // leaves the old scale-only behaviour for callers that don't supply it.
+  adherence?: Adherence;
 }
 
 export interface WeeklyReview {
@@ -601,6 +659,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
     goalWeightKg,
     weeksOnTarget,
     consistent,
+    adherence,
   } = input;
 
   // Not enough history yet — hold and ask for another week. trendChange returns
@@ -692,6 +751,31 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       ).toFixed(
         1,
       )} cm — that's fat loss the scale can't see. Holding your targets.`,
+    };
+  }
+
+  // Stalled, but the plan wasn't actually followed → say so instead of cutting.
+  //
+  // This gate only guards the CUT. Losing too fast still gets calories back
+  // regardless of how well anyone logged, because that branch exists to protect
+  // muscle and shouldn't wait on paperwork.
+  if (adherence && !adherence.followed) {
+    const ate = adherence.meanIntakeKcal;
+    const over = ate != null && ate > current.kcal;
+    return {
+      macros: current,
+      changed: false,
+      changeKg,
+      changePct,
+      headline: over ? "Above your target this week" : "Let's test the plan first",
+      detail:
+        adherence.loggedDays === 0
+          ? "I can't see what you ate this week, so I don't know whether the target is wrong or just wasn't hit. Log your food for a week and I'll know which."
+          : over
+            ? `You averaged about ${Math.round(
+                ate!,
+              )} kcal against a target of ${current.kcal}. The plan hasn't really been tested yet — cutting it now would just make a target you're already over even harder to hit. Let's hit this one first.`
+            : "Your intake was all over the place this week, so a stall doesn't tell me much yet. Stick close to the target for a week and I'll know whether it needs to move.",
     };
   }
 

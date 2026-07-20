@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ageFromBirthYear,
+  adherence,
   average,
   averageActiveKcal,
   bmr,
@@ -20,6 +21,7 @@ import {
   trendSeries,
   weeklyReview,
   type CoachInput,
+  type Adherence,
   type Macros,
   type TrendChange,
 } from "@/lib/coach";
@@ -699,6 +701,96 @@ describe("weeklyReview", () => {
       current,
     });
     expect(r.macros.protein_g).toBe(180); // 90 kg x 2 g/kg, uncapped
+  });
+});
+
+describe("adherence", () => {
+  const days = (kcals: number[]) =>
+    kcals.map((kcal, i) => ({
+      date: new Date(Date.UTC(2026, 0, 1 + i)).toISOString().slice(0, 10),
+      kcal,
+    }));
+
+  it("counts days that landed within 15% of the target", () => {
+    const a = adherence(days([2000, 1900, 2100, 2000, 1850, 2150, 2000]), 2000);
+    expect(a.adherentDays).toBe(7);
+    expect(a.followed).toBe(true);
+  });
+
+  it("does not count a day well over the target", () => {
+    const a = adherence(days([2600, 2700, 2000, 2000, 3000, 2800, 2900]), 2000);
+    expect(a.adherentDays).toBe(2);
+    expect(a.followed).toBe(false);
+    expect(a.meanIntakeKcal).toBeGreaterThan(2000);
+  });
+
+  it("treats an unlogged week as unfollowed rather than perfect", () => {
+    const a = adherence([], 2000);
+    expect(a.loggedDays).toBe(0);
+    expect(a.followed).toBe(false);
+  });
+});
+
+describe("weeklyReview adherence gate", () => {
+  const current: Macros = { kcal: 2000, protein_g: 160, carbs_g: 180, fat_g: 56 };
+  const tr = (thenKg: number, nowKg: number): TrendChange => ({
+    nowKg,
+    thenKg,
+    changeKg: thenKg - nowKg,
+    changePct: (thenKg - nowKg) / thenKg,
+    spanDays: 7,
+  });
+  const stall = {
+    sex: "male" as const,
+    trend: tr(90, 90),
+    waistDeltaCm: 0,
+    current,
+    weeksOnTarget: 3,
+    consistent: true,
+  };
+  const ate = (kcal: number): Adherence => ({
+    loggedDays: 7,
+    adherentDays: kcal === 2000 ? 7 : 0,
+    meanIntakeKcal: kcal,
+    followed: kcal === 2000,
+  });
+
+  it("refuses to cut a plan the user never actually ate", () => {
+    // The spiral this prevents: user eats 2600 against a 2000 target and
+    // stalls, so the coach cuts to 1860 -- a target they are now 700 kcal over
+    // instead of 600. Harder to hit, missed by more, cut again.
+    const r = weeklyReview({ ...stall, adherence: ate(2600) });
+    expect(r.changed).toBe(false);
+    expect(r.macros).toEqual(current);
+    expect(r.detail).toMatch(/2600/);
+    expect(r.headline).toMatch(/above your target/i);
+  });
+
+  it("cuts a stall the user genuinely ate through", () => {
+    // Same stall, but the plan was followed -- so the target really is too high.
+    const r = weeklyReview({ ...stall, adherence: ate(2000) });
+    expect(r.changed).toBe(true);
+    expect(r.macros.kcal).toBeLessThan(current.kcal);
+  });
+
+  it("asks for food logs rather than guessing when the week is blank", () => {
+    const r = weeklyReview({
+      ...stall,
+      adherence: { loggedDays: 0, adherentDays: 0, meanIntakeKcal: null, followed: false },
+    });
+    expect(r.changed).toBe(false);
+    expect(r.detail).toMatch(/log your food/i);
+  });
+
+  it("still adds calories to a too-fast loss regardless of logging", () => {
+    // This branch protects muscle. It should not wait on paperwork.
+    const r = weeklyReview({
+      ...stall,
+      trend: tr(90, 88),
+      adherence: { loggedDays: 0, adherentDays: 0, meanIntakeKcal: null, followed: false },
+    });
+    expect(r.changed).toBe(true);
+    expect(r.macros.kcal).toBeGreaterThan(current.kcal);
   });
 });
 
