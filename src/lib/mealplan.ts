@@ -24,6 +24,10 @@ import type {
 // size on the item), so no stock cap applies.
 export interface PantryFood {
   name: string;
+  // Barcode of the pantry row, when it came from a scan. Lets a saved pick be
+  // matched back to its pantry row (for the current stock/pack cap) even when
+  // the name has since been edited.
+  off_barcode?: string | null;
   kcal_100g: number;
   protein_100g: number;
   carbs_100g: number;

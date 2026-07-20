@@ -49,11 +49,12 @@ async function pantryFoods(
   const { data } = await supabase
     .from("pantry_items")
     .select(
-      "name, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, satfat_100g, sodium_mg_100g, pack_size_g, quantity, unit_g, unit_label",
+      "name, off_barcode, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, satfat_100g, sodium_mg_100g, pack_size_g, quantity, unit_g, unit_label",
     );
   return (
     (data as Array<{
       name: string;
+      off_barcode: string | null;
       kcal_100g: number;
       protein_100g: number;
       carbs_100g: number;
@@ -78,6 +79,7 @@ async function pantryFoods(
       const qty = p.quantity != null ? Math.max(1, Number(p.quantity)) : 1;
       return {
         name: p.name,
+        off_barcode: p.off_barcode,
         kcal_100g: Number(p.kcal_100g),
         protein_100g: Number(p.protein_100g),
         carbs_100g: Number(p.carbs_100g),
@@ -265,14 +267,20 @@ export async function setMealPicks(slot: string, picks: MealPick[], date?: strin
   revalidate();
 }
 
-// Resolve one stored pick to the food the solver portions. A pantry pick reads
-// the pantry's CURRENT numbers and stock (fresher than what was saved); a
-// scanned pick carries its own, capped at the pack size when known.
+// Resolve one stored pick to the food the solver portions. Always prefer the
+// pantry's CURRENT row — matched by name, else by barcode — whatever the pick's
+// source: it carries the freshest numbers AND the real stock/pack cap, so a
+// pick can never be portioned past the pack the user actually has. A scanned
+// pick that was later saved to the pantry (or whose pack size was unknown when
+// scanned) is capped too. Only a food that isn't in the pantry falls back to
+// the pick's own numbers, capped at its pack size when the pick carried one.
 function pickToFood(pick: MealPick, pantry: PantryFood[]): PantryFood {
-  if (pick.source === "pantry") {
-    const hit = pantry.find((f) => f.name === pick.name);
-    if (hit) return hit;
-  }
+  const hit =
+    pantry.find((f) => f.name === pick.name) ??
+    (pick.off_barcode
+      ? pantry.find((f) => f.off_barcode != null && f.off_barcode === pick.off_barcode)
+      : undefined);
+  if (hit) return hit;
   return {
     name: pick.name,
     kcal_100g: Number(pick.kcal_100g),
