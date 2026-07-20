@@ -8,7 +8,9 @@ vi.mock("@/lib/supabase/server", async () => {
 });
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
-const { setMealPicks, buildMyDay } = await import("@/app/(app)/plan/day/actions");
+const { setMealPicks, buildMyDay, setMealPortions } = await import(
+  "@/app/(app)/plan/day/actions"
+);
 
 const today = () => {
   const d = new Date();
@@ -685,6 +687,181 @@ describe("buildMyDay", () => {
     expect(item.grams).toBe(300); // one pack, not 350
     expect(Number(manual.kcal)).toBe(408); // 136 kcal/100g × 300 g, re-summed
     expect(Number(manual.protein_g)).toBe(42);
+  });
+
+  it("caps a picked food when its name differs from the pantry only in case/spacing", async () => {
+    // The pick was saved as "silken  tofu" (lowercase, double space); the pantry
+    // row is "Silken Tofu". They're the same food — the cap must still find it.
+    const { db } = installFakeSupabase({
+      db: {
+        users: [profile()],
+        daily_targets: targets(),
+        food_logs: [],
+        pantry_items: [
+          { ...pantryRow("Silken Tofu", 136, 14, 2, 8), pack_size_g: 300, quantity: 1 },
+          pantryRow("Pasta", 371, 13, 71, 1.5),
+        ],
+        planned_meals: [
+          {
+            id: "meal-1",
+            user_id: "user-1",
+            date: today(),
+            slot: "Dinner",
+            origin: "ai",
+            name: "",
+            items: [],
+            picks: [pick("silken  tofu", 136, 14, 2, 8, "off"), pastaPick()],
+            portions: [],
+            swaps: [],
+            why: null,
+            kcal: 0,
+            protein_g: 0,
+            carbs_g: 0,
+            fat_g: 0,
+            logged_food_id: null,
+          },
+        ],
+      },
+    });
+
+    await buildMyDay();
+
+    const portions = db.planned_meals[0].portions as { name: string; grams: number }[];
+    const tofu = portions.find((p) => /tofu/i.test(p.name));
+    expect(tofu).toBeDefined();
+    expect(tofu!.grams).toBeLessThanOrEqual(300);
+  });
+
+  it("caps a picked food by its own pack size when it isn't in the pantry", async () => {
+    // The tofu was scanned into the meal but never saved to the pantry, so the
+    // only pack size known is the one on the pick itself. It must still cap.
+    const tofuWithPack: MealPick = { ...pick("Tofu", 136, 14, 2, 8, "off"), pack_size_g: 300 };
+    const { db } = installFakeSupabase({
+      db: {
+        users: [profile()],
+        daily_targets: targets(),
+        food_logs: [],
+        pantry_items: [pantryRow("Pasta", 371, 13, 71, 1.5)],
+        planned_meals: [
+          {
+            id: "meal-1",
+            user_id: "user-1",
+            date: today(),
+            slot: "Dinner",
+            origin: "ai",
+            name: "",
+            items: [],
+            picks: [tofuWithPack, pastaPick()],
+            portions: [],
+            swaps: [],
+            why: null,
+            kcal: 0,
+            protein_g: 0,
+            carbs_g: 0,
+            fat_g: 0,
+            logged_food_id: null,
+          },
+        ],
+      },
+    });
+
+    await buildMyDay();
+
+    const portions = db.planned_meals[0].portions as { name: string; grams: number }[];
+    const tofu = portions.find((p) => p.name === "Tofu")!;
+    expect(tofu.grams).toBeLessThanOrEqual(300);
+  });
+
+  it("never portions a single serving past one pack, even with several in stock", async () => {
+    // Three 300 g packs (900 g stock), but a single meal must not plate more
+    // than one pack: the pick's own 300 g pack is the tighter cap.
+    const tofuWithPack: MealPick = { ...pick("Tofu", 136, 14, 2, 8), pack_size_g: 300 };
+    const { db } = installFakeSupabase({
+      db: {
+        users: [profile()],
+        daily_targets: targets(),
+        food_logs: [],
+        pantry_items: [
+          { ...pantryRow("Tofu", 136, 14, 2, 8), pack_size_g: 300, quantity: 3 },
+          pantryRow("Pasta", 371, 13, 71, 1.5),
+        ],
+        planned_meals: [
+          {
+            id: "meal-1",
+            user_id: "user-1",
+            date: today(),
+            slot: "Dinner",
+            origin: "ai",
+            name: "",
+            items: [],
+            picks: [tofuWithPack, pastaPick()],
+            portions: [],
+            swaps: [],
+            why: null,
+            kcal: 0,
+            protein_g: 0,
+            carbs_g: 0,
+            fat_g: 0,
+            logged_food_id: null,
+          },
+        ],
+      },
+    });
+
+    await buildMyDay();
+
+    const portions = db.planned_meals[0].portions as { name: string; grams: number }[];
+    const tofu = portions.find((p) => p.name === "Tofu")!;
+    expect(tofu.grams).toBeLessThanOrEqual(300);
+  });
+
+  it("a dish portion lowered by hand never rebounds above the pack on rebalance", async () => {
+    // The exact user flow: build a picked meal, tap Edit and lower tofu, then
+    // rebalance. Rebalance re-solves from the picks — but must never push tofu
+    // back above its 300 g pack (previously it rebounded to the 350 g protein
+    // ceiling because the pack cap wasn't reaching the solve).
+    const { db } = installFakeSupabase({
+      db: {
+        users: [profile()],
+        daily_targets: targets(),
+        food_logs: [],
+        pantry_items: [tofuPackRow(), pantryRow("Pasta", 371, 13, 71, 1.5)],
+        planned_meals: [
+          {
+            id: "meal-1",
+            user_id: "user-1",
+            date: today(),
+            slot: "Dinner",
+            origin: "ai",
+            name: "Tofu with Pasta",
+            items: [],
+            picks: [pick("Tofu", 136, 14, 2, 8, "off"), pastaPick()],
+            portions: [],
+            swaps: [],
+            why: null,
+            kcal: 0,
+            protein_g: 0,
+            carbs_g: 0,
+            fat_g: 0,
+            logged_food_id: null,
+          },
+        ],
+      },
+    });
+
+    // Build, then the user edits the dish down to 300 g of tofu…
+    await buildMyDay();
+    await setMealPortions("meal-1", [
+      { name: "Tofu", grams: 300, kcal: 408, protein_g: 42, carbs_g: 6, fat_g: 24 },
+      { name: "Pasta", grams: 150, kcal: 557, protein_g: 20, carbs_g: 107, fat_g: 2 },
+    ]);
+    // …and rebalances again.
+    await buildMyDay();
+
+    const portions = db.planned_meals[0].portions as { name: string; grams: number }[];
+    const tofu = portions.find((p) => p.name === "Tofu")!;
+    expect(tofu.grams).not.toBe(350);
+    expect(tofu.grams).toBeLessThanOrEqual(300);
   });
 
   it("leaves a hand-built meal within its pack untouched on rebalance", async () => {
