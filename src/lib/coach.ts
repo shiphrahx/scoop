@@ -619,8 +619,73 @@ export function adherence(
 
 // The healthy band is no longer a constant — it depends on how lean the user
 // is (see healthyLossBand). What stays fixed is how hard the coach nudges.
+
+// --- Phases -----------------------------------------------------------------
+// A deficit is not the only state a plan can be in, and pretending otherwise is
+// how the old review became a one-way ratchet: cut, cut, cut, hit the floor,
+// hold there for ever. Nothing but a too-fast loss ever moved a target up, and
+// reaching the goal weight did nothing at all.
+
+export type Phase = "deficit" | "diet_break" | "maintenance";
+
+// Weeks of unbroken deficit after which the body deserves a planned break.
+// Long diets blunt their own progress: adaptive thermogenesis, falling NEAT,
+// rising hunger hormones. A week or two at maintenance recovers a good deal of
+// that and buys a better second half. Planned, it's a strategy; unplanned, it's
+// what people call falling off the wagon.
+const WEEKS_BEFORE_DIET_BREAK = 12;
+const DIET_BREAK_WEEKS = 2;
+
+// How close to the goal counts as arrived.
+const GOAL_REACHED_KG = 0.5;
+
+export interface PhaseInput {
+  weeksInDeficit: number; // consecutive weeks eating at a deficit
+  weeksInBreak: number; // consecutive weeks already on a break
+  currentWeightKg: number;
+  goalWeightKg?: number | null;
+}
+
+// Which phase the plan should be in this week.
+export function nextPhase(input: PhaseInput): Phase {
+  const { weeksInDeficit, weeksInBreak, currentWeightKg, goalWeightKg } = input;
+
+  // Arrived. Stop dieting — an app that keeps cutting past the goal is not
+  // coaching, and "what now" is the question most weight-loss plans never answer.
+  if (goalWeightKg != null && goalWeightKg > 0 && currentWeightKg <= goalWeightKg + GOAL_REACHED_KG) {
+    return "maintenance";
+  }
+
+  if (weeksInBreak > 0 && weeksInBreak < DIET_BREAK_WEEKS) return "diet_break";
+  if (weeksInBreak >= DIET_BREAK_WEEKS) return "deficit";
+  if (weeksInDeficit >= WEEKS_BEFORE_DIET_BREAK) return "diet_break";
+  return "deficit";
+}
+
+// The calorie target for a phase. Maintenance and a diet break both eat at
+// maintenance; the difference is intent and what happens next.
+export function kcalForPhase(phase: Phase, maintenanceKcal: number, deficitKcal: number) {
+  return phase === "deficit" ? maintenanceKcal - deficitKcal : maintenanceKcal;
+}
 const CUT_STEP = 0.07; // trim 7 % when stalled
 const ADD_STEP = 0.05; // add 5 % when dropping too fast
+
+// Fallback only: when the caller can't supply a real maintenance figure, assume
+// the current target sits about this far below it. Never used to step a target
+// UP repeatedly -- see maintenanceTargetKcal.
+const MAINTENANCE_UPLIFT = 0.2;
+
+// The calorie figure to hold at. Prefer the real maintenance estimate the
+// caller computed from the profile; only fall back to inflating the current
+// target when there isn't one.
+//
+// Back-deriving maintenance from the target in force cannot be repeated: raise
+// 2000 to 2500, and next week 2500 becomes 3125, then 3906. The estimate has to
+// come from outside the loop, or the loop feeds on itself.
+function maintenanceTargetKcal(currentKcal: number, maintenanceKcal?: number | null) {
+  if (maintenanceKcal != null && maintenanceKcal > 0) return Math.round(maintenanceKcal);
+  return Math.round(currentKcal / (1 - MAINTENANCE_UPLIFT));
+}
 
 // Give the body time before judging a target. One week of scale movement is
 // mostly water and noise — the body needs about two weeks on a set of macros to
@@ -791,6 +856,13 @@ export interface WeeklyReviewInput {
   // calorie floor. Both optional -- absent falls back to the old flat numbers.
   bodyFatPct?: number | null;
   restingRateKcal?: number | null;
+  // Which phase the plan is in this week (see nextPhase). Defaults to a
+  // deficit, which is what every caller meant before phases existed.
+  phase?: Phase;
+  // This user's maintenance calories, computed from their profile. Needed to
+  // hold at maintenance without back-deriving it from the target in force,
+  // which compounds every week.
+  maintenanceKcal?: number | null;
 }
 
 export interface WeeklyReview {
@@ -817,6 +889,8 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
     stepsDropped,
     bodyFatPct,
     restingRateKcal,
+    phase = "deficit",
+    maintenanceKcal,
   } = input;
 
   // Not enough history yet — hold and ask for another week. trendChange returns
@@ -871,6 +945,47 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
   const band = healthyLossBand(sex, bodyFatPct);
   const floor = kcalFloor(sex, restingRateKcal);
 
+  // Goal reached → stop dieting and say so. An app that keeps cutting past the
+  // finish line isn't coaching, and "what now" is the question most weight-loss
+  // plans never answer.
+  if (phase === "maintenance") {
+    const target = maintenanceTargetKcal(current.kcal, maintenanceKcal);
+    const atMaintenance = current.kcal >= target - 20;
+    return {
+      macros: atMaintenance
+        ? current
+        : macrosForKcal(target, nowKg, diet, heightCm, goalWeightKg),
+      changed: !atMaintenance,
+      changeKg,
+      changePct,
+      headline: "You're at your goal",
+      detail: atMaintenance
+        ? "You're eating at maintenance and holding. This is the part that lasts — keep weighing in and I'll tell you if the trend starts to drift."
+        : `You've reached the weight you were aiming for, so there's no reason to keep eating at a deficit. I've moved you up to about ${target} kcal to hold here. Keep logging and I'll catch any drift early.`,
+    };
+  }
+
+  // A long deficit blunts its own progress: the burn adapts down, everyday
+  // movement quietly falls, hunger climbs. A planned fortnight at maintenance
+  // recovers much of that and makes the next block work. Planned, it's a
+  // strategy; unplanned, it's what people call falling off the wagon.
+  if (phase === "diet_break") {
+    const target = maintenanceTargetKcal(current.kcal, maintenanceKcal);
+    const onBreak = current.kcal >= target - 20;
+    return {
+      macros: onBreak
+        ? current
+        : macrosForKcal(target, nowKg, diet, heightCm, goalWeightKg),
+      changed: !onBreak,
+      changeKg,
+      changePct,
+      headline: onBreak ? "Diet break — keep going" : "Time for a diet break",
+      detail: onBreak
+        ? "You're eating at maintenance for a couple of weeks. The scale won't move much and that's the point — this is what makes the next block work."
+        : `You've been in a deficit for a while now, and long deficits blunt themselves — your burn adapts down and you move less without noticing. I've put you at about ${target} kcal for a fortnight. It isn't lost progress; it's what makes the next block work.`,
+    };
+  }
+
   // Healthy rate → keep the target.
   if (changePct >= band.min && changePct <= band.max) {
     return {
@@ -913,6 +1028,23 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       ).toFixed(
         1,
       )} cm — that's fat loss the scale can't see. Holding your targets.`,
+    };
+  }
+
+  // The other direction, which used to have no rule at all: the scale is flat
+  // or falling but the waist is GROWING. That is composition moving the wrong
+  // way — muscle going, fat arriving — and cutting calories is exactly the
+  // wrong response, because a deeper deficit costs more muscle still.
+  if (waistDeltaCm != null && waistDeltaCm >= 0.5) {
+    return {
+      macros: current,
+      changed: false,
+      changeKg,
+      changePct,
+      headline: "Waist up — let's not cut",
+      detail: `Your waist is up ${waistDeltaCm.toFixed(
+        1,
+      )} cm even though the scale hasn't moved much. That usually means muscle going and fat arriving, and cutting calories would only speed that up. Hold these targets, get your protein in, and add some resistance work if you can.`,
     };
   }
 

@@ -6,6 +6,7 @@ import {
   average,
   averageActiveKcal,
   adherence as computeAdherence,
+  nextPhase,
   observeTdee,
   restingRate,
   stepsFalling,
@@ -14,6 +15,7 @@ import {
   weeklyReview,
   type Adherence,
   type DailyIntake,
+  type Phase,
   type ObservedTdee,
   type TrendChange,
   type WeeklyReview,
@@ -205,6 +207,8 @@ export interface CoachData {
   // How closely the user ate this week's target. The review will not cut on a
   // stall the user never actually tested.
   adherence: Adherence | null;
+  // Deficit, a planned diet break, or maintenance at the goal weight.
+  phase: Phase;
   // The formula's maintenance estimate with NO calibration applied. The
   // correction is the ratio of the measurement to this raw prediction — measure
   // it against an already-corrected number and the ratio sits at 1 for ever and
@@ -383,14 +387,17 @@ export async function getCoachData(): Promise<CoachData> {
   // run of same-kcal weekly targets up to this week.
   const thisWeekStart = localWeekStart(tz, now);
   let weeksOnTarget = 0;
+  let targetHistory: { week_start: string; kcal: number; phase: string | null }[] = [];
   if (current) {
     const { data: histData } = await supabase
       .from("daily_targets")
-      .select("week_start, kcal")
+      .select("week_start, kcal, phase")
       .lte("week_start", thisWeekStart)
       .order("week_start", { ascending: false })
-      .limit(12);
-    const hist = (histData as { week_start: string; kcal: number }[]) ?? [];
+      .limit(26);
+    const hist =
+      (histData as { week_start: string; kcal: number; phase: string | null }[]) ?? [];
+    targetHistory = hist;
     let runStart = thisWeekStart;
     for (const row of hist) {
       if (Math.round(Number(row.kcal)) === Math.round(current.kcal)) {
@@ -403,6 +410,23 @@ export async function getCoachData(): Promise<CoachData> {
       (Date.parse(thisWeekStart) - Date.parse(runStart)) / (7 * DAY_MS),
     );
   }
+
+  // How long the user has been in each state, counted back through the stored
+  // weekly targets. This is what tells the coach a diet break is due.
+  const countRun = (want: Phase) => {
+    let n = 0;
+    for (const row of targetHistory) {
+      if ((row.phase ?? "deficit") === want) n++;
+      else break;
+    }
+    return n;
+  };
+  const phase = nextPhase({
+    weeksInDeficit: countRun("deficit"),
+    weeksInBreak: countRun("diet_break"),
+    currentWeightKg: trend?.nowKg ?? latestKg ?? 0,
+    goalWeightKg: profile?.goal_weight_kg,
+  });
 
   const sex = profile?.sex ?? "female";
   const review = current
@@ -423,6 +447,11 @@ export async function getCoachData(): Promise<CoachData> {
         stepsDropped,
         bodyFatPct: profile?.body_fat_pct,
         restingRateKcal,
+        phase,
+        // The user's real maintenance, calibrated. Passed in so holding at
+        // maintenance never has to be back-derived from the target in force.
+        maintenanceKcal:
+          predictedTdee != null ? predictedTdee * calibration : null,
       })
     : {
         macros: { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
@@ -443,6 +472,7 @@ export async function getCoachData(): Promise<CoachData> {
     calibration,
     adherence,
     predictedTdee,
+    phase,
     activity: activityRows,
     fitbitConnected: Boolean((fitbitRes.data as { user_id: string } | null)?.user_id),
     appleIngestToken: (() => {

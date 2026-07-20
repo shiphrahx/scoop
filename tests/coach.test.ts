@@ -11,6 +11,7 @@ import {
   kcalFloor,
   deficitPerDay,
   macrosForKcal,
+  nextPhase,
   observeTdee,
   proteinBasisKg,
   tdeeFromEnergyBalance,
@@ -1006,6 +1007,139 @@ describe("weeklyReview step diagnosis", () => {
     });
     expect(r.changed).toBe(true);
     expect(r.macros.kcal).toBeLessThan(current.kcal);
+  });
+});
+
+describe("nextPhase", () => {
+  const base = { weeksInDeficit: 3, weeksInBreak: 0, currentWeightKg: 90 };
+
+  it("stays in a deficit while the diet is young", () => {
+    expect(nextPhase(base)).toBe("deficit");
+  });
+
+  it("calls a diet break after a long unbroken deficit", () => {
+    expect(nextPhase({ ...base, weeksInDeficit: 12 })).toBe("diet_break");
+  });
+
+  it("keeps the break going for a fortnight, then returns to the deficit", () => {
+    expect(nextPhase({ ...base, weeksInBreak: 1 })).toBe("diet_break");
+    expect(nextPhase({ ...base, weeksInBreak: 2 })).toBe("deficit");
+  });
+
+  it("switches to maintenance at the goal weight", () => {
+    // An app that keeps cutting past the finish line is not coaching.
+    expect(
+      nextPhase({ ...base, currentWeightKg: 75, goalWeightKg: 75 }),
+    ).toBe("maintenance");
+    expect(
+      nextPhase({ ...base, currentWeightKg: 74, goalWeightKg: 75 }),
+    ).toBe("maintenance");
+  });
+
+  it("keeps dieting while the goal is still ahead", () => {
+    expect(
+      nextPhase({ ...base, currentWeightKg: 90, goalWeightKg: 75 }),
+    ).toBe("deficit");
+  });
+
+  it("prefers maintenance over a due diet break once the goal is reached", () => {
+    expect(
+      nextPhase({
+        weeksInDeficit: 20,
+        weeksInBreak: 0,
+        currentWeightKg: 75,
+        goalWeightKg: 75,
+      }),
+    ).toBe("maintenance");
+  });
+});
+
+describe("weeklyReview phases", () => {
+  const current: Macros = { kcal: 2000, protein_g: 160, carbs_g: 180, fat_g: 56 };
+  const healthy = {
+    sex: "male" as const,
+    trend: { nowKg: 90, thenKg: 90.6, changeKg: 0.6, changePct: 0.6 / 90.6, spanDays: 7 },
+    waistDeltaCm: null,
+    current,
+    weeksOnTarget: 3,
+    consistent: true,
+  };
+
+  it("raises the target to maintenance at the goal weight", () => {
+    const r = weeklyReview({ ...healthy, phase: "maintenance" });
+    expect(r.changed).toBe(true);
+    expect(r.macros.kcal).toBeGreaterThan(current.kcal);
+    expect(r.headline).toMatch(/goal/i);
+  });
+
+  it("holds once already eating at maintenance", () => {
+    const r = weeklyReview({
+      ...healthy,
+      current: { ...current, kcal: 2500 },
+      maintenanceKcal: 2500,
+      phase: "maintenance",
+    });
+    expect(r.changed).toBe(false);
+    expect(r.detail).toMatch(/maintenance/i);
+  });
+
+  it("does not keep inflating the target once it is at maintenance", () => {
+    // Back-deriving maintenance from the target in force compounds: 2000 ->
+    // 2500 -> 3125 -> 3906, a week at a time. The maintenance figure has to
+    // come from outside the loop.
+    let macros: Macros = current;
+    for (let week = 0; week < 5; week++) {
+      macros = weeklyReview({
+        ...healthy,
+        current: macros,
+        maintenanceKcal: 2500,
+        phase: "maintenance",
+      }).macros;
+    }
+    expect(macros.kcal).toBe(2500);
+  });
+
+  it("puts a long-dieting user on a break instead of cutting again", () => {
+    // The old review was a one-way ratchet. Nothing but a too-fast loss ever
+    // moved a target up.
+    const r = weeklyReview({
+      ...healthy,
+      trend: { nowKg: 90, thenKg: 90, changeKg: 0, changePct: 0, spanDays: 7 },
+      waistDeltaCm: 0,
+      maintenanceKcal: 2500,
+      phase: "diet_break",
+    });
+    expect(r.changed).toBe(true);
+    expect(r.macros.kcal).toBe(2500);
+    expect(r.headline).toMatch(/diet break/i);
+  });
+});
+
+describe("weeklyReview waist going the wrong way", () => {
+  const current: Macros = { kcal: 2000, protein_g: 160, carbs_g: 180, fat_g: 56 };
+
+  it("refuses to cut when the waist is growing on a flat scale", () => {
+    // Composition moving the wrong way: muscle going, fat arriving. A deeper
+    // deficit costs more muscle still, so cutting is the wrong response. This
+    // case previously had no rule and fell straight through to a cut.
+    const r = weeklyReview({
+      sex: "male",
+      trend: { nowKg: 90, thenKg: 90, changeKg: 0, changePct: 0, spanDays: 7 },
+      waistDeltaCm: 1.5,
+      current,
+      weeksOnTarget: 3,
+      consistent: true,
+      adherence: {
+        loggedDays: 7,
+        adherentDays: 7,
+        meanIntakeKcal: 2000,
+        followed: true,
+      },
+    });
+    expect(r.changed).toBe(false);
+    expect(r.macros).toEqual(current);
+    expect(r.headline).toMatch(/waist up/i);
+    expect(r.detail).toMatch(/protein/i);
   });
 });
 

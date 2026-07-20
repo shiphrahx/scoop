@@ -17,12 +17,14 @@ const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 // which keeps the week-to-week chain unbroken.
 export async function applyReview() {
   const { supabase, user } = await requireUser();
-  const { review, observed, calibration, predictedTdee } = await getCoachData();
+  const { review, observed, calibration, predictedTdee, phase } = await getCoachData();
   if (review.macros.kcal <= 0) throw new Error("No target to apply yet.");
 
   const nextWeek = localWeekStart(await getTimezone(), new Date(Date.now() + 7 * DAY_MS));
+  // The phase rides along with the target: next week's review counts back
+  // through these rows to know how long the user has been in a deficit.
   const { error } = await supabase.from("daily_targets").upsert(
-    { user_id: user.id, week_start: nextWeek, ...review.macros },
+    { user_id: user.id, week_start: nextWeek, phase, ...review.macros },
     { onConflict: "user_id,week_start" },
   );
   if (error) throw new Error(error.message);
