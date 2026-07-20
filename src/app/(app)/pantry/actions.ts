@@ -5,7 +5,8 @@ import { requireUser } from "@/lib/auth";
 import { rateLimit } from "@/lib/ratelimit";
 import { parseGroceryImage, parseProductFromUrl } from "@/lib/ai";
 import { pantryCategory } from "@/lib/foodgroups";
-import type { GroceryItem, ParsedProduct } from "@/lib/types";
+import { searchFreshFoods } from "@/lib/queries";
+import type { FreshFood, GroceryItem, ParsedProduct, UnitOption } from "@/lib/types";
 
 export interface PantryInput {
   name: string;
@@ -22,6 +23,10 @@ export interface PantryInput {
   pack_size_g?: number | null;
   unit_g?: number | null;
   unit_label?: string | null;
+  // The sizes a fresh food comes in (small/medium/large…). Stored alongside the
+  // selected unit_g/unit_label so the user can switch size later. Omitted for a
+  // weighed or packaged item.
+  unit_options?: UnitOption[] | null;
   // The shelf to file it under. Omitted by every add path so it's assigned
   // automatically from name + macros (see `shelf`).
   category?: string | null;
@@ -53,11 +58,14 @@ function extraCols(it: PantryInput) {
 }
 
 // The countable-unit columns, defaulted to null (weighed in grams) — shared by
-// both pantry inserts so a scanned/imported item keeps OFF's serving.
+// both pantry inserts so a scanned/imported item keeps OFF's serving. A fresh
+// food carries its whole set of sizes too, so the user can switch size later.
 function unitCols(it: PantryInput) {
+  const options = (it.unit_options ?? []).filter((o) => o.label.trim() && o.grams > 0);
   return {
     unit_g: it.unit_g ?? null,
     unit_label: it.unit_label?.trim() || null,
+    unit_options: options.length ? options : null,
   };
 }
 
@@ -147,6 +155,7 @@ export interface PantryPatch {
   pack_size_g: number | null;
   unit_g: number | null;
   unit_label: string | null;
+  unit_options?: UnitOption[] | null;
   category: string | null;
 }
 
@@ -158,6 +167,9 @@ export async function updatePantryItem(id: string, patch: PantryPatch) {
   // A unit needs a positive grams-per-unit to convert a count to grams; without
   // it there's nothing to count, so the food falls back to being weighed.
   const unit_g = patch.unit_g && patch.unit_g > 0 ? patch.unit_g : null;
+  const options = (patch.unit_options ?? []).filter(
+    (o) => o.label.trim() && o.grams > 0,
+  );
 
   const { error } = await supabase
     .from("pantry_items")
@@ -170,12 +182,65 @@ export async function updatePantryItem(id: string, patch: PantryPatch) {
       pack_size_g: patch.pack_size_g,
       unit_g,
       unit_label: unit_g ? patch.unit_label?.trim() || null : null,
+      unit_options: options.length ? options : null,
       category: patch.category?.trim() || null,
     })
     .eq("id", id);
   if (error) throw new Error(error.message);
 
   revalidatePath("/pantry");
+}
+
+// Switch which size of a fresh food the user currently has (small→large), by
+// picking one of the item's own unit_options. Its own action so the pantry row
+// can change size in one tap. Ignored if the label isn't one the item carries.
+export async function setPantryUnit(id: string, label: string) {
+  const { supabase } = await requireUser();
+
+  const { data } = await supabase
+    .from("pantry_items")
+    .select("unit_options")
+    .eq("id", id)
+    .maybeSingle();
+  const options = ((data as { unit_options: UnitOption[] | null } | null)?.unit_options) ?? [];
+  const pick = options.find((o) => o.label.trim().toLowerCase() === label.trim().toLowerCase());
+  if (!pick) return;
+
+  const { error } = await supabase
+    .from("pantry_items")
+    .update({ unit_g: pick.grams, unit_label: label.trim() })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/pantry");
+}
+
+// Find fresh whole foods matching what the user is typing (server-action wrapper
+// so the add form can search the shared reference without hitting a route).
+export async function findFreshFoods(query: string): Promise<FreshFood[]> {
+  await requireUser();
+  return searchFreshFoods(query);
+}
+
+// Contribute a size to a fresh food in the shared reference (the user knows the
+// weight of a size we don't have). created_by = them, so RLS lets them add it
+// and own it. A duplicate label for the food is swallowed — someone got there
+// first, which is fine.
+export async function addFreshFoodSize(foodId: string, label: string, grams: number) {
+  const { supabase, user } = await requireUser();
+  const clean = label.trim();
+  if (!clean || !(grams > 0)) return;
+
+  const { error } = await supabase.from("fresh_food_sizes").insert({
+    food_id: foodId,
+    label: clean,
+    grams,
+    created_by: user.id,
+  });
+  // 23505 = unique_violation: the size already exists, nothing to do.
+  if (error && !/duplicate|unique/i.test(error.message)) {
+    throw new Error(error.message);
+  }
 }
 
 // Move one item to another shelf. Its own action (not the full edit) so the

@@ -12,6 +12,8 @@ import {
 import type {
   Activity,
   DailyTargets,
+  FreshFood,
+  FreshFoodSize,
   Macros,
   PlannedMeal,
   Profile,
@@ -346,6 +348,66 @@ export async function getActivityHistory(days = 14): Promise<Activity[]> {
     .gte("date", cut)
     .order("date", { ascending: true });
   return (data as Activity[]) ?? [];
+}
+
+// Fresh whole foods from the shared reference whose name matches what the user
+// is typing, each with its sizes attached, best-effort ranked with exact/prefix
+// matches first. Empty for a query shorter than two characters (too broad).
+// Read in two steps — foods, then their sizes — so it works without a nested
+// join (and against the test fake). Numeric columns arrive as strings from
+// PostgREST, so every macro and gram is coerced to a number here.
+export async function searchFreshFoods(query: string): Promise<FreshFood[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+
+  const supabase = await createClient();
+  const { data: foodData } = await supabase
+    .from("fresh_foods")
+    .select(
+      "id, name, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, satfat_100g, sodium_mg_100g",
+    )
+    .ilike("name", `%${q}%`)
+    .order("name", { ascending: true })
+    .limit(8);
+
+  const foods = (foodData as (Omit<FreshFood, "sizes"> & Record<string, unknown>)[]) ?? [];
+  if (foods.length === 0) return [];
+
+  const { data: sizeData } = await supabase
+    .from("fresh_food_sizes")
+    .select("id, food_id, label, grams")
+    .in(
+      "food_id",
+      foods.map((f) => f.id),
+    );
+  const sizes = (sizeData as FreshFoodSize[]) ?? [];
+
+  const ql = q.toLowerCase();
+  const rank = (name: string) => {
+    const n = name.toLowerCase();
+    if (n === ql) return 0;
+    if (n.startsWith(ql)) return 1;
+    return 2;
+  };
+
+  return foods
+    .map((f) => ({
+      id: f.id,
+      name: f.name,
+      kcal_100g: Number(f.kcal_100g),
+      protein_100g: Number(f.protein_100g),
+      carbs_100g: Number(f.carbs_100g),
+      fat_100g: Number(f.fat_100g),
+      fiber_100g: Number(f.fiber_100g),
+      sugar_100g: Number(f.sugar_100g),
+      satfat_100g: Number(f.satfat_100g),
+      sodium_mg_100g: Number(f.sodium_mg_100g),
+      sizes: sizes
+        .filter((s) => s.food_id === f.id)
+        .map((s) => ({ label: s.label, grams: Number(s.grams) }))
+        .sort((a, b) => a.grams - b.grams),
+    }))
+    .sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name));
 }
 
 export async function getLatestWeight(): Promise<number | null> {
