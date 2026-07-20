@@ -19,11 +19,10 @@ const ACTIVITY_MULTIPLIER: Record<ActivityLevel, number> = {
   very_active: 1.9,
 };
 
-// BMR → non-exercise daily burn (resting + living, no workouts). When we have
-// measured exercise from a device we add the real burn on top of this baseline
-// instead of guessing the whole activity factor. 1.2 is the standard sedentary
-// multiplier — i.e. everything except deliberate exercise.
-const NEAT_MULTIPLIER = 1.2;
+// Thermic effect of food: digesting a mixed diet costs about 10% of what's
+// eaten. The activity multipliers below already bake this in, but a TDEE built
+// from measured components has to add it back explicitly.
+const TEF_FRACTION = 0.1;
 
 // How fast each pace aims to lose, in kg/week. The calorie deficit is derived
 // from this rate (not a flat % of TDEE) so the number the user picks in
@@ -82,9 +81,11 @@ export interface CoachInput {
   age: number;
   activity: ActivityLevel;
   pace: GoalPace;
-  // Measured average daily exercise burn (kcal) from Fitbit/Apple. When
-  // present it replaces the self-reported activity multiplier with real data.
-  workoutKcalPerDay?: number | null;
+  // Measured average daily ACTIVE energy (kcal) from Fitbit/Apple — everything
+  // burned above resting, which is all movement, not just workouts. Fitbit's
+  // activityCalories and Apple's active_energy both mean this. When present it
+  // replaces the self-reported activity multiplier with real data.
+  activeKcalPerDay?: number | null;
   // Body-fat fraction as a percentage (e.g. 22 for 22%). Optional — when known
   // the resting rate switches to Katch–McArdle (driven by lean mass), which is
   // more accurate than Mifflin for both lean and very-heavy bodies.
@@ -117,15 +118,28 @@ export function restingRate(input: Pick<CoachInput, "sex" | "weightKg" | "height
   return bmr(input.sex, input.weightKg, input.heightCm, input.age);
 }
 
-// Total daily energy expenditure. With a measured exercise burn we build it
-// from the non-exercise baseline plus that real burn; otherwise we fall back to
-// the self-reported activity factor.
+// Build a TDEE out of measured parts: resting rate + active energy + the
+// thermic effect of food. At maintenance intake equals TDEE, so
+//   TDEE = rmr + active + 0.10 × TDEE  →  TDEE = (rmr + active) / 0.9.
+export function tdeeFromComponents(rmrKcal: number, activeKcal: number) {
+  return (rmrKcal + activeKcal) / (1 - TEF_FRACTION);
+}
+
+// Total daily energy expenditure. With measured active energy from a device we
+// build it from real components; otherwise we fall back to the self-reported
+// activity factor.
+//
+// The device figure covers ALL movement — walking to the shops as much as the
+// gym — so it must sit on top of the bare resting rate. Putting it on top of a
+// 1.2 "sedentary" baseline (as this used to) counts everyday activity twice and
+// inflates the target by roughly 0.2 × RMR, some 250–400 kcal/day: enough to
+// swallow most of the deficit the user asked for.
 export function tdee(input: Omit<CoachInput, "pace">) {
-  const base = restingRate(input);
-  if (input.workoutKcalPerDay != null && input.workoutKcalPerDay > 0) {
-    return base * NEAT_MULTIPLIER + input.workoutKcalPerDay;
+  const rmr = restingRate(input);
+  if (input.activeKcalPerDay != null && input.activeKcalPerDay > 0) {
+    return tdeeFromComponents(rmr, input.activeKcalPerDay);
   }
-  return base * ACTIVITY_MULTIPLIER[input.activity];
+  return rmr * ACTIVITY_MULTIPLIER[input.activity];
 }
 
 export function ageFromBirthYear(birthYear: number, now = new Date()) {

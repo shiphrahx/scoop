@@ -103,7 +103,7 @@ const anyUser: fc.Arbitrary<CoachInput> = fc.record({
   pace: fc.constantFrom(...PACES),
   bodyFatPct: fc.option(fc.integer({ min: 5, max: 60 }), { nil: null }),
   goalWeightKg: fc.option(weight, { nil: null }),
-  workoutKcalPerDay: fc.option(fc.integer({ min: 0, max: 1500 }), { nil: null }),
+  activeKcalPerDay: fc.option(fc.integer({ min: 0, max: 1500 }), { nil: null }),
 });
 
 describe("dailyTarget invariants", () => {

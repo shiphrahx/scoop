@@ -83,7 +83,7 @@ export async function saveGoals(input: GoalsInput) {
     .map((r) => r.workout_kcal)
     .filter((k): k is number => k != null)
     .map(Number);
-  const workoutKcalPerDay = average(burns);
+  const activeKcalPerDay = average(burns);
 
   if (p?.height_cm && p.sex && p.birth_year && weightKg) {
     const target = dailyTarget({
@@ -94,7 +94,7 @@ export async function saveGoals(input: GoalsInput) {
       age: ageFromBirthYear(p.birth_year),
       activity: input.activity_level,
       pace: input.goal_pace,
-      workoutKcalPerDay,
+      activeKcalPerDay,
     });
     await supabase
       .from("daily_targets")

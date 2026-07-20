@@ -10,6 +10,7 @@ import {
   proteinBasisKg,
   restingRate,
   tdee,
+  tdeeFromComponents,
   weeklyReview,
   type CoachInput,
   type Macros,
@@ -73,8 +74,11 @@ describe("tdee", () => {
       .toBeLessThan(tdee({ ...common, activity: "very_active" }));
   });
 
-  it("uses measured burn on the non-exercise baseline when provided", () => {
-    const base = bmr("male", 80, 180, 30);
+  it("puts measured active energy on the bare resting rate, plus TEF", () => {
+    // Device "active energy" is everything burned above resting — all movement,
+    // not just workouts. It must sit on RMR, not on an already-inflated 1.2
+    // sedentary baseline, or everyday activity gets counted twice.
+    const base = bmr("male", 80, 180, 30); // 1780
     expect(
       tdee({
         sex: "male",
@@ -83,9 +87,26 @@ describe("tdee", () => {
         heightCm: 180,
         age: 30,
         activity: "very_active",
-        workoutKcalPerDay: 500,
+        activeKcalPerDay: 500,
       }),
-    ).toBeCloseTo(base * 1.2 + 500, 5);
+    ).toBeCloseTo((base + 500) / 0.9, 5); // 2533.3, not 1780*1.2+500 = 2636
+  });
+
+  it("does not double-count everyday movement", () => {
+    // The old maths added the device burn on top of a 1.2 multiplier. That
+    // overstated the day by ~0.2 × RMR — enough to eat most of a 0.5 kg/week
+    // deficit. Guard the gap explicitly.
+    const base = bmr("male", 80, 180, 30);
+    const withDevice = tdee({
+      sex: "male",
+      diet: "regular",
+      weightKg: 80,
+      heightCm: 180,
+      age: 30,
+      activity: "moderate",
+      activeKcalPerDay: 500,
+    });
+    expect(withDevice).toBeLessThan(base * 1.2 + 500);
   });
 
   it("ignores a zero or missing burn and falls back to the activity factor", () => {
@@ -98,9 +119,16 @@ describe("tdee", () => {
       activity: "moderate",
     } as const;
     const fallback = bmr("male", 80, 180, 30) * 1.55;
-    expect(tdee({ ...common, workoutKcalPerDay: 0 })).toBeCloseTo(fallback, 5);
-    expect(tdee({ ...common, workoutKcalPerDay: null })).toBeCloseTo(fallback, 5);
+    expect(tdee({ ...common, activeKcalPerDay: 0 })).toBeCloseTo(fallback, 5);
+    expect(tdee({ ...common, activeKcalPerDay: null })).toBeCloseTo(fallback, 5);
     expect(tdee(common)).toBeCloseTo(fallback, 5);
+  });
+});
+
+describe("tdeeFromComponents", () => {
+  it("adds the thermic effect of food to resting + active", () => {
+    // At maintenance intake == TDEE, so TDEE = (rmr + active) / (1 − 0.10).
+    expect(tdeeFromComponents(1600, 500)).toBeCloseTo(2100 / 0.9, 5);
   });
 });
 
