@@ -10,7 +10,7 @@
 //    protein, each solved as a small linear system against the remaining
 //    macros.
 
-import { macroRole } from "@/lib/foodgroups";
+import { macroRole, isVegetable } from "@/lib/foodgroups";
 import type {
   Macros,
   MealPortion,
@@ -335,6 +335,20 @@ const SMALL_PORTION = 10;
 
 const MACRO_KEYS: MacroKey[] = ["protein_g", "carbs_g", "fat_g"];
 
+// A standard vegetable portion. Vegetables are meal FILLERS, not a macro source:
+// each picked veg gets this fixed serving per meal (capped by stock) instead of
+// being grown by the solve to hit a carb/protein target. This is what keeps veg
+// split evenly across the meals the user picked them in, and stops the solver
+// piling 400 g of onion onto one plate to cover a meal that has no real carb.
+const VEG_SERVING_G = 80;
+
+// A picked food the planner treats as a filler rather than a macro source: a
+// vegetable that isn't itself a serious protein source (edamame, peas dense
+// enough to anchor a meal stay sources). Fillers get a fixed serving; sources
+// are portioned by the solve.
+const isFiller = (food: PantryFood) =>
+  isVegetable(food.name) && macroRole(food) !== "protein";
+
 // The relative size of each picked slot, normalised to fractions summing to 1.
 function slotFractions(
   slots: string[],
@@ -487,28 +501,65 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
     return Math.min(roleCap, stock);
   });
 
-  // Stage 1: portion every food continuously so the day lands on its budget.
-  const grams = solvePicks(vars, caps, slots, fractions, input.budget);
+  // Vegetables are fillers, not a macro source: give each picked veg a fixed
+  // standard serving in its meal (capped by its stock share) and hold it OUTSIDE
+  // the solve. This is what keeps veg split evenly across the meals the user
+  // picked them in, and stops the solver growing 400 g of onion to cover a carb
+  // target the real carb sources should fill. Everything else is a "source",
+  // portioned by the solve to land the day on its budget.
+  const grams = new Array<number>(vars.length).fill(0);
+  const fillerIdx = vars.map((v, i) => (isFiller(v.food) ? i : -1)).filter((i) => i >= 0);
+  const sourceIdx = vars.map((v, i) => (isFiller(v.food) ? -1 : i)).filter((i) => i >= 0);
+  for (const i of fillerIdx) {
+    grams[i] = portionGrams(VEG_SERVING_G, vars[i].food, caps[i]);
+  }
 
-  // Stage 2: countable foods can only be served whole, and snapping to the
+  // What the fixed fillers already put on the day, and on each meal's share, so
+  // the sources aim at what's LEFT. Same shape as the countable-pin below; the
+  // two combine when both are present.
+  const fillerDay = (key: MacroKey) =>
+    fillerIdx.reduce((s, i) => s + perGram(vars[i].food, key) * grams[i], 0);
+  const fillerMeal = (slotIdx: number, key: MacroKey) =>
+    fillerIdx.reduce(
+      (s, i) => (vars[i].slotIdx === slotIdx ? s + perGram(vars[i].food, key) * grams[i] : s),
+      0,
+    );
+
+  const sourceVars = sourceIdx.map((i) => vars[i]);
+  const sourceCaps = sourceIdx.map((i) => caps[i]);
+
+  // Stage 1: portion every SOURCE food continuously so the day lands on its
+  // budget (net of the fillers). With no sources at all (a meal of only veg) the
+  // fillers already stand on their own.
+  if (sourceVars.length > 0) {
+    const sol = solvePicks(
+      sourceVars,
+      sourceCaps,
+      slots,
+      fractions,
+      input.budget,
+      fillerDay,
+      fillerMeal,
+    );
+    sourceIdx.forEach((i, k) => {
+      grams[i] = sol[k];
+    });
+  }
+
+  // Stage 2: countable SOURCES can only be served whole, and snapping to the
   // nearest unit shifts a meal's macros up or down. Pin the snapped countables
-  // and re-solve the LOOSE (weighable) foods against what's LEFT, so the extra
-  // (or missing) macros are spread back across the OTHER meals — never a plate
-  // of two chicken packs while another meal goes without its protein. Only worth
-  // it when both kinds are present; with no countable food stage 1 has balanced
-  // everything already.
-  const countableIdx = vars
-    .map((v, i) => (v.food.unit_g && v.food.unit_g > 0 ? i : -1))
-    .filter((i) => i >= 0);
-  const looseIdx = vars
-    .map((v, i) => (v.food.unit_g && v.food.unit_g > 0 ? -1 : i))
-    .filter((i) => i >= 0);
+  // (on top of the fillers) and re-solve the LOOSE (weighable) sources against
+  // what's LEFT, so the extra (or missing) macros are spread back across the
+  // OTHER meals — never a plate of two chicken packs while another meal goes
+  // without its protein. Only worth it when both kinds of source are present.
+  const countableIdx = sourceIdx.filter((i) => vars[i].food.unit_g && vars[i].food.unit_g > 0);
+  const looseIdx = sourceIdx.filter((i) => !(vars[i].food.unit_g && vars[i].food.unit_g > 0));
   if (countableIdx.length > 0 && looseIdx.length > 0) {
     const snapped = new Map<number, number>();
     for (const i of countableIdx) {
       snapped.set(i, portionGrams(grams[i], vars[i].food, caps[i]));
     }
-    const pinnedContribution = (key: MacroKey, inSlot?: number) =>
+    const snappedContribution = (key: MacroKey, inSlot?: number) =>
       countableIdx.reduce(
         (s, i) =>
           inSlot === undefined || vars[i].slotIdx === inSlot
@@ -522,8 +573,9 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
       slots,
       fractions,
       input.budget,
-      (key) => pinnedContribution(key),
-      (slotIdx, key) => pinnedContribution(key, slotIdx),
+      // Pinned = fillers + snapped countables.
+      (key) => fillerDay(key) + snappedContribution(key),
+      (slotIdx, key) => fillerMeal(slotIdx, key) + snappedContribution(key, slotIdx),
     );
     looseIdx.forEach((i, k) => {
       grams[i] = looseGrams[k];
