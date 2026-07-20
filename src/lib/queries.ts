@@ -374,7 +374,7 @@ export async function searchFreshFoods(query: string): Promise<FreshFood[]> {
   const { data: foodData } = await supabase
     .from("fresh_foods")
     .select(
-      "id, name, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, satfat_100g, sodium_mg_100g",
+      "id, name, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, satfat_100g, sodium_mg_100g, cooked",
     )
     .ilike("name", `%${q}%`)
     .order("name", { ascending: true })
@@ -412,6 +412,7 @@ export async function searchFreshFoods(query: string): Promise<FreshFood[]> {
       sugar_100g: Number(f.sugar_100g),
       satfat_100g: Number(f.satfat_100g),
       sodium_mg_100g: Number(f.sodium_mg_100g),
+      cooked: Boolean(f.cooked),
       sizes: sizes
         .filter((s) => s.food_id === f.id)
         .map((s) => ({ label: s.label, grams: Number(s.grams) }))

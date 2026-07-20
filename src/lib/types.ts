@@ -119,6 +119,9 @@ export interface FreshFood extends ExtraPer100g {
   protein_100g: number;
   carbs_100g: number;
   fat_100g: number;
+  // True when the macros are for the food cooked (rice, pasta, oats): every macro
+  // in Scoop is as-eaten, so a dry staple's reference row holds cooked values.
+  cooked: boolean;
   sizes: UnitOption[];
 }
 

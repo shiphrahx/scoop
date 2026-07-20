@@ -288,6 +288,95 @@ export function average(values: number[]): number | null {
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
+// --- Trend weight -----------------------------------------------------------
+
+const DAY_MS = 86_400_000;
+
+// Smoothing factor for the trend. 0.1 is the long-standing Hacker's-Diet
+// value: each weigh-in moves the trend by a tenth of its surprise, so a single
+// salty Sunday shifts it by grams rather than kilos.
+const TREND_ALPHA = 0.1;
+
+// How much weigh-in history the trend reads, and the span the weekly rate of
+// change is measured over.
+export const TREND_WINDOW_DAYS = 28;
+export const TREND_SPAN_DAYS = 7;
+
+export interface WeighIn {
+  date: string; // YYYY-MM-DD, the user's local day
+  kg: number;
+}
+
+const dayKey = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+const dayMs = (date: string) => Date.parse(`${date}T00:00:00Z`);
+
+// Exponentially weighted trend weight, one value per calendar day from the
+// first weigh-in to the last.
+//
+// A 7-day mean against the previous 7-day mean is the noisiest estimator that
+// still works. It discards everything older than a fortnight, weighs a Monday
+// the same as a Sunday, and lets one heavy-carb evening decide whether the
+// coach cuts. An EWMA filters the whole history instead — and because it is a
+// filter rather than a window, its SLOPE still tracks the true rate of loss
+// even though its level lags the scale by a week or so. Slope is what the
+// review acts on, so the lag costs nothing.
+//
+// Days with no weigh-in carry the trend forward untouched: not standing on the
+// scale is not evidence about weight.
+export function trendSeries(
+  points: WeighIn[],
+  alpha = TREND_ALPHA,
+): { date: string; kg: number }[] {
+  const byDay = new Map<string, number[]>();
+  for (const p of points) {
+    if (!Number.isFinite(p.kg) || p.kg <= 0) continue;
+    const list = byDay.get(p.date);
+    if (list) list.push(p.kg);
+    else byDay.set(p.date, [p.kg]);
+  }
+
+  const days = [...byDay.keys()].sort();
+  if (days.length === 0) return [];
+
+  const dayMean = (d: string) => average(byDay.get(d) ?? []) ?? 0;
+
+  const out: { date: string; kg: number }[] = [];
+  let trend = dayMean(days[0]);
+  const lastMs = dayMs(days[days.length - 1]);
+  for (let t = dayMs(days[0]); t <= lastMs; t += DAY_MS) {
+    const date = dayKey(t);
+    if (byDay.has(date)) trend += alpha * (dayMean(date) - trend);
+    out.push({ date, kg: trend });
+  }
+  return out;
+}
+
+export interface TrendChange {
+  nowKg: number; // trend weight today
+  thenKg: number; // trend weight one span ago
+  changeKg: number; // positive = lost
+  changePct: number; // fraction of bodyweight over the span
+  spanDays: number;
+}
+
+// Rate of change of the trend over the last `spanDays`. Null when the history
+// is too short to span it — better to say nothing than to compare a trend
+// against its own seed value, which always reads as zero change.
+export function trendChange(
+  points: WeighIn[],
+  spanDays = TREND_SPAN_DAYS,
+): TrendChange | null {
+  const series = trendSeries(points);
+  if (series.length < spanDays + 1) return null;
+
+  const nowKg = series[series.length - 1].kg;
+  const thenKg = series[series.length - 1 - spanDays].kg;
+  if (thenKg <= 0) return null;
+
+  const changeKg = thenKg - nowKg;
+  return { nowKg, thenKg, changeKg, changePct: changeKg / thenKg, spanDays };
+}
+
 export interface WeeklyReviewInput {
   sex: Sex;
   diet?: DietType; // defaults to "regular"; keeps a keto split on recompute

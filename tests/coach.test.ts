@@ -12,6 +12,8 @@ import {
   restingRate,
   tdee,
   tdeeFromComponents,
+  trendChange,
+  trendSeries,
   weeklyReview,
   type CoachInput,
   type Macros,
@@ -350,6 +352,76 @@ describe("average", () => {
 
   it("handles a single value", () => {
     expect(average([73.5])).toBe(73.5);
+  });
+});
+
+describe("trendSeries / trendChange", () => {
+  // Build a run of consecutive daily weigh-ins starting 2026-01-01.
+  const run = (kgs: (number | null)[]) =>
+    kgs.flatMap((kg, i) =>
+      kg == null
+        ? []
+        : [{ date: new Date(Date.UTC(2026, 0, 1 + i)).toISOString().slice(0, 10), kg }],
+    );
+
+  it("returns nothing for an empty history", () => {
+    expect(trendSeries([])).toEqual([]);
+    expect(trendChange([])).toBeNull();
+  });
+
+  it("seeds on the first weigh-in and holds a flat weight flat", () => {
+    const s = trendSeries(run(Array(10).fill(80)));
+    expect(s).toHaveLength(10);
+    expect(s[0].kg).toBe(80);
+    expect(s[9].kg).toBeCloseTo(80, 6);
+  });
+
+  it("moves only a fraction of the way towards a one-day spike", () => {
+    // 80 kg for a week then a 2 kg water day. A 7-day mean would swallow ~0.3 kg
+    // of that; the trend takes a tenth of the surprise, ~0.2 kg.
+    const s = trendSeries(run([80, 80, 80, 80, 80, 80, 82]));
+    expect(s[6].kg).toBeCloseTo(80.2, 6);
+    expect(s[6].kg).toBeLessThan(80.5);
+  });
+
+  it("carries the trend across days with no weigh-in", () => {
+    const s = trendSeries(run([80, null, null, 80]));
+    expect(s).toHaveLength(4);
+    expect(s[1].kg).toBe(s[0].kg);
+    expect(s[2].kg).toBe(s[0].kg);
+  });
+
+  it("recovers the true weekly rate from a steady linear loss", () => {
+    // 0.1 kg/day for 60 days = 0.7 kg/week. The trend's LEVEL lags the scale by
+    // about nine days, but its slope is unbiased — and slope is what the review
+    // acts on.
+    const kgs = Array.from({ length: 60 }, (_, i) => 100 - i * 0.1);
+    const c = trendChange(run(kgs));
+    expect(c).not.toBeNull();
+    expect(c!.changeKg).toBeCloseTo(0.7, 1);
+    expect(c!.changePct).toBeCloseTo(0.7 / c!.thenKg, 3);
+    expect(c!.spanDays).toBe(7);
+  });
+
+  it("is steadier than week-mean vs week-mean on noisy data", () => {
+    // A flat 80 kg carrying alternating +/-1 kg of water noise. True change is
+    // zero; both estimators report some artefact, but the naive one reports a
+    // much bigger one because a 7-day window catches four of one day and three
+    // of the other, and that split flips every week.
+    const noisy = Array.from({ length: 40 }, (_, i) => 80 + (i % 2 === 0 ? 1 : -1));
+
+    const naive =
+      average(noisy.slice(-14, -7))! - average(noisy.slice(-7))!;
+    const trend = trendChange(run(noisy))!.changeKg;
+
+    expect(Math.abs(trend)).toBeLessThan(Math.abs(naive) / 2);
+    expect(Math.abs(trend)).toBeLessThan(0.15);
+  });
+
+  it("refuses to report a rate it cannot span", () => {
+    // Three days of history cannot describe a seven-day change. Comparing the
+    // trend against its own seed would report a flat week and trigger a cut.
+    expect(trendChange(run([80, 79.8, 79.6]))).toBeNull();
   });
 });
 
