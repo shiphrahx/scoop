@@ -96,6 +96,31 @@ describe("meal builder — fresh food sizes", () => {
     );
   });
 
+  it("reads a cooked staple as a plain count, no '(cooked)s'", async () => {
+    const pasta: FoodChoice = {
+      ...banana,
+      name: "Pasta (cooked)",
+      unit_g: 240,
+      unit_label: "medium pasta (cooked)",
+      unit_options: [
+        { label: "small", grams: 180 },
+        { label: "medium", grams: 240 },
+        { label: "large", grams: 300 },
+      ],
+    };
+    searchFoods.mockResolvedValue([pasta]);
+    const user = userEvent.setup();
+    render(<DayPlan slots={[{ slot: "Lunch", meal: null }]} target={null} prefs={[]} date="2026-07-20" />);
+
+    await user.type(screen.getByPlaceholderText(/add a food/i), "pasta");
+    await user.click(await screen.findByRole("button", { name: /pasta/i }));
+    await user.click(await screen.findByRole("button", { name: /one more/i }));
+
+    // 2 servings, and the label is NOT pluralised into "(cooked)s".
+    expect(await screen.findByText(/2 medium pasta \(cooked\)/)).toBeTruthy();
+    expect(screen.queryByText(/\(cooked\)s/)).toBeNull();
+  });
+
   it("keeps the count when the size changes (2 medium → 2 large)", async () => {
     const user = userEvent.setup();
     render(<DayPlan slots={[{ slot: "Snack", meal: null }]} target={null} prefs={[]} date="2026-07-20" />);

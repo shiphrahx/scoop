@@ -65,8 +65,7 @@ function portionAmount(p: MealPortion): string {
   if (!p.unit_g || p.unit_g <= 0) return `${grams} g`;
   if (p.unit_label === "ml") return `${grams} ml`;
   const units = Math.round(grams / p.unit_g);
-  const label = p.unit_label ?? "unit";
-  return `${units} ${units === 1 ? label : `${label}s`} · ${grams} g`;
+  return `${units} ${pluralUnit(p.unit_label ?? "unit", units)} · ${grams} g`;
 }
 
 // A countable food is one split into portions ("bagel", "portion"): it has a
@@ -80,10 +79,16 @@ function itemUnits(it: PlanItem): number {
   return it.unit_g && it.unit_g > 0 ? Math.round(it.grams / it.unit_g) : 0;
 }
 
+// Pluralise a unit label for a count, but leave a label ending in a parenthetical
+// alone ("pasta (cooked)" → "2 pasta (cooked)", not "…(cooked)s").
+function pluralUnit(label: string, count: number): string {
+  if (count === 1 || label.trim().endsWith(")")) return label;
+  return `${label}s`;
+}
+
 // The portion word, singular or plural for a count ("bagel" / "bagels").
 function unitWord(it: PlanItem, count: number): string {
-  const label = it.unit_label ?? "portion";
-  return count === 1 ? label : `${label}s`;
+  return pluralUnit(it.unit_label ?? "portion", count);
 }
 
 // One AI portion's macros, when the plan stored them (older plans didn't).
@@ -1059,9 +1064,7 @@ function AiMealEditor({
                   </button>
                   <span className="min-w-[5rem] text-center text-sm font-semibold tabular-nums">
                     {Math.round(p.grams / p.unit_g)}{" "}
-                    {Math.round(p.grams / p.unit_g) === 1
-                      ? (p.unit_label ?? "portion")
-                      : `${p.unit_label ?? "portion"}s`}
+                    {pluralUnit(p.unit_label ?? "portion", Math.round(p.grams / p.unit_g))}
                   </span>
                   <button
                     onClick={() => setUnits(i, p.unit_g!, Math.round(p.grams / p.unit_g!) + 1)}
