@@ -9,8 +9,14 @@ import {
   deletePantryItem,
   setPantryCategory,
   setPantryQuantity,
+  setPantryUnit,
   updatePantryItem,
 } from "./actions";
+
+// The sizes a fresh food carries, if any. Empty for a weighed or packaged item.
+function sizesOf(item: PantryItem) {
+  return item.unit_options ?? [];
+}
 
 // "6 bagels per pack (71 g each)" for a countable item — how the pantry row
 // shows a pack that's split into portions. Only called when both are known.
@@ -157,14 +163,19 @@ function PantryRow({
           ) : (
             <>
               {Math.round(item.kcal_100g)} kcal / 100g
-              {item.unit_g && item.pack_size_g
-                ? ` · ${packLabel(item)}`
-                : item.pack_size_g
-                  ? ` · ${item.pack_size_g} g pack`
-                  : ""}
+              {sizesOf(item).length > 0 && item.unit_g
+                ? ` · ${item.unit_label ?? "unit"} (${Math.round(item.unit_g)} g)`
+                : item.unit_g && item.pack_size_g
+                  ? ` · ${packLabel(item)}`
+                  : item.pack_size_g
+                    ? ` · ${item.pack_size_g} g pack`
+                    : ""}
             </>
           )}
         </p>
+        {sizesOf(item).length > 0 && (
+          <SizeSelect item={item} disabled={pending} />
+        )}
         <ShelfChip item={item} categories={categories} disabled={pending} />
       </div>
 
@@ -251,6 +262,38 @@ function ShelfChip({
   );
 }
 
+// A pill on a fresh-food row to switch which size the user has (small→large).
+// Changing it re-files unit_g/unit_label on the item so the count reads right
+// wherever the food is planned or logged.
+function SizeSelect({ item, disabled }: { item: PantryItem; disabled: boolean }) {
+  const [pending, startTransition] = useTransition();
+  const sizes = sizesOf(item);
+  // Match the stored label ("medium banana") back to a size label ("medium").
+  const current =
+    sizes.find((s) => item.unit_g != null && Math.round(s.grams) === Math.round(item.unit_g))
+      ?.label ?? sizes[0]?.label ?? "";
+
+  return (
+    <select
+      value={current}
+      disabled={disabled || pending}
+      aria-label={`Size for ${item.name}`}
+      onChange={(e) => {
+        const next = e.target.value;
+        if (next === current) return;
+        startTransition(() => setPantryUnit(item.id, next));
+      }}
+      className="w-fit max-w-full self-start rounded-full bg-[var(--fill)] px-3 py-1 text-xs font-medium capitalize text-[var(--muted)] active:scale-95 disabled:opacity-50"
+    >
+      {sizes.map((s) => (
+        <option key={s.label} value={s.label}>
+          {s.label} · {Math.round(s.grams)} g
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function EditRow({
   item,
   categories,
@@ -275,6 +318,9 @@ function EditRow({
       : "",
   );
   const [saving, setSaving] = useState(false);
+  // A fresh food carries its sizes; those (and the size the user picked) are
+  // edited on the row, not here, so this form leaves them untouched.
+  const hasSizes = sizesOf(item).length > 0;
 
   async function save() {
     if (!name.trim()) return;
@@ -291,9 +337,12 @@ function EditRow({
         protein_100g: Number(protein) || 0,
         carbs_100g: Number(carbs) || 0,
         fat_100g: Number(fat) || 0,
-        pack_size_g: packG,
-        unit_g,
-        unit_label: unit_g ? unitLabel.trim() || null : null,
+        // Keep a fresh food's size selection intact; only a packaged item's
+        // pack-split unit is (re)derived from these fields.
+        pack_size_g: hasSizes ? item.pack_size_g : packG,
+        unit_g: hasSizes ? item.unit_g : unit_g,
+        unit_label: hasSizes ? item.unit_label : unit_g ? unitLabel.trim() || null : null,
+        unit_options: item.unit_options ?? null,
       });
       onDone();
     } finally {
@@ -323,31 +372,40 @@ function EditRow({
         <NumField label="Carbs" value={carbs} onChange={setCarbs} />
         <NumField label="Fat" value={fat} onChange={setFat} />
       </div>
-      <NumField label="Pack size (g, optional)" value={pack} onChange={setPack} />
-
-      {/* Count instead of weigh: name the portion and say how many a pack makes
-          (6 bagels, 2 portions). One portion = pack ÷ portions, so it can be
-          logged by count. */}
-      <p className="text-xs text-[var(--muted)]">
-        Eaten in portions? Split a pack
-      </p>
-      <div className="grid grid-cols-2 gap-2">
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-[var(--muted)]">Portion name</span>
-          <input
-            value={unitLabel}
-            onChange={(e) => setUnitLabel(e.target.value)}
-            placeholder="bagel"
-            className="sc-input"
-          />
-        </label>
-        <NumField label="Portions per pack" value={portions} onChange={setPortions} />
-      </div>
-      {pack.trim() !== "" && Number(portions) > 0 && (
+      {hasSizes ? (
         <p className="text-xs text-[var(--muted)]">
-          One {unitLabel.trim() || "portion"} ≈{" "}
-          {Math.round(Number(pack) / Number(portions))} g
+          Sizes ({sizesOf(item).map((s) => s.label).join(", ")}) are set on the
+          item — pick the one you have from the size chip on the row.
         </p>
+      ) : (
+        <>
+          <NumField label="Pack size (g, optional)" value={pack} onChange={setPack} />
+
+          {/* Count instead of weigh: name the portion and say how many a pack
+              makes (6 bagels, 2 portions). One portion = pack ÷ portions, so it
+              can be logged by count. */}
+          <p className="text-xs text-[var(--muted)]">
+            Eaten in portions? Split a pack
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-[var(--muted)]">Portion name</span>
+              <input
+                value={unitLabel}
+                onChange={(e) => setUnitLabel(e.target.value)}
+                placeholder="bagel"
+                className="sc-input"
+              />
+            </label>
+            <NumField label="Portions per pack" value={portions} onChange={setPortions} />
+          </div>
+          {pack.trim() !== "" && Number(portions) > 0 && (
+            <p className="text-xs text-[var(--muted)]">
+              One {unitLabel.trim() || "portion"} ≈{" "}
+              {Math.round(Number(pack) / Number(portions))} g
+            </p>
+          )}
+        </>
       )}
 
       <div className="flex gap-2">
