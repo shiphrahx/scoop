@@ -15,6 +15,41 @@ const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 // Write the reviewed target as NEXT week's daily_targets, so it takes effect
 // from Monday. review.macros equals the current target when nothing changed,
 // which keeps the week-to-week chain unbroken.
+// Run the weekly review without anyone pressing anything.
+//
+// The whole adaptive loop used to hang off a button. Skip a week and next
+// week's target never got written, which broke the chain the review counts back
+// through to decide how long a target has been in force. A coach that only
+// adjusts when the user remembers to ask it to isn't adjusting.
+//
+// Idempotent: if next week's row already says what this review says, it does
+// nothing, so it is safe to call on every app open.
+export async function ensureReviewApplied(): Promise<boolean> {
+  const { supabase, user } = await requireUser();
+  const { review, phase } = await getCoachData();
+  if (review.macros.kcal <= 0) return false;
+
+  const nextWeek = localWeekStart(await getTimezone(), new Date(Date.now() + 7 * DAY_MS));
+  const { data: existing } = await supabase
+    .from("daily_targets")
+    .select("kcal, phase")
+    .eq("user_id", user.id)
+    .eq("week_start", nextWeek)
+    .maybeSingle();
+
+  const row = existing as { kcal: number; phase: string | null } | null;
+  if (
+    row &&
+    Math.round(Number(row.kcal)) === Math.round(review.macros.kcal) &&
+    (row.phase ?? "deficit") === phase
+  ) {
+    return false; // already up to date
+  }
+
+  await applyReview();
+  return true;
+}
+
 export async function applyReview() {
   const { supabase, user } = await requireUser();
   const { review, observed, calibration, predictedTdee, phase } = await getCoachData();

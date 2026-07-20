@@ -1,3 +1,4 @@
+import AutoReview from "@/app/(app)/coach/AutoReview";
 import MobileHome from "@/components/home/MobileHome";
 import DesktopDashboard from "@/components/home/DesktopDashboard";
 import { createClient } from "@/lib/supabase/server";
@@ -68,6 +69,8 @@ export default async function DashboardPage() {
 
   return (
     <>
+      {/* Keeps the weekly review moving without the user having to ask for it. */}
+      <AutoReview />
       <MobileHome
         name={name}
         targets={targets}
