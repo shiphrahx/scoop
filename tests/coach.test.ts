@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ageFromBirthYear,
   average,
+  averageActiveKcal,
   bmr,
   bmrKatch,
   dailyTarget,
@@ -129,6 +130,29 @@ describe("tdeeFromComponents", () => {
   it("adds the thermic effect of food to resting + active", () => {
     // At maintenance intake == TDEE, so TDEE = (rmr + active) / (1 − 0.10).
     expect(tdeeFromComponents(1600, 500)).toBeCloseTo(2100 / 0.9, 5);
+  });
+});
+
+describe("averageActiveKcal", () => {
+  it("averages a well-covered week over the days that reported", () => {
+    // 400+500+600+400+500+600+400 = 3400 over 7 reported days
+    expect(averageActiveKcal([400, 500, 600, 400, 500, 600, 400], 7)).toBeCloseTo(
+      485.714,
+      3,
+    );
+  });
+
+  it("tolerates a couple of gaps once coverage is met", () => {
+    expect(averageActiveKcal([400, null, 600, 400, 500, null, 400], 7)).toBe(460);
+  });
+
+  it("refuses a part-synced week instead of extrapolating it", () => {
+    // Three gym days out of seven averaged over three would read as a 600
+    // kcal/day habit and roughly double the active half of TDEE. Better to
+    // return null and let the activity multiplier answer.
+    expect(averageActiveKcal([600, null, null, 600, null, null, 600], 7)).toBeNull();
+    expect(averageActiveKcal([], 7)).toBeNull();
+    expect(averageActiveKcal([null, null, null, null, null, null, null], 7)).toBeNull();
   });
 });
 

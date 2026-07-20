@@ -146,6 +146,28 @@ export function ageFromBirthYear(birthYear: number, now = new Date()) {
   return now.getFullYear() - birthYear;
 }
 
+// How many of the window's days must carry a device reading before we trust the
+// average. Below this the week is too patchy to describe the user's activity.
+const MIN_ACTIVE_COVERAGE = 5;
+
+// Average daily active energy over a window, or null when the device data is
+// too sparse to believe.
+//
+// Averaging only the days that reported a burn is a trap: three synced days out
+// of seven then get divided by three, so a part-synced week reads as if every
+// day were a training day and TDEE comes out roughly double the truth. Dividing
+// by the full window is no better — it scores the missing days as zero and
+// starves the user. So we ask for real coverage first, and fall back to the
+// self-reported activity multiplier when we don't have it.
+export function averageActiveKcal(
+  values: (number | null | undefined)[],
+  windowDays: number,
+): number | null {
+  const present = values.filter((v): v is number => v != null).map(Number);
+  if (present.length < Math.min(MIN_ACTIVE_COVERAGE, windowDays)) return null;
+  return average(present);
+}
+
 // Split a calorie target into macros: fixed high protein (by bodyweight),
 // a quarter of calories from fat, the rest from carbs. Also derive the extra
 // nutrient targets — fiber a floor to reach, the rest ceilings to stay under:

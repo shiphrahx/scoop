@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { encryptSecret } from "@/lib/crypto";
-import { ageFromBirthYear, average, dailyTarget } from "@/lib/coach";
+import { ageFromBirthYear, averageActiveKcal, dailyTarget } from "@/lib/coach";
 import { getTimezone } from "@/lib/queries";
 import { localWeekStart } from "@/lib/time";
 import type { ActivityLevel, DietType, GoalPace } from "@/lib/types";
@@ -29,6 +29,9 @@ export async function saveApiKey(key: string) {
   revalidatePath("/me");
 }
 
+// Days of device history the trailing active-energy average reads.
+const ACTIVE_WINDOW_DAYS = 7;
+
 export interface GoalsInput {
   diet_type: DietType;
   activity_level: ActivityLevel;
@@ -51,8 +54,10 @@ export async function saveGoals(input: GoalsInput) {
     .eq("id", user.id);
   if (error) throw new Error(error.message);
 
-  // 7-day window for the trailing average exercise burn.
-  const cut7 = new Date(Date.now() - 6 * 86_400_000).toISOString().slice(0, 10);
+  // Window for the trailing average of measured active energy.
+  const cut7 = new Date(Date.now() - (ACTIVE_WINDOW_DAYS - 1) * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
 
   const [{ data: prof }, { data: w }, { data: act }] = await Promise.all([
     supabase
@@ -77,13 +82,13 @@ export async function saveGoals(input: GoalsInput) {
     | null;
   const weightKg = w ? Number((w as { weight_kg: number }).weight_kg) : null;
 
-  // Average the days that actually reported a burn; null when no device data,
-  // which leaves dailyTarget on the self-reported activity multiplier.
-  const burns = ((act as { workout_kcal: number | null }[]) ?? [])
-    .map((r) => r.workout_kcal)
-    .filter((k): k is number => k != null)
-    .map(Number);
-  const activeKcalPerDay = average(burns);
+  // Average the week's measured active energy. Null when the device data is too
+  // patchy to describe a week, which leaves dailyTarget on the self-reported
+  // activity multiplier rather than extrapolating a couple of gym days.
+  const activeKcalPerDay = averageActiveKcal(
+    ((act as { workout_kcal: number | null }[]) ?? []).map((r) => r.workout_kcal),
+    ACTIVE_WINDOW_DAYS,
+  );
 
   if (p?.height_cm && p.sex && p.birth_year && weightKg) {
     const target = dailyTarget({
