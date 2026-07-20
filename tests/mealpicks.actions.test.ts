@@ -603,4 +603,145 @@ describe("buildMyDay", () => {
     expect(tofu!.grams).not.toBe(350); // the stale portion was recomputed
     expect(tofu!.grams).toBeLessThanOrEqual(300);
   });
+
+  // A hand-built (manual) meal holding 350 g of tofu cut from a 300 g pack. The
+  // day solver never re-portions manual meals, but rebalance must still bring
+  // the over-pack serving back within the pack and re-sum the meal.
+  const manualTofuItem = (grams: number): Row => ({
+    name: "Tofu",
+    source: "pantry",
+    off_barcode: null,
+    grams,
+    kcal_100g: 136,
+    protein_100g: 14,
+    carbs_100g: 2,
+    fat_100g: 8,
+    fiber_100g: 0,
+    sugar_100g: 0,
+    satfat_100g: 0,
+    sodium_mg_100g: 0,
+    unit_g: null,
+    unit_label: null,
+  });
+
+  it("clamps a hand-built meal's serving to the pantry pack on rebalance", async () => {
+    const { db } = installFakeSupabase({
+      db: {
+        users: [profile()],
+        daily_targets: targets(),
+        food_logs: [],
+        pantry_items: [
+          tofuPackRow(),
+          pantryRow("Pasta", 371, 13, 71, 1.5),
+          pantryRow("Chicken Breast", 165, 31, 0, 3.6),
+        ],
+        planned_meals: [
+          {
+            id: "meal-manual",
+            user_id: "user-1",
+            date: today(),
+            slot: "Breakfast",
+            origin: "manual",
+            name: "Tofu",
+            items: [manualTofuItem(350)],
+            picks: [],
+            portions: [],
+            swaps: [],
+            why: null,
+            kcal: 476,
+            protein_g: 49,
+            carbs_g: 7,
+            fat_g: 28,
+            logged_food_id: null,
+          },
+          {
+            id: "meal-1",
+            user_id: "user-1",
+            date: today(),
+            slot: "Dinner",
+            origin: "ai",
+            name: "",
+            items: [],
+            picks: [pastaPick(), chickenPick()],
+            portions: [],
+            swaps: [],
+            why: null,
+            kcal: 0,
+            protein_g: 0,
+            carbs_g: 0,
+            fat_g: 0,
+            logged_food_id: null,
+          },
+        ],
+      },
+    });
+
+    await buildMyDay();
+
+    const manual = db.planned_meals.find((m) => m.id === "meal-manual")!;
+    const item = (manual.items as { name: string; grams: number }[]).find(
+      (i) => i.name === "Tofu",
+    )!;
+    expect(item.grams).toBe(300); // one pack, not 350
+    expect(Number(manual.kcal)).toBe(408); // 136 kcal/100g × 300 g, re-summed
+    expect(Number(manual.protein_g)).toBe(42);
+  });
+
+  it("leaves a hand-built meal within its pack untouched on rebalance", async () => {
+    const { db } = installFakeSupabase({
+      db: {
+        users: [profile()],
+        daily_targets: targets(),
+        food_logs: [],
+        pantry_items: [tofuPackRow(), pantryRow("Pasta", 371, 13, 71, 1.5)],
+        planned_meals: [
+          {
+            id: "meal-manual",
+            user_id: "user-1",
+            date: today(),
+            slot: "Breakfast",
+            origin: "manual",
+            name: "Tofu",
+            items: [manualTofuItem(250)],
+            picks: [],
+            portions: [],
+            swaps: [],
+            why: null,
+            kcal: 340,
+            protein_g: 35,
+            carbs_g: 5,
+            fat_g: 20,
+            logged_food_id: null,
+          },
+          {
+            id: "meal-1",
+            user_id: "user-1",
+            date: today(),
+            slot: "Dinner",
+            origin: "ai",
+            name: "",
+            items: [],
+            picks: [pastaPick()],
+            portions: [],
+            swaps: [],
+            why: null,
+            kcal: 0,
+            protein_g: 0,
+            carbs_g: 0,
+            fat_g: 0,
+            logged_food_id: null,
+          },
+        ],
+      },
+    });
+
+    await buildMyDay();
+
+    const manual = db.planned_meals.find((m) => m.id === "meal-manual")!;
+    const item = (manual.items as { name: string; grams: number }[]).find(
+      (i) => i.name === "Tofu",
+    )!;
+    expect(item.grams).toBe(250); // within the 300 g pack — left as set
+    expect(Number(manual.kcal)).toBe(340);
+  });
 });

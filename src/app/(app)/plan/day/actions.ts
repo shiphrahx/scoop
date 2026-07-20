@@ -327,6 +327,68 @@ export async function buildMyDay(date?: string) {
     profile.dislikes ?? [],
   );
 
+  // Rebalance is also the moment to bring a HAND-BUILT meal back within what the
+  // pantry actually holds: a 350 g serving cut from a 300 g pack becomes 300 g.
+  // The day solver never re-portions these (they're the user's own amounts), but
+  // it must never leave a meal asking for more of a food than there is. Clamp
+  // each item to its stock (pack × packs), snap countable foods to whole units,
+  // re-sum, and persist — so the budget below and the day's totals use the
+  // corrected numbers. Items with no matching pantry row, or no pack size, are
+  // left exactly as the user set them.
+  const manualMeals = plan.filter(
+    (p) => !p.logged_food_id && p.picks.length === 0 && p.items.length > 0,
+  );
+  for (const meal of manualMeals) {
+    let changed = false;
+    const items = meal.items.map((it) => {
+      const food = pantry.find((f) => f.name === it.name);
+      const cap = food?.available_g;
+      if (cap == null || it.grams <= cap) return it;
+      const grams = portionGrams(
+        it.grams,
+        {
+          name: it.name,
+          kcal_100g: it.kcal_100g,
+          protein_100g: it.protein_100g,
+          carbs_100g: it.carbs_100g,
+          fat_100g: it.fat_100g,
+          unit_g: it.unit_g ?? null,
+          unit_label: it.unit_label ?? null,
+        },
+        cap,
+      );
+      if (grams !== it.grams) changed = true;
+      return { ...it, grams };
+    });
+    if (!changed) continue;
+
+    const totals = sumItems(items);
+    const { error } = await supabase
+      .from("planned_meals")
+      .update({
+        items,
+        kcal: Math.round(totals.kcal),
+        protein_g: Math.round(totals.protein_g),
+        carbs_g: Math.round(totals.carbs_g),
+        fat_g: Math.round(totals.fat_g),
+        fiber_g: Math.round(totals.fiber_g),
+        sugar_g: Math.round(totals.sugar_g),
+        satfat_g: Math.round(totals.satfat_g),
+        sodium_mg: Math.round(totals.sodium_mg),
+      })
+      .eq("id", meal.id)
+      .eq("user_id", user.id)
+      .is("logged_food_id", null);
+    if (error) throw new Error(error.message);
+
+    // Reflect the clamp in our in-memory plan so `fixed` budgets on it.
+    meal.items = items;
+    meal.kcal = Math.round(totals.kcal);
+    meal.protein_g = Math.round(totals.protein_g);
+    meal.carbs_g = Math.round(totals.carbs_g);
+    meal.fat_g = Math.round(totals.fat_g);
+  }
+
   // Meals that are planned but NOT being solved (built by hand, no picks) hold
   // their macros; the picked meals absorb everything else that's left today.
   const fixed = plan

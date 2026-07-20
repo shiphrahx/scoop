@@ -93,9 +93,41 @@ export interface PantryItem {
   pack_size_g: number | null;
   unit_g: number | null;
   unit_label: string | null;
+  // The named sizes a fresh food comes in (small/medium/large…), seeded from the
+  // fresh-food reference. When set, the user picks which size they have and
+  // unit_g/unit_label hold that choice. Null/[] for a weighed or packaged item.
+  unit_options: UnitOption[] | null;
   // Which shelf it sits on (Protein, Carbs, Fruits…). Null = uncategorised,
   // shown under "Other". Free text so the user can invent their own.
   category: string | null;
+}
+
+// One named size a countable food comes in — a "medium" that weighs 118 g. The
+// grams are the source of truth; macros for the size = per-100g × grams ÷ 100.
+export interface UnitOption {
+  label: string; // "small", "medium", "large", or user's own
+  grams: number;
+}
+
+// A whole food in the shared reference (banana, apple, avocado…), with per-100g
+// macros and the real-world sizes it comes in. Read when the user adds a food to
+// their pantry by name, so the macros and sizes fill in without typing.
+export interface FreshFood extends ExtraPer100g {
+  id: string;
+  name: string;
+  kcal_100g: number;
+  protein_100g: number;
+  carbs_100g: number;
+  fat_100g: number;
+  sizes: UnitOption[];
+}
+
+// One size row for a fresh food, straight from the reference table.
+export interface FreshFoodSize {
+  id: string;
+  food_id: string;
+  label: string;
+  grams: number;
 }
 
 // The extra per-100g nutrients a food can carry, alongside the core four.
