@@ -8,11 +8,15 @@ import {
   dailyTarget,
   deficitPerDay,
   macrosForKcal,
+  observeTdee,
   proteinBasisKg,
+  tdeeFromEnergyBalance,
+  updateCalibration,
   restingRate,
   tdee,
   tdeeFromComponents,
   trendChange,
+  weightSlopeKgPerDay,
   trendSeries,
   weeklyReview,
   type CoachInput,
@@ -423,6 +427,150 @@ describe("trendSeries / trendChange", () => {
     // Three days of history cannot describe a seven-day change. Comparing the
     // trend against its own seed would report a flat week and trigger a cut.
     expect(trendChange(run([80, 79.8, 79.6]))).toBeNull();
+  });
+});
+
+describe("observeTdee", () => {
+  const day = (i: number) => new Date(Date.UTC(2026, 0, 1 + i)).toISOString().slice(0, 10);
+  // A run of daily weigh-ins and a matching run of daily food logs.
+  const weighIns = (kgs: number[]) => kgs.map((kg, i) => ({ date: day(i), kg }));
+  const intake = (n: number, kcal: number, from = 0) =>
+    Array.from({ length: n }, (_, i) => ({ date: day(from + i), kcal }));
+
+  it("solves the energy balance equation", () => {
+    // Ate 2000 kcal/day and lost 1 kg over 27 days. 1 kg is 7700 kcal, so the
+    // burn was 2000 + 7700/27 = 2285 kcal/day.
+    expect(tdeeFromEnergyBalance(2000, 1, 27)).toBeCloseTo(2000 + 7700 / 27, 5);
+  });
+
+  it("recovers a burn the formula would have missed", () => {
+    // 28 days eating a logged 2000 kcal while losing 0.25 kg/week — a real
+    // maintenance of roughly 2275 kcal, whatever Mifflin thinks of this person.
+    const kgs = Array.from({ length: 28 }, (_, i) => 90 - i * (0.25 / 7));
+    const o = observeTdee(weighIns(kgs), intake(28, 2000));
+    expect(o).not.toBeNull();
+    expect(o!.kcalPerDay).toBeGreaterThan(2200);
+    expect(o!.kcalPerDay).toBeLessThan(2350);
+    expect(o!.meanIntakeKcal).toBe(2000);
+  });
+
+  it("reads a gain as a burn below intake", () => {
+    const kgs = Array.from({ length: 28 }, (_, i) => 90 + i * (0.25 / 7));
+    const o = observeTdee(weighIns(kgs), intake(28, 2500));
+    expect(o!.kcalPerDay).toBeLessThan(2500);
+    expect(o!.trendDeltaKg).toBeLessThan(0);
+  });
+
+  it("refuses a window shorter than a fortnight", () => {
+    const kgs = Array.from({ length: 10 }, (_, i) => 90 - i * 0.03);
+    expect(observeTdee(weighIns(kgs), intake(10, 2000))).toBeNull();
+  });
+
+  it("refuses when too few days carry a food log", () => {
+    // Logging 12 of 28 days and averaging those is a biased sample: the days a
+    // user skips logging are the big ones. Believing it would read as a low
+    // intake, make the measured burn look small, and cut the target.
+    const kgs = Array.from({ length: 28 }, (_, i) => 90 - i * 0.03);
+    expect(observeTdee(weighIns(kgs), intake(12, 2000))).toBeNull();
+  });
+
+  it("ignores intake logged outside the weigh-in window", () => {
+    // The weight term and the intake term must describe the same stretch of
+    // time or the arithmetic means nothing.
+    const kgs = Array.from({ length: 28 }, (_, i) => 90 - i * 0.03);
+    const stale = intake(28, 9999, 400); // a year later
+    expect(observeTdee(weighIns(kgs), stale)).toBeNull();
+  });
+});
+
+describe("weightSlopeKgPerDay", () => {
+  const day = (i: number) => new Date(Date.UTC(2026, 0, 1 + i)).toISOString().slice(0, 10);
+
+  it("recovers the slope of a clean line", () => {
+    const pts = Array.from({ length: 20 }, (_, i) => ({ date: day(i), kg: 90 - i * 0.05 }));
+    expect(weightSlopeKgPerDay(pts)).toBeCloseTo(-0.05, 6);
+  });
+
+  it("handles ragged spacing — real logging has gaps", () => {
+    const pts = [0, 3, 4, 9, 15, 16, 27].map((i) => ({ date: day(i), kg: 90 - i * 0.05 }));
+    expect(weightSlopeKgPerDay(pts)).toBeCloseTo(-0.05, 6);
+  });
+
+  it("reports nothing it cannot draw a line through", () => {
+    expect(weightSlopeKgPerDay([])).toBeNull();
+    expect(weightSlopeKgPerDay([{ date: day(0), kg: 90 }])).toBeNull();
+    // Two weigh-ins on the same morning give no time base.
+    expect(
+      weightSlopeKgPerDay([
+        { date: day(0), kg: 90 },
+        { date: day(0), kg: 90.4 },
+      ]),
+    ).toBeNull();
+  });
+
+  it("does not lag a falling weight the way the smoothed trend does", () => {
+    // The bias that matters. Over the first month of a diet the EWMA has not
+    // caught up, so differencing its endpoints under-reports the loss — which
+    // reads as a stall and cuts the user's food. The regression does not.
+    const kgs = Array.from({ length: 28 }, (_, i) => 90 - i * 0.05);
+    const pts = kgs.map((kg, i) => ({ date: day(i), kg }));
+
+    const byRegression = -weightSlopeKgPerDay(pts)! * 27;
+    const series = trendSeries(pts);
+    const byEndpoints = series[0].kg - series[series.length - 1].kg;
+
+    expect(byRegression).toBeCloseTo(1.35, 2); // the true loss, 27 x 0.05
+    expect(byEndpoints).toBeLessThan(byRegression * 0.8); // the filter's lag
+  });
+});
+
+describe("updateCalibration", () => {
+  it("starts from 1 and moves half-way towards a measurement", () => {
+    // Formula said 2400, the user really burns 2200 → raw factor 0.9167.
+    expect(updateCalibration(null, 2200, 2400)).toBeCloseTo(1 + 0.5 * (2200 / 2400 - 1), 5);
+  });
+
+  it("converges towards a repeated measurement", () => {
+    let c = updateCalibration(null, 2200, 2400);
+    for (let i = 0; i < 8; i++) c = updateCalibration(c, 2200, 2400);
+    expect(c).toBeCloseTo(2200 / 2400, 3);
+  });
+
+  it("clamps a wild measurement instead of rewriting the user's metabolism", () => {
+    // A fortnight of badly-logged food should not be able to halve the target.
+    expect(updateCalibration(1, 1000, 2400)).toBeGreaterThanOrEqual(0.75);
+    expect(updateCalibration(1, 6000, 2400)).toBeLessThanOrEqual(1.25);
+  });
+
+  it("keeps the previous factor when a measurement is unusable", () => {
+    expect(updateCalibration(0.9, 0, 2400)).toBe(0.9);
+    expect(updateCalibration(0.9, 2200, 0)).toBe(0.9);
+  });
+});
+
+describe("dailyTarget calibration", () => {
+  const base: CoachInput = {
+    sex: "male",
+    diet: "regular",
+    weightKg: 90,
+    heightCm: 185,
+    age: 35,
+    activity: "moderate",
+    pace: "steady",
+  };
+
+  it("scales maintenance by the learned factor", () => {
+    expect(tdee({ ...base, tdeeCalibration: 0.9 })).toBeCloseTo(tdee(base) * 0.9, 5);
+  });
+
+  it("leaves the prediction alone when nothing has been learned yet", () => {
+    expect(tdee({ ...base, tdeeCalibration: null })).toBeCloseTo(tdee(base), 5);
+    expect(tdee({ ...base, tdeeCalibration: 1 })).toBeCloseTo(tdee(base), 5);
+  });
+
+  it("feeds through to the calorie target", () => {
+    const slower = dailyTarget({ ...base, tdeeCalibration: 0.85 });
+    expect(slower.kcal).toBeLessThan(dailyTarget(base).kcal);
   });
 });
 

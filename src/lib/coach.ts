@@ -92,6 +92,10 @@ export interface CoachInput {
   bodyFatPct?: number | null;
   // The user's target weight, if set. Caps the protein basis (see proteinBasisKg).
   goalWeightKg?: number | null;
+  // Ratio between the burn this user actually shows and the one the formula
+  // predicts, learned from intake against trend weight (see observeTdee). 1 (or
+  // absent) means we have no measurement yet and the prediction stands alone.
+  tdeeCalibration?: number | null;
 }
 
 // Mifflin–St Jeor basal metabolic rate (kcal/day). The default when we have no
@@ -134,12 +138,18 @@ export function tdeeFromComponents(rmrKcal: number, activeKcal: number) {
 // 1.2 "sedentary" baseline (as this used to) counts everyday activity twice and
 // inflates the target by roughly 0.2 × RMR, some 250–400 kcal/day: enough to
 // swallow most of the deficit the user asked for.
+// The calibration factor is applied last, on top of whichever route produced
+// the prediction: it is the standing correction between this user's real burn
+// and the textbook's guess at it, and it survives every profile edit.
 export function tdee(input: Omit<CoachInput, "pace">) {
   const rmr = restingRate(input);
-  if (input.activeKcalPerDay != null && input.activeKcalPerDay > 0) {
-    return tdeeFromComponents(rmr, input.activeKcalPerDay);
-  }
-  return rmr * ACTIVITY_MULTIPLIER[input.activity];
+  const predicted =
+    input.activeKcalPerDay != null && input.activeKcalPerDay > 0
+      ? tdeeFromComponents(rmr, input.activeKcalPerDay)
+      : rmr * ACTIVITY_MULTIPLIER[input.activity];
+
+  const cal = input.tdeeCalibration;
+  return cal != null && cal > 0 ? predicted * cal : predicted;
 }
 
 export function ageFromBirthYear(birthYear: number, now = new Date()) {
@@ -265,6 +275,139 @@ export function dailyTarget(input: CoachInput): Macros {
 // Week boundaries live in src/lib/time.ts (localWeekStart), which draws them in
 // the user's timezone. This used to mix the server's local calendar with UTC.
 
+// --- Measured energy expenditure --------------------------------------------
+// Everything above this line PREDICTS a burn rate from height, weight, age and
+// a self-reported activity level. Mifflin's standard error is around 10% and
+// its tails reach 25%, so for any given person the prediction can be 400 kcal
+// out in either direction before NEAT, adaptation or logging bias are counted.
+//
+// But energy balance is measurable, and this app already stores both sides of
+// it. Over a window of days:
+//
+//   TDEE ≈ mean daily intake + (trend weight lost × 7700) / days
+//
+// That single line absorbs a wrong BMR, an over- or under-stated activity
+// level, metabolic adaptation, AND the user's own logging bias — because the
+// bias is fitted against real weight change rather than assumed away. It is the
+// difference between a coach that guesses and one that learns.
+
+// The window has to be long enough that a few hundred kcal of day-to-day water
+// movement doesn't dominate the weight term.
+const MIN_OBSERVE_DAYS = 14;
+
+// And enough of those days need a food log. Mean intake over only the days the
+// user bothered to log is a biased sample of what they ate: the unlogged days
+// are the big ones. Reading that as a low intake would make the measured burn
+// look small and cut the target — punishing the user for patchy logging.
+const MIN_LOG_COVERAGE = 0.8;
+
+export interface DailyIntake {
+  date: string; // YYYY-MM-DD, the user's local day
+  kcal: number;
+}
+
+export interface ObservedTdee {
+  kcalPerDay: number;
+  days: number; // span the estimate covers
+  loggedDays: number; // days within it that carried a food log
+  meanIntakeKcal: number;
+  trendDeltaKg: number; // positive = lost over the window
+}
+
+// TDEE implied by intake and the movement of the trend weight. Pure arithmetic
+// on the energy balance equation; the caller supplies an honest window.
+export function tdeeFromEnergyBalance(
+  meanIntakeKcal: number,
+  trendDeltaKg: number,
+  days: number,
+): number {
+  return meanIntakeKcal + (trendDeltaKg * KCAL_PER_KG) / days;
+}
+
+// Measure the user's actual daily burn from what they ate and what the scale
+// did. Null whenever the data can't support an honest answer — a wrong measured
+// TDEE is worse than none, because the whole point is that the app trusts it
+// over the formula.
+export function observeTdee(
+  weighIns: WeighIn[],
+  intake: DailyIntake[],
+  windowDays = TREND_WINDOW_DAYS,
+): ObservedTdee | null {
+  const clean = weighIns.filter((p) => Number.isFinite(p.kg) && p.kg > 0);
+  if (clean.length < 2) return null;
+
+  const dates = clean.map((p) => p.date).sort();
+  const lastDate = dates[dates.length - 1];
+  const firstDate = dates.find(
+    (d) => (dayMs(lastDate) - dayMs(d)) / DAY_MS <= windowDays - 1,
+  );
+  if (firstDate == null) return null;
+
+  const days = (dayMs(lastDate) - dayMs(firstDate)) / DAY_MS;
+  if (days < MIN_OBSERVE_DAYS - 1) return null;
+
+  // The weight term is the regression slope over the window, not the difference
+  // between two smoothed endpoints: the filter's lag would under-report the loss
+  // and hand back a burn rate several hundred kcal too low.
+  const inWindow = clean.filter((p) => p.date >= firstDate && p.date <= lastDate);
+  const slope = weightSlopeKgPerDay(inWindow);
+  if (slope == null) return null;
+
+  const first = { date: firstDate };
+  const last = { date: lastDate };
+
+  // Only intake inside the same window counts — the weight term and the intake
+  // term have to describe the same stretch of time or the arithmetic is meaningless.
+  const logged = intake.filter(
+    (d) => d.date >= first.date && d.date <= last.date && d.kcal > 0,
+  );
+  if (logged.length < Math.ceil(days * MIN_LOG_COVERAGE)) return null;
+
+  const meanIntakeKcal = average(logged.map((d) => d.kcal));
+  if (meanIntakeKcal == null || meanIntakeKcal <= 0) return null;
+
+  const trendDeltaKg = -slope * days; // positive = lost over the window
+  return {
+    kcalPerDay: tdeeFromEnergyBalance(meanIntakeKcal, trendDeltaKg, days),
+    days,
+    loggedDays: logged.length,
+    meanIntakeKcal,
+    trendDeltaKg,
+  };
+}
+
+// How far the measured burn is allowed to drag the prediction. A measurement
+// built on logged food inherits some of that log's error, so an unbounded
+// factor would let one badly-logged fortnight rewrite the user's metabolism.
+const MIN_CALIBRATION = 0.75;
+const MAX_CALIBRATION = 1.25;
+
+// How fast the calibration moves towards a new measurement. Half-way each
+// review: quick enough to be useful within a month, slow enough that a single
+// odd window doesn't take over.
+const CALIBRATION_STEP = 0.5;
+
+// Fold a fresh measurement into the running calibration factor — the ratio
+// between what the user actually burns and what the formula predicted.
+export function updateCalibration(
+  previous: number | null | undefined,
+  observedKcal: number,
+  predictedKcal: number,
+): number {
+  if (predictedKcal <= 0 || observedKcal <= 0) return previous ?? 1;
+  const raw = clamp(observedKcal / predictedKcal, MIN_CALIBRATION, MAX_CALIBRATION);
+  const prior = previous != null && previous > 0 ? previous : 1;
+  return clamp(
+    prior + CALIBRATION_STEP * (raw - prior),
+    MIN_CALIBRATION,
+    MAX_CALIBRATION,
+  );
+}
+
+function clamp(value: number, lo: number, hi: number) {
+  return Math.min(hi, Math.max(lo, value));
+}
+
 // --- The weekly review ------------------------------------------------------
 // Compare this week's trailing average weight to last week's and nudge the
 // calorie target. Result-based (no AI): the rules read the scale + tape, not a
@@ -351,29 +494,71 @@ export function trendSeries(
   return out;
 }
 
+// Least-squares slope of weight against time, in kg/day (negative = losing).
+// Null when there aren't two distinct days to draw a line through.
+//
+// This is what measures the rate, NOT the difference between two points of the
+// trend. An EWMA lags a falling weight by about nine days, so while someone is
+// still early in a diet the filter has not caught up and endpoint-differencing
+// reports less loss than really happened. That bias points the wrong way: it
+// reads real progress as a stall and cuts the user's food. A regression has no
+// lag, uses every weigh-in rather than two of them, and handles the ragged
+// spacing of real logging for free.
+export function weightSlopeKgPerDay(points: WeighIn[]): number | null {
+  const clean = points.filter((p) => Number.isFinite(p.kg) && p.kg > 0);
+  if (clean.length < 2) return null;
+
+  const xs = clean.map((p) => dayMs(p.date) / DAY_MS);
+  const ys = clean.map((p) => p.kg);
+  const xMean = average(xs)!;
+  const yMean = average(ys)!;
+
+  let num = 0;
+  let den = 0;
+  for (let i = 0; i < xs.length; i++) {
+    const dx = xs[i] - xMean;
+    num += dx * (ys[i] - yMean);
+    den += dx * dx;
+  }
+  if (den === 0) return null; // every weigh-in on the same day
+  return num / den;
+}
+
 export interface TrendChange {
-  nowKg: number; // trend weight today
-  thenKg: number; // trend weight one span ago
+  nowKg: number; // smoothed weight today
+  thenKg: number; // where that implies the user was one span ago
   changeKg: number; // positive = lost
   changePct: number; // fraction of bodyweight over the span
   spanDays: number;
 }
 
-// Rate of change of the trend over the last `spanDays`. Null when the history
-// is too short to span it — better to say nothing than to compare a trend
-// against its own seed value, which always reads as zero change.
+// The user's rate of loss over the last `spanDays`, and where their weight sits
+// today. The rate comes from the regression slope; the level comes from the
+// trend filter, which is the better answer for "what do you weigh" because it
+// is not pulled about by the last day's water.
+//
+// Null when the weigh-ins don't actually cover the span — better to say nothing
+// than to report a rate drawn through a couple of days and call it a week.
 export function trendChange(
   points: WeighIn[],
   spanDays = TREND_SPAN_DAYS,
 ): TrendChange | null {
-  const series = trendSeries(points);
-  if (series.length < spanDays + 1) return null;
+  const clean = points.filter((p) => Number.isFinite(p.kg) && p.kg > 0);
+  if (clean.length < 2) return null;
+
+  const dates = clean.map((p) => dayMs(p.date));
+  const coveredDays = (Math.max(...dates) - Math.min(...dates)) / DAY_MS;
+  if (coveredDays < spanDays) return null;
+
+  const slope = weightSlopeKgPerDay(clean);
+  const series = trendSeries(clean);
+  if (slope == null || series.length === 0) return null;
 
   const nowKg = series[series.length - 1].kg;
-  const thenKg = series[series.length - 1 - spanDays].kg;
+  const changeKg = -slope * spanDays; // positive = lost
+  const thenKg = nowKg + changeKg;
   if (thenKg <= 0) return null;
 
-  const changeKg = thenKg - nowKg;
   return { nowKg, thenKg, changeKg, changePct: changeKg / thenKg, spanDays };
 }
 
