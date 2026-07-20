@@ -17,6 +17,7 @@ import {
   weeklyReview,
   type CoachInput,
   type Macros,
+  type TrendChange,
 } from "@/lib/coach";
 
 // Clinical heuristic: 1 kg of body fat ≈ 7700 kcal (≈ 3500 kcal/lb).
@@ -428,11 +429,19 @@ describe("trendSeries / trendChange", () => {
 describe("weeklyReview", () => {
   const current: Macros = { kcal: 2000, protein_g: 160, carbs_g: 180, fat_g: 56 };
 
-  it("holds and asks for more data when there is no prior week", () => {
+  // A week's movement of the trend weight, as trendChange() reports it.
+  const tr = (thenKg: number, nowKg: number): TrendChange => ({
+    nowKg,
+    thenKg,
+    changeKg: thenKg - nowKg,
+    changePct: (thenKg - nowKg) / thenKg,
+    spanDays: 7,
+  });
+
+  it("holds and asks for more data when the trend cannot span a week", () => {
     const r = weeklyReview({
       sex: "male",
-      thisWeekAvgKg: 90,
-      lastWeekAvgKg: null,
+      trend: null,
       waistDeltaCm: null,
       current,
     });
@@ -441,34 +450,11 @@ describe("weeklyReview", () => {
     expect(r.changeKg).toBeNull();
   });
 
-  it("holds instead of dividing by a zero weight", () => {
-    // getCoachData falls back to 0 when a week has no weigh-ins. Zero isn't a
-    // weight — treating it as one makes the loss rate infinite, which used to
-    // read as "losing too fast" and ADD calories.
-    for (const weights of [
-      { thisWeekAvgKg: 90, lastWeekAvgKg: 0 },
-      { thisWeekAvgKg: 0, lastWeekAvgKg: 90 },
-    ]) {
-      const r = weeklyReview({
-        sex: "male",
-        ...weights,
-        waistDeltaCm: null,
-        current,
-        weeksOnTarget: 4,
-        consistent: true,
-      });
-      expect(r.changed).toBe(false);
-      expect(r.macros).toEqual(current);
-      expect(r.changePct).toBeNull();
-    }
-  });
-
-  it("keeps macros on a healthy 0.5–1% weekly loss", () => {
-    // 90 → 89.4 kg = 0.6667% loss (inside the band)
+  it("keeps macros on a healthy 0.5-1% weekly loss", () => {
+    // 90 -> 89.4 kg = 0.6667% loss (inside the band)
     const r = weeklyReview({
       sex: "male",
-      thisWeekAvgKg: 89.4,
-      lastWeekAvgKg: 90,
+      trend: tr(90, 89.4),
       waistDeltaCm: null,
       current,
     });
@@ -479,13 +465,12 @@ describe("weeklyReview", () => {
 
   it("treats both edges of the healthy band as healthy", () => {
     // Exactly 0.5% (the floor) and exactly 1.0% (the ceiling) are inside the
-    // band — the comparisons are >= and <=, and an off-by-one here would either
+    // band - the comparisons are >= and <=, and an off-by-one here would either
     // cut a user who is doing fine or leave one who is dropping too fast.
-    for (const thisWeekAvgKg of [99.5, 99]) {
+    for (const nowKg of [99.5, 99]) {
       const r = weeklyReview({
         sex: "male",
-        thisWeekAvgKg,
-        lastWeekAvgKg: 100,
+        trend: tr(100, nowKg),
         waistDeltaCm: null,
         current,
       });
@@ -495,11 +480,10 @@ describe("weeklyReview", () => {
   });
 
   it("adds calories when losing too fast", () => {
-    // 90 → 88 = 2.2% loss, well over the 1% cap
+    // 90 -> 88 = 2.2% loss, well over the 1% cap
     const r = weeklyReview({
       sex: "male",
-      thisWeekAvgKg: 88,
-      lastWeekAvgKg: 90,
+      trend: tr(90, 88),
       waistDeltaCm: null,
       current,
     });
@@ -511,8 +495,7 @@ describe("weeklyReview", () => {
   it("holds when the scale is flat but the waist is down", () => {
     const r = weeklyReview({
       sex: "male",
-      thisWeekAvgKg: 89.98, // ~0.02% — below the healthy floor (a stall)
-      lastWeekAvgKg: 90,
+      trend: tr(90, 89.98), // ~0.02% - below the healthy floor (a stall)
       waistDeltaCm: -1.0,
       current,
     });
@@ -524,8 +507,7 @@ describe("weeklyReview", () => {
   it("trims calories on a plateau with no waist progress", () => {
     const r = weeklyReview({
       sex: "male",
-      thisWeekAvgKg: 90,
-      lastWeekAvgKg: 90,
+      trend: tr(90, 90),
       waistDeltaCm: 0,
       current,
     });
@@ -537,8 +519,7 @@ describe("weeklyReview", () => {
   it("trims calories when weight went up", () => {
     const r = weeklyReview({
       sex: "male",
-      thisWeekAvgKg: 91,
-      lastWeekAvgKg: 90,
+      trend: tr(90, 91),
       waistDeltaCm: null,
       current,
     });
@@ -551,8 +532,7 @@ describe("weeklyReview", () => {
     const atFloor: Macros = { kcal: 1500, protein_g: 160, carbs_g: 90, fat_g: 42 };
     const r = weeklyReview({
       sex: "male",
-      thisWeekAvgKg: 90,
-      lastWeekAvgKg: 90,
+      trend: tr(90, 90),
       waistDeltaCm: 0,
       current: atFloor,
     });
@@ -560,15 +540,34 @@ describe("weeklyReview", () => {
     expect(r.macros.kcal).toBe(1500);
     expect(r.headline).toMatch(/floor/i);
   });
+
+  it("recomputes macros against the trend weight, not a raw weigh-in", () => {
+    // The rebuild takes its protein basis from where the trend sits today, so a
+    // single heavy morning cannot inflate the next week's protein target.
+    const r = weeklyReview({
+      sex: "male",
+      trend: tr(90, 90),
+      waistDeltaCm: 0,
+      current,
+    });
+    expect(r.macros.protein_g).toBe(180); // 90 kg x 2 g/kg, uncapped
+  });
 });
 
 describe("weeklyReview cadence gates", () => {
   const current: Macros = { kcal: 2000, protein_g: 160, carbs_g: 180, fat_g: 56 };
+  const tr = (thenKg: number, nowKg: number): TrendChange => ({
+    nowKg,
+    thenKg,
+    changeKg: thenKg - nowKg,
+    changePct: (thenKg - nowKg) / thenKg,
+    spanDays: 7,
+  });
+
   // A stall that WOULD trigger a cut once the gates are open.
   const stall = {
     sex: "male" as const,
-    thisWeekAvgKg: 90,
-    lastWeekAvgKg: 90,
+    trend: tr(90, 90),
     waistDeltaCm: 0,
     current,
   };
@@ -587,20 +586,18 @@ describe("weeklyReview cadence gates", () => {
     expect(r.headline).toMatch(/fuller/i);
   });
 
-  it("adjusts once the target is ≥2 weeks old and logging is consistent", () => {
+  it("adjusts once the target is >=2 weeks old and logging is consistent", () => {
     const r = weeklyReview({ ...stall, weeksOnTarget: 2, consistent: true });
     expect(r.changed).toBe(true);
     expect(r.macros.kcal).toBeLessThan(current.kcal);
   });
 
   it("also holds a too-fast loss while the target is new (one noisy week)", () => {
-    // 90 → 88 = 2.2%/week: normally an add, but one week isn't enough to act.
+    // 90 -> 88 = 2.2%/week: normally an add, but one week isn't enough to act.
     const r = weeklyReview({
-      sex: "male",
-      thisWeekAvgKg: 88,
-      lastWeekAvgKg: 90,
+      ...stall,
+      trend: tr(90, 88),
       waistDeltaCm: null,
-      current,
       weeksOnTarget: 1,
       consistent: true,
     });

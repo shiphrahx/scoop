@@ -1,6 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { decryptSecret } from "@/lib/crypto";
-import { average, weeklyReview, type WeeklyReview } from "@/lib/coach";
+import {
+  TREND_WINDOW_DAYS,
+  trendChange,
+  weeklyReview,
+  type TrendChange,
+  type WeeklyReview,
+} from "@/lib/coach";
 import {
   DEFAULT_TIMEZONE,
   dayRangeFor,
@@ -176,8 +182,10 @@ export async function hasApiKey(): Promise<boolean> {
 export interface CoachData {
   review: WeeklyReview;
   current: Macros | null;
-  thisWeekAvgKg: number | null;
-  lastWeekAvgKg: number | null;
+  // Movement of the smoothed trend weight over the last week, and where that
+  // trend sits today. Null when there aren't enough weigh-ins to span a week.
+  trend: TrendChange | null;
+  trendWeightKg: number | null;
   waistDeltaCm: number | null;
   activity: Activity[];
   fitbitConnected: boolean;
@@ -206,6 +214,9 @@ export async function getCoachData(): Promise<CoachData> {
     localDate(tz, new Date(now.getTime() - daysBack * DAY_MS));
   const cut7 = cutDay(6); // last 7 days incl today
   const cut14 = cutDay(13);
+  // The trend filter reads a month of weigh-ins. It only needs a week's worth to
+  // report a rate, but the extra history is what makes the rate steady.
+  const cutTrend = cutDay(TREND_WINDOW_DAYS - 1);
   // The waist gate can only speak for the week under review. Unbounded, the
   // "previous" tape reading could be from months ago, and a long-since-earned
   // -4 cm would read as this week's progress and hold a genuine plateau open
@@ -219,7 +230,7 @@ export async function getCoachData(): Promise<CoachData> {
       supabase
         .from("weights")
         .select("date, weight_kg")
-        .gte("date", cut14)
+        .gte("date", cutTrend)
         .order("date", { ascending: false }),
       supabase
         .from("measurements")
@@ -242,23 +253,21 @@ export async function getCoachData(): Promise<CoachData> {
     ]);
 
   const weights = (weightsRes.data as { date: string; weight_kg: number }[]) ?? [];
-  const thisWeek = weights.filter((w) => w.date >= cut7).map((w) => Number(w.weight_kg));
-  const lastWeek = weights
-    .filter((w) => w.date < cut7)
-    .map((w) => Number(w.weight_kg));
-
-  const thisWeekAvgKg = average(thisWeek);
-  const lastWeekAvgKg = average(lastWeek);
+  const trend = trendChange(
+    weights.map((w) => ({ date: w.date, kg: Number(w.weight_kg) })),
+  );
 
   const meas = (measRes.data as { waist_cm: number }[]) ?? [];
   const waistDeltaCm =
     meas.length >= 2 ? Number(meas[0].waist_cm) - Number(meas[1].waist_cm) : null;
 
-  // Consistency gate: only trust the weekly averages when the user weighed in on
-  // enough days in BOTH weeks. Patchy data → the review holds instead of guessing.
+  // Consistency gate: the trend can produce a number from very little, but a
+  // number built on two weigh-ins a fortnight apart isn't one to change someone's
+  // food over. Ask for a real cadence at both ends of the comparison window.
   const MIN_WEIGH_INS = 3;
-  const consistent =
-    thisWeek.length >= MIN_WEIGH_INS && lastWeek.length >= MIN_WEIGH_INS;
+  const inLastWeek = weights.filter((w) => w.date >= cut7).length;
+  const inWeekBefore = weights.filter((w) => w.date >= cut14 && w.date < cut7).length;
+  const consistent = inLastWeek >= MIN_WEIGH_INS && inWeekBefore >= MIN_WEIGH_INS;
 
   // Adaptation gate: how many whole weeks the current calorie target has been
   // unchanged. The review won't cut or add until the body has had ~2 weeks to
@@ -292,10 +301,7 @@ export async function getCoachData(): Promise<CoachData> {
     ? weeklyReview({
         sex,
         diet: profile?.diet_type ?? "regular",
-        // When we have no weigh-in this week, drop last week too so the review
-        // just says "keep logging" rather than comparing against stale data.
-        thisWeekAvgKg: thisWeekAvgKg ?? lastWeekAvgKg ?? 0,
-        lastWeekAvgKg: thisWeekAvgKg == null ? null : lastWeekAvgKg,
+        trend,
         waistDeltaCm,
         current,
         // Keep the protein cap consistent with onboarding when we recompute.
@@ -318,8 +324,8 @@ export async function getCoachData(): Promise<CoachData> {
   return {
     review,
     current,
-    thisWeekAvgKg,
-    lastWeekAvgKg,
+    trend,
+    trendWeightKg: trend?.nowKg ?? null,
     waistDeltaCm,
     activity: (activityRes.data as Activity[]) ?? [],
     fitbitConnected: Boolean((fitbitRes.data as { user_id: string } | null)?.user_id),

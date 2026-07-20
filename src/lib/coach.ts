@@ -380,8 +380,10 @@ export function trendChange(
 export interface WeeklyReviewInput {
   sex: Sex;
   diet?: DietType; // defaults to "regular"; keeps a keto split on recompute
-  thisWeekAvgKg: number; // trailing avg over the last 7 days
-  lastWeekAvgKg: number | null; // avg over the 7 days before that
+  // Movement of the smoothed trend weight over the last week, from
+  // trendChange(). Null when there isn't enough weigh-in history to span a
+  // week — the review holds rather than inventing a rate.
+  trend: TrendChange | null;
   waistDeltaCm: number | null; // latest waist − previous waist (− = shrinking)
   current: Macros; // the target in force now
   heightCm?: number; // caps the protein basis on recompute (same as onboarding)
@@ -406,8 +408,7 @@ export interface WeeklyReview {
 export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
   const {
     current,
-    thisWeekAvgKg,
-    lastWeekAvgKg,
+    trend,
     waistDeltaCm,
     sex,
     diet = "regular",
@@ -417,10 +418,10 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
     consistent,
   } = input;
 
-  // Not enough history yet — hold and ask for another week. A zero (or negative)
-  // average is not a weight, it's missing data: dividing by it below would give
-  // an infinite loss rate and "add calories, you're dropping too fast".
-  if (lastWeekAvgKg == null || lastWeekAvgKg <= 0 || thisWeekAvgKg <= 0) {
+  // Not enough history yet — hold and ask for another week. trendChange returns
+  // null rather than a rate it can't support, which keeps the coach from
+  // reading missing data as a dramatic loss and adding calories for it.
+  if (trend == null) {
     return {
       macros: current,
       changed: false,
@@ -460,8 +461,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
     };
   }
 
-  const changeKg = lastWeekAvgKg - thisWeekAvgKg; // + = lost
-  const changePct = changeKg / lastWeekAvgKg;
+  const { changeKg, changePct, nowKg } = trend; // + = lost
   const lostText = `${Math.abs(changeKg).toFixed(1)} kg`;
   const floor = MIN_KCAL[sex];
 
@@ -483,7 +483,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
   if (changePct > HEALTHY_MAX_PCT) {
     const newKcal = Math.round(current.kcal * (1 + ADD_STEP));
     return {
-      macros: macrosForKcal(newKcal, thisWeekAvgKg, diet, heightCm, goalWeightKg),
+      macros: macrosForKcal(newKcal, nowKg, diet, heightCm, goalWeightKg),
       changed: true,
       changeKg,
       changePct,
@@ -526,7 +526,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
   const newKcal = Math.max(floor, Math.round(current.kcal * (1 - CUT_STEP)));
   const gained = changeKg < 0;
   return {
-    macros: macrosForKcal(newKcal, thisWeekAvgKg, diet, heightCm, goalWeightKg),
+    macros: macrosForKcal(newKcal, nowKg, diet, heightCm, goalWeightKg),
     changed: true,
     changeKg,
     changePct,
