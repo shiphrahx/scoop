@@ -389,13 +389,25 @@ describe("planPickedDay — vegetables as fillers", () => {
 
   it("never serves an absurd pile of a vegetable to chase carbs", () => {
     const plan = reportedPlan();
-    // No single veg portion runs past ~one standard serving (was 400 g of onion).
+    // No single veg portion runs past one realistic serving (was 400 g of onion).
+    // The bound is the energy-sized cap; dense veg land well under it.
     for (const veg of ["Brown Onions", "Courgettes", "Tenderstem Broccoli"]) {
       for (const m of plan) {
         const g = m.portions.find((p) => p.name === veg)?.grams ?? 0;
-        expect(g).toBeLessThanOrEqual(100);
+        expect(g).toBeLessThanOrEqual(200);
       }
     }
+    // The dense onion in particular is a modest serving, not a plateful.
+    expect(gramsIn(plan, "Dinner", "Brown Onions")).toBeLessThanOrEqual(100);
+  });
+
+  it("sizes the serving to the vegetable — more of a watery veg than a dense one", () => {
+    const plan = reportedPlan();
+    // A courgette (17 kcal/100g) serves larger than an onion (40 kcal/100g): you
+    // eat more of the watery veg for the same modest serving.
+    expect(gramsIn(plan, "Dinner", "Courgettes")).toBeGreaterThan(
+      gramsIn(plan, "Dinner", "Brown Onions"),
+    );
   });
 
   it("gives each picked veg the same serving in each meal (balanced)", () => {

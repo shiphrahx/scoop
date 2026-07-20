@@ -335,12 +335,25 @@ const SMALL_PORTION = 10;
 
 const MACRO_KEYS: MacroKey[] = ["protein_g", "carbs_g", "fat_g"];
 
-// A standard vegetable portion. Vegetables are meal FILLERS, not a macro source:
-// each picked veg gets this fixed serving per meal (capped by stock) instead of
-// being grown by the solve to hit a carb/protein target. This is what keeps veg
-// split evenly across the meals the user picked them in, and stops the solver
-// piling 400 g of onion onto one plate to cover a meal that has no real carb.
-const VEG_SERVING_G = 80;
+// One vegetable serving, in grams. Vegetables are meal FILLERS, not a macro
+// source: each picked veg gets a fixed serving per meal (capped by stock) instead
+// of being grown by the solve to hit a carb/protein target — that's what keeps
+// veg split evenly across meals and stops the solver piling 400 g of onion onto a
+// plate to cover a meal with no real carb.
+//
+// The serving is sized by ENERGY, not a flat gram count: a filler should add a
+// small, roughly equal amount to the plate whatever the veg, and you eat far more
+// of a watery courgette than of a dense onion for the same serving. ~30 kcal is
+// one "five a day" portion. Bounded so a near-zero-calorie veg (cucumber,
+// lettuce) can't balloon and a dense one (carrot) can't shrink to a garnish.
+const VEG_PORTION_KCAL = 30;
+const VEG_MIN_G = 60;
+const VEG_MAX_G = 200;
+function vegServingG(food: PantryFood): number {
+  const perG = food.kcal_100g / 100;
+  const grams = perG > 0 ? VEG_PORTION_KCAL / perG : VEG_MAX_G;
+  return clamp(Math.round(grams), VEG_MIN_G, VEG_MAX_G);
+}
 
 // A picked food the planner treats as a filler rather than a macro source: a
 // vegetable, unless its name reads as a protein product too ("pea protein
@@ -513,7 +526,7 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
   const fillerIdx = vars.map((v, i) => (isFiller(v.food) ? i : -1)).filter((i) => i >= 0);
   const sourceIdx = vars.map((v, i) => (isFiller(v.food) ? -1 : i)).filter((i) => i >= 0);
   for (const i of fillerIdx) {
-    grams[i] = portionGrams(VEG_SERVING_G, vars[i].food, caps[i]);
+    grams[i] = portionGrams(vegServingG(vars[i].food), vars[i].food, caps[i]);
   }
 
   // What the fixed fillers already put on the day, and on each meal's share, so
