@@ -189,6 +189,76 @@ suite("row-level security", () => {
     });
   });
 
+  describe("fresh-food reference (shared, not per-user)", () => {
+    // Unlike a food diary, the reference is meant to be shared: everyone reads
+    // the same foods and sizes. But a seed row is read-only, and a size one user
+    // contributes can't be tampered with by another.
+    it("is seeded and readable by any signed-in user", async () => {
+      const { rows } = await asUser(db, USER_B, (c) =>
+        c.query("select id from fresh_foods where lower(name) = 'banana'"),
+      );
+      expect(rows).toHaveLength(1);
+
+      const sizes = await asUser(db, USER_B, (c) =>
+        c.query("select label from fresh_food_sizes where food_id = $1", [rows[0].id]),
+      );
+      expect(sizes.rows.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it("lets a user contribute a size they own, and others can read it", async () => {
+      const { rows } = await asUser(db, USER_A, (c) =>
+        c.query("select id from fresh_foods where lower(name) = 'banana'"),
+      );
+      const bananaId = rows[0].id;
+
+      await asUser(db, USER_A, (c) =>
+        c.query(
+          `insert into fresh_food_sizes (food_id, label, grams, created_by)
+           values ($1, 'giant', 200, $2)`,
+          [bananaId, USER_A],
+        ),
+      );
+
+      // Shared read: B sees A's contribution.
+      const seen = await asUser(db, USER_B, (c) =>
+        c.query("select grams from fresh_food_sizes where food_id = $1 and label = 'giant'", [
+          bananaId,
+        ]),
+      );
+      expect(seen.rows).toHaveLength(1);
+      expect(Number(seen.rows[0].grams)).toBe(200);
+    });
+
+    it("refuses a size written on another user's behalf", async () => {
+      const { rows } = await asUser(db, USER_A, (c) =>
+        c.query("select id from fresh_foods where lower(name) = 'apple'"),
+      );
+      await expect(
+        asUser(db, USER_B, (c) =>
+          c.query(
+            `insert into fresh_food_sizes (food_id, label, grams, created_by)
+             values ($1, 'sneaky', 999, $2)`,
+            [rows[0].id, USER_A],
+          ),
+        ),
+      ).rejects.toThrow(/row-level security/i);
+    });
+
+    it("cannot delete a read-only seed row", async () => {
+      const { rowCount } = await asUser(db, USER_A, (c) =>
+        c.query("delete from fresh_food_sizes where created_by is null"),
+      );
+      expect(rowCount).toBe(0);
+    });
+
+    it("cannot delete a seed food", async () => {
+      const { rowCount } = await asUser(db, USER_B, (c) =>
+        c.query("delete from fresh_foods where created_by is null"),
+      );
+      expect(rowCount).toBe(0);
+    });
+  });
+
   describe("a signed-out request", () => {
     it("sees nothing at all", async () => {
       // No JWT claim → auth.uid() is null → every policy fails.
