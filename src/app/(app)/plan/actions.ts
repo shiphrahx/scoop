@@ -22,7 +22,9 @@ export async function getSuggestions(
     getTodayConsumed(),
     supabase
       .from("pantry_items")
-      .select("name, kcal_100g, protein_100g, carbs_100g, fat_100g"),
+      .select(
+        "name, kcal_100g, protein_100g, carbs_100g, fat_100g, pack_size_g, quantity",
+      ),
   ]);
   if (!profile) throw new Error("Finish onboarding first");
 
@@ -33,16 +35,25 @@ export async function getSuggestions(
       protein_100g: number;
       carbs_100g: number;
       fat_100g: number;
+      pack_size_g: number | null;
+      quantity: number | null;
     }>) ?? []
   )
     .filter((p) => !violatesDiet(p.name, profile.diet_type))
-    .map((p) => ({
-      name: p.name,
-      kcal_100g: Number(p.kcal_100g),
-      protein_100g: Number(p.protein_100g),
-      carbs_100g: Number(p.carbs_100g),
-      fat_100g: Number(p.fat_100g),
-    }));
+    .map((p) => {
+      // Stock caps a portion at what the user actually has — a pack the app
+      // can't exceed. Pack size × packs; left undefined (no cap) when unknown.
+      const pack = p.pack_size_g != null ? Number(p.pack_size_g) : null;
+      const qty = p.quantity != null ? Math.max(1, Number(p.quantity)) : 1;
+      return {
+        name: p.name,
+        kcal_100g: Number(p.kcal_100g),
+        protein_100g: Number(p.protein_100g),
+        carbs_100g: Number(p.carbs_100g),
+        fat_100g: Number(p.fat_100g),
+        available_g: pack != null ? pack * qty : undefined,
+      };
+    });
 
   const remaining = targets
     ? {

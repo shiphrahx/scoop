@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { ScanBarcode, Link2, KeyRound } from "lucide-react";
+import { ScanBarcode, Link2 } from "lucide-react";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import type { ExtraPer100g, OffProduct } from "@/lib/types";
 import { addPantryItem, importPantryUrl } from "./actions";
@@ -23,19 +22,19 @@ const empty = {
 // Add something to the pantry: scan its barcode (fills name + per-100g macros
 // from Open Food Facts), paste a shop product link (AI reads its nutrition), or
 // type it in. `initialName` seeds the name field when arriving from the day
-// planner's "not in your pantry" prompt. The link import works without a key
-// for pages that publish structured nutrition; `connected` only drives the hint
-// that a key unlocks pages that hide it.
+// planner's "not in your pantry" prompt.
 export default function PantryForm({
   initialName = "",
-  connected = false,
 }: {
   initialName?: string;
-  connected?: boolean;
 }) {
   const router = useRouter();
   const [form, setForm] = useState({ ...empty, name: initialName });
   const [barcode, setBarcode] = useState<string | null>(null);
+  // The macro / pack / portion fields are hidden until there's a reason to show
+  // them: a scan or link fills them in (auto-reveal), or the user opens them to
+  // type by hand. Keeps the add screen down to a name + the scan/import buttons.
+  const [showDetails, setShowDetails] = useState(false);
   // Pack weight (grams) and how many portions the user splits a pack into. One
   // portion = pack ÷ portions, so a countable food ("6 bagels", "2 portions")
   // can be picked by count and the app does the macro maths from grams.
@@ -61,9 +60,11 @@ export default function PantryForm({
       if (!res.ok) {
         setBarcode(code);
         setNote(`No match for ${code}. Enter it by hand.`);
+        setShowDetails(true);
         return;
       }
       const p = (await res.json()) as OffProduct;
+      setShowDetails(true);
       setBarcode(p.barcode);
       setPack(p.pack_size_g == null ? "" : String(p.pack_size_g));
       setUnitLabel(p.unit_label ?? "");
@@ -102,6 +103,7 @@ export default function PantryForm({
     setImporting(true);
     try {
       const p = await importPantryUrl(link);
+      setShowDetails(true);
       setBarcode(null);
       setPack(p.pack_size_g == null ? "" : String(p.pack_size_g));
       // A parsed web page carries no serving; clear any unit left from a scan.
@@ -190,15 +192,6 @@ export default function PantryForm({
         </button>
       </div>
 
-      {!connected && (
-        <Link
-          href="/me"
-          className="flex items-center justify-center gap-1.5 text-center text-sm text-[var(--muted)]"
-        >
-          <KeyRound size={14} /> Connect your key to read pages that hide their nutrition.
-        </Link>
-      )}
-
       {note && (
         <p className="text-center text-sm font-medium text-[var(--muted)]">
           {note}
@@ -212,55 +205,66 @@ export default function PantryForm({
         className="sc-input text-lg"
       />
 
-      <p className="text-xs text-[var(--muted)]">Per 100g</p>
-      <div className="grid grid-cols-2 gap-3">
-        <Field
-          label="Calories"
-          value={form.kcal_100g}
-          onChange={(v) => set("kcal_100g", v)}
-        />
-        <Field
-          label="Protein"
-          value={form.protein_100g}
-          onChange={(v) => set("protein_100g", v)}
-        />
-        <Field
-          label="Carbs"
-          value={form.carbs_100g}
-          onChange={(v) => set("carbs_100g", v)}
-        />
-        <Field
-          label="Fat"
-          value={form.fat_100g}
-          onChange={(v) => set("fat_100g", v)}
-        />
-      </div>
+      {showDetails ? (
+        <>
+          <p className="text-xs text-[var(--muted)]">Per 100g</p>
+          <div className="grid grid-cols-2 gap-3">
+            <Field
+              label="Calories"
+              value={form.kcal_100g}
+              onChange={(v) => set("kcal_100g", v)}
+            />
+            <Field
+              label="Protein"
+              value={form.protein_100g}
+              onChange={(v) => set("protein_100g", v)}
+            />
+            <Field
+              label="Carbs"
+              value={form.carbs_100g}
+              onChange={(v) => set("carbs_100g", v)}
+            />
+            <Field
+              label="Fat"
+              value={form.fat_100g}
+              onChange={(v) => set("fat_100g", v)}
+            />
+          </div>
 
-      <Field label="Pack size (g, optional)" value={pack} onChange={setPack} />
+          <Field label="Pack size (g, optional)" value={pack} onChange={setPack} />
 
-      {/* Count instead of weigh: name the portion and say how many a pack makes
-          (6 bagels, 2 portions). One portion = pack ÷ portions, so the food can
-          be picked by count and the app works out the macros. */}
-      <p className="mt-1 text-xs text-[var(--muted)]">
-        Eaten in portions? Split a pack (optional)
-      </p>
-      <div className="grid grid-cols-2 gap-3">
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-[var(--muted)]">Portion name</span>
-          <input
-            value={unitLabel}
-            onChange={(e) => setUnitLabel(e.target.value)}
-            placeholder="bagel"
-            className="sc-input text-lg"
-          />
-        </label>
-        <Field label="Portions per pack" value={portions} onChange={setPortions} />
-      </div>
-      {pack.trim() !== "" && Number(portions) > 0 && (
-        <p className="text-xs text-[var(--muted)]">
-          One {unitLabel.trim() || "portion"} ≈{" "}
-          {Math.round(Number(pack) / Number(portions))} g
-        </p>
+          {/* Count instead of weigh: name the portion and say how many a pack
+              makes (6 bagels, 2 portions). One portion = pack ÷ portions, so the
+              food can be picked by count and the app works out the macros. */}
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            Eaten in portions? Split a pack (optional)
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-[var(--muted)]">Portion name</span>
+              <input
+                value={unitLabel}
+                onChange={(e) => setUnitLabel(e.target.value)}
+                placeholder="bagel"
+                className="sc-input text-lg"
+              />
+            </label>
+            <Field label="Portions per pack" value={portions} onChange={setPortions} />
+          </div>
+          {pack.trim() !== "" && Number(portions) > 0 && (
+            <p className="text-xs text-[var(--muted)]">
+              One {unitLabel.trim() || "portion"} ≈{" "}
+              {Math.round(Number(pack) / Number(portions))} g
+            </p>
+          )}
+        </>
+      ) : (
+        <button
+          onClick={() => setShowDetails(true)}
+          className="text-left text-sm font-medium text-[var(--ink-teal)]"
+        >
+          + Add macros &amp; pack details
+        </button>
       )}
 
       <button

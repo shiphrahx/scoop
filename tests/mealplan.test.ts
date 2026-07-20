@@ -86,4 +86,29 @@ describe("suggestPantryMeals", () => {
       suggestPantryMeals({ pantry: [oil], remaining: budget }),
     ).toEqual([]);
   });
+
+  it("never portions more of a food than its pack holds", () => {
+    // A 300 g pack of tofu, and a big protein target that would otherwise want
+    // far more than a pack. The suggestion must not exceed the 300 g in stock.
+    const tofu: PantryFood = {
+      name: "Silken Tofu",
+      kcal_100g: 55,
+      protein_100g: 5,
+      carbs_100g: 2,
+      fat_100g: 3,
+      available_g: 300,
+    };
+    const meals = suggestPantryMeals({
+      pantry: [tofu, rice],
+      remaining: { kcal: 1200, protein_g: 120, carbs_g: 100, fat_g: 30 },
+      carb: "Basmati Rice",
+      protein: "Silken Tofu",
+    });
+    const tofuGrams = meals
+      .flatMap((m) => m.portions)
+      .filter((p) => p.name === "Silken Tofu")
+      .map((p) => p.grams);
+    expect(tofuGrams.length).toBeGreaterThan(0);
+    for (const g of tofuGrams) expect(g).toBeLessThanOrEqual(300);
+  });
 });
