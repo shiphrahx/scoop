@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  planPickedDay,
   portionGrams,
   snapGrams,
   suggestPantryMeals,
@@ -103,6 +104,32 @@ describe("suggestPantryMeals", () => {
       remaining: { kcal: 1200, protein_g: 120, carbs_g: 100, fat_g: 30 },
       carb: "Basmati Rice",
       protein: "Silken Tofu",
+    });
+    const tofuGrams = meals
+      .flatMap((m) => m.portions)
+      .filter((p) => p.name === "Silken Tofu")
+      .map((p) => p.grams);
+    expect(tofuGrams.length).toBeGreaterThan(0);
+    for (const g of tofuGrams) expect(g).toBeLessThanOrEqual(300);
+  });
+});
+
+describe("planPickedDay", () => {
+  it("never portions a picked food past its pack, even chasing a big macro", () => {
+    // A 300 g pack of tofu is the meal's only protein, and the day wants far
+    // more protein than a pack can give. Without the stock cap the solver would
+    // clamp tofu to its role ceiling (350 g); with it, one pack is the limit.
+    const tofu: PantryFood = {
+      name: "Silken Tofu",
+      kcal_100g: 55,
+      protein_100g: 14,
+      carbs_100g: 2,
+      fat_100g: 8,
+      available_g: 300,
+    };
+    const meals = planPickedDay({
+      slots: [{ slot: "Dinner", foods: [tofu, rice] }],
+      budget: { kcal: 1800, protein_g: 150, carbs_g: 180, fat_g: 60 },
     });
     const tofuGrams = meals
       .flatMap((m) => m.portions)
