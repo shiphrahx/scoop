@@ -3,9 +3,11 @@ import { decryptSecret } from "@/lib/crypto";
 import {
   TREND_WINDOW_DAYS,
   ageFromBirthYear,
+  average,
   averageActiveKcal,
   adherence as computeAdherence,
   observeTdee,
+  stepsFalling,
   tdee,
   trendChange,
   weeklyReview,
@@ -294,8 +296,9 @@ export async function getCoachData(): Promise<CoachData> {
       supabase
         .from("activity")
         .select("date, steps, workout_kcal, sleep_hours, source")
+        .gte("date", cut14)
         .order("date", { ascending: false })
-        .limit(7),
+        .limit(14),
       user
         ? supabase.from("fitbit_tokens").select("user_id").eq("user_id", user.id).maybeSingle()
         : Promise.resolve({ data: null }),
@@ -325,6 +328,15 @@ export async function getCoachData(): Promise<CoachData> {
       : 1;
 
   const activityRows = (activityRes.data as Activity[]) ?? [];
+  const thisWeekActivity = activityRows.filter((a) => a.date >= cut7);
+  const lastWeekActivity = activityRows.filter((a) => a.date >= cut14 && a.date < cut7);
+  const stepsDropped = stepsFalling(
+    thisWeekActivity.map((a) => a.steps),
+    lastWeekActivity.map((a) => a.steps),
+  );
+  const stepsPerDay = average(
+    thisWeekActivity.map((a) => a.steps).filter((s): s is number => s != null && s > 0),
+  );
   const latestKg = trend?.nowKg ?? (weighIns.length ? weighIns[0].kg : null);
   const predictedTdee =
     profile?.height_cm && profile.sex && profile.birth_year && latestKg
@@ -337,9 +349,10 @@ export async function getCoachData(): Promise<CoachData> {
           activity: profile.activity_level ?? "sedentary",
           bodyFatPct: profile.body_fat_pct,
           activeKcalPerDay: averageActiveKcal(
-            activityRows.map((a) => a.workout_kcal),
+            thisWeekActivity.map((a) => a.workout_kcal),
             7,
           ),
+          stepsPerDay,
           tdeeCalibration: 1, // deliberately raw — see predictedTdee above
         })
       : null;
@@ -395,6 +408,7 @@ export async function getCoachData(): Promise<CoachData> {
         weeksOnTarget,
         consistent,
         adherence: adherence ?? undefined,
+        stepsDropped,
       })
     : {
         macros: { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },

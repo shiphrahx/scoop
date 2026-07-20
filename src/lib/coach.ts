@@ -86,6 +86,9 @@ export interface CoachInput {
   // activityCalories and Apple's active_energy both mean this. When present it
   // replaces the self-reported activity multiplier with real data.
   activeKcalPerDay?: number | null;
+  // Average daily step count. Used when no device reports calories — a rough
+  // measurement of this week beats a self-description chosen at onboarding.
+  stepsPerDay?: number | null;
   // Body-fat fraction as a percentage (e.g. 22 for 22%). Optional — when known
   // the resting rate switches to Katch–McArdle (driven by lean mass), which is
   // more accurate than Mifflin for both lean and very-heavy bodies.
@@ -143,10 +146,22 @@ export function tdeeFromComponents(rmrKcal: number, activeKcal: number) {
 // and the textbook's guess at it, and it survives every profile edit.
 export function tdee(input: Omit<CoachInput, "pace">) {
   const rmr = restingRate(input);
-  const predicted =
-    input.activeKcalPerDay != null && input.activeKcalPerDay > 0
-      ? tdeeFromComponents(rmr, input.activeKcalPerDay)
-      : rmr * ACTIVITY_MULTIPLIER[input.activity];
+
+  // Best available answer first: a device that reports calories, then a step
+  // count, then the user's own guess at how active they are. A step count is
+  // rough, but it is a measurement of this week rather than a description the
+  // user chose once at onboarding and never revisited.
+  let predicted: number;
+  if (input.activeKcalPerDay != null && input.activeKcalPerDay > 0) {
+    predicted = tdeeFromComponents(rmr, input.activeKcalPerDay);
+  } else if (input.stepsPerDay != null && input.stepsPerDay > 0) {
+    predicted = tdeeFromComponents(
+      rmr,
+      activeKcalFromSteps(input.stepsPerDay, input.weightKg, rmr),
+    );
+  } else {
+    predicted = rmr * ACTIVITY_MULTIPLIER[input.activity];
+  }
 
   const cal = input.tdeeCalibration;
   return cal != null && cal > 0 ? predicted * cal : predicted;
@@ -176,6 +191,63 @@ export function averageActiveKcal(
   const present = values.filter((v): v is number => v != null).map(Number);
   if (present.length < Math.min(MIN_ACTIVE_COVERAGE, windowDays)) return null;
   return average(present);
+}
+
+// --- Steps as an activity signal --------------------------------------------
+
+// Net cost of walking, above resting, per kg of bodyweight per step. Walking
+// runs about 0.35 kcal/kg/km net and a stride averages ~0.75 m, so roughly
+// 1333 steps to the kilometre: 0.35 / 1333 ≈ 0.00026. Heavier bodies pay more
+// per step, which is why this is per kg rather than a flat kcal/step.
+const KCAL_PER_STEP_PER_KG = 0.00026;
+
+// The non-step part of everyday activity — fidgeting, standing, gesturing.
+// Real and surprisingly large, but not something steps can see.
+const BASELINE_NEAT_FRACTION = 0.1;
+
+// Energy a day's walking costs, above resting.
+export function stepKcal(steps: number, weightKg: number): number {
+  if (!(steps > 0) || !(weightKg > 0)) return 0;
+  return steps * weightKg * KCAL_PER_STEP_PER_KG;
+}
+
+// Active energy implied by a step count, for users with a phone but no
+// calorie-reporting wearable.
+//
+// NEAT is the largest source of variation in daily burn between two people of
+// the same size — hundreds of kcal — and it is also the thing that quietly
+// falls during a diet. Storing steps and never reading them, as this app did,
+// throws away the best signal available for both.
+export function activeKcalFromSteps(steps: number, weightKg: number, rmrKcal: number) {
+  return stepKcal(steps, weightKg) + BASELINE_NEAT_FRACTION * rmrKcal;
+}
+
+// A meaningful drop in daily steps between this week and last.
+const STEP_DROP_FRACTION = 0.15;
+
+// Whether the user is simply moving less than they were. When a plateau comes
+// with the step count falling away, the honest answer is not to cut food — the
+// deficit didn't disappear because maintenance rose, it disappeared because the
+// user stopped walking. Cutting calories there treats the symptom and makes the
+// diet harder at the same time.
+export function stepsFalling(
+  thisWeekSteps: (number | null | undefined)[],
+  lastWeekSteps: (number | null | undefined)[],
+): { falling: boolean; thisWeek: number | null; lastWeek: number | null } {
+  const now = average(
+    thisWeekSteps.filter((s): s is number => s != null && s > 0).map(Number),
+  );
+  const before = average(
+    lastWeekSteps.filter((s): s is number => s != null && s > 0).map(Number),
+  );
+  if (now == null || before == null || before <= 0) {
+    return { falling: false, thisWeek: now, lastWeek: before };
+  }
+  return {
+    falling: (before - now) / before >= STEP_DROP_FRACTION,
+    thisWeek: now,
+    lastWeek: before,
+  };
 }
 
 // Split a calorie target into macros: fixed high protein (by bodyweight),
@@ -637,6 +709,8 @@ export interface WeeklyReviewInput {
   // How closely the user ate the target this week. Omitted = no opinion, which
   // leaves the old scale-only behaviour for callers that don't supply it.
   adherence?: Adherence;
+  // Whether daily steps fell away compared with the week before.
+  stepsDropped?: ReturnType<typeof stepsFalling>;
 }
 
 export interface WeeklyReview {
@@ -660,6 +734,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
     weeksOnTarget,
     consistent,
     adherence,
+    stepsDropped,
   } = input;
 
   // Not enough history yet — hold and ask for another week. trendChange returns
@@ -751,6 +826,24 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       ).toFixed(
         1,
       )} cm — that's fat loss the scale can't see. Holding your targets.`,
+    };
+  }
+
+  // Stalled because the user is moving less, not because maintenance moved.
+  // Cutting food here treats the symptom and makes the diet harder at once; the
+  // deficit is recovered far more cheaply by walking as much as last week.
+  if (stepsDropped?.falling) {
+    return {
+      macros: current,
+      changed: false,
+      changeKg,
+      changePct,
+      headline: "Your steps dropped this week",
+      detail: `You averaged ${Math.round(
+        stepsDropped.thisWeek ?? 0,
+      )} steps a day against ${Math.round(
+        stepsDropped.lastWeek ?? 0,
+      )} the week before. That's most of your missing deficit right there, and walking it back is a far better trade than eating less. Holding your targets.`,
     };
   }
 

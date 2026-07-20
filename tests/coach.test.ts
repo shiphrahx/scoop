@@ -14,6 +14,8 @@ import {
   tdeeFromEnergyBalance,
   updateCalibration,
   restingRate,
+  stepKcal,
+  stepsFalling,
   tdee,
   tdeeFromComponents,
   trendChange,
@@ -791,6 +793,104 @@ describe("weeklyReview adherence gate", () => {
     });
     expect(r.changed).toBe(true);
     expect(r.macros.kcal).toBeGreaterThan(current.kcal);
+  });
+});
+
+describe("steps as an activity signal", () => {
+  it("charges a heavier body more per step", () => {
+    expect(stepKcal(10000, 100)).toBeGreaterThan(stepKcal(10000, 60));
+  });
+
+  it("puts 10k steps in the right ballpark", () => {
+    // ~0.35 kcal/kg/km net, ~1333 steps/km: 80 kg x 10000 steps ~ 208 kcal.
+    expect(stepKcal(10000, 80)).toBeCloseTo(208, 0);
+  });
+
+  it("ignores a zero or missing count", () => {
+    expect(stepKcal(0, 80)).toBe(0);
+    expect(stepKcal(10000, 0)).toBe(0);
+  });
+
+  it("prefers a step count to the self-reported activity level", () => {
+    const common = {
+      sex: "male",
+      diet: "regular",
+      weightKg: 80,
+      heightCm: 180,
+      age: 30,
+      activity: "sedentary",
+    } as const;
+    // Someone who calls themselves sedentary but walks 14k steps a day is not
+    // sedentary, and the maths should notice.
+    expect(tdee({ ...common, stepsPerDay: 14000 })).toBeGreaterThan(tdee(common));
+  });
+
+  it("lets a calorie-reporting device outrank steps", () => {
+    const common = {
+      sex: "male",
+      diet: "regular",
+      weightKg: 80,
+      heightCm: 180,
+      age: 30,
+      activity: "sedentary",
+    } as const;
+    // active_energy already counts the walking, so steps must not be added again.
+    expect(tdee({ ...common, activeKcalPerDay: 500, stepsPerDay: 14000 })).toBeCloseTo(
+      tdee({ ...common, activeKcalPerDay: 500 }),
+      5,
+    );
+  });
+
+  it("spots a real drop in daily steps", () => {
+    expect(stepsFalling([5000, 5200, 4800], [10000, 10200, 9800]).falling).toBe(true);
+    expect(stepsFalling([9500, 10000, 10200], [10000, 10200, 9800]).falling).toBe(false);
+  });
+
+  it("says nothing when there are no steps to compare", () => {
+    expect(stepsFalling([], [10000]).falling).toBe(false);
+    expect(stepsFalling([9000], []).falling).toBe(false);
+  });
+});
+
+describe("weeklyReview step diagnosis", () => {
+  const current: Macros = { kcal: 2000, protein_g: 160, carbs_g: 180, fat_g: 56 };
+  const stall = {
+    sex: "male" as const,
+    trend: { nowKg: 90, thenKg: 90, changeKg: 0, changePct: 0, spanDays: 7 },
+    waistDeltaCm: 0,
+    current,
+    weeksOnTarget: 3,
+    consistent: true,
+    adherence: {
+      loggedDays: 7,
+      adherentDays: 7,
+      meanIntakeKcal: 2000,
+      followed: true,
+    },
+  };
+
+  it("blames the missing steps rather than cutting food", () => {
+    // The deficit didn't vanish because maintenance rose. It vanished because
+    // the user stopped walking. Cutting calories treats the symptom and makes
+    // the diet harder at the same time.
+    const r = weeklyReview({
+      ...stall,
+      stepsDropped: { falling: true, thisWeek: 4000, lastWeek: 10000 },
+    });
+    expect(r.changed).toBe(false);
+    expect(r.macros).toEqual(current);
+    expect(r.headline).toMatch(/steps/i);
+    expect(r.detail).toMatch(/4000/);
+    expect(r.detail).toMatch(/10000/);
+  });
+
+  it("still cuts a stall that steps do not explain", () => {
+    const r = weeklyReview({
+      ...stall,
+      stepsDropped: { falling: false, thisWeek: 10000, lastWeek: 10200 },
+    });
+    expect(r.changed).toBe(true);
+    expect(r.macros.kcal).toBeLessThan(current.kcal);
   });
 });
 
