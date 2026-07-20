@@ -10,7 +10,7 @@
 //    protein, each solved as a small linear system against the remaining
 //    macros.
 
-import { macroRole, isVegetable } from "@/lib/foodgroups";
+import { macroRole, isVegetable, isProtein } from "@/lib/foodgroups";
 import type {
   Macros,
   MealPortion,
@@ -343,11 +343,13 @@ const MACRO_KEYS: MacroKey[] = ["protein_g", "carbs_g", "fat_g"];
 const VEG_SERVING_G = 80;
 
 // A picked food the planner treats as a filler rather than a macro source: a
-// vegetable that isn't itself a serious protein source (edamame, peas dense
-// enough to anchor a meal stay sources). Fillers get a fixed serving; sources
-// are portioned by the solve.
+// vegetable, unless its name reads as a protein product too ("pea protein
+// powder" is a protein, not a filler). Broccoli, peas and the like carry enough
+// protein that macroRole calls them a protein source — but nobody eats them to
+// hit a protein target, so name, not macros, decides here. Fillers get a fixed
+// serving; sources are portioned by the solve.
 const isFiller = (food: PantryFood) =>
-  isVegetable(food.name) && macroRole(food) !== "protein";
+  isVegetable(food.name) && !isProtein(food.name);
 
 // The relative size of each picked slot, normalised to fractions summing to 1.
 function slotFractions(

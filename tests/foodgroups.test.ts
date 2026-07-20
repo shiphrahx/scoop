@@ -4,6 +4,7 @@ import {
   isCarb,
   isFat,
   isProtein,
+  isVegetable,
   macroRole,
   pantryCarbs,
   pantryCategory,
@@ -51,6 +52,22 @@ describe("isFat", () => {
     expect(isFat("Extra Virgin Olive Oil")).toBe(true);
     expect(isFat("Whole Almonds")).toBe(true);
     expect(isFat("Ripe Avocado")).toBe(true);
+  });
+});
+
+describe("isVegetable", () => {
+  it("recognises vegetables behind brand words", () => {
+    expect(isVegetable("Brown Onions")).toBe(true);
+    expect(isVegetable("Tenderstem Broccoli")).toBe(true);
+    expect(isVegetable("Organic Courgettes")).toBe(true);
+  });
+  it("does not read potato or avocado as veg (they are a carb and a fat)", () => {
+    expect(isVegetable("Maris Piper Potatoes")).toBe(false);
+    expect(isVegetable("Ripe Avocado")).toBe(false);
+  });
+  it("does not read a plain protein or carb as veg", () => {
+    expect(isVegetable("Basmati Rice")).toBe(false);
+    expect(isVegetable("Chicken Breast")).toBe(false);
   });
 });
 

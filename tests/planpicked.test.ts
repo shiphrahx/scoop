@@ -346,6 +346,126 @@ describe("planPickedDay", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Vegetables are fillers, not a macro source. The user picks veg for several
+// meals; each should get a sensible serving in each meal it was picked into, and
+// the solver must never grow a vegetable to compensate for a missing carb.
+// ---------------------------------------------------------------------------
+
+// Realistic per-100g veg, edible portion (from the fresh-food seed).
+const onion = () => food("Brown Onions", 1.1, 9.3, 0.1);
+const courgette = () => food("Courgettes", 1.2, 3.1, 0.3);
+const broccoli = () => food("Tenderstem Broccoli", 2.8, 7, 0.4);
+const rice = () => food("Basmati Rice", 7.1, 78, 0.9);
+
+const gramsOf = (plan: PlannedSlot[], name: string) =>
+  plan.flatMap((m) => m.portions).find((p) => p.name === name)?.grams ?? 0;
+const gramsIn = (plan: PlannedSlot[], slot: string, name: string) =>
+  plan.find((m) => m.slot === slot)?.portions.find((p) => p.name === name)?.grams ?? 0;
+
+describe("planPickedDay — vegetables as fillers", () => {
+  // The exact reported bug: veg picked for BOTH lunch and dinner, rice only in
+  // lunch. Before the fix all veg landed in dinner (400 g onion to hit dinner's
+  // carbs) and lunch's veg were dropped as "couldn't fit".
+  const reportedPlan = () =>
+    planPickedDay({
+      slots: [
+        { slot: "Lunch", foods: [tofu(), rice(), onion(), courgette(), broccoli()] },
+        { slot: "Snack", foods: [food("Vegan Protein", 70, 5, 6), food("Banana", 1.1, 23, 0.3)] },
+        { slot: "Dinner", foods: [mince(), courgette(), onion(), broccoli()] },
+      ],
+      budget: { kcal: 1800, protein_g: 130, carbs_g: 170, fat_g: 50 },
+    });
+
+  it("puts the veg the user picked in lunch INTO lunch, not all in dinner", () => {
+    const plan = reportedPlan();
+    // Lunch keeps its onion, courgette and broccoli — none dropped.
+    expect(gramsIn(plan, "Lunch", "Brown Onions")).toBeGreaterThan(0);
+    expect(gramsIn(plan, "Lunch", "Courgettes")).toBeGreaterThan(0);
+    expect(gramsIn(plan, "Lunch", "Tenderstem Broccoli")).toBeGreaterThan(0);
+    // Dinner keeps its veg too.
+    expect(gramsIn(plan, "Dinner", "Brown Onions")).toBeGreaterThan(0);
+    expect(gramsIn(plan, "Dinner", "Courgettes")).toBeGreaterThan(0);
+  });
+
+  it("never serves an absurd pile of a vegetable to chase carbs", () => {
+    const plan = reportedPlan();
+    // No single veg portion runs past ~one standard serving (was 400 g of onion).
+    for (const veg of ["Brown Onions", "Courgettes", "Tenderstem Broccoli"]) {
+      for (const m of plan) {
+        const g = m.portions.find((p) => p.name === veg)?.grams ?? 0;
+        expect(g).toBeLessThanOrEqual(100);
+      }
+    }
+  });
+
+  it("gives each picked veg the same serving in each meal (balanced)", () => {
+    const plan = reportedPlan();
+    // Onion is picked in both lunch and dinner: the two servings match.
+    expect(gramsIn(plan, "Lunch", "Brown Onions")).toBe(gramsIn(plan, "Dinner", "Brown Onions"));
+    expect(gramsIn(plan, "Lunch", "Courgettes")).toBe(gramsIn(plan, "Dinner", "Courgettes"));
+  });
+
+  it("fills the day's carbs from the real carb source, not the veg", () => {
+    const plan = reportedPlan();
+    // Rice carries far more of the day's carbs than all the veg together.
+    const riceCarbs = (rice().carbs_100g * gramsOf(plan, "Basmati Rice")) / 100;
+    const vegCarbs = ["Brown Onions", "Courgettes", "Tenderstem Broccoli"].reduce((s, name) => {
+      const per100 = name === "Brown Onions" ? 9.3 : name === "Courgettes" ? 3.1 : 7;
+      const grams = plan
+        .flatMap((m) => m.portions)
+        .filter((p) => p.name === name)
+        .reduce((a, p) => a + p.grams, 0);
+      return s + (per100 * grams) / 100;
+    }, 0);
+    expect(riceCarbs).toBeGreaterThan(vegCarbs);
+  });
+
+  it("caps a veg serving at its stock", () => {
+    // Only 30 g of onion in the pack: the serving can't exceed it.
+    const plan = planPickedDay({
+      slots: [
+        { slot: "Lunch", foods: [rice(), tofu(), food("Brown Onions", 1.1, 9.3, 0.1, 30)] },
+      ],
+      budget: { kcal: 700, protein_g: 45, carbs_g: 90, fat_g: 20 },
+    });
+    expect(gramsOf(plan, "Brown Onions")).toBeLessThanOrEqual(30);
+    expect(gramsOf(plan, "Brown Onions")).toBeGreaterThan(0);
+  });
+
+  it("still hits the day's macros with veg in the mix", () => {
+    const plan = reportedPlan();
+    const tot = sumPlan(plan);
+    // Protein and carbs are what the sources are solved to hit; both land close.
+    expect(Math.abs(tot.protein_g - 130)).toBeLessThanOrEqual(15);
+    expect(Math.abs(tot.carbs_g - 170)).toBeLessThanOrEqual(20);
+  });
+
+  it("plans a meal of only vegetables without a macro source", () => {
+    const plan = planPickedDay({
+      slots: [
+        { slot: "Lunch", foods: [rice(), chicken()] },
+        { slot: "Side", foods: [broccoli(), courgette()] },
+      ],
+      budget: { kcal: 900, protein_g: 80, carbs_g: 90, fat_g: 20 },
+    });
+    const side = plan.find((m) => m.slot === "Side");
+    expect(side).toBeDefined();
+    expect(side!.portions.map((p) => p.name).sort()).toEqual(["Courgettes", "Tenderstem Broccoli"]);
+  });
+
+  it("keeps a pea/soy protein product a source, not a filler", () => {
+    // "Pea Protein" reads as a vegetable (pea) AND a protein — it must stay a
+    // solved protein source, not be pinned to an 80 g filler serving.
+    const plan = planPickedDay({
+      slots: [{ slot: "Lunch", foods: [food("Pea Protein Powder", 80, 5, 6), rice()] }],
+      budget: { kcal: 700, protein_g: 90, carbs_g: 80, fat_g: 12 },
+    });
+    // A protein source solved to hit 90 g protein needs well over an 80 g serving.
+    expect(gramsOf(plan, "Pea Protein Powder")).toBeGreaterThan(90);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Property tests: the ±5 promise for picks the solver has never seen.
 // ---------------------------------------------------------------------------
 
