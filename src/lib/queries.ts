@@ -2,8 +2,14 @@ import { createClient } from "@/lib/supabase/server";
 import { decryptSecret } from "@/lib/crypto";
 import {
   TREND_WINDOW_DAYS,
+  ageFromBirthYear,
+  averageActiveKcal,
+  observeTdee,
+  tdee,
   trendChange,
   weeklyReview,
+  type DailyIntake,
+  type ObservedTdee,
   type TrendChange,
   type WeeklyReview,
 } from "@/lib/coach";
@@ -187,6 +193,15 @@ export interface CoachData {
   trend: TrendChange | null;
   trendWeightKg: number | null;
   waistDeltaCm: number | null;
+  // What the user's own numbers say they burn, and the running correction to
+  // the formula that it feeds. Null when the data can't support a measurement.
+  observed: ObservedTdee | null;
+  calibration: number;
+  // The formula's maintenance estimate with NO calibration applied. The
+  // correction is the ratio of the measurement to this raw prediction — measure
+  // it against an already-corrected number and the ratio sits at 1 for ever and
+  // never converges on anything. Null when the profile is too incomplete.
+  predictedTdee: number | null;
   activity: Activity[];
   fitbitConnected: boolean;
   appleIngestToken: string | null;
@@ -198,6 +213,38 @@ const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 // How far back a waist measurement can be and still count as "the previous
 // one" for the weekly review.
 const WAIST_WINDOW_DAYS = 28;
+
+// Calories logged per local day over a window, one entry per day that has any
+// food on it. Days with nothing logged are absent rather than zero: a day the
+// user didn't log is unknown, not a fast, and scoring it as zero would drag the
+// measured intake down and the measured burn with it.
+export async function getDailyIntake(
+  tz: string,
+  windowDays: number,
+  now = new Date(),
+): Promise<DailyIntake[]> {
+  const supabase = await createClient();
+  const from = startOfLocalDay(
+    tz,
+    new Date(now.getTime() - (windowDays - 1) * DAY_MS),
+  );
+
+  const { data } = await supabase
+    .from("food_logs")
+    .select("logged_at, kcal")
+    .gte("logged_at", from.toISOString());
+
+  const byDay = new Map<string, number>();
+  for (const row of (data as { logged_at: string; kcal: number }[]) ?? []) {
+    const day = localDate(tz, new Date(row.logged_at));
+    byDay.set(day, (byDay.get(day) ?? 0) + Number(row.kcal));
+  }
+
+  return [...byDay.entries()]
+    .map(([date, kcal]) => ({ date, kcal }))
+    .filter((d) => d.kcal > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
 
 export async function getCoachData(): Promise<CoachData> {
   const supabase = await createClient();
@@ -260,6 +307,36 @@ export async function getCoachData(): Promise<CoachData> {
   const meas = (measRes.data as { waist_cm: number }[]) ?? [];
   const waistDeltaCm =
     meas.length >= 2 ? Number(meas[0].waist_cm) - Number(meas[1].waist_cm) : null;
+
+  // What the user's own numbers say they burn. This is the measurement that
+  // outranks the formula: intake against the slope of their weight.
+  const weighIns = weights.map((w) => ({ date: w.date, kg: Number(w.weight_kg) }));
+  const intake = await getDailyIntake(tz, TREND_WINDOW_DAYS, now);
+  const observed = observeTdee(weighIns, intake);
+  const calibration =
+    profile?.tdee_calibration != null && profile.tdee_calibration > 0
+      ? Number(profile.tdee_calibration)
+      : 1;
+
+  const activityRows = (activityRes.data as Activity[]) ?? [];
+  const latestKg = trend?.nowKg ?? (weighIns.length ? weighIns[0].kg : null);
+  const predictedTdee =
+    profile?.height_cm && profile.sex && profile.birth_year && latestKg
+      ? tdee({
+          sex: profile.sex,
+          diet: profile.diet_type ?? "regular",
+          weightKg: latestKg,
+          heightCm: Number(profile.height_cm),
+          age: ageFromBirthYear(profile.birth_year),
+          activity: profile.activity_level ?? "sedentary",
+          bodyFatPct: profile.body_fat_pct,
+          activeKcalPerDay: averageActiveKcal(
+            activityRows.map((a) => a.workout_kcal),
+            7,
+          ),
+          tdeeCalibration: 1, // deliberately raw — see predictedTdee above
+        })
+      : null;
 
   // Consistency gate: the trend can produce a number from very little, but a
   // number built on two weigh-ins a fortnight apart isn't one to change someone's
@@ -327,7 +404,10 @@ export async function getCoachData(): Promise<CoachData> {
     trend,
     trendWeightKg: trend?.nowKg ?? null,
     waistDeltaCm,
-    activity: (activityRes.data as Activity[]) ?? [],
+    observed,
+    calibration,
+    predictedTdee,
+    activity: activityRows,
     fitbitConnected: Boolean((fitbitRes.data as { user_id: string } | null)?.user_id),
     appleIngestToken: (() => {
       const stored = (tokenRes.data as { apple_ingest_token: string | null } | null)

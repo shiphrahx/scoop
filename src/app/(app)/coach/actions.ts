@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { encryptSecret, decryptSecret, hashToken } from "@/lib/crypto";
+import { updateCalibration } from "@/lib/coach";
 import { getCoachData } from "@/lib/queries";
 import { getTimezone } from "@/lib/queries";
 import { localWeekStart } from "@/lib/time";
@@ -16,7 +17,7 @@ const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 // which keeps the week-to-week chain unbroken.
 export async function applyReview() {
   const { supabase, user } = await requireUser();
-  const { review } = await getCoachData();
+  const { review, observed, calibration, predictedTdee } = await getCoachData();
   if (review.macros.kcal <= 0) throw new Error("No target to apply yet.");
 
   const nextWeek = localWeekStart(await getTimezone(), new Date(Date.now() + 7 * DAY_MS));
@@ -25,6 +26,22 @@ export async function applyReview() {
     { onConflict: "user_id,week_start" },
   );
   if (error) throw new Error(error.message);
+
+  // Fold this review's measurement into the standing correction. This is the
+  // part that makes the coach learn rather than re-guess: next week's target is
+  // built on what this user demonstrably burns, and it survives profile edits.
+  if (observed && predictedTdee != null && predictedTdee > 0) {
+    const next = updateCalibration(calibration, observed.kcalPerDay, predictedTdee);
+    await supabase
+      .from("users")
+      .update({
+        tdee_calibration: next,
+        tdee_observed_kcal: Math.round(observed.kcalPerDay),
+        tdee_observed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", user.id);
+  }
 
   revalidatePath("/coach");
   revalidatePath("/");
