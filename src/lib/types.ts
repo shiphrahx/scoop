@@ -298,6 +298,10 @@ export interface PlanItem extends ExtraPer100g {
   // the stepper can offer whole units ("2 bagels") while grams stays exact.
   unit_g?: number | null;
   unit_label?: string | null;
+  // The named sizes a fresh food comes in (small/medium/large), carried from the
+  // pantry so the meal builder can switch which size this item is. Null/[] for a
+  // weighed or single-unit food.
+  unit_options?: UnitOption[] | null;
 }
 
 // A search hit offered when the user is building a meal: a pantry item they
@@ -317,6 +321,9 @@ export interface FoodChoice extends ExtraPer100g {
   // be stepped in whole units (see PlanItem). Null = weighed in grams.
   unit_g?: number | null;
   unit_label?: string | null;
+  // A fresh food's named sizes (small/medium/large), carried from the pantry so
+  // the meal builder can offer the user a size to add. Null/[] otherwise.
+  unit_options?: UnitOption[] | null;
 }
 
 // A food the user chose for one meal when planning their day — the app works

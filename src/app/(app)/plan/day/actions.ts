@@ -22,6 +22,7 @@ import {
   type MealPortion,
   type PlanItem,
   type Macros,
+  type UnitOption,
 } from "@/lib/types";
 
 function revalidate() {
@@ -106,7 +107,7 @@ export async function searchFoods(query: string): Promise<FoodChoice[]> {
   const { data: pantryData } = await supabase
     .from("pantry_items")
     .select(
-      "name, off_barcode, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, satfat_100g, sodium_mg_100g, pack_size_g, unit_g, unit_label",
+      "name, off_barcode, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, satfat_100g, sodium_mg_100g, pack_size_g, unit_g, unit_label, unit_options",
     )
     .ilike("name", `%${q}%`)
     .limit(10);
@@ -126,6 +127,7 @@ export async function searchFoods(query: string): Promise<FoodChoice[]> {
       pack_size_g: number | null;
       unit_g: number | null;
       unit_label: string | null;
+      unit_options: UnitOption[] | null;
     }>) ?? []
   ).map((p) => ({
     name: p.name,
@@ -143,6 +145,7 @@ export async function searchFoods(query: string): Promise<FoodChoice[]> {
     pack_size_g: p.pack_size_g != null ? Number(p.pack_size_g) : null,
     unit_g: p.unit_g != null ? Number(p.unit_g) : null,
     unit_label: p.unit_label,
+    unit_options: p.unit_options ?? null,
   }));
 }
 

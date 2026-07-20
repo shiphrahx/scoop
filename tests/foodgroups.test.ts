@@ -69,6 +69,22 @@ describe("isVegetable", () => {
     expect(isVegetable("Basmati Rice")).toBe(false);
     expect(isVegetable("Chicken Breast")).toBe(false);
   });
+
+  it("reads every seeded vegetable as a filler (veg, not a protein product)", () => {
+    // Every vegetable in the fresh-food seed (migrations 0019 + 0020) must plan
+    // as a filler: isVegetable true, isProtein false.
+    const seeded = [
+      "Tomato", "Carrot", "Onion", "Bell Pepper", "Cucumber", "Mushroom",
+      "Broccoli", "Cauliflower", "Courgette", "Aubergine", "Celery", "Leek",
+      "Spinach", "Kale", "Cabbage", "Lettuce", "Peas", "Sweetcorn", "Asparagus",
+      "Beetroot", "Parsnip", "Turnip", "Butternut Squash", "Brussels Sprout",
+      "Spring Onion", "Radish",
+    ];
+    for (const name of seeded) {
+      expect(isVegetable(name), `${name} should read as a vegetable`).toBe(true);
+      expect(isProtein(name), `${name} should not read as a protein`).toBe(false);
+    }
+  });
 });
 
 describe("isCarb / isProtein", () => {
