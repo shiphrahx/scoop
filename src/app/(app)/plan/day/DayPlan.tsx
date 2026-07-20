@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, Pencil, AlertTriangle, AlertCircle, CopyPlus, UtensilsCrossed, Info } from "lucide-react";
-import type { FoodChoice, Macros, MealPortion, PlannedMeal, PlanItem } from "@/lib/types";
+import type { FoodChoice, Macros, MealPortion, PlannedMeal, PlanItem, UnitOption } from "@/lib/types";
 import { sumItems } from "@/lib/types";
+import { pantryUnitLabel } from "@/lib/freshfoods";
 import { parseFoodQuery } from "@/lib/foodquery";
 import {
   NUTRIENTS,
@@ -492,6 +493,7 @@ function ItemPicker({
         sodium_mg_100g: c.sodium_mg_100g,
         unit_g: c.unit_g ?? null,
         unit_label: c.unit_label ?? null,
+        unit_options: c.unit_options ?? null,
       },
     ]);
   }
@@ -506,6 +508,25 @@ function ItemPicker({
     const it = items[i];
     const u = Math.max(0, Math.round(units));
     setGrams(i, u * (it.unit_g || 1));
+  }
+
+  // Switch a fresh food to one of its named sizes (small→large). The unit becomes
+  // that size, and grams follow the current count at the new size (≥ one unit).
+  function setSize(i: number, opt: UnitOption) {
+    const it = items[i];
+    const count = Math.max(1, itemUnits(it));
+    save(
+      items.map((x, j) =>
+        j === i
+          ? {
+              ...x,
+              unit_g: opt.grams,
+              unit_label: pantryUnitLabel(x.name, opt.label),
+              grams: count * opt.grams,
+            }
+          : x,
+      ),
+    );
   }
 
   const total = sumItems(items);
@@ -540,6 +561,23 @@ function ItemPicker({
               <span className="block text-xs text-[var(--muted)]">
                 {itemMacroLine(it)}
               </span>
+
+              {/* Fresh food with named sizes: tap the size you have. */}
+              {it.unit_options && it.unit_options.length > 1 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {it.unit_options.map((opt) => (
+                    <button
+                      key={opt.label}
+                      onClick={() => setSize(i, opt)}
+                      disabled={busy}
+                      data-active={it.unit_g === opt.grams}
+                      className="sc-chip capitalize"
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {isCountable(it) ? (
                 /* Countable food: step in whole portions ("1 bagel", "2
