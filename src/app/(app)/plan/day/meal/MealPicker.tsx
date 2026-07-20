@@ -15,9 +15,33 @@ import {
   X,
 } from "lucide-react";
 import BarcodeScanner from "@/components/BarcodeScanner";
-import type { FoodChoice, MealPick, OffProduct } from "@/lib/types";
+import type { FoodChoice, FreshFood, MealPick, OffProduct } from "@/lib/types";
+import { cookedStapleFor, defaultSize, pantryUnitLabel } from "@/lib/freshfoods";
 import { searchFoods, setMealPicks } from "../actions";
-import { addPantryItem } from "@/app/(app)/pantry/actions";
+import { addPantryItem, findFreshFoods } from "@/app/(app)/pantry/actions";
+
+// A cooked reference staple (rice, pasta…) as a meal pick: cooked macros and the
+// cooked serving sizes, no barcode (it's reference data, not the scanned pack).
+function freshToPick(f: FreshFood): MealPick {
+  const size = defaultSize(f.sizes);
+  return {
+    name: f.name,
+    source: "off",
+    off_barcode: null,
+    kcal_100g: f.kcal_100g,
+    protein_100g: f.protein_100g,
+    carbs_100g: f.carbs_100g,
+    fat_100g: f.fat_100g,
+    fiber_100g: f.fiber_100g,
+    sugar_100g: f.sugar_100g,
+    satfat_100g: f.satfat_100g,
+    sodium_mg_100g: f.sodium_mg_100g,
+    pack_size_g: null,
+    unit_g: size?.grams ?? null,
+    unit_label: size ? pantryUnitLabel(f.name, size.label) : null,
+    unit_options: f.sizes.length ? f.sizes : null,
+  };
+}
 
 type Groups = {
   protein: MealPick[];
@@ -102,27 +126,44 @@ export default function MealPicker({
         return;
       }
       const p = (await res.json()) as OffProduct;
-      const pick: MealPick = {
-        name: p.name,
-        source: "off",
-        off_barcode: p.barcode,
-        kcal_100g: p.kcal_100g,
-        protein_100g: p.protein_100g,
-        carbs_100g: p.carbs_100g,
-        fat_100g: p.fat_100g,
-        fiber_100g: p.fiber_100g,
-        sugar_100g: p.sugar_100g,
-        satfat_100g: p.satfat_100g,
-        sodium_mg_100g: p.sodium_mg_100g,
-        pack_size_g: p.pack_size_g,
-        unit_g: p.unit_g,
-        unit_label: p.unit_label,
-      };
+
+      // A dry staple's pack is dry weight; Scoop tracks food cooked. Swap the
+      // scan onto the cooked reference entry so the pick carries cooked macros.
+      const stapleName = cookedStapleFor(p.name);
+      let pick: MealPick | null = null;
+      if (stapleName) {
+        const [ref] = await findFreshFoods(stapleName);
+        if (ref) pick = freshToPick(ref);
+      }
+      const swapped = pick != null;
+      if (!pick) {
+        pick = {
+          name: p.name,
+          source: "off",
+          off_barcode: p.barcode,
+          kcal_100g: p.kcal_100g,
+          protein_100g: p.protein_100g,
+          carbs_100g: p.carbs_100g,
+          fat_100g: p.fat_100g,
+          fiber_100g: p.fiber_100g,
+          sugar_100g: p.sugar_100g,
+          satfat_100g: p.satfat_100g,
+          sodium_mg_100g: p.sodium_mg_100g,
+          pack_size_g: p.pack_size_g,
+          unit_g: p.unit_g,
+          unit_label: p.unit_label,
+        };
+      }
+      const chosen = pick;
       setPicks((prev) =>
-        prev.some((x) => x.name === pick.name) ? prev : [...prev, pick],
+        prev.some((x) => x.name === chosen.name) ? prev : [...prev, chosen],
       );
-      setScanNote(null);
-      setPantryOffer(pick);
+      setScanNote(
+        swapped
+          ? `${p.name} is dry on the pack — using cooked ${chosen.name} values.`
+          : null,
+      );
+      setPantryOffer(chosen);
     } catch {
       setScanNote("Lookup failed. Try the search instead.");
     }
@@ -149,6 +190,7 @@ export default function MealPicker({
           pack_size_g: offer.pack_size_g,
           unit_g: offer.unit_g,
           unit_label: offer.unit_label,
+          unit_options: offer.unit_options,
         });
         setScanNote(`${offer.name} added to your pantry too.`);
       } catch (e) {

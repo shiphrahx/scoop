@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ScanBarcode, Link2, Apple } from "lucide-react";
 import BarcodeScanner from "@/components/BarcodeScanner";
-import { defaultSize, pantryUnitLabel } from "@/lib/freshfoods";
+import { cookedStapleFor, defaultSize, pantryUnitLabel } from "@/lib/freshfoods";
 import type { ExtraPer100g, FreshFood, OffProduct, UnitOption } from "@/lib/types";
 import { addFreshFoodSize, addPantryItem, findFreshFoods, importPantryUrl } from "./actions";
 
@@ -163,6 +163,22 @@ export default function PantryForm({
         return;
       }
       const p = (await res.json()) as OffProduct;
+
+      // A dry staple's pack shows DRY macros, but Scoop tracks food as eaten.
+      // Swap to the cooked reference entry so rice/pasta/oats land cooked, and
+      // tell the user what happened rather than silently trusting the bag.
+      const stapleName = cookedStapleFor(p.name);
+      if (stapleName) {
+        const [ref] = await findFreshFoods(stapleName);
+        if (ref) {
+          pickFresh(ref);
+          setNote(
+            `${p.name} is dry on the pack — Scoop tracks food cooked, so we've used cooked ${ref.name} values. Pick your cooked serving size.`,
+          );
+          return;
+        }
+      }
+
       clearFresh();
       setShowDetails(true);
       setBarcode(p.barcode);

@@ -51,3 +51,44 @@ export function macrosForGrams(per100: Per100, grams: number): UnitMacros {
     fat_g: per100.fat_100g * f,
   };
 }
+
+// A dry staple's cooked reference food, keyed by the words that name it. Every
+// macro in Scoop is as-eaten, so a scanned bag of dry rice/pasta must use these
+// cooked entries (see 0020) instead of the pack's dry numbers. Brown rice sits
+// before white so "brown rice" wins over the bare "rice" rule below it.
+const COOKED_STAPLES: { canonical: string; words: string[] }[] = [
+  { canonical: "Brown Rice (cooked)", words: ["brown rice", "wholegrain rice", "whole grain rice", "wholemeal rice"] },
+  { canonical: "White Rice (cooked)", words: ["white rice", "rice", "basmati", "jasmine", "long grain"] },
+  {
+    canonical: "Pasta (cooked)",
+    words: [
+      "pasta", "spaghetti", "penne", "macaroni", "fusilli", "linguine",
+      "tagliatelle", "rigatoni", "farfalle", "conchiglie", "rotini", "orzo",
+    ],
+  },
+  { canonical: "Couscous (cooked)", words: ["couscous"] },
+  { canonical: "Quinoa (cooked)", words: ["quinoa"] },
+  { canonical: "Porridge (cooked)", words: ["porridge", "oatmeal", "rolled oats", "oats"] },
+];
+
+// Words that mean a DIFFERENT product than the plain dry staple, so a match must
+// be blocked — using cooked-rice macros for rice milk or a rice cake would be
+// wrong. Better to leave these to the pack/user than to substitute badly.
+const NOT_PLAIN_STAPLE = [
+  "milk", "drink", "pudding", "cake", "cracker", "snack", "flour", "noodle",
+  "granola", "syrup", "juice", "fried", "risotto", "pilau", "pilaf", "bar",
+  "cereal", "biscuit", "bread", "wine", "vinegar", "paper",
+];
+
+// The cooked reference staple a scanned/typed product name should use, or null
+// when it isn't a plain dry staple. Conservative on purpose: a single
+// disqualifying word (see NOT_PLAIN_STAPLE) blocks the swap. Whole-word matches
+// only, so "priced" never reads as "rice".
+export function cookedStapleFor(productName: string): string | null {
+  const n = ` ${productName.toLowerCase()} `;
+  if (NOT_PLAIN_STAPLE.some((d) => new RegExp(`\\b${d}`).test(n))) return null;
+  for (const s of COOKED_STAPLES) {
+    if (s.words.some((w) => new RegExp(`\\b${w}\\b`).test(n))) return s.canonical;
+  }
+  return null;
+}

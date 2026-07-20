@@ -1,11 +1,47 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import {
+  cookedStapleFor,
   defaultSize,
   macrosForGrams,
   pantryUnitLabel,
 } from "@/lib/freshfoods";
 import type { UnitOption } from "@/lib/types";
+
+describe("cookedStapleFor", () => {
+  it("maps plain dry staples to their cooked reference food", () => {
+    expect(cookedStapleFor("Basmati Rice")).toBe("White Rice (cooked)");
+    expect(cookedStapleFor("Wholegrain Brown Rice")).toBe("Brown Rice (cooked)");
+    expect(cookedStapleFor("Penne Pasta")).toBe("Pasta (cooked)");
+    expect(cookedStapleFor("Spaghetti")).toBe("Pasta (cooked)");
+    expect(cookedStapleFor("Couscous")).toBe("Couscous (cooked)");
+    expect(cookedStapleFor("Organic Quinoa")).toBe("Quinoa (cooked)");
+    expect(cookedStapleFor("Rolled Oats")).toBe("Porridge (cooked)");
+  });
+
+  it("prefers brown rice over the bare rice rule", () => {
+    expect(cookedStapleFor("Tilda Brown Rice 500g")).toBe("Brown Rice (cooked)");
+  });
+
+  it("refuses products that aren't the plain staple", () => {
+    expect(cookedStapleFor("Rice Milk")).toBeNull();
+    expect(cookedStapleFor("Rice Cakes")).toBeNull();
+    expect(cookedStapleFor("Rice Noodles")).toBeNull();
+    expect(cookedStapleFor("Oat Cereal Bar")).toBeNull();
+    expect(cookedStapleFor("Egg Fried Rice")).toBeNull();
+    expect(cookedStapleFor("Rice Pudding")).toBeNull();
+  });
+
+  it("doesn't fire on a word that merely contains a staple", () => {
+    expect(cookedStapleFor("Priced Down Ketchup")).toBeNull();
+    expect(cookedStapleFor("Liquorice")).toBeNull();
+  });
+
+  it("returns null for a non-staple food", () => {
+    expect(cookedStapleFor("Chicken Breast")).toBeNull();
+    expect(cookedStapleFor("Cheddar Cheese")).toBeNull();
+  });
+});
 
 describe("pantryUnitLabel", () => {
   it("reads as 'size food', lower-cased", () => {
