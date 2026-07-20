@@ -267,20 +267,36 @@ export async function setMealPicks(slot: string, picks: MealPick[], date?: strin
   revalidate();
 }
 
-// Resolve one stored pick to the food the solver portions. Always prefer the
-// pantry's CURRENT row — matched by name, else by barcode — whatever the pick's
-// source: it carries the freshest numbers AND the real stock/pack cap, so a
-// pick can never be portioned past the pack the user actually has. A scanned
-// pick that was later saved to the pantry (or whose pack size was unknown when
-// scanned) is capped too. Only a food that isn't in the pantry falls back to
-// the pick's own numbers, capped at its pack size when the pick carried one.
+// Normalise a food name for matching a pick to its pantry row: case- and
+// whitespace-insensitive, so "Tofu " and "tofu" are the same food.
+const normName = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+
+// The smaller of two caps, treating undefined as "no cap".
+function tighterCap(a: number | undefined, b: number | undefined): number | undefined {
+  if (a == null) return b;
+  if (b == null) return a;
+  return Math.min(a, b);
+}
+
+// Resolve one stored pick to the food the solver portions. Prefer the pantry's
+// CURRENT row — matched by barcode, else by normalised name — whatever the
+// pick's source, so the freshest macros and stock are used. Whether or not a
+// pantry row is found, the portion is capped at the TIGHTER of the pantry stock
+// (pack × packs) and the pick's OWN pack size: a pick can never be portioned
+// past the pack the user actually has, even if the pantry match fails, the
+// pantry stock is looser, or the pack size was only known at pick time. Only a
+// food with no pack size anywhere in either place is left uncapped.
 function pickToFood(pick: MealPick, pantry: PantryFood[]): PantryFood {
   const hit =
-    pantry.find((f) => f.name === pick.name) ??
     (pick.off_barcode
       ? pantry.find((f) => f.off_barcode != null && f.off_barcode === pick.off_barcode)
-      : undefined);
-  if (hit) return hit;
+      : undefined) ?? pantry.find((f) => normName(f.name) === normName(pick.name));
+
+  const pickPack = pick.pack_size_g != null ? Number(pick.pack_size_g) : undefined;
+
+  if (hit) {
+    return { ...hit, available_g: tighterCap(hit.available_g, pickPack) };
+  }
   return {
     name: pick.name,
     kcal_100g: Number(pick.kcal_100g),
@@ -291,7 +307,7 @@ function pickToFood(pick: MealPick, pantry: PantryFood[]): PantryFood {
     sugar_100g: Number(pick.sugar_100g ?? 0),
     satfat_100g: Number(pick.satfat_100g ?? 0),
     sodium_mg_100g: Number(pick.sodium_mg_100g ?? 0),
-    available_g: pick.pack_size_g != null ? Number(pick.pack_size_g) : undefined,
+    available_g: pickPack,
     unit_g: pick.unit_g != null ? Number(pick.unit_g) : null,
     unit_label: pick.unit_label ?? null,
   };
