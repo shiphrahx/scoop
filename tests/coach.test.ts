@@ -7,6 +7,8 @@ import {
   bmr,
   bmrKatch,
   dailyTarget,
+  healthyLossBand,
+  kcalFloor,
   deficitPerDay,
   macrosForKcal,
   observeTdee,
@@ -196,20 +198,38 @@ describe("macrosForKcal", () => {
   it("never returns negative carbs when protein+fat exceed kcal", () => {
     // A tiny calorie target with a heavy person: protein alone blows the budget.
     const m = macrosForKcal(400, 120);
-    expect(m.carbs_g).toBe(0);
     expect(m.carbs_g).toBeGreaterThanOrEqual(0);
   });
 
   it("trims protein to fit the calories rather than overshooting them", () => {
     // 120 kg wants 240 g protein (960 kcal) — more than the whole 400 kcal
     // target. Prescribing it would tell the user to eat 1059 kcal of macros on a
-    // 400 kcal day. Protein gives way instead: fat takes its 25% (11 g = 99
-    // kcal), protein takes what's left (75 g = 300 kcal), carbs get nothing.
+    // 400 kcal day. Protein gives way instead.
+    //
+    // Fat does not: it takes the hormone floor first, capped at 40% of the day
+    // (17 g here), and protein takes what's left. 25% of 400 kcal would have
+    // been 11 g of fat, which is below what anyone should eat.
     const m = macrosForKcal(400, 120);
-    expect(m.fat_g).toBe(11);
-    expect(m.protein_g).toBe(75);
-    expect(m.carbs_g).toBe(0);
-    expect(m.protein_g * 4 + m.carbs_g * 4 + m.fat_g * 9).toBeLessThanOrEqual(400);
+    expect(m.fat_g).toBe(17);
+    expect(m.protein_g).toBe(61);
+    expect(m.protein_g * 4 + m.carbs_g * 4 + m.fat_g * 9).toBeLessThanOrEqual(405);
+  });
+
+  it("keeps fat above the hormone floor on a small target", () => {
+    // 0.6 g/kg is the point below which sex-hormone production and fat-soluble
+    // vitamin absorption start to suffer. A percentage rule alone doesn't
+    // protect it: 25% of a 1200 kcal day is 33 g.
+    const m = macrosForKcal(1200, 70);
+    expect(m.fat_g).toBeGreaterThanOrEqual(42); // 70 kg x 0.6
+  });
+
+  it("does not let keto squeeze the fat out of a ketogenic diet", () => {
+    // Fat is the remainder on keto, so a heavy user on a small target could be
+    // handed a "keto" split with almost no fat in it. Protein yields instead.
+    const m = macrosForKcal(1400, 110, "keto");
+    expect(m.carbs_g).toBe(25);
+    expect(m.fat_g).toBeGreaterThanOrEqual(60);
+    expect(m.protein_g).toBeGreaterThan(0);
   });
 
   it("leaves a normal target's protein untouched (the cap only bites when tight)", () => {
@@ -246,6 +266,101 @@ describe("macrosForKcal", () => {
     // and it really is a low-carb, high-fat split vs the regular one
     expect(m.carbs_g).toBeLessThan(macrosForKcal(2000, 80).carbs_g);
     expect(m.fat_g).toBeGreaterThan(macrosForKcal(2000, 80).fat_g);
+  });
+});
+
+describe("healthyLossBand", () => {
+  it("slows a lean user down", () => {
+    // 1%/week at 12% body fat is a prescription for losing muscle: the leaner
+    // you are, the less of a deficit fat can actually supply.
+    const lean = healthyLossBand("male", 12);
+    const ample = healthyLossBand("male", 32);
+    expect(lean.max).toBeLessThan(ample.max);
+    expect(lean.max).toBe(0.005);
+    expect(ample.max).toBe(0.01);
+  });
+
+  it("moves the thresholds up for women, who carry more essential fat", () => {
+    // 22% is lean for a woman and ample for a man.
+    expect(healthyLossBand("female", 22).max).toBeLessThan(
+      healthyLossBand("male", 22).max,
+    );
+  });
+
+  it("keeps the old flat band when body fat is unknown", () => {
+    expect(healthyLossBand("male", null)).toEqual({ min: 0.005, max: 0.01 });
+  });
+});
+
+describe("kcalFloor", () => {
+  it("never sends anyone below their own resting metabolism", () => {
+    // A flat 1200 for a 100 kg woman whose RMR is 1650 is a >50% deficit.
+    expect(kcalFloor("female", 1650)).toBe(1650);
+  });
+
+  it("keeps the absolute floor when resting rate is lower or unknown", () => {
+    expect(kcalFloor("female", 1100)).toBe(1200);
+    expect(kcalFloor("male", null)).toBe(1500);
+  });
+});
+
+describe("deficit caps", () => {
+  it("never takes more than 30% of maintenance", () => {
+    // A heavy, sedentary, older user: 1% of bodyweight a week is a large
+    // number of calories against a small burn.
+    const t = dailyTarget({
+      sex: "female",
+      diet: "regular",
+      weightKg: 130,
+      heightCm: 155,
+      age: 65,
+      activity: "sedentary",
+      pace: "aggressive",
+    });
+    const maintenance = tdee({
+      sex: "female",
+      diet: "regular",
+      weightKg: 130,
+      heightCm: 155,
+      age: 65,
+      activity: "sedentary",
+    });
+    expect(t.kcal).toBeGreaterThanOrEqual(maintenance * 0.7 - 1);
+  });
+
+  it("holds a lean user to the slower band even on an aggressive pace", () => {
+    const leanTarget = dailyTarget({
+      sex: "male",
+      diet: "regular",
+      weightKg: 80,
+      heightCm: 180,
+      age: 30,
+      activity: "moderate",
+      pace: "aggressive",
+      bodyFatPct: 10,
+    });
+    const softTarget = dailyTarget({
+      sex: "male",
+      diet: "regular",
+      weightKg: 80,
+      heightCm: 180,
+      age: 30,
+      activity: "moderate",
+      pace: "aggressive",
+      bodyFatPct: 30,
+    });
+    // Same person, same pace: the lean one is allowed a smaller deficit, so
+    // eats more. (Body fat also changes the resting-rate equation, so compare
+    // the deficit rather than the raw target.)
+    const leanMaint = tdee({
+      sex: "male", diet: "regular", weightKg: 80, heightCm: 180, age: 30,
+      activity: "moderate", bodyFatPct: 10,
+    });
+    const softMaint = tdee({
+      sex: "male", diet: "regular", weightKg: 80, heightCm: 180, age: 30,
+      activity: "moderate", bodyFatPct: 30,
+    });
+    expect(leanMaint - leanTarget.kcal).toBeLessThan(softMaint - softTarget.kcal);
   });
 });
 

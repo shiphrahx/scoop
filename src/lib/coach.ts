@@ -41,14 +41,59 @@ const KCAL_PER_KG = 7700;
 // deficit starts costing muscle. Caps the requested rate for light people.
 const MAX_WEEKLY_LOSS_FRACTION = 0.01;
 
-// Never eat below this, whatever the maths say (safety floor).
+// Absolute floors, below which no target is ever issued.
 const MIN_KCAL: Record<Sex, number> = {
   male: 1500,
   female: 1200,
 };
 
+// No deficit may exceed this share of maintenance. The rate cap alone doesn't
+// bound it: someone heavy with a low burn can be prescribed 1% of bodyweight a
+// week and find that's 45% of everything they expend.
+const MAX_DEFICIT_FRACTION = 0.3;
+
+// The real floor for a given person, not just for their sex.
+//
+// A flat 1200 is not a floor, it's a number. For a 100 kg woman whose resting
+// metabolism alone is 1650 it prescribes a >50% deficit — the exact territory
+// where muscle goes, hormones follow and adherence collapses. Sustained eating
+// below resting rate is what the floor exists to prevent, so make the floor say
+// that.
+export function kcalFloor(sex: Sex, rmrKcal?: number | null): number {
+  const absolute = MIN_KCAL[sex];
+  if (rmrKcal == null || !(rmrKcal > 0)) return absolute;
+  return Math.max(absolute, Math.round(rmrKcal));
+}
+
+// A healthy weekly loss, as a fraction of bodyweight, for this person.
+//
+// The old flat 0.5–1.0% band ignored the body-fat reading the app already
+// collects. That band is fine at 30% body fat, where there is plenty of fat to
+// draw on. At 12% it is a prescription for losing muscle: the leaner someone
+// is, the smaller the share of a deficit that fat can supply, and the slower
+// they have to go.
+export function healthyLossBand(
+  sex: Sex,
+  bodyFatPct?: number | null,
+): { min: number; max: number } {
+  if (bodyFatPct == null || !(bodyFatPct > 0)) return { min: 0.005, max: 0.01 };
+
+  // Women carry more essential fat, so the same caution arrives ~10 points higher.
+  const lean = sex === "male" ? 15 : 25;
+  const ample = sex === "male" ? 25 : 35;
+
+  if (bodyFatPct < lean) return { min: 0.0025, max: 0.005 };
+  if (bodyFatPct < ample) return { min: 0.005, max: 0.0075 };
+  return { min: 0.005, max: 0.01 };
+}
+
 const PROTEIN_G_PER_KG = 2.0; // high protein to protect muscle in a deficit
 const FAT_FRACTION_OF_KCAL = 0.25;
+// Hormone and fat-soluble-vitamin floor. Applies to every diet, keto included.
+const MIN_FAT_G_PER_KG = 0.6;
+// …but the floor itself can never claim more than this share of the day, or a
+// very small target would be all fat and no protein.
+const MAX_FAT_SHARE_FOR_FLOOR = 0.4;
 const KETO_CARBS_G = 25; // hard carb ceiling on a ketogenic split; fat fills the rest
 const HEALTHY_BMI_MAX = 25; // top of the healthy BMI band; caps the protein basis
 
@@ -276,15 +321,28 @@ export function macrosForKcal(
   const fitProtein = (kcalLeft: number) =>
     Math.max(0, Math.min(wanted, Math.floor(kcalLeft / 4)));
 
+  // Dietary fat is not a macro to be squeezed to nothing: below roughly
+  // 0.6 g/kg the body struggles with sex-hormone production and with absorbing
+  // the fat-soluble vitamins. The percentage rule alone doesn't protect this —
+  // 25% of a 1200 kcal day is 33 g, already marginal — and on keto, where fat is
+  // whatever protein leaves behind, a heavy user could be handed a "ketogenic"
+  // split with almost no fat in it at all.
+  const fatFloorG = Math.min(
+    Math.round(proteinBasisKg(weightKg, heightCm, goalWeightKg) * MIN_FAT_G_PER_KG),
+    Math.floor((kcal * MAX_FAT_SHARE_FOR_FLOOR) / 9), // never let the floor eat the whole day
+  );
+
   // Keto flips the split: carbs pinned to a low ceiling, fat fills the rest.
   if (diet === "keto") {
     const carbs_g = Math.min(
       KETO_CARBS_G,
       Math.max(0, Math.round(kcal / 4)),
     );
-    const protein_g = fitProtein(kcal - carbs_g * 4);
+    // Protein yields to the fat floor here, not the other way round — a keto
+    // split whose fat has been squeezed out is not a keto split.
+    const protein_g = fitProtein(kcal - carbs_g * 4 - fatFloorG * 9);
     const fat_g = Math.max(
-      0,
+      fatFloorG,
       Math.round((kcal - protein_g * 4 - carbs_g * 4) / 9),
     );
     return {
@@ -299,7 +357,7 @@ export function macrosForKcal(
     };
   }
 
-  const fat_g = Math.round((kcal * FAT_FRACTION_OF_KCAL) / 9);
+  const fat_g = Math.max(fatFloorG, Math.round((kcal * FAT_FRACTION_OF_KCAL) / 9));
   const protein_g = fitProtein(kcal - fat_g * 9);
   const carbs_g = Math.max(
     0,
@@ -320,10 +378,18 @@ export function macrosForKcal(
 // The daily calorie deficit for a chosen pace, derived from the target loss
 // rate (kg/week × 7700 kcal/kg ÷ 7 days). The rate is first capped at 1% of
 // bodyweight/week so a light person never gets an unsafe deficit.
-export function deficitPerDay(pace: GoalPace, weightKg: number): number {
+export function deficitPerDay(
+  pace: GoalPace,
+  weightKg: number,
+  bodyFatPct?: number | null,
+  sex: Sex = "female",
+): number {
+  // The pace the user picked, capped by what's safe for how lean they are.
+  const band = healthyLossBand(sex, bodyFatPct);
   const kgPerWeek = Math.min(
     PACE_KG_PER_WEEK[pace],
-    MAX_WEEKLY_LOSS_FRACTION * weightKg,
+    Math.max(MAX_WEEKLY_LOSS_FRACTION, band.max) * weightKg,
+    band.max * weightKg,
   );
   return (kgPerWeek * KCAL_PER_KG) / 7;
 }
@@ -331,10 +397,21 @@ export function deficitPerDay(pace: GoalPace, weightKg: number): number {
 // Full daily macro target for a user in a weight-loss deficit.
 export function dailyTarget(input: CoachInput): Macros {
   const maintenance = tdee(input);
-  const target = Math.max(
-    maintenance - deficitPerDay(input.pace, input.weightKg),
-    MIN_KCAL[input.sex],
+  const rmr = restingRate(input);
+
+  // Three separate brakes, because each catches a case the others miss: the
+  // rate cap stops a light person losing too fast, the fractional cap stops a
+  // heavy person with a low burn being handed a 45% deficit, and the floor stops
+  // anyone being told to eat below their own resting metabolism.
+  const wanted = deficitPerDay(
+    input.pace,
+    input.weightKg,
+    input.bodyFatPct,
+    input.sex,
   );
+  const deficit = Math.min(wanted, maintenance * MAX_DEFICIT_FRACTION);
+  const target = Math.max(maintenance - deficit, kcalFloor(input.sex, rmr));
+
   return macrosForKcal(
     target,
     input.weightKg,
@@ -540,9 +617,8 @@ export function adherence(
 // calorie target. Result-based (no AI): the rules read the scale + tape, not a
 // recomputed TDEE, so a plateau gets a real cut rather than a guess.
 
-// A healthy loss is ~0.5–1.0 % of bodyweight per week.
-const HEALTHY_MIN_PCT = 0.005;
-const HEALTHY_MAX_PCT = 0.01;
+// The healthy band is no longer a constant — it depends on how lean the user
+// is (see healthyLossBand). What stays fixed is how hard the coach nudges.
 const CUT_STEP = 0.07; // trim 7 % when stalled
 const ADD_STEP = 0.05; // add 5 % when dropping too fast
 
@@ -711,6 +787,10 @@ export interface WeeklyReviewInput {
   adherence?: Adherence;
   // Whether daily steps fell away compared with the week before.
   stepsDropped?: ReturnType<typeof stepsFalling>;
+  // Body fat sets how fast this user can safely lose; resting rate sets the real
+  // calorie floor. Both optional -- absent falls back to the old flat numbers.
+  bodyFatPct?: number | null;
+  restingRateKcal?: number | null;
 }
 
 export interface WeeklyReview {
@@ -735,6 +815,8 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
     consistent,
     adherence,
     stepsDropped,
+    bodyFatPct,
+    restingRateKcal,
   } = input;
 
   // Not enough history yet — hold and ask for another week. trendChange returns
@@ -782,10 +864,15 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
 
   const { changeKg, changePct, nowKg } = trend; // + = lost
   const lostText = `${Math.abs(changeKg).toFixed(1)} kg`;
-  const floor = MIN_KCAL[sex];
+
+  // What counts as healthy depends on how much fat there is to draw on, and the
+  // floor depends on this user's own resting metabolism -- not on a flat number
+  // that happens to be attached to their sex.
+  const band = healthyLossBand(sex, bodyFatPct);
+  const floor = kcalFloor(sex, restingRateKcal);
 
   // Healthy rate → keep the target.
-  if (changePct >= HEALTHY_MIN_PCT && changePct <= HEALTHY_MAX_PCT) {
+  if (changePct >= band.min && changePct <= band.max) {
     return {
       macros: current,
       changed: false,
@@ -799,7 +886,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
   }
 
   // Losing too fast → add a little back to protect muscle.
-  if (changePct > HEALTHY_MAX_PCT) {
+  if (changePct > band.max) {
     const newKcal = Math.round(current.kcal * (1 + ADD_STEP));
     return {
       macros: macrosForKcal(newKcal, nowKg, diet, heightCm, goalWeightKg),

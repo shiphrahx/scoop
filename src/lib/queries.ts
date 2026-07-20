@@ -7,6 +7,7 @@ import {
   averageActiveKcal,
   adherence as computeAdherence,
   observeTdee,
+  restingRate,
   stepsFalling,
   tdee,
   trendChange,
@@ -328,6 +329,17 @@ export async function getCoachData(): Promise<CoachData> {
       : 1;
 
   const activityRows = (activityRes.data as Activity[]) ?? [];
+  // This user's own resting metabolism, which sets their real calorie floor.
+  const restingRateKcal =
+    profile?.height_cm && profile.sex && profile.birth_year && (trend?.nowKg ?? null)
+      ? restingRate({
+          sex: profile.sex,
+          weightKg: trend!.nowKg,
+          heightCm: Number(profile.height_cm),
+          age: ageFromBirthYear(profile.birth_year),
+          bodyFatPct: profile.body_fat_pct,
+        })
+      : null;
   const thisWeekActivity = activityRows.filter((a) => a.date >= cut7);
   const lastWeekActivity = activityRows.filter((a) => a.date >= cut14 && a.date < cut7);
   const stepsDropped = stepsFalling(
@@ -409,6 +421,8 @@ export async function getCoachData(): Promise<CoachData> {
         consistent,
         adherence: adherence ?? undefined,
         stepsDropped,
+        bodyFatPct: profile?.body_fat_pct,
+        restingRateKcal,
       })
     : {
         macros: { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
