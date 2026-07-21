@@ -249,11 +249,18 @@ export default function DayPlan({
   );
 }
 
-// "Copy lunch" / "copy dinner" for an empty slot: one button per other meal
-// that has anything planned — foods still being picked (picks), a hand-built
-// list (items), or a portioned dish (portions). Copying brings the whole meal
-// over, so a meal mid-plan can be duplicated into another slot before the day
-// is built. Renders nothing when no other meal has content to copy.
+// The one other meal a slot may copy from. Lunch and Dinner are the two
+// interchangeable main meals, so each offers the other — dinner copies lunch,
+// lunch copies dinner. Breakfast and snacks have no counterpart (their food
+// doesn't transfer to a main meal), so they get no copy button.
+const COPY_PARTNER: Record<string, string> = { lunch: "dinner", dinner: "lunch" };
+
+// "Copy lunch" / "copy dinner" for an empty slot: a single button that copies
+// this slot's counterpart meal, when that meal has anything planned — foods
+// still being picked (picks), a hand-built list (items), or a portioned dish
+// (portions). Copying brings the whole meal over, so a meal mid-plan can be
+// duplicated before the day is built. Renders nothing when there's no
+// counterpart, or the counterpart is empty.
 function CopySiblings({
   slots,
   slot,
@@ -265,28 +272,26 @@ function CopySiblings({
   busy: boolean;
   onCopy: (fromSlot: string) => void;
 }) {
-  const sources = slots.filter(
-    (s) =>
-      s.slot !== slot &&
-      s.meal != null &&
-      (s.meal.picks.length > 0 ||
-        s.meal.items.length > 0 ||
-        s.meal.portions.length > 0),
-  );
-  if (sources.length === 0) return null;
+  const partner = COPY_PARTNER[slot.toLowerCase()];
+  const source = partner
+    ? slots.find(
+        (s) =>
+          s.slot.toLowerCase() === partner &&
+          s.meal != null &&
+          (s.meal.picks.length > 0 ||
+            s.meal.items.length > 0 ||
+            s.meal.portions.length > 0),
+      )
+    : undefined;
+  if (!source) return null;
   return (
-    <div className="flex flex-wrap gap-2">
-      {sources.map((s) => (
-        <button
-          key={s.slot}
-          onClick={() => onCopy(s.slot)}
-          disabled={busy}
-          className="sc-btn sc-btn-soft flex-1"
-        >
-          <CopyPlus size={16} /> Copy {s.slot.toLowerCase()}
-        </button>
-      ))}
-    </div>
+    <button
+      onClick={() => onCopy(source.slot)}
+      disabled={busy}
+      className="sc-btn sc-btn-soft"
+    >
+      <CopyPlus size={16} /> Copy {source.slot.toLowerCase()}
+    </button>
   );
 }
 
