@@ -84,7 +84,8 @@ export default async function PlanMealPage({
       pack_size_g: p.pack_size_g != null ? Number(p.pack_size_g) : null,
       unit_g: p.unit_g != null ? Number(p.unit_g) : null,
       unit_label: p.unit_label,
-    }));
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 
   // Grouped the way people think about a plate. "Other" catches sauces, veg and
   // anything too light to anchor a macro.
