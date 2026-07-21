@@ -6,6 +6,7 @@ import { rateLimit } from "@/lib/ratelimit";
 import { parseGroceryImage, parseProductFromUrl } from "@/lib/ai";
 import { pantryCategory } from "@/lib/foodgroups";
 import { searchFreshFoods } from "@/lib/queries";
+import { macrosPer100gSchema, parseOrThrow } from "@/lib/validate";
 import type { FreshFood, GroceryItem, ParsedProduct, UnitOption } from "@/lib/types";
 
 export interface PantryInput {
@@ -30,6 +31,23 @@ export interface PantryInput {
   // The shelf to file it under. Omitted by every add path so it's assigned
   // automatically from name + macros (see `shelf`).
   category?: string | null;
+}
+
+// Reject a food whose per-100g macros can't be real before it reaches the
+// pantry — a bad barcode record or a misread label can carry "170 g protein per
+// 100 g", which the day planner later refuses to portion, stranding a food the
+// user could save but never use. Caught here, at the point they can still fix
+// the number. `label` names the food in the error the user reads.
+function assertMacros(
+  food: {
+    kcal_100g: number;
+    protein_100g: number;
+    carbs_100g: number;
+    fat_100g: number;
+  },
+  label: string,
+) {
+  parseOrThrow(macrosPer100gSchema, food, label);
 }
 
 // The category to file a new item under: honour an explicit one if given,
@@ -71,6 +89,7 @@ function unitCols(it: PantryInput) {
 
 export async function addPantryItem(input: PantryInput) {
   const { supabase, user } = await requireUser();
+  assertMacros(input, input.name.trim() || "This item");
 
   const { error } = await supabase.from("pantry_items").insert({
     user_id: user.id,
@@ -96,8 +115,9 @@ export async function addPantryItem(input: PantryInput) {
 // when the user kept it unmatched), plus how many packs they have.
 export async function addMatchedItems(items: PantryInput[]) {
   const { supabase, user } = await requireUser();
-  const rows = items
-    .filter((it) => it.name.trim())
+  const kept = items.filter((it) => it.name.trim());
+  for (const it of kept) assertMacros(it, it.name.trim());
+  const rows = kept
     .map((it) => ({
       user_id: user.id,
       name: it.name.trim(),
@@ -163,6 +183,7 @@ export interface PantryPatch {
 export async function updatePantryItem(id: string, patch: PantryPatch) {
   const { supabase } = await requireUser();
   if (!patch.name.trim()) throw new Error("Name can't be empty.");
+  assertMacros(patch, patch.name.trim());
 
   // A unit needs a positive grams-per-unit to convert a count to grams; without
   // it there's nothing to count, so the food falls back to being weighed.

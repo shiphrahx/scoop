@@ -11,11 +11,21 @@ import { z } from "zod";
 
 // A macro figure per 100 g of a food. Nothing edible is negative, and nothing is
 // more than 100 g of one macro per 100 g — an AI or a bad barcode record that
-// claims otherwise would blow up every meal built on it.
-const per100g = z.number().finite().min(0).max(100);
+// claims otherwise would blow up every meal built on it. The messages are the
+// ones a user reads when a bad food is caught, so they say what's wrong in plain
+// words rather than Zod's "Too big: expected number to be <=100".
+const per100g = z
+  .number()
+  .finite()
+  .min(0, "can't be negative")
+  .max(100, "is over 100 g per 100 g, which isn't possible — the value looks wrong");
 
 // Calories per 100 g. Pure fat is 900; a little headroom over that, and no more.
-const kcalPer100g = z.number().finite().min(0).max(1000);
+const kcalPer100g = z
+  .number()
+  .finite()
+  .min(0, "can't be negative")
+  .max(1000, "is more calories than any food has per 100 g — the value looks wrong");
 
 export const macrosPer100gSchema = z.object({
   kcal_100g: kcalPer100g,

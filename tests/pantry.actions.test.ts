@@ -50,6 +50,18 @@ describe("addPantryItem with fresh-food sizes", () => {
     expect(row.category).toBe("Fruits");
   });
 
+  it("rejects a food whose macros can't be real, before it reaches the pantry", async () => {
+    // A bad barcode record once carried protein > 100 g/100g; it saved fine but
+    // the day planner then refused to portion it, stranding the food. Catch it
+    // at the write, with a message the user can act on.
+    const { db } = installFakeSupabase({ db: { pantry_items: [] } });
+
+    await expect(
+      addPantryItem(bananaInput({ name: "Vegemince", protein_100g: 170 })),
+    ).rejects.toThrow(/Vegemince.*protein_100g/);
+    expect(db.pantry_items).toHaveLength(0);
+  });
+
   it("drops empty or non-positive sizes and keeps null when none survive", async () => {
     const { db } = installFakeSupabase({ db: { pantry_items: [] } });
 
