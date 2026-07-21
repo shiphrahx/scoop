@@ -46,6 +46,11 @@ export interface PantryFood {
   // 1.6 bagels), and carries the label onto the portion so it shows as a count.
   unit_g?: number | null;
   unit_label?: string | null;
+  // Grams the user hand-set for this food. When present the planner HOLDS it at
+  // this amount (snapped to whole units and capped by stock) instead of solving
+  // it, and portions everything else around what's left — so a nudged ingredient
+  // stays put while the day still lands on its macros. Null = free to portion.
+  pinned_g?: number | null;
 }
 
 // Snap a solved gram amount to what the user can actually serve: whole units
@@ -516,26 +521,39 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
     return Math.min(roleCap, stock);
   });
 
-  // Vegetables are fillers, not a macro source: give each picked veg a fixed
-  // standard serving in its meal (capped by its stock share) and hold it OUTSIDE
-  // the solve. This is what keeps veg split evenly across the meals the user
-  // picked them in, and stops the solver growing 400 g of onion to cover a carb
-  // target the real carb sources should fill. Everything else is a "source",
-  // portioned by the solve to land the day on its budget.
+  // Two kinds of food are HELD at a fixed amount and portioned OUTSIDE the solve;
+  // the sources then aim at what's LEFT of the budget after them:
+  //   - PINNED foods — an amount the user hand-set (they nudged the onions). Held
+  //     exactly there, snapped to whole units and capped by stock, so a rebalance
+  //     keeps their choice and moves everything else to stay on target.
+  //   - FILLERS — vegetables the user picked. Each gets a fixed standard serving
+  //     (see vegServingG), which keeps veg split evenly across meals and stops
+  //     the solver growing 400 g of onion to cover a carb the real sources fill.
+  // A pinned veg is held at the pinned amount, not the standard filler serving.
   const grams = new Array<number>(vars.length).fill(0);
-  const fillerIdx = vars.map((v, i) => (isFiller(v.food) ? i : -1)).filter((i) => i >= 0);
-  const sourceIdx = vars.map((v, i) => (isFiller(v.food) ? -1 : i)).filter((i) => i >= 0);
+  const isPinned = (food: PantryFood) => food.pinned_g != null && food.pinned_g >= 0;
+  const pinnedIdx = vars.map((v, i) => (isPinned(v.food) ? i : -1)).filter((i) => i >= 0);
+  const fillerIdx = vars
+    .map((v, i) => (!isPinned(v.food) && isFiller(v.food) ? i : -1))
+    .filter((i) => i >= 0);
+  const sourceIdx = vars
+    .map((v, i) => (!isPinned(v.food) && !isFiller(v.food) ? i : -1))
+    .filter((i) => i >= 0);
+  for (const i of pinnedIdx) {
+    grams[i] = portionGrams(vars[i].food.pinned_g!, vars[i].food, caps[i]);
+  }
   for (const i of fillerIdx) {
     grams[i] = portionGrams(vegServingG(vars[i].food), vars[i].food, caps[i]);
   }
 
-  // What the fixed fillers already put on the day, and on each meal's share, so
-  // the sources aim at what's LEFT. Same shape as the countable-pin below; the
-  // two combine when both are present.
-  const fillerDay = (key: MacroKey) =>
-    fillerIdx.reduce((s, i) => s + perGram(vars[i].food, key) * grams[i], 0);
-  const fillerMeal = (slotIdx: number, key: MacroKey) =>
-    fillerIdx.reduce(
+  // What the held foods (pinned + fillers) already put on the day, and on each
+  // meal's share, so the sources aim at what's LEFT. Same shape as the
+  // countable-pin below; they all combine when present.
+  const heldIdx = [...pinnedIdx, ...fillerIdx];
+  const heldDay = (key: MacroKey) =>
+    heldIdx.reduce((s, i) => s + perGram(vars[i].food, key) * grams[i], 0);
+  const heldMeal = (slotIdx: number, key: MacroKey) =>
+    heldIdx.reduce(
       (s, i) => (vars[i].slotIdx === slotIdx ? s + perGram(vars[i].food, key) * grams[i] : s),
       0,
     );
@@ -544,8 +562,8 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
   const sourceCaps = sourceIdx.map((i) => caps[i]);
 
   // Stage 1: portion every SOURCE food continuously so the day lands on its
-  // budget (net of the fillers). With no sources at all (a meal of only veg) the
-  // fillers already stand on their own.
+  // budget (net of the held foods). With no sources at all (a meal of only veg
+  // or only pinned foods) the held foods already stand on their own.
   if (sourceVars.length > 0) {
     const sol = solvePicks(
       sourceVars,
@@ -553,8 +571,8 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
       slots,
       fractions,
       input.budget,
-      fillerDay,
-      fillerMeal,
+      heldDay,
+      heldMeal,
     );
     sourceIdx.forEach((i, k) => {
       grams[i] = sol[k];
@@ -563,7 +581,7 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
 
   // Stage 2: countable SOURCES can only be served whole, and snapping to the
   // nearest unit shifts a meal's macros up or down. Pin the snapped countables
-  // (on top of the fillers) and re-solve the LOOSE (weighable) sources against
+  // (on top of the held foods) and re-solve the LOOSE (weighable) sources against
   // what's LEFT, so the extra (or missing) macros are spread back across the
   // OTHER meals — never a plate of two chicken packs while another meal goes
   // without its protein. Only worth it when both kinds of source are present.
@@ -588,9 +606,9 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
       slots,
       fractions,
       input.budget,
-      // Pinned = fillers + snapped countables.
-      (key) => fillerDay(key) + snappedContribution(key),
-      (slotIdx, key) => fillerMeal(slotIdx, key) + snappedContribution(key, slotIdx),
+      // Held = pinned + fillers + snapped countables.
+      (key) => heldDay(key) + snappedContribution(key),
+      (slotIdx, key) => heldMeal(slotIdx, key) + snappedContribution(key, slotIdx),
     );
     looseIdx.forEach((i, k) => {
       grams[i] = looseGrams[k];
@@ -613,8 +631,9 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
         return;
       }
       // A tiny portion of anything but a fat source usually means the pick
-      // didn't really fit; oils and butter are legitimately a few grams.
-      if (g < SMALL_PORTION && macroRole(food) !== "fat") {
+      // didn't really fit; oils and butter are legitimately a few grams. A
+      // pinned food is whatever amount the user chose, so it never earns this.
+      if (g < SMALL_PORTION && macroRole(food) !== "fat" && !isPinned(food)) {
         warnings.push(`${food.name} came out small (${g} g) to keep the day on target.`);
       }
       portions.push({ food, grams: g });

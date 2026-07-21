@@ -138,4 +138,39 @@ describe("planPickedDay", () => {
     expect(tofuGrams.length).toBeGreaterThan(0);
     for (const g of tofuGrams) expect(g).toBeLessThanOrEqual(300);
   });
+
+  it("holds a pinned food and moves the rest to keep the day on target", () => {
+    // The user pinned the rice at 100 g. The solve must leave it there and grow
+    // the chicken to reach the day's protein, rather than re-portioning rice.
+    const pinnedRice: PantryFood = { ...rice, pinned_g: 100 };
+    const meals = planPickedDay({
+      slots: [{ slot: "Dinner", foods: [chicken, pinnedRice] }],
+      budget,
+    });
+    const portions = meals.flatMap((m) => m.portions);
+    expect(portions.find((p) => p.name === rice.name)?.grams).toBe(100);
+    // Chicken carries the protein target essentially alone now.
+    expect(portions.find((p) => p.name === chicken.name)?.grams ?? 0).toBeGreaterThan(300);
+  });
+
+  it("holds a pinned vegetable at the user's amount, not the filler serving", () => {
+    // Onion is a filler — normally a fixed ~30 kcal serving. Pinned to 40 g, it
+    // must stay at 40 g instead of being reset to the standard veg portion.
+    const onion: PantryFood = {
+      name: "Onion",
+      kcal_100g: 40,
+      protein_100g: 1.1,
+      carbs_100g: 9.3,
+      fat_100g: 0.1,
+      pinned_g: 40,
+    };
+    const meals = planPickedDay({
+      slots: [{ slot: "Dinner", foods: [chicken, rice, onion] }],
+      budget,
+    });
+    const onionG = meals
+      .flatMap((m) => m.portions)
+      .find((p) => p.name === "Onion")?.grams;
+    expect(onionG).toBe(40);
+  });
 });

@@ -296,9 +296,12 @@ function pickToFood(pick: MealPick, pantry: PantryFood[]): PantryFood {
       : undefined) ?? pantry.find((f) => normName(f.name) === normName(pick.name));
 
   const pickPack = pick.pack_size_g != null ? Number(pick.pack_size_g) : undefined;
+  // A hand-set amount rides along whatever row supplies the macros, so a
+  // rebalance holds the food where the user put it.
+  const pinned_g = pick.pinned_g != null ? Number(pick.pinned_g) : null;
 
   if (hit) {
-    return { ...hit, available_g: tighterCap(hit.available_g, pickPack) };
+    return { ...hit, available_g: tighterCap(hit.available_g, pickPack), pinned_g };
   }
   return {
     name: pick.name,
@@ -313,6 +316,7 @@ function pickToFood(pick: MealPick, pantry: PantryFood[]): PantryFood {
     available_g: pickPack,
     unit_g: pick.unit_g != null ? Number(pick.unit_g) : null,
     unit_label: pick.unit_label ?? null,
+    pinned_g,
   };
 }
 
@@ -612,7 +616,18 @@ function portionsName(portions: MealPortion[]): string {
 // Save an edited AI dish: the user changed the portions (grams, or dropped an
 // ingredient). Totals are re-summed from the portions' own macros, so the meal
 // and the day stay exact. Removing every portion clears the slot.
-export async function setMealPortions(id: string, portions: MealPortion[]) {
+//
+// `pinnedNames` are the foods the user hand-set in this edit. Their amount is
+// PINNED onto the matching pick, so the next "Rebalance my day" holds them where
+// the user put them and re-solves everything else (the other ingredients here,
+// and the other meals) around them. Foods the user didn't touch have their pin
+// cleared, so a rebalance is free to move them again. The picks are kept — this
+// is what lets a rebalance still adjust the untouched foods in an edited meal.
+export async function setMealPortions(
+  id: string,
+  portions: MealPortion[],
+  pinnedNames: string[] = [],
+) {
   const { supabase, user } = await requireUser();
 
   // The grams come off a slider. A NaN would be summed into the meal, then into
@@ -632,6 +647,23 @@ export async function setMealPortions(id: string, portions: MealPortion[]) {
     revalidate();
     return;
   }
+
+  // Set (or clear) each pick's pin from this edit: a touched food is pinned to
+  // the grams the user left it at; an untouched one is freed. Matched by name —
+  // the picks and the portions share it. A meal with no picks (an old plan)
+  // just skips this and behaves as before.
+  const pinSet = new Set(pinnedNames);
+  const gramsByName = new Map(portions.map((p) => [p.name, p.grams]));
+  const { data: current } = await supabase
+    .from("planned_meals")
+    .select("picks")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const picks = ((current as { picks: MealPick[] } | null)?.picks ?? []).map((pick) => ({
+    ...pick,
+    pinned_g: pinSet.has(pick.name) ? gramsByName.get(pick.name) ?? null : null,
+  }));
 
   // Re-sum every nutrient the portions carry, extras included — dropping them
   // here would zero a meal's fibre and sodium the moment the user edited it.
@@ -654,11 +686,9 @@ export async function setMealPortions(id: string, portions: MealPortion[]) {
     .update({
       name: portionsName(portions),
       portions,
-      // Once the user hand-tunes an AI dish, drop its picks so "Rebalance my
-      // day" treats it as a built meal — budgeted around, never re-solved from
-      // the picks (which would wipe the edit). The rest of the day rebalances
-      // to what's left.
-      picks: [],
+      // Keep the picks (with the pins just set), so a rebalance can still move
+      // the foods the user didn't touch while holding the ones they did.
+      picks,
       kcal: Math.round(totals.kcal),
       protein_g: Math.round(totals.protein_g),
       carbs_g: Math.round(totals.carbs_g),

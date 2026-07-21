@@ -1019,10 +1019,17 @@ function AiMealEditor({
 }) {
   const [ports, setPorts] = useState<EditPortion[]>(() => meal.portions.map(toEdit));
   const [saving, startSave] = useTransition();
+  // The foods the user hand-set in this edit, by name. On save these become the
+  // pinned foods: a rebalance holds them where the user left them and re-solves
+  // the rest of the day around them.
+  const [touched, setTouched] = useState<Set<string>>(new Set());
+  const pin = (name: string) =>
+    setTouched((prev) => (prev.has(name) ? prev : new Set(prev).add(name)));
 
   function setGrams(i: number, grams: number) {
     const g = Math.max(0, Math.round(grams));
     setPorts((prev) => prev.map((p, j) => (j === i ? { ...p, grams: g } : p)));
+    pin(ports[i].name);
   }
 
   // Set a countable portion by a whole count; grams follow grams-per-portion.
@@ -1032,6 +1039,7 @@ function AiMealEditor({
 
   // Add a pantry/scanned food to the dish as a new portion. Its per-gram macros
   // come from the food's per-100g values, so it rescales like the AI portions.
+  // A food the user added is one they chose an amount for, so it's pinned too.
   function addFood(c: FoodChoice, grams: number) {
     setPorts((prev) => [
       ...prev,
@@ -1052,6 +1060,7 @@ function AiMealEditor({
         unit_label: c.unit_label ?? null,
       },
     ]);
+    pin(c.name);
   }
 
   const built = ports.map(fromEdit);
@@ -1067,9 +1076,10 @@ function AiMealEditor({
 
   function save() {
     onError("");
+    const pinnedNames = built.filter((p) => touched.has(p.name)).map((p) => p.name);
     startSave(async () => {
       try {
-        await setMealPortions(meal.id, built);
+        await setMealPortions(meal.id, built, pinnedNames);
         onDone();
       } catch (e) {
         onError(e instanceof Error ? e.message : "Couldn't save the meal.");

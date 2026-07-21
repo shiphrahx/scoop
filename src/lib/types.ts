@@ -339,7 +339,13 @@ export interface FoodChoice extends ExtraPer100g {
 // A food the user chose for one meal when planning their day — the app works
 // out the grams, so a pick carries no amount, just per-100g macros and where it
 // came from. pack_size_g caps a portion at what the pack holds (null = no cap).
-export type MealPick = Omit<FoodChoice, "brand">;
+export type MealPick = Omit<FoodChoice, "brand"> & {
+  // Grams the user hand-set for this food. When present, "Build my day" holds
+  // the food at this amount and re-solves the rest of the day around it — the
+  // ingredient you nudged stays put while the others move to keep the day on
+  // target. Null/absent = the solver is free to portion it.
+  pinned_g?: number | null;
+};
 
 // One meal in a saved day plan, tied to a named slot (Breakfast, Lunch, …).
 // origin 'manual' = the user built it from foods they picked (`items`); 'ai' =

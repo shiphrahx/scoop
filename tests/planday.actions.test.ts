@@ -97,19 +97,37 @@ describe("setMealPortions", () => {
     expect(after.fat_g).toBe(8);
   });
 
-  it("drops the picks so rebalance treats the edited meal as built", async () => {
-    // A hand-edit must survive "Rebalance my day": clearing picks reclassifies
-    // the meal as built, so buildMyDay budgets around it instead of re-solving
-    // it from the picks and wiping the edit.
+  it("pins a hand-set food onto its pick and frees the rest", async () => {
+    // A rebalance must hold the food the user nudged but stay free to move the
+    // others: the touched food gets a pinned_g on its pick, the untouched one
+    // has its pin cleared. The picks are kept, not dropped.
     const { db } = installFakeSupabase({
-      db: { planned_meals: [{ ...plannedMeal(), picks: [{ name: "Chicken Breast" }] }] },
+      db: {
+        planned_meals: [
+          {
+            ...plannedMeal(),
+            picks: [
+              { name: "Chicken Breast", pinned_g: 999 },
+              { name: "Brown Rice" },
+            ],
+          },
+        ],
+      },
     });
 
-    await setMealPortions("pm-1", [
-      { name: "Chicken Breast", grams: 250, kcal: 412, protein_g: 78, carbs_g: 0, fat_g: 9, fiber_g: 0, sugar_g: 0, satfat_g: 3, sodium_mg: 185 },
-    ]);
+    // The user re-weighs the chicken; the rice is left untouched.
+    await setMealPortions(
+      "pm-1",
+      [
+        { name: "Chicken Breast", grams: 250, kcal: 412, protein_g: 78, carbs_g: 0, fat_g: 9, fiber_g: 0, sugar_g: 0, satfat_g: 3, sodium_mg: 185 },
+        { name: "Brown Rice", grams: 300, kcal: 390, protein_g: 8, carbs_g: 84, fat_g: 1, fiber_g: 6, sugar_g: 1, satfat_g: 0, sodium_mg: 15 },
+      ],
+      ["Chicken Breast"],
+    );
 
-    expect(db.planned_meals[0].picks).toEqual([]);
+    const picks = db.planned_meals[0].picks;
+    expect(picks.find((p: Row) => p.name === "Chicken Breast").pinned_g).toBe(250);
+    expect(picks.find((p: Row) => p.name === "Brown Rice").pinned_g).toBeNull();
   });
 
   it("clears the slot when every portion is removed", async () => {
