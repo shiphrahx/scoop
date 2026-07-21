@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useTransition, type ReactNode } from "rea
 import Link from "next/link";
 import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, Pencil, AlertTriangle, AlertCircle, CopyPlus, UtensilsCrossed, Info } from "lucide-react";
 import type { FoodChoice, Macros, MealPortion, PlannedMeal, PlanItem, UnitOption } from "@/lib/types";
-import { sumItems } from "@/lib/types";
+import { sumItems, sumMacros } from "@/lib/types";
 import { pantryUnitLabel } from "@/lib/freshfoods";
 import { parseFoodQuery } from "@/lib/foodquery";
 import {
@@ -32,19 +32,12 @@ import {
 
 type Slot = { slot: string; meal: PlannedMeal | null };
 
-// Sum every meal in the plan (built meals + AI dishes) for the day header.
+// Sum every meal in the plan (built meals + AI dishes) for the day header. Sums
+// the extra nutrients too (fibre, sugar, saturates, sodium), so a tracked one
+// like fibre reads the real total instead of zero.
 function dayTotal(slots: Slot[]): Macros {
-  return slots.reduce<Macros>(
-    (s, { meal }) =>
-      meal
-        ? {
-            kcal: s.kcal + meal.kcal,
-            protein_g: s.protein_g + meal.protein_g,
-            carbs_g: s.carbs_g + meal.carbs_g,
-            fat_g: s.fat_g + meal.fat_g,
-          }
-        : s,
-    { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
+  return sumMacros(
+    slots.flatMap(({ meal }) => (meal ? [meal] : [])),
   );
 }
 

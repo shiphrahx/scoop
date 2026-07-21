@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { FoodChoice, PlanItem } from "@/lib/types";
+import type { FoodChoice, Macros, PlanItem, PlannedMeal } from "@/lib/types";
 
 // Building a meal by hand: a fresh food (banana) carries its named sizes, so the
 // user taps "small" instead of typing grams. The size the app saves — its grams
@@ -131,5 +131,54 @@ describe("meal builder — fresh food sizes", () => {
     await user.click(screen.getByRole("button", { name: /^large$/i }));
 
     await waitFor(() => expect(savedItems()[0]).toMatchObject({ grams: 272, unit_g: 136 }));
+  });
+});
+
+describe("plan-my-day header — tracked nutrient totals", () => {
+  const eaten = (over: Partial<PlannedMeal>): PlannedMeal => ({
+    id: "m1",
+    date: "2026-07-20",
+    slot: "Lunch",
+    position: 0,
+    origin: "manual",
+    name: "A meal",
+    items: [],
+    picks: [],
+    portions: [],
+    swaps: [],
+    why: null,
+    logged_food_id: "log-1",
+    kcal: 100,
+    protein_g: 10,
+    carbs_g: 5,
+    fat_g: 2,
+    fiber_g: 8,
+    sugar_g: 1,
+    satfat_g: 0,
+    sodium_mg: 5,
+    ...over,
+  });
+
+  it("sums a tracked extra nutrient (fibre) across meals, not zero", async () => {
+    const target: Macros = {
+      kcal: 2000, protein_g: 150, carbs_g: 200, fat_g: 65,
+      fiber_g: 30, sugar_g: 50, satfat_g: 22, sodium_mg: 2300,
+    };
+    render(
+      <DayPlan
+        slots={[
+          { slot: "Lunch", meal: eaten({ id: "m1", slot: "Lunch", fiber_g: 8 }) },
+          { slot: "Dinner", meal: eaten({ id: "m2", slot: "Dinner", fiber_g: 9 }) },
+        ]}
+        target={target}
+        prefs={["fiber"]}
+        date="2026-07-20"
+      />,
+    );
+
+    // The Fiber tile in the header reads the summed 8 + 9 = 17 g, not 0.
+    const fiberTile = screen.getByText("Fiber").closest("div")!;
+    expect(within(fiberTile).getByText("17")).toBeTruthy();
+    expect(within(fiberTile).queryByText("0")).toBeNull();
   });
 });
