@@ -80,6 +80,15 @@ export interface Favourite extends Macros {
   grams: number | null;
 }
 
+// A whole meal the user saved to reuse — its foods (with amounts) under a name,
+// plus the meal's totals. Dropping it into a slot rebuilds a hand-built meal
+// from `items`. Distinct from Favourite, which is a single food.
+export interface FavouriteMeal extends Macros {
+  id: string;
+  name: string;
+  items: PlanItem[];
+}
+
 // Something the user has in the kitchen. Macros are stored per 100 g, the way
 // Open Food Facts reports them. off_barcode is null for hand-entered items.
 // unit_g/unit_label make a food countable rather than weighed ("bagel" of 85 g);

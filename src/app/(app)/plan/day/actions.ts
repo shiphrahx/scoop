@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { isFoodAllowed } from "@/lib/ai";
+import { mealToItems } from "@/lib/favourites";
 import { planPickedDay, portionGrams, type PantryFood } from "@/lib/mealplan";
 import { macrosPer100gSchema, parseOrThrow, portionGramsSchema } from "@/lib/validate";
 import {
@@ -199,6 +200,130 @@ export async function setMealItems(slot: string, items: PlanItem[], date?: strin
   );
   if (error) throw new Error(error.message);
   revalidate();
+}
+
+// ---------------------------------------------------------------------------
+// Favourite meals: a whole meal saved under a name, to drop back into any slot
+// later. Stored as PlanItem[] (see the 0024 migration and lib/favourites), so
+// adding one back rebuilds an identical hand-built meal.
+// ---------------------------------------------------------------------------
+
+// Save a list of foods as a named favourite meal. The foods come from the meal
+// the user is looking at — a hand-built list as-is, or an AI dish converted to
+// items on the client. Totals are the exact sum of the foods, so the favourites
+// page shows real macros. Client-supplied, so every food is bound-checked first.
+export async function saveFavouriteMeal(name: string, items: PlanItem[]) {
+  const { supabase, user } = await requireUser();
+
+  if (items.length === 0) throw new Error("This meal has no foods to save.");
+  for (const it of items) {
+    parseOrThrow(macrosPer100gSchema, it, `Food ${it.name}`);
+  }
+
+  const label = name.trim().slice(0, 120) || "Saved meal";
+  const totals = sumItems(items);
+  if (totals.kcal <= 0) throw new Error("This meal has no macros to save.");
+
+  const { error } = await supabase.from("favourite_meals").insert({
+    user_id: user.id,
+    name: label,
+    items,
+    kcal: Math.round(totals.kcal),
+    protein_g: Math.round(totals.protein_g),
+    carbs_g: Math.round(totals.carbs_g),
+    fat_g: Math.round(totals.fat_g),
+    fiber_g: Math.round(totals.fiber_g),
+    sugar_g: Math.round(totals.sugar_g),
+    satfat_g: Math.round(totals.satfat_g),
+    sodium_mg: Math.round(totals.sodium_mg),
+  });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/plan/favourites");
+}
+
+// Drop a saved favourite meal into a slot as a fresh hand-built meal. Overwrites
+// whatever is in the slot (the button only shows on an empty slot). The foods
+// and their amounts are the favourite's; the meal keeps the favourite's name.
+export async function addFavouriteMeal(favId: string, slot: string, date?: string) {
+  const { supabase, user } = await requireUser();
+  const day = await resolveDate(date);
+
+  const { data } = await supabase
+    .from("favourite_meals")
+    .select("name, items")
+    .eq("id", favId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const fav = data as { name: string; items: PlanItem[] } | null;
+  if (!fav) throw new Error("Favourite meal not found.");
+
+  const items = fav.items ?? [];
+  if (items.length === 0) throw new Error("That favourite has no foods.");
+
+  const profile = await getProfile();
+  const position = Math.max(0, (profile?.meal_slots ?? []).indexOf(slot));
+  const totals = sumItems(items);
+
+  const { error } = await supabase.from("planned_meals").upsert(
+    {
+      user_id: user.id,
+      date: day,
+      slot,
+      position,
+      origin: "manual",
+      name: fav.name,
+      items,
+      picks: [],
+      portions: [],
+      swaps: [],
+      why: null,
+      kcal: Math.round(totals.kcal),
+      protein_g: Math.round(totals.protein_g),
+      carbs_g: Math.round(totals.carbs_g),
+      fat_g: Math.round(totals.fat_g),
+      fiber_g: Math.round(totals.fiber_g),
+      sugar_g: Math.round(totals.sugar_g),
+      satfat_g: Math.round(totals.satfat_g),
+      sodium_mg: Math.round(totals.sodium_mg),
+      logged_food_id: null,
+    },
+    { onConflict: "user_id,date,slot" },
+  );
+  if (error) throw new Error(error.message);
+  revalidate();
+}
+
+// Save the whole of one planned meal (by id) as a favourite — a convenience for
+// an app-portioned dish, whose foods live in `portions` rather than `items`.
+export async function saveMealAsFavourite(mealId: string, name: string) {
+  const { supabase, user } = await requireUser();
+
+  const { data } = await supabase
+    .from("planned_meals")
+    .select("name, items, portions")
+    .eq("id", mealId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const meal = data as
+    | { name: string; items: PlanItem[] | null; portions: MealPortion[] | null }
+    | null;
+  if (!meal) throw new Error("Meal not found.");
+
+  const items = mealToItems(meal);
+  await saveFavouriteMeal(name.trim() || meal.name, items);
+}
+
+// Remove a saved favourite meal.
+export async function deleteFavouriteMeal(id: string) {
+  const { supabase, user } = await requireUser();
+  const { error } = await supabase
+    .from("favourite_meals")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/plan/favourites");
 }
 
 // Save the foods the user picked for one meal, ahead of "Build my day". No
