@@ -92,6 +92,21 @@ describe("setMealPortions", () => {
     expect(after.fat_g).toBe(8);
   });
 
+  it("drops the picks so rebalance treats the edited meal as built", async () => {
+    // A hand-edit must survive "Rebalance my day": clearing picks reclassifies
+    // the meal as built, so buildMyDay budgets around it instead of re-solving
+    // it from the picks and wiping the edit.
+    const { db } = installFakeSupabase({
+      db: { planned_meals: [{ ...plannedMeal(), picks: [{ name: "Chicken Breast" }] }] },
+    });
+
+    await setMealPortions("pm-1", [
+      { name: "Chicken Breast", grams: 250, kcal: 412, protein_g: 78, carbs_g: 0, fat_g: 9, fiber_g: 0, sugar_g: 0, satfat_g: 3, sodium_mg: 185 },
+    ]);
+
+    expect(db.planned_meals[0].picks).toEqual([]);
+  });
+
   it("clears the slot when every portion is removed", async () => {
     const { db } = installFakeSupabase({ db: { planned_meals: [plannedMeal()] } });
     await setMealPortions("pm-1", []);

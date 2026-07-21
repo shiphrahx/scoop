@@ -611,6 +611,11 @@ export async function setMealPortions(id: string, portions: MealPortion[]) {
     .update({
       name: portionsName(portions),
       portions,
+      // Once the user hand-tunes an AI dish, drop its picks so "Rebalance my
+      // day" treats it as a built meal — budgeted around, never re-solved from
+      // the picks (which would wipe the edit). The rest of the day rebalances
+      // to what's left.
+      picks: [],
       kcal: Math.round(totals.kcal),
       protein_g: Math.round(totals.protein_g),
       carbs_g: Math.round(totals.carbs_g),
