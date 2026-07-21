@@ -87,6 +87,13 @@ suite("row-level security", () => {
          values ('${id}', '2026-07-13', 'Dinner', 'Chicken', 600, 50, 40, 20)`,
     },
     {
+      table: "favourite_meals",
+      owner: "user_id",
+      insert: (id) =>
+        `insert into favourite_meals (user_id, name, kcal, protein_g, carbs_g, fat_g)
+         values ('${id}', 'Chicken & rice', 600, 50, 40, 20)`,
+    },
+    {
       table: "activity",
       owner: "user_id",
       insert: (id) =>
