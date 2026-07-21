@@ -6,6 +6,7 @@ import { rateLimit } from "@/lib/ratelimit";
 import { parseGroceryImage, parseProductFromUrl } from "@/lib/ai";
 import { pantryCategory } from "@/lib/foodgroups";
 import { searchFreshFoods } from "@/lib/queries";
+import { cookedStapleFor, defaultSize, pantryUnitLabel } from "@/lib/freshfoods";
 import { macrosPer100gSchema, parseOrThrow } from "@/lib/validate";
 import type { FreshFood, GroceryItem, ParsedProduct, UnitOption } from "@/lib/types";
 
@@ -50,6 +51,49 @@ function assertMacros(
   parseOrThrow(macrosPer100gSchema, food, label);
 }
 
+// Every macro in Scoop is as-eaten — cooked, never dry. A dry staple (rice,
+// pasta, couscous, quinoa, oats) is the trap: a bag's label is dry weight, and
+// 60 g dry rice becomes ~180 g cooked with completely different per-100g
+// numbers. Whichever path added the food — barcode scan, search, grocery or URL
+// import, or a manual type-in — if its name reads as a plain dry staple, swap
+// its macros, extras and serving sizes onto the shared COOKED reference (0021)
+// and rename it "(cooked)" so it's unmistakable. The scan UIs do this too; doing
+// it here as well is the single boundary that catches every other path. Returns
+// the item untouched when it isn't a plain staple or the reference isn't seeded.
+// `cache` avoids re-fetching the same reference across a batch import.
+async function toCookedStaple(
+  it: PantryInput,
+  cache: Map<string, FreshFood | null>,
+): Promise<PantryInput> {
+  const canonical = cookedStapleFor(it.name);
+  if (!canonical) return it;
+
+  let ref = cache.get(canonical);
+  if (ref === undefined) {
+    const refs = await searchFreshFoods(canonical);
+    ref = refs.find((r) => r.name === canonical && r.cooked) ?? null;
+    cache.set(canonical, ref);
+  }
+  if (!ref) return it;
+
+  const size = defaultSize(ref.sizes);
+  return {
+    ...it,
+    name: ref.name,
+    kcal_100g: ref.kcal_100g,
+    protein_100g: ref.protein_100g,
+    carbs_100g: ref.carbs_100g,
+    fat_100g: ref.fat_100g,
+    fiber_100g: ref.fiber_100g,
+    sugar_100g: ref.sugar_100g,
+    satfat_100g: ref.satfat_100g,
+    sodium_mg_100g: ref.sodium_mg_100g,
+    unit_options: ref.sizes.length ? ref.sizes : it.unit_options,
+    unit_g: size?.grams ?? it.unit_g ?? null,
+    unit_label: size ? pantryUnitLabel(ref.name, size.label) : it.unit_label ?? null,
+  };
+}
+
 // The category to file a new item under: honour an explicit one if given,
 // otherwise pick a shelf from its name and macros so every add path — barcode,
 // link, screenshot, import, manual — files itself with no extra tapping.
@@ -89,21 +133,22 @@ function unitCols(it: PantryInput) {
 
 export async function addPantryItem(input: PantryInput) {
   const { supabase, user } = await requireUser();
-  assertMacros(input, input.name.trim() || "This item");
+  const item = await toCookedStaple(input, new Map());
+  assertMacros(item, item.name.trim() || "This item");
 
   const { error } = await supabase.from("pantry_items").insert({
     user_id: user.id,
-    name: input.name,
-    off_barcode: input.off_barcode,
-    quantity: input.quantity,
-    kcal_100g: input.kcal_100g,
-    protein_100g: input.protein_100g,
-    carbs_100g: input.carbs_100g,
-    fat_100g: input.fat_100g,
-    ...extraCols(input),
-    pack_size_g: input.pack_size_g ?? null,
-    ...unitCols(input),
-    category: shelf(input),
+    name: item.name,
+    off_barcode: item.off_barcode,
+    quantity: item.quantity,
+    kcal_100g: item.kcal_100g,
+    protein_100g: item.protein_100g,
+    carbs_100g: item.carbs_100g,
+    fat_100g: item.fat_100g,
+    ...extraCols(item),
+    pack_size_g: item.pack_size_g ?? null,
+    ...unitCols(item),
+    category: shelf(item),
   });
   if (error) throw new Error(error.message);
 
@@ -115,7 +160,12 @@ export async function addPantryItem(input: PantryInput) {
 // when the user kept it unmatched), plus how many packs they have.
 export async function addMatchedItems(items: PantryInput[]) {
   const { supabase, user } = await requireUser();
-  const kept = items.filter((it) => it.name.trim());
+  const cache = new Map<string, FreshFood | null>();
+  const kept: PantryInput[] = [];
+  for (const it of items) {
+    if (!it.name.trim()) continue;
+    kept.push(await toCookedStaple(it, cache));
+  }
   for (const it of kept) assertMacros(it, it.name.trim());
   const rows = kept
     .map((it) => ({
