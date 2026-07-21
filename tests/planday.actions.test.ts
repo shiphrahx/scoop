@@ -8,8 +8,13 @@ vi.mock("@/lib/supabase/server", async () => {
 });
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
-const { setMealPortions, logPlannedMeal, unlogPlannedMeal, copyFromYesterday } =
-  await import("@/app/(app)/plan/day/actions");
+const {
+  setMealPortions,
+  logPlannedMeal,
+  unlogPlannedMeal,
+  copyFromYesterday,
+  copyMealFromSlot,
+} = await import("@/app/(app)/plan/day/actions");
 
 const today = () => {
   const d = new Date();
@@ -279,5 +284,77 @@ describe("copyFromYesterday", () => {
   it("throws when the previous day had nothing in the slot", async () => {
     installFakeSupabase({ db: { users: [profile()], planned_meals: [] } });
     await expect(copyFromYesterday("Dinner")).rejects.toThrow(/nothing planned/i);
+  });
+});
+
+describe("copyMealFromSlot", () => {
+  // A meal being planned today: foods picked, not yet built (no portions).
+  const picksMeal = (over: Row = {}): Row => ({
+    id: "pm-src",
+    user_id: "user-1",
+    date: today(),
+    slot: "Breakfast",
+    origin: "ai",
+    name: "Tofu, Bagel",
+    items: [],
+    picks: [
+      { name: "Tofu", source: "pantry" },
+      { name: "Bagel", source: "pantry" },
+    ],
+    portions: [],
+    swaps: [],
+    why: null,
+    kcal: 0,
+    protein_g: 0,
+    carbs_g: 0,
+    fat_g: 0,
+    fiber_g: 0,
+    sugar_g: 0,
+    satfat_g: 0,
+    sodium_mg: 0,
+    logged_food_id: null,
+    ...over,
+  });
+
+  it("copies a meal still being planned (its picks) into the target slot", async () => {
+    const { db } = installFakeSupabase({
+      db: { users: [profile()], planned_meals: [picksMeal()] },
+    });
+
+    await copyMealFromSlot("Breakfast", "Dinner");
+
+    const copy = db.planned_meals.find((m) => m.slot === "Dinner")!;
+    expect(copy).toBeTruthy();
+    expect(copy.picks).toEqual(picksMeal().picks);
+    // The source meal is left where it was.
+    expect(db.planned_meals.some((m) => m.slot === "Breakfast")).toBe(true);
+  });
+
+  it("drops the eaten mark so the copy lands as a fresh plan", async () => {
+    const { db } = installFakeSupabase({
+      db: {
+        users: [profile()],
+        planned_meals: [picksMeal({ logged_food_id: "log-1" })],
+      },
+    });
+
+    await copyMealFromSlot("Breakfast", "Dinner");
+
+    const copy = db.planned_meals.find((m) => m.slot === "Dinner")!;
+    expect(copy.logged_food_id).toBeNull();
+  });
+
+  it("refuses to copy a slot onto itself", async () => {
+    installFakeSupabase({ db: { users: [profile()], planned_meals: [picksMeal()] } });
+    await expect(copyMealFromSlot("Breakfast", "Breakfast")).rejects.toThrow(
+      /different meal/i,
+    );
+  });
+
+  it("throws when the source slot has nothing planned", async () => {
+    installFakeSupabase({ db: { users: [profile()], planned_meals: [] } });
+    await expect(copyMealFromSlot("Breakfast", "Dinner")).rejects.toThrow(
+      /nothing planned/i,
+    );
   });
 });

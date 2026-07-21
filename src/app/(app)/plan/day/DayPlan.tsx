@@ -24,6 +24,7 @@ import {
   clearSlot,
   clearAppPlan,
   copyFromYesterday,
+  copyMealFromSlot,
   logPlannedMeal,
   unlogPlannedMeal,
   removePlannedMeal,
@@ -197,12 +198,20 @@ export default function DayPlan({
                keeping this picker's empty state. */
             <>
               {!meal && (
-                <Link
-                  href={`/plan/day/meal?slot=${encodeURIComponent(slot)}&date=${date}`}
-                  className="sc-btn sc-btn-soft"
-                >
-                  <UtensilsCrossed size={18} /> Plan this meal
-                </Link>
+                <>
+                  <Link
+                    href={`/plan/day/meal?slot=${encodeURIComponent(slot)}&date=${date}`}
+                    className="sc-btn sc-btn-soft"
+                  >
+                    <UtensilsCrossed size={18} /> Plan this meal
+                  </Link>
+                  <CopySiblings
+                    slots={slots}
+                    slot={slot}
+                    busy={busy}
+                    onCopy={(from) => run(() => copyMealFromSlot(from, slot, date))}
+                  />
+                </>
               )}
               <ItemPicker
                 key={meal?.id ?? "empty"}
@@ -237,6 +246,47 @@ export default function DayPlan({
         </button>
       )}
     </section>
+  );
+}
+
+// "Copy lunch" / "copy dinner" for an empty slot: one button per other meal
+// that has anything planned — foods still being picked (picks), a hand-built
+// list (items), or a portioned dish (portions). Copying brings the whole meal
+// over, so a meal mid-plan can be duplicated into another slot before the day
+// is built. Renders nothing when no other meal has content to copy.
+function CopySiblings({
+  slots,
+  slot,
+  busy,
+  onCopy,
+}: {
+  slots: Slot[];
+  slot: string;
+  busy: boolean;
+  onCopy: (fromSlot: string) => void;
+}) {
+  const sources = slots.filter(
+    (s) =>
+      s.slot !== slot &&
+      s.meal != null &&
+      (s.meal.picks.length > 0 ||
+        s.meal.items.length > 0 ||
+        s.meal.portions.length > 0),
+  );
+  if (sources.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-2">
+      {sources.map((s) => (
+        <button
+          key={s.slot}
+          onClick={() => onCopy(s.slot)}
+          disabled={busy}
+          className="sc-btn sc-btn-soft flex-1"
+        >
+          <CopyPlus size={16} /> Copy {s.slot.toLowerCase()}
+        </button>
+      ))}
+    </div>
   );
 }
 
