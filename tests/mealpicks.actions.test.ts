@@ -467,6 +467,56 @@ describe("buildMyDay", () => {
     expect(String(row.why)).toMatch(/no room/i);
   });
 
+  it("honours a pin once, then clears it so it can't stick forever", async () => {
+    // A pin (a hand-set amount saved on a pick) must hold the food through the
+    // rebalance right after the edit, but not on every future build — a stale
+    // pin holding a food at a fixed amount would starve out other picks and
+    // push the day off target. So the build applies the pin, then consumes it.
+    const { db } = installFakeSupabase({
+      db: {
+        users: [profile()],
+        daily_targets: targets(),
+        food_logs: [],
+        pantry_items: [
+          pantryRow("Chicken Breast", 165, 31, 0, 3.6),
+          pantryRow("Pasta", 371, 13, 71, 1.5),
+        ],
+        planned_meals: [
+          {
+            id: "meal-1",
+            user_id: "user-1",
+            date: today(),
+            slot: "Lunch",
+            origin: "ai",
+            name: "",
+            items: [],
+            picks: [{ ...chickenPick(), pinned_g: 150 }, pastaPick()],
+            portions: [],
+            swaps: [],
+            why: null,
+            kcal: 0,
+            protein_g: 0,
+            carbs_g: 0,
+            fat_g: 0,
+            logged_food_id: null,
+          },
+        ],
+      },
+    });
+
+    await buildMyDay();
+
+    const row = db.planned_meals.find((m) => m.id === "meal-1")!;
+    // The pin was honoured this build: chicken held at exactly 150 g.
+    const chicken = (row.portions as Array<{ name: string; grams: number }>).find(
+      (p) => p.name === "Chicken Breast",
+    );
+    expect(chicken?.grams).toBe(150);
+    // ...and then cleared, so the next build is free to re-portion it.
+    const picks = row.picks as Array<{ name: string; pinned_g: number | null }>;
+    expect(picks.find((p) => p.name === "Chicken Breast")!.pinned_g).toBeNull();
+  });
+
   it("sizes meals by the profile's slot weights", async () => {
     const mkMeal = (id: string, slot: string): Row => ({
       id,
