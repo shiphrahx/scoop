@@ -489,49 +489,45 @@ export async function buildMyDay(date?: string) {
   revalidate();
 }
 
-// Fill a slot with the same meal the user had in it the day before — a whole
-// row copied onto this date, minus the "eaten" mark so it lands as a fresh
-// plan. Overwrites whatever is in the slot (the button only shows on empty
-// slots). Throws when the previous day had nothing planned there.
-export async function copyFromYesterday(slot: string, date?: string) {
-  const { supabase, user } = await requireUser();
-  const day = await resolveDate(date);
-  const prevDay = addDaysISO(day, -1);
+// A whole meal row, the fields a copy carries. `logged_food_id` is deliberately
+// left off — a copy always lands as a fresh, un-eaten plan.
+type CopyableMeal = {
+  origin: string;
+  name: string;
+  items: PlanItem[];
+  picks: MealPick[] | null;
+  portions: MealPortion[];
+  swaps: string[];
+  why: string | null;
+  kcal: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  fiber_g: number;
+  sugar_g: number;
+  satfat_g: number;
+  sodium_mg: number;
+};
 
-  const { data: src } = await supabase
-    .from("planned_meals")
-    .select(
-      "origin, name, items, picks, portions, swaps, why, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg",
-    )
-    .eq("user_id", user.id)
-    .eq("date", prevDay)
-    .eq("slot", slot)
-    .maybeSingle();
-  if (!src) throw new Error("Nothing planned for this meal yesterday.");
-  const m = src as {
-    origin: string;
-    name: string;
-    items: PlanItem[];
-    picks: MealPick[] | null;
-    portions: MealPortion[];
-    swaps: string[];
-    why: string | null;
-    kcal: number;
-    protein_g: number;
-    carbs_g: number;
-    fat_g: number;
-    fiber_g: number;
-    sugar_g: number;
-    satfat_g: number;
-    sodium_mg: number;
-  };
+const COPY_FIELDS =
+  "origin, name, items, picks, portions, swaps, why, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg";
 
+// Drop a copied meal into a slot as a fresh plan (never eaten), overwriting
+// whatever is there. Shared by "copy from yesterday" and "copy from another
+// meal" — both just differ in where they read the source row from.
+async function writeCopiedMeal(
+  supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
+  userId: string,
+  m: CopyableMeal,
+  day: string,
+  slot: string,
+) {
   const profile = await getProfile();
   const position = Math.max(0, (profile?.meal_slots ?? []).indexOf(slot));
 
   const { error } = await supabase.from("planned_meals").upsert(
     {
-      user_id: user.id,
+      user_id: userId,
       date: day,
       slot,
       position,
@@ -556,6 +552,53 @@ export async function copyFromYesterday(slot: string, date?: string) {
   );
   if (error) throw new Error(error.message);
   revalidate();
+}
+
+// Fill a slot with the same meal the user had in it the day before — a whole
+// row copied onto this date, minus the "eaten" mark so it lands as a fresh
+// plan. Overwrites whatever is in the slot (the button only shows on empty
+// slots). Throws when the previous day had nothing planned there.
+export async function copyFromYesterday(slot: string, date?: string) {
+  const { supabase, user } = await requireUser();
+  const day = await resolveDate(date);
+  const prevDay = addDaysISO(day, -1);
+
+  const { data: src } = await supabase
+    .from("planned_meals")
+    .select(COPY_FIELDS)
+    .eq("user_id", user.id)
+    .eq("date", prevDay)
+    .eq("slot", slot)
+    .maybeSingle();
+  if (!src) throw new Error("Nothing planned for this meal yesterday.");
+
+  await writeCopiedMeal(supabase, user.id, src as CopyableMeal, day, slot);
+}
+
+// Copy another meal from the SAME day into this slot — the whole thing, foods
+// still being planned (picks) included, so "copy dinner into lunch" brings the
+// ingredients over before the day is built. Copying a picks-only meal lands
+// picks the user then builds; copying a built or eaten meal lands its portions.
+// The target slot is overwritten (the button only shows on empty slots).
+export async function copyMealFromSlot(
+  fromSlot: string,
+  toSlot: string,
+  date?: string,
+) {
+  const { supabase, user } = await requireUser();
+  const day = await resolveDate(date);
+  if (fromSlot === toSlot) throw new Error("Pick a different meal to copy from.");
+
+  const { data: src } = await supabase
+    .from("planned_meals")
+    .select(COPY_FIELDS)
+    .eq("user_id", user.id)
+    .eq("date", day)
+    .eq("slot", fromSlot)
+    .maybeSingle();
+  if (!src) throw new Error("Nothing planned in that meal to copy.");
+
+  await writeCopiedMeal(supabase, user.id, src as CopyableMeal, day, toSlot);
 }
 
 // A short dish name from its portions: "Chicken with Rice", or the single food.
