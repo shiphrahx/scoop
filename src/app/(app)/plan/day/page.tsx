@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import DayPlan from "./DayPlan";
 import DayJump from "./DayJump";
 import BuildDayCard from "./BuildDayCard";
+import { createClient } from "@/lib/supabase/server";
 import {
   getProfile,
   getCurrentTargets,
@@ -11,7 +12,7 @@ import {
   localToday,
 } from "@/lib/queries";
 import { addDaysISO } from "@/lib/time";
-import { DEFAULT_MEAL_SLOTS } from "@/lib/types";
+import { DEFAULT_MEAL_SLOTS, type FavouriteMeal } from "@/lib/types";
 import { normalizePrefs } from "@/lib/nutrients";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -41,11 +42,17 @@ export default async function PlanDayPage({
   const today = await localToday();
   const date = dateParam && DATE_RE.test(dateParam) ? dateParam : today;
 
-  const [profile, target, plan] = await Promise.all([
+  const supabase = await createClient();
+  const [profile, target, plan, { data: favData }] = await Promise.all([
     getProfile(),
     getCurrentTargets(),
     getPlanForDate(date),
+    supabase
+      .from("favourite_meals")
+      .select("id, name, items, kcal, protein_g, carbs_g, fat_g")
+      .order("created_at", { ascending: false }),
   ]);
+  const favourites = (favData as FavouriteMeal[]) ?? [];
 
   const prev = addDaysISO(date, -1);
   const next = addDaysISO(date, 1);
@@ -106,7 +113,13 @@ export default async function PlanDayPage({
         />
       )}
 
-      <DayPlan slots={slots} target={target} prefs={prefs} date={date} />
+      <DayPlan
+        slots={slots}
+        target={target}
+        prefs={prefs}
+        date={date}
+        favourites={favourites}
+      />
     </main>
   );
 }

@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, Pencil, AlertTriangle, AlertCircle, CopyPlus, UtensilsCrossed, Info } from "lucide-react";
-import type { FoodChoice, Macros, MealPortion, PlannedMeal, PlanItem, UnitOption } from "@/lib/types";
+import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, Pencil, AlertTriangle, AlertCircle, CopyPlus, UtensilsCrossed, Info, Star } from "lucide-react";
+import type { FavouriteMeal, FoodChoice, Macros, MealPortion, PlannedMeal, PlanItem, UnitOption } from "@/lib/types";
 import { sumItems, sumMacros } from "@/lib/types";
+import { mealToItems } from "@/lib/favourites";
 import { pantryUnitLabel } from "@/lib/freshfoods";
 import { parseFoodQuery } from "@/lib/foodquery";
 import {
@@ -28,6 +29,8 @@ import {
   logPlannedMeal,
   unlogPlannedMeal,
   removePlannedMeal,
+  saveFavouriteMeal,
+  addFavouriteMeal,
 } from "./actions";
 
 type Slot = { slot: string; meal: PlannedMeal | null };
@@ -109,11 +112,13 @@ export default function DayPlan({
   target,
   prefs,
   date,
+  favourites = [],
 }: {
   slots: Slot[];
   target: Macros | null;
   prefs: NutrientKey[];
   date: string;
+  favourites?: FavouriteMeal[];
 }) {
   const [busy, startTransition] = useTransition();
   const [err, setErr] = useState<string | null>(null);
@@ -203,6 +208,11 @@ export default function DayPlan({
                     slot={slot}
                     busy={busy}
                     onCopy={(from) => run(() => copyMealFromSlot(from, slot, date))}
+                  />
+                  <AddFromFavourites
+                    favourites={favourites}
+                    busy={busy}
+                    onAdd={(favId) => run(() => addFavouriteMeal(favId, slot, date))}
                   />
                 </>
               )}
@@ -715,6 +725,7 @@ function ItemPicker({
               I ate this — log it
             </button>
           )}
+          <SaveFavourite defaultName={items.map((i) => i.name).join(", ")} items={items} />
         </>
       )}
     </div>
@@ -817,6 +828,8 @@ function EatenMeal({
           <Trash2 size={16} /> Remove
         </button>
       </div>
+
+      <SaveFavourite defaultName={meal.name} items={mealToItems(meal)} />
     </>
   );
 }
@@ -922,6 +935,10 @@ function AiMeal({
           I ate this — log it
         </button>
       </div>
+
+      {meal.portions.length > 0 && (
+        <SaveFavourite defaultName={meal.name} items={mealToItems(meal)} />
+      )}
 
       {/* A meal built from picks can have its foods changed; the new picks
           wait for the next "Build my day". */}
@@ -1196,6 +1213,143 @@ function AiMealEditor({
         </button>
       </div>
     </div>
+  );
+}
+
+// "Save as favourite" for a meal: a button that opens a name box, then saves the
+// meal's foods under that name so it can be dropped into any slot later. Shows a
+// brief "Saved" once done. Collapses back so it never crowds the meal card.
+function SaveFavourite({
+  defaultName,
+  items,
+}: {
+  defaultName: string;
+  items: PlanItem[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(defaultName);
+  const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [saving, startSave] = useTransition();
+
+  if (saved) {
+    return (
+      <p className="flex items-center justify-center gap-1.5 text-sm font-semibold text-[var(--ink-teal)]">
+        <Check size={16} /> Saved to favourites
+      </p>
+    );
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => {
+          setName(defaultName);
+          setOpen(true);
+        }}
+        className="sc-btn sc-btn-neutral"
+      >
+        <Star size={16} /> Save as favourite
+      </button>
+    );
+  }
+
+  function save() {
+    setErr(null);
+    startSave(async () => {
+      try {
+        await saveFavouriteMeal(name, items);
+        setSaved(true);
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : "Couldn't save it.");
+      }
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-2xl bg-[var(--fill-soft)] p-3">
+      <label className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+        Name this favourite
+      </label>
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="e.g. Chicken & rice bowl"
+        className="sc-input w-full"
+        autoFocus
+      />
+      <div className="flex gap-2">
+        <button
+          onClick={() => setOpen(false)}
+          disabled={saving}
+          className="sc-btn sc-btn-neutral flex-1"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={save}
+          disabled={saving || name.trim().length === 0}
+          className="sc-btn sc-btn-soft flex-1"
+        >
+          {saving ? "Saving…" : "Save"}
+        </button>
+      </div>
+      {err && (
+        <p className="text-sm font-medium text-[var(--danger,#e5484d)]">{err}</p>
+      )}
+    </div>
+  );
+}
+
+// "Add from favourites" on an empty slot: a button that opens the list of the
+// user's saved meals, each tappable to drop it into this slot. Renders nothing
+// when there are no favourites yet.
+function AddFromFavourites({
+  favourites,
+  busy,
+  onAdd,
+}: {
+  favourites: FavouriteMeal[];
+  busy: boolean;
+  onAdd: (favId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  if (favourites.length === 0) return null;
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="sc-btn sc-btn-soft">
+        <Star size={18} /> Add from favourites
+      </button>
+    );
+  }
+
+  return (
+    <ul className="flex flex-col gap-2">
+      {favourites.map((f) => (
+        <li key={f.id}>
+          <button
+            onClick={() => {
+              setOpen(false);
+              onAdd(f.id);
+            }}
+            disabled={busy}
+            className="flex w-full items-center gap-2 rounded-2xl bg-[var(--fill-soft)] p-3 text-left transition active:scale-[0.99] disabled:opacity-40"
+          >
+            <Star size={16} className="shrink-0 text-[var(--ink-teal)]" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium">{f.name}</span>
+              <span className="block text-xs text-[var(--muted)]">
+                {Math.round(f.kcal)} kcal · Protein {Math.round(f.protein_g)} g ·
+                Carbs {Math.round(f.carbs_g)} g · Fat {Math.round(f.fat_g)} g
+              </span>
+            </span>
+            <Plus size={16} className="shrink-0 text-[var(--muted)]" />
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
 
