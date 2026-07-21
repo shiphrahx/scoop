@@ -9,10 +9,37 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 
 const {
   addPantryItem,
+  addMatchedItems,
   updatePantryItem,
   setPantryUnit,
   addFreshFoodSize,
 } = await import("@/app/(app)/pantry/actions");
+
+// The shared cooked-rice reference (mirrors migration 0021), so an added dry
+// staple can be steered onto its cooked macros.
+const cookedRiceDb = () => ({
+  fresh_foods: [
+    {
+      id: "fr-white-rice",
+      name: "White Rice (cooked)",
+      kcal_100g: "130",
+      protein_100g: "2.7",
+      carbs_100g: "28.2",
+      fat_100g: "0.3",
+      fiber_100g: "0.4",
+      sugar_100g: "0.1",
+      satfat_100g: "0.1",
+      sodium_mg_100g: "1",
+      cooked: true,
+    },
+  ],
+  fresh_food_sizes: [
+    { id: "fr-white-rice-small", food_id: "fr-white-rice", label: "small", grams: "150" },
+    { id: "fr-white-rice-medium", food_id: "fr-white-rice", label: "medium", grams: "200" },
+    { id: "fr-white-rice-large", food_id: "fr-white-rice", label: "large", grams: "250" },
+  ],
+  pantry_items: [] as Row[],
+});
 
 const bananaInput = (over: Row = {}) => ({
   name: "Banana",
@@ -60,6 +87,71 @@ describe("addPantryItem with fresh-food sizes", () => {
       addPantryItem(bananaInput({ name: "Vegemince", protein_100g: 170 })),
     ).rejects.toThrow(/Vegemince.*protein_100g/);
     expect(db.pantry_items).toHaveLength(0);
+  });
+
+  it("stores a dry staple with COOKED macros, whatever the pack said", async () => {
+    // Raw basmati is ~78 g carbs/100g; on the plate it's the cooked ~28. A pack
+    // scanned/imported/typed with raw numbers must land cooked so a meal never
+    // shows raw carbs. The item is also renamed to make cooked unmistakable.
+    const { db } = installFakeSupabase({ db: cookedRiceDb() });
+
+    await addPantryItem(
+      bananaInput({
+        name: "Basmati Rice",
+        kcal_100g: 356,
+        protein_100g: 7.5,
+        carbs_100g: 78,
+        fat_100g: 0.6,
+        unit_g: null,
+        unit_label: null,
+        unit_options: null,
+      }),
+    );
+
+    const row = db.pantry_items[0];
+    expect(row.name).toBe("White Rice (cooked)");
+    expect(row.carbs_100g).toBe(28.2);
+    expect(row.kcal_100g).toBe(130);
+    // 39 g now reads ~11 g carbs, not 30.
+    expect((39 / 100) * row.carbs_100g).toBeCloseTo(11, 0);
+    // Cooked serving sizes come along, defaulting to medium.
+    expect(row.unit_g).toBe(200);
+  });
+
+  it("leaves a non-staple food's macros alone", async () => {
+    const { db } = installFakeSupabase({ db: cookedRiceDb() });
+
+    await addPantryItem(bananaInput({ name: "Chicken Breast", carbs_100g: 0, protein_100g: 31, kcal_100g: 165, fat_100g: 3.6 }));
+
+    const row = db.pantry_items.find((r: Row) => r.name === "Chicken Breast")!;
+    expect(row.name).toBe("Chicken Breast");
+    expect(row.protein_100g).toBe(31);
+  });
+
+  it("does not swap a rice-adjacent product that isn't the plain staple", async () => {
+    // "Rice pudding" / "rice milk" are different foods — the swap must not fire.
+    const { db } = installFakeSupabase({ db: cookedRiceDb() });
+
+    await addPantryItem(bananaInput({ name: "Rice Pudding", carbs_100g: 16, protein_100g: 3, kcal_100g: 97, fat_100g: 2 }));
+
+    const row = db.pantry_items.find((r: Row) => r.name === "Rice Pudding")!;
+    expect(row.name).toBe("Rice Pudding");
+    expect(row.carbs_100g).toBe(16);
+  });
+
+  it("cooks dry staples on a grocery import too", async () => {
+    const { db } = installFakeSupabase({ db: cookedRiceDb() });
+
+    await addMatchedItems([
+      { name: "Spaghetti", off_barcode: null, quantity: 1, kcal_100g: 358, protein_100g: 12, carbs_100g: 73, fat_100g: 1.5 },
+      { name: "Basmati Rice", off_barcode: null, quantity: 2, kcal_100g: 356, protein_100g: 7.5, carbs_100g: 78, fat_100g: 0.6 },
+    ]);
+
+    // Rice matched the seeded cooked reference; spaghetti had no reference here,
+    // so it's left as-is (still added).
+    const rice = db.pantry_items.find((r: Row) => r.name === "White Rice (cooked)")!;
+    expect(rice.carbs_100g).toBe(28.2);
+    expect(db.pantry_items.some((r: Row) => r.name === "Spaghetti")).toBe(true);
   });
 
   it("drops empty or non-positive sizes and keeps null when none survive", async () => {

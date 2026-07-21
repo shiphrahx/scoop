@@ -125,9 +125,9 @@ describe("setMealPortions", () => {
       ["Chicken Breast"],
     );
 
-    const picks = db.planned_meals[0].picks;
-    expect(picks.find((p: Row) => p.name === "Chicken Breast").pinned_g).toBe(250);
-    expect(picks.find((p: Row) => p.name === "Brown Rice").pinned_g).toBeNull();
+    const picks = db.planned_meals[0].picks as Array<{ name: string; pinned_g: number | null }>;
+    expect(picks.find((p) => p.name === "Chicken Breast")!.pinned_g).toBe(250);
+    expect(picks.find((p) => p.name === "Brown Rice")!.pinned_g).toBeNull();
   });
 
   it("clears the slot when every portion is removed", async () => {
