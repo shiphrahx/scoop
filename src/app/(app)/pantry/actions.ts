@@ -58,22 +58,34 @@ function assertMacros(
 // import, or a manual type-in — if its name reads as a plain dry staple, swap
 // its macros, extras and serving sizes onto the shared COOKED reference (0021)
 // and rename it "(cooked)" so it's unmistakable. The scan UIs do this too; doing
-// it here as well is the single boundary that catches every other path. Returns
-// the item untouched when it isn't a plain staple or the reference isn't seeded.
-// `cache` avoids re-fetching the same reference across a batch import.
-async function toCookedStaple(
-  it: PantryInput,
+// it here as well is the single boundary that catches every other path.
+//
+// The cooked reference row a name should be stored as, or null when the name
+// isn't a plain dry staple (or the reference isn't seeded). Shared by the add,
+// import and edit paths so all three cook a staple the same way. `cache` avoids
+// re-fetching the same reference across a batch.
+async function cookedRefFor(
+  name: string,
   cache: Map<string, FreshFood | null>,
-): Promise<PantryInput> {
-  const canonical = cookedStapleFor(it.name);
-  if (!canonical) return it;
-
+): Promise<FreshFood | null> {
+  const canonical = cookedStapleFor(name);
+  if (!canonical) return null;
   let ref = cache.get(canonical);
   if (ref === undefined) {
     const refs = await searchFreshFoods(canonical);
     ref = refs.find((r) => r.name === canonical && r.cooked) ?? null;
     cache.set(canonical, ref);
   }
+  return ref;
+}
+
+// A pantry-add item, swapped onto its cooked reference when it's a dry staple.
+// Returns the item untouched when it isn't one.
+async function toCookedStaple(
+  it: PantryInput,
+  cache: Map<string, FreshFood | null>,
+): Promise<PantryInput> {
+  const ref = await cookedRefFor(it.name, cache);
   if (!ref) return it;
 
   const size = defaultSize(ref.sizes);
@@ -229,11 +241,37 @@ export interface PantryPatch {
   category: string | null;
 }
 
-// Edit an item's name, per-100g macros, pack size, and countable unit.
+// Edit an item's name, per-100g macros, pack size, and countable unit. Editing a
+// dry staple (rice, pasta…) re-cooks it: its macros, extras and serving sizes
+// snap onto the shared COOKED reference and the name gains "(cooked)", so
+// re-saving an old raw item corrects it in one tap — the same swap the add paths
+// do. A non-staple keeps exactly what the user typed.
 export async function updatePantryItem(id: string, patch: PantryPatch) {
   const { supabase } = await requireUser();
   if (!patch.name.trim()) throw new Error("Name can't be empty.");
   assertMacros(patch, patch.name.trim());
+
+  const ref = await cookedRefFor(patch.name, new Map());
+
+  // Cooked staple: reference macros, extras and sizes win over what was typed.
+  // Otherwise keep the typed macros (floored at zero) and the item's own unit.
+  const size = ref ? defaultSize(ref.sizes) : null;
+  const cooked = ref
+    ? {
+        name: ref.name,
+        kcal_100g: ref.kcal_100g,
+        protein_100g: ref.protein_100g,
+        carbs_100g: ref.carbs_100g,
+        fat_100g: ref.fat_100g,
+        fiber_100g: ref.fiber_100g,
+        sugar_100g: ref.sugar_100g,
+        satfat_100g: ref.satfat_100g,
+        sodium_mg_100g: ref.sodium_mg_100g,
+        unit_g: size?.grams ?? null,
+        unit_label: size ? pantryUnitLabel(ref.name, size.label) : null,
+        unit_options: ref.sizes.length ? ref.sizes : null,
+      }
+    : null;
 
   // A unit needs a positive grams-per-unit to convert a count to grams; without
   // it there's nothing to count, so the food falls back to being weighed.
@@ -242,18 +280,25 @@ export async function updatePantryItem(id: string, patch: PantryPatch) {
     (o) => o.label.trim() && o.grams > 0,
   );
 
+  // Macros + serving come from the cooked reference for a staple, else from what
+  // the user typed. Pack size and shelf always follow the edit — the cooked swap
+  // owns the macros and serving, not how many packs or which shelf.
+  const macroPart = cooked ?? {
+    name: patch.name.trim(),
+    kcal_100g: Math.max(0, patch.kcal_100g) || 0,
+    protein_100g: Math.max(0, patch.protein_100g) || 0,
+    carbs_100g: Math.max(0, patch.carbs_100g) || 0,
+    fat_100g: Math.max(0, patch.fat_100g) || 0,
+    unit_g,
+    unit_label: unit_g ? patch.unit_label?.trim() || null : null,
+    unit_options: options.length ? options : null,
+  };
+
   const { error } = await supabase
     .from("pantry_items")
     .update({
-      name: patch.name.trim(),
-      kcal_100g: Math.max(0, patch.kcal_100g) || 0,
-      protein_100g: Math.max(0, patch.protein_100g) || 0,
-      carbs_100g: Math.max(0, patch.carbs_100g) || 0,
-      fat_100g: Math.max(0, patch.fat_100g) || 0,
+      ...macroPart,
       pack_size_g: patch.pack_size_g,
-      unit_g,
-      unit_label: unit_g ? patch.unit_label?.trim() || null : null,
-      unit_options: options.length ? options : null,
       category: patch.category?.trim() || null,
     })
     .eq("id", id);

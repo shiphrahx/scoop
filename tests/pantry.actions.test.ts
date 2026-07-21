@@ -113,7 +113,7 @@ describe("addPantryItem with fresh-food sizes", () => {
     expect(row.carbs_100g).toBe(28.2);
     expect(row.kcal_100g).toBe(130);
     // 39 g now reads ~11 g carbs, not 30.
-    expect((39 / 100) * row.carbs_100g).toBeCloseTo(11, 0);
+    expect((39 / 100) * Number(row.carbs_100g)).toBeCloseTo(11, 0);
     // Cooked serving sizes come along, defaulting to medium.
     expect(row.unit_g).toBe(200);
   });
@@ -205,6 +205,44 @@ describe("setPantryUnit", () => {
 });
 
 describe("updatePantryItem", () => {
+  it("re-cooks an old raw staple to the cooked reference on save", async () => {
+    // The fix that matters for items already in the pantry: open the raw rice,
+    // hit save, and it snaps to cooked macros + name without re-adding.
+    const db = cookedRiceDb();
+    db.pantry_items = [
+      {
+        id: "p-rice",
+        user_id: "user-1",
+        name: "Basmati Rice",
+        kcal_100g: 356,
+        protein_100g: 7.5,
+        carbs_100g: 78,
+        fat_100g: 0.6,
+        quantity: 1,
+      },
+    ];
+    const { db: store } = installFakeSupabase({ db });
+
+    await updatePantryItem("p-rice", {
+      name: "Basmati Rice",
+      kcal_100g: 356,
+      protein_100g: 7.5,
+      carbs_100g: 78,
+      fat_100g: 0.6,
+      pack_size_g: 500,
+      unit_g: null,
+      unit_label: null,
+      category: "Carbs",
+    });
+
+    const row = store.pantry_items[0];
+    expect(row.name).toBe("White Rice (cooked)");
+    expect(row.carbs_100g).toBe(28.2);
+    expect(row.unit_g).toBe(200);
+    // Pack size the user set is kept.
+    expect(row.pack_size_g).toBe(500);
+  });
+
   it("keeps the sizes when a fresh food's macros are edited", async () => {
     // The edit form doesn't touch sizes; re-saving must not wipe them.
     const { db } = installFakeSupabase({
