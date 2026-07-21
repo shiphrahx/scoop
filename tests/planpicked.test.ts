@@ -183,10 +183,11 @@ describe("planPickedDay", () => {
   });
 
   it("re-balances the other meals when a countable pick rounds to a whole unit", () => {
-    // Regression: dinner's protein is a countable pack that snaps up to 2 whole
-    // portions. Lunch and the snack must still get their protein and the DAY
-    // must stay on target — the rounding is absorbed by the weighable foods, not
-    // dumped on one meal while another goes without.
+    // Dinner's protein is a countable that can only be served in whole portions.
+    // It keeps its one portion, the weighable foods carry the rest, every meal
+    // still gets protein, and the DAY stays on target — the whole-unit grain is
+    // absorbed by the weighable foods, not dumped on one meal while another goes
+    // without.
     const freeMince = food("Vegan Mince", 17, 5, 3);
     const powder = food("Vegan Protein Powder", 70, 5, 6);
     const banana = food("Banana", 1.1, 23, 0.3);
@@ -212,6 +213,43 @@ describe("planPickedDay", () => {
     const chick = plan.flatMap((m) => m.portions).find((p) => p.name === "Vegan Chicken")!;
     expect(chick.grams % 150).toBe(0);
     // And the day still lands on its protein target despite that rounding.
+    const dayProtein = plan.reduce((s, m) => s + m.protein_g, 0);
+    expect(Math.abs(dayProtein - 150)).toBeLessThanOrEqual(TOLERANCE);
+  });
+
+  it("grows a weighable protein instead of adding a second countable portion", () => {
+    // Issue #26: vegan mince is a countable portion picked into lunch AND dinner;
+    // a weighable protein powder is picked into a snack. The day has plenty of
+    // room for protein, so the planner must NOT stack a second whole portion of
+    // mince onto each meal and squeeze the powder out — it should keep one
+    // portion of mince per meal and GROW the powder to carry the rest.
+    const vegemince: PantryFood = {
+      ...food("Vegemince", 16, 5, 3),
+      unit_g: 100,
+      unit_label: "portion",
+    };
+    const powder = food("Vegan Protein Powder", 80, 5, 5);
+    const rice = food("Basmati Rice", 2.7, 28, 0.3);
+    const banana = food("Banana", 1.1, 23, 0.3);
+
+    const plan = planPickedDay({
+      slots: [
+        { slot: "Lunch", foods: [{ ...vegemince }, rice] },
+        { slot: "Snack", foods: [banana, powder] },
+        { slot: "Dinner", foods: [{ ...vegemince }, rice] },
+      ],
+      budget: { kcal: 2000, protein_g: 150, carbs_g: 200, fat_g: 65 },
+    });
+
+    const grams = (name: string) =>
+      plan.flatMap((m) => m.portions).filter((p) => p.name === name).map((p) => p.grams);
+    // One portion of mince in each of the two meals — never two.
+    for (const g of grams("Vegemince")) expect(g).toBe(100);
+    // The powder is kept and grown to carry the leftover protein.
+    const powderG = grams("Vegan Protein Powder");
+    expect(powderG).toHaveLength(1);
+    expect(powderG[0]).toBeGreaterThan(50);
+    // The day still lands on its protein target.
     const dayProtein = plan.reduce((s, m) => s + m.protein_g, 0);
     expect(Math.abs(dayProtein - 150)).toBeLessThanOrEqual(TOLERANCE);
   });
