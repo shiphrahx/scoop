@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { KeyRound, BookOpen, ChevronRight, CalendarCheck } from "lucide-react";
+import { KeyRound, BookOpen, ChevronRight, CalendarCheck, Star } from "lucide-react";
 import PlanMeal from "./PlanMeal";
 import { createClient } from "@/lib/supabase/server";
 import { hasApiKey } from "@/lib/queries";
@@ -50,6 +50,22 @@ export default async function PlanPage() {
           Connect your AI key in Settings to get meal ideas from your pantry.
         </Link>
       )}
+
+      <Link
+        href="/plan/favourites"
+        className="sc-card flex items-center justify-between gap-3 px-5 py-4 font-semibold transition active:scale-[0.99]"
+      >
+        <span className="flex items-center gap-3">
+          <span
+            className="grid h-10 w-10 place-items-center rounded-2xl"
+            style={{ background: "var(--tint-teal)", color: "var(--ink-teal)" }}
+          >
+            <Star size={20} />
+          </span>
+          Favourite meals
+        </span>
+        <ChevronRight size={20} className="text-[var(--muted)]" />
+      </Link>
 
       <Link
         href="/plan/recipe"
