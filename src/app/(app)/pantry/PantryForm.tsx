@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ScanBarcode, Link2, Apple } from "lucide-react";
 import BarcodeScanner from "@/components/BarcodeScanner";
-import { cookedStapleFor, defaultSize, pantryUnitLabel } from "@/lib/freshfoods";
+import { cookedName, cookedStapleFor, defaultSize, pantryUnitLabel } from "@/lib/freshfoods";
 import type { ExtraPer100g, FreshFood, OffProduct, UnitOption } from "@/lib/types";
 import { addFreshFoodSize, addPantryItem, findFreshFoods, importPantryUrl } from "./actions";
 
@@ -106,7 +106,11 @@ export default function PantryForm({
 
   // Take a matched fresh food: fill the macros, load its sizes, and default to a
   // sensible size. off_barcode stays null (it isn't a packaged product).
-  function pickFresh(food: FreshFood) {
+  // `displayName` overrides the shown name when a dry staple is swapped onto the
+  // reference's cooked macros but must keep the user's own product name (e.g.
+  // "Penne (cooked)"), so distinct staples don't collapse onto the reference.
+  function pickFresh(food: FreshFood, displayName?: string) {
+    const name = displayName ?? food.name;
     setBarcode(null);
     setPicked(true);
     setMatches([]);
@@ -125,13 +129,13 @@ export default function PantryForm({
       sodium_mg_100g: food.sodium_mg_100g,
     });
     setForm({
-      name: food.name,
+      name,
       kcal_100g: String(food.kcal_100g),
       protein_100g: String(food.protein_100g),
       carbs_100g: String(food.carbs_100g),
       fat_100g: String(food.fat_100g),
     });
-    setNote(`Fresh food: ${food.name}. Pick a size below.`);
+    setNote(`Fresh food: ${name}. Pick a size below.`);
   }
 
   // Add a new size to the picked food: keep it on this item and contribute it to
@@ -171,7 +175,7 @@ export default function PantryForm({
       if (stapleName) {
         const [ref] = await findFreshFoods(stapleName);
         if (ref) {
-          pickFresh(ref);
+          pickFresh(ref, cookedName(p.name));
           setNote(
             `${p.name} is dry on the pack — Scoop tracks food cooked, so we've used cooked ${ref.name} values. Pick your cooked serving size.`,
           );
