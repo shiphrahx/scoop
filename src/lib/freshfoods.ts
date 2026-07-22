@@ -80,6 +80,18 @@ const NOT_PLAIN_STAPLE = [
   "cereal", "biscuit", "bread", "wine", "vinegar", "paper",
 ];
 
+// Mark a food's own name cooked without losing it: "Basmati Rice" → "Basmati
+// Rice (cooked)". Idempotent — an already-cooked name is returned unchanged, so
+// re-adding never doubles the tag. Used when a dry staple is swapped onto the
+// cooked reference's MACROS but must keep the user's product name, so distinct
+// staples (penne, rigatoni, basmati) stay distinct instead of collapsing onto
+// the shared "Pasta (cooked)" / "White Rice (cooked)" reference name.
+export function cookedName(productName: string): string {
+  const n = productName.trim();
+  if (/\(cooked\)\s*$/i.test(n)) return n;
+  return `${n} (cooked)`;
+}
+
 // The cooked reference staple a scanned/typed product name should use, or null
 // when it isn't a plain dry staple. Conservative on purpose: a single
 // disqualifying word (see NOT_PLAIN_STAPLE) blocks the swap. Whole-word matches

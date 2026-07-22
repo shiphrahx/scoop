@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import {
+  cookedName,
   cookedStapleFor,
   defaultSize,
   macrosForGrams,
@@ -40,6 +41,20 @@ describe("cookedStapleFor", () => {
   it("returns null for a non-staple food", () => {
     expect(cookedStapleFor("Chicken Breast")).toBeNull();
     expect(cookedStapleFor("Cheddar Cheese")).toBeNull();
+  });
+});
+
+describe("cookedName", () => {
+  it("tags the user's own name cooked, keeping it distinct", () => {
+    expect(cookedName("Basmati Rice")).toBe("Basmati Rice (cooked)");
+    expect(cookedName("Penne")).toBe("Penne (cooked)");
+    expect(cookedName("Tilda Brown Rice 500g")).toBe("Tilda Brown Rice 500g (cooked)");
+  });
+
+  it("never doubles the tag when re-added", () => {
+    expect(cookedName("Penne (cooked)")).toBe("Penne (cooked)");
+    expect(cookedName("Rice (COOKED)")).toBe("Rice (COOKED)");
+    expect(cookedName("Rice (cooked)  ")).toBe("Rice (cooked)");
   });
 });
 
