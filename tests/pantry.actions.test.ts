@@ -92,7 +92,9 @@ describe("addPantryItem with fresh-food sizes", () => {
   it("stores a dry staple with COOKED macros, whatever the pack said", async () => {
     // Raw basmati is ~78 g carbs/100g; on the plate it's the cooked ~28. A pack
     // scanned/imported/typed with raw numbers must land cooked so a meal never
-    // shows raw carbs. The item is also renamed to make cooked unmistakable.
+    // shows raw carbs. The item keeps its own name, just tagged "(cooked)", so
+    // penne/rigatoni/basmati stay distinct instead of collapsing onto the
+    // shared reference name.
     const { db } = installFakeSupabase({ db: cookedRiceDb() });
 
     await addPantryItem(
@@ -109,7 +111,7 @@ describe("addPantryItem with fresh-food sizes", () => {
     );
 
     const row = db.pantry_items[0];
-    expect(row.name).toBe("White Rice (cooked)");
+    expect(row.name).toBe("Basmati Rice (cooked)");
     expect(row.carbs_100g).toBe(28.2);
     expect(row.kcal_100g).toBe(130);
     // 39 g now reads ~11 g carbs, not 30.
@@ -149,7 +151,7 @@ describe("addPantryItem with fresh-food sizes", () => {
 
     // Rice matched the seeded cooked reference; spaghetti had no reference here,
     // so it's left as-is (still added).
-    const rice = db.pantry_items.find((r: Row) => r.name === "White Rice (cooked)")!;
+    const rice = db.pantry_items.find((r: Row) => r.name === "Basmati Rice (cooked)")!;
     expect(rice.carbs_100g).toBe(28.2);
     expect(db.pantry_items.some((r: Row) => r.name === "Spaghetti")).toBe(true);
   });
@@ -236,7 +238,7 @@ describe("updatePantryItem", () => {
     });
 
     const row = store.pantry_items[0];
-    expect(row.name).toBe("White Rice (cooked)");
+    expect(row.name).toBe("Basmati Rice (cooked)");
     expect(row.carbs_100g).toBe(28.2);
     expect(row.unit_g).toBe(200);
     // Pack size the user set is kept.

@@ -6,7 +6,7 @@ import { rateLimit } from "@/lib/ratelimit";
 import { parseGroceryImage, parseProductFromUrl } from "@/lib/ai";
 import { pantryCategory } from "@/lib/foodgroups";
 import { searchFreshFoods } from "@/lib/queries";
-import { cookedStapleFor, defaultSize, pantryUnitLabel } from "@/lib/freshfoods";
+import { cookedName, cookedStapleFor, defaultSize, pantryUnitLabel } from "@/lib/freshfoods";
 import { macrosPer100gSchema, parseOrThrow } from "@/lib/validate";
 import type { FreshFood, GroceryItem, ParsedProduct, UnitOption } from "@/lib/types";
 
@@ -88,10 +88,14 @@ async function toCookedStaple(
   const ref = await cookedRefFor(it.name, cache);
   if (!ref) return it;
 
+  // Take the reference's cooked MACROS and sizes, but keep the user's own name
+  // (just tagged "(cooked)") so penne, rigatoni and basmati stay separate items
+  // instead of all collapsing onto the shared reference name.
+  const name = cookedName(it.name);
   const size = defaultSize(ref.sizes);
   return {
     ...it,
-    name: ref.name,
+    name,
     kcal_100g: ref.kcal_100g,
     protein_100g: ref.protein_100g,
     carbs_100g: ref.carbs_100g,
@@ -102,7 +106,7 @@ async function toCookedStaple(
     sodium_mg_100g: ref.sodium_mg_100g,
     unit_options: ref.sizes.length ? ref.sizes : it.unit_options,
     unit_g: size?.grams ?? it.unit_g ?? null,
-    unit_label: size ? pantryUnitLabel(ref.name, size.label) : it.unit_label ?? null,
+    unit_label: size ? pantryUnitLabel(name, size.label) : it.unit_label ?? null,
   };
 }
 
@@ -256,9 +260,12 @@ export async function updatePantryItem(id: string, patch: PantryPatch) {
   // Cooked staple: reference macros, extras and sizes win over what was typed.
   // Otherwise keep the typed macros (floored at zero) and the item's own unit.
   const size = ref ? defaultSize(ref.sizes) : null;
+  // Keep the user's own name (tagged "(cooked)"), not the shared reference name,
+  // so distinct staples stay distinct.
+  const cookedLabel = ref ? cookedName(patch.name) : null;
   const cooked = ref
     ? {
-        name: ref.name,
+        name: cookedLabel!,
         kcal_100g: ref.kcal_100g,
         protein_100g: ref.protein_100g,
         carbs_100g: ref.carbs_100g,
@@ -268,7 +275,7 @@ export async function updatePantryItem(id: string, patch: PantryPatch) {
         satfat_100g: ref.satfat_100g,
         sodium_mg_100g: ref.sodium_mg_100g,
         unit_g: size?.grams ?? null,
-        unit_label: size ? pantryUnitLabel(ref.name, size.label) : null,
+        unit_label: size ? pantryUnitLabel(cookedLabel!, size.label) : null,
         unit_options: ref.sizes.length ? ref.sizes : null,
       }
     : null;
