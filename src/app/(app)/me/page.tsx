@@ -7,6 +7,7 @@ import NutrientSettings from "./NutrientSettings";
 import SlotWeightsSettings from "./SlotWeightsSettings";
 import { DEFAULT_MEAL_SLOTS } from "@/lib/types";
 import { recommendedHighDays } from "@/lib/highday";
+import { carbFloorTargetG } from "@/lib/coach";
 import SignOutButton from "@/components/SignOutButton";
 import {
   AppleIngest,
@@ -15,7 +16,7 @@ import {
 } from "@/app/(app)/coach/Controls";
 import { createClient } from "@/lib/supabase/server";
 import { decryptSecret } from "@/lib/crypto";
-import { getCurrentTargets, getProfile, hasApiKey } from "@/lib/queries";
+import { getCurrentTargets, getLatestWeight, getProfile, hasApiKey } from "@/lib/queries";
 
 // Turn the ?fitbit= result of the OAuth round-trip into a one-line banner.
 const FITBIT_NOTES: Record<string, string> = {
@@ -34,11 +35,12 @@ export default async function MePage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ fitbit }, profile, connected, targets] = await Promise.all([
+  const [{ fitbit }, profile, connected, targets, weightKg] = await Promise.all([
     searchParams,
     getProfile(),
     hasApiKey(),
     getCurrentTargets(),
+    getLatestWeight(),
   ]);
 
   const [fitbitRes, tokenRes] = await Promise.all([
@@ -111,6 +113,7 @@ export default async function MePage({
             }}
             recommended={recommendedHighDays(profile.goal_pace)}
             base={targets ? { kcal: targets.kcal, carbs_g: targets.carbs_g } : null}
+            carbFloorG={weightKg != null ? carbFloorTargetG(weightKg) : undefined}
             locked={targets?.phase === "calibration"}
           />
         </>

@@ -1122,11 +1122,20 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
     macroWeightKg != null
   ) {
     const floorK = kcalFloor(sex, restingRateKcal);
-    const target = Math.max(Math.round(maint - deficitKcal), floorK);
+    const wantedKcal = Math.max(Math.round(maint - deficitKcal), floorK);
+    // macrosForKcal eases the target up if the deficit would push carbs below
+    // their floor, so the ACTUAL target is what it returns — not what we asked
+    // for. Read the cut back from that so the message never overstates it.
+    const macros = macrosForKcal(wantedKcal, macroWeightKg, diet, heightCm, goalWeightKg);
+    const target = macros.kcal;
     const cut = maint - target;
+    const eased = target > wantedKcal;
     const fromCalibration = prevPhase === "calibration";
+    const easedNote = eased
+      ? " I eased the deficit a little so your carbs stay above their floor — a deeper cut would have starved them."
+      : "";
     return {
-      macros: macrosForKcal(target, macroWeightKg, diet, heightCm, goalWeightKg),
+      macros,
       changed: true,
       changeKg: trend?.changeKg ?? null,
       changePct: trend?.changePct ?? null,
@@ -1134,8 +1143,8 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
         ? "Calibration done — starting your cut"
         : "Break's over — back to your cut",
       detail: fromCalibration
-        ? `I've learned what you actually burn: about ${maint} kcal a day. Now we start a gentle ${cut} kcal/day deficit — a sustainable pace, not a crash. Your new target is ${target} kcal. I'll keep correcting it from your real results.`
-        : `Back to it. I've set a modest ${cut} kcal/day deficit from your maintenance of about ${maint} kcal — target ${target} kcal.`,
+        ? `I've learned what you actually burn: about ${maint} kcal a day. Now we start a gentle ${cut} kcal/day deficit — a sustainable pace, not a crash. Your new target is ${target} kcal.${easedNote} I'll keep correcting it from your real results.`
+        : `Back to it. I've set a modest ${cut} kcal/day deficit from your maintenance of about ${maint} kcal — target ${target} kcal.${easedNote}`,
     };
   }
 

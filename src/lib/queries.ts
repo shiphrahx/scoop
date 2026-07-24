@@ -8,6 +8,7 @@ import {
   adherence as computeAdherence,
   calibrationComplete,
   calibrationDaysRemaining,
+  carbFloorTargetG,
   deficitPerDay,
   inCalibration as computeInCalibration,
   nextPhase,
@@ -129,8 +130,14 @@ export interface HighDayStatus {
 
 export async function getHighDayStatus(date: string): Promise<HighDayStatus> {
   const supabase = await createClient();
-  const [profile, base] = await Promise.all([getProfile(), getCurrentTargets()]);
+  const [profile, base, weightKg] = await Promise.all([
+    getProfile(),
+    getCurrentTargets(),
+    getLatestWeight(),
+  ]);
   const weekStart = weekStartOf(date);
+  // The user's real carb floor, so a low day's carb give-back never breaches it.
+  const carbFloorG = weightKg != null ? carbFloorTargetG(weightKg) : undefined;
 
   // Every high day the user has taken this week (RLS scopes it to them).
   const { data: rows } = await supabase
@@ -149,7 +156,7 @@ export async function getHighDayStatus(date: string): Promise<HighDayStatus> {
     : 0;
   // The surplus is derived from the day's base target now, not stored.
   const cfg = profile
-    ? cycleConfigFrom(profile, base, phase)
+    ? cycleConfigFrom(profile, base, phase, carbFloorG)
     : { enabled: false, highDaysPerWeek: 0, surplusCarbsG: 0 };
   const surplusCarbsG = cfg.surplusCarbsG;
 

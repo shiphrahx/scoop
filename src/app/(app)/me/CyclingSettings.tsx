@@ -20,6 +20,7 @@ export default function CyclingSettings({
   initial,
   recommended,
   base,
+  carbFloorG,
   locked = false,
 }: {
   initial: { enabled: boolean; highDaysPerWeek: number | null };
@@ -27,6 +28,8 @@ export default function CyclingSettings({
   // The flat daily target this week — what the app cycles around. Null before
   // onboarding sets one, in which case there's nothing to preview yet.
   base: { kcal: number; carbs_g: number } | null;
+  // The user's carb floor, so the preview matches what the server enforces.
+  carbFloorG?: number;
   // Cycling is locked during the calibration hold — no deficit yet, nothing to
   // cycle around. Show why rather than hiding it.
   locked?: boolean;
@@ -44,7 +47,7 @@ export default function CyclingSettings({
   // The calculated surplus for the currently-chosen count, and whether a floor
   // trimmed it. Mirrors the server maths so the preview is exact.
   const { surplusCarbsG, capped } = base
-    ? computeSurplusCarbs(base, effectiveCount)
+    ? computeSurplusCarbs(base, effectiveCount, carbFloorG)
     : { surplusCarbsG: 0, capped: false };
   const lowDrop = Math.round(lowDayCarbDrop(surplusCarbsG, effectiveCount));
 

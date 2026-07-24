@@ -113,6 +113,10 @@ export function lowDayCarbDrop(
 export function computeSurplusCarbs(
   base: Pick<Macros, "kcal" | "carbs_g">,
   highDaysPerWeek: number,
+  // The user's real carb floor (per bodyweight, from the Coach maths). A low day
+  // may never fall below it. Omitted → the flat MIN_LOW_DAY_CARBS_G fallback,
+  // kept so callers without a weight still get a safe (if looser) guardrail.
+  carbFloorG: number = MIN_LOW_DAY_CARBS_G,
 ): { surplusCarbsG: number; capped: boolean } {
   const high = effectiveHighDays(highDaysPerWeek);
   const low = WEEK_DAYS - high;
@@ -124,9 +128,11 @@ export function computeSurplusCarbs(
   const ideal = base.carbs_g * REFEED_CARB_FRACTION;
 
   // The most a single low day may give back before it hits a floor: its carbs
-  // can't fall below MIN_LOW_DAY_CARBS_G, and its energy (carbs at 4 kcal/g)
-  // can't fall below SAFE_KCAL_FLOOR. The tighter of the two wins.
-  const maxCutByCarbs = Math.max(0, base.carbs_g - MIN_LOW_DAY_CARBS_G);
+  // can't fall below the carb floor, and its energy (carbs at 4 kcal/g) can't
+  // fall below SAFE_KCAL_FLOOR. The tighter of the two wins. Protein and fat
+  // don't move, so a carb-only cut can't touch them.
+  const floor = Math.max(MIN_LOW_DAY_CARBS_G, carbFloorG);
+  const maxCutByCarbs = Math.max(0, base.carbs_g - floor);
   const maxCutByKcal = Math.max(0, (base.kcal - SAFE_KCAL_FLOOR) / 4);
   const maxCut = Math.min(maxCutByCarbs, maxCutByKcal);
   // lowCut = surplus × high / low, so the cut ceiling caps the surplus.
@@ -216,6 +222,8 @@ export function cycleConfigFrom(
   profile: Pick<Profile, "cycling_enabled" | "high_days_per_week" | "goal_pace">,
   base: Pick<Macros, "kcal" | "carbs_g"> | null,
   phase: Phase = "deficit",
+  // The user's carb floor, so a low day's give-back never breaches it.
+  carbFloorG?: number,
 ): CycleConfig {
   // Calibration locks cycling entirely: master switch forced off, no allowance.
   if (phase === "calibration") {
@@ -225,7 +233,9 @@ export function cycleConfigFrom(
   return {
     enabled: profile.cycling_enabled,
     highDaysPerWeek,
-    surplusCarbsG: base ? computeSurplusCarbs(base, highDaysPerWeek).surplusCarbsG : 0,
+    surplusCarbsG: base
+      ? computeSurplusCarbs(base, highDaysPerWeek, carbFloorG).surplusCarbsG
+      : 0,
   };
 }
 
