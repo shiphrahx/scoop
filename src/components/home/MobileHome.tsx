@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { UtensilsCrossed, Scale, CookingPot, Package, Sparkles, ChevronRight, CalendarCheck } from "lucide-react";
+import { UtensilsCrossed, Scale, CookingPot, Package, Sparkles, ChevronRight, CalendarCheck, Telescope } from "lucide-react";
 import ProgressRing from "@/components/ProgressRing";
 import { NutrientBars } from "@/components/NutrientBreakdown";
 import SignOutButton from "@/components/SignOutButton";
@@ -21,6 +21,7 @@ export default function MobileHome({
   coach,
   planPrompt,
   prefs,
+  calibration,
 }: {
   name: string;
   targets: Macros | null;
@@ -29,6 +30,8 @@ export default function MobileHome({
   coach: { headline: string; detail: string };
   planPrompt: { hasPlan: boolean } | null;
   prefs: NutrientKey[];
+  // The new-user calibration hold, or null when not calibrating.
+  calibration: { daysRemaining: number } | null;
 }) {
   // Everything the day is spoken for: eaten food + meals lined up but not yet
   // eaten. The ring and "left" figures budget against this, not eaten alone.
@@ -44,6 +47,8 @@ export default function MobileHome({
         </div>
         <SignOutButton />
       </header>
+
+      {calibration && <CalibrationBanner daysRemaining={calibration.daysRemaining} />}
 
       {planPrompt && (
         <Link
@@ -142,5 +147,32 @@ export default function MobileHome({
         ))}
       </section>
     </main>
+  );
+}
+
+// A new user is calibrating: eating at maintenance while the app learns their
+// burn. Frame it as progress, with the days-left count front and centre.
+export function CalibrationBanner({ daysRemaining }: { daysRemaining: number }) {
+  return (
+    <section
+      className="flex items-center gap-4 rounded-[1.75rem] p-5 text-white"
+      style={{ background: "var(--grad-cool)", boxShadow: "var(--shadow-glow)" }}
+    >
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/20">
+        <Telescope size={22} />
+      </span>
+      <div className="min-w-0">
+        <p className="font-semibold">
+          Calibrating
+          {daysRemaining > 0
+            ? ` — about ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} to go`
+            : " — almost done"}
+        </p>
+        <p className="text-sm text-white/80">
+          Eating at maintenance while I learn your body. Log food and weight
+          daily — no deficit yet.
+        </p>
+      </div>
+    </section>
   );
 }

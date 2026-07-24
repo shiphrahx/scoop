@@ -64,6 +64,11 @@ export default async function DashboardPage() {
     detail: coachData.review.detail,
   };
 
+  // The new-user calibration hold, surfaced as a banner with days remaining.
+  const calibration = coachData.calibrationActive
+    ? { daysRemaining: coachData.calibrationDaysRemaining }
+    : null;
+
   // Nudge to plan the day until something's been logged. Label adapts to
   // whether a plan already exists.
   const planPrompt = !trackedToday
@@ -82,6 +87,7 @@ export default async function DashboardPage() {
         coach={coach}
         planPrompt={planPrompt}
         prefs={prefs}
+        calibration={calibration}
       />
       <DesktopDashboard
         name={name}
@@ -94,6 +100,7 @@ export default async function DashboardPage() {
         latestWeight={latestWeight}
         planPrompt={planPrompt}
         prefs={prefs}
+        calibration={calibration}
       />
     </>
   );

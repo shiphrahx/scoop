@@ -6,6 +6,7 @@ import SignOutButton from "@/components/SignOutButton";
 import { WeightTrendChart, WeightVsExercise, SleepChart } from "@/components/Charts";
 import { sumMacros, type Activity, type Macros } from "@/lib/types";
 import type { NutrientKey } from "@/lib/nutrients";
+import { CalibrationBanner } from "./MobileHome";
 
 function StatCard({
   icon: Icon,
@@ -63,6 +64,7 @@ export default function DesktopDashboard({
   latestWeight,
   planPrompt,
   prefs,
+  calibration,
 }: {
   name: string;
   targets: Macros | null;
@@ -74,6 +76,7 @@ export default function DesktopDashboard({
   latestWeight: number | null;
   planPrompt: { hasPlan: boolean } | null;
   prefs: NutrientKey[];
+  calibration: { daysRemaining: number } | null;
 }) {
   // Eaten food plus meals planned for later today — what the day is committed
   // to. "Left" figures budget against this, not eaten alone.
@@ -117,6 +120,8 @@ export default function DesktopDashboard({
         </div>
         <SignOutButton />
       </header>
+
+      {calibration && <CalibrationBanner daysRemaining={calibration.daysRemaining} />}
 
       {planPrompt && (
         <Link
