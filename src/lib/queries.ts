@@ -27,7 +27,15 @@ import {
   localWeekStart,
   safeTimezone,
   startOfLocalDay,
+  weekStartOf,
 } from "@/lib/time";
+import {
+  cycleConfigFrom,
+  dayTarget as dayTargetMacros,
+  highDaysRemaining,
+  resolveHighDaysAllowance,
+  roundMacros,
+} from "@/lib/highday";
 import type {
   Activity,
   DailyTargets,
@@ -95,6 +103,64 @@ export async function getCurrentTargets(): Promise<DailyTargets | null> {
     .maybeSingle();
 
   return (data as DailyTargets) ?? null;
+}
+
+// The high-day picture for one calendar day: whether cycling is on, whether this
+// day is a high day, the weekly allowance and how much of it is left, and the
+// day's actual macro target (high, low, or — cycling off — the flat base). One
+// read the planner and the home ring both build on. `target` is null only when
+// there's no base target yet (onboarding unfinished).
+export interface HighDayStatus {
+  weekStart: string;
+  enabled: boolean;
+  isHigh: boolean;
+  allowance: number;
+  taken: number;
+  remaining: number;
+  surplusCarbsG: number;
+  base: DailyTargets | null;
+  target: Required<Macros> | null;
+}
+
+export async function getHighDayStatus(date: string): Promise<HighDayStatus> {
+  const supabase = await createClient();
+  const [profile, base] = await Promise.all([getProfile(), getCurrentTargets()]);
+  const weekStart = weekStartOf(date);
+
+  // Every high day the user has taken this week (RLS scopes it to them).
+  const { data: rows } = await supabase
+    .from("high_days")
+    .select("date")
+    .eq("week_start", weekStart);
+  const highDates = ((rows as { date: string }[]) ?? []).map((r) => r.date);
+  const isHigh = highDates.includes(date);
+
+  const enabled = profile?.cycling_enabled ?? false;
+  const allowance = profile
+    ? resolveHighDaysAllowance(profile)
+    : 0;
+  const surplusCarbsG = profile?.high_day_surplus_g_carbs ?? 0;
+  const cfg = profile
+    ? cycleConfigFrom(profile)
+    : { enabled: false, highDaysPerWeek: 0, surplusCarbsG: 0 };
+
+  return {
+    weekStart,
+    enabled,
+    isHigh,
+    allowance,
+    taken: highDates.length,
+    remaining: highDaysRemaining(allowance, highDates.length),
+    surplusCarbsG,
+    base,
+    target: base ? roundMacros(dayTargetMacros(base, isHigh, cfg)) : null,
+  };
+}
+
+// The macro target for one day, respecting cycling: a high or low day when it's
+// on, the flat base when it's off. Null before onboarding sets a base target.
+export async function getDayTarget(date: string): Promise<Required<Macros> | null> {
+  return (await getHighDayStatus(date)).target;
 }
 
 export async function getTodayConsumed(): Promise<Macros> {

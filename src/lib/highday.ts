@@ -11,7 +11,7 @@
 // and fat holds too. Energy moves only as far as the carbs do (4 kcal/g).
 
 import type { Phase } from "@/lib/coach";
-import type { GoalPace, Macros } from "@/lib/types";
+import type { GoalPace, Macros, Profile } from "@/lib/types";
 
 export const WEEK_DAYS = 7;
 
@@ -124,6 +124,36 @@ export function roundMacros(m: Required<Macros>): Required<Macros> {
     sugar_g: Math.round(m.sugar_g),
     satfat_g: Math.round(m.satfat_g),
     sodium_mg: Math.round(m.sodium_mg),
+  };
+}
+
+// The weekly high-day allowance for a user: their own chosen count, or the
+// recommendation for their goal when they haven't set one (high_days_per_week
+// NULL). A goal change therefore re-recommends without overwriting a manual
+// choice — the choice lives in the column, the recommendation is derived.
+export function resolveHighDaysAllowance(
+  profile: Pick<Profile, "high_days_per_week" | "goal_pace">,
+  phase: Phase = "deficit",
+): number {
+  const chosen = profile.high_days_per_week;
+  return effectiveHighDays(
+    chosen != null ? chosen : recommendedHighDays(profile.goal_pace, phase),
+  );
+}
+
+// A user's whole cycling config, ready for dayTarget — the master switch, the
+// resolved allowance, and the carb surplus.
+export function cycleConfigFrom(
+  profile: Pick<
+    Profile,
+    "cycling_enabled" | "high_days_per_week" | "goal_pace" | "high_day_surplus_g_carbs"
+  >,
+  phase: Phase = "deficit",
+): CycleConfig {
+  return {
+    enabled: profile.cycling_enabled,
+    highDaysPerWeek: resolveHighDaysAllowance(profile, phase),
+    surplusCarbsG: profile.high_day_surplus_g_carbs,
   };
 }
 
