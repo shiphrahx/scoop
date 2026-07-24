@@ -87,12 +87,28 @@ export function healthyLossBand(
   return { min: 0.005, max: 0.01 };
 }
 
-const PROTEIN_G_PER_KG = 2.0; // high protein to protect muscle in a deficit
-const FAT_FRACTION_OF_KCAL = 0.25;
-// Hormone and fat-soluble-vitamin floor. Applies to every diet, keto included.
-const MIN_FAT_G_PER_KG = 0.6;
-// …but the floor itself can never claim more than this share of the day, or a
-// very small target would be all fat and no protein.
+// Grams are prescribed per POUND of bodyweight — the units these coefficients
+// are quoted in — so convert from the kg the app stores.
+const KG_TO_LB = 2.2046226218;
+
+// The macro order is fixed and matters: protein first (a target), fat next (a
+// floor), carbs last (the remainder). Getting the order wrong is how carbs end
+// up crushed — a fat percentage that eats the plate leaves carbs whatever scraps
+// remain. Here fat sits AT its floor so the calories left over become carbs.
+//
+// All three are configurable coefficients.
+const PROTEIN_G_PER_LB = 1.0; // ~1 g/lb — high protein to protect muscle in a deficit
+const FAT_FLOOR_G_PER_LB = 0.3; // hormone + fat-soluble-vitamin floor; fat may sit at or above
+// Carbs must never fall below this. Fuel for the brain and for training, and the
+// first thing an over-aggressive deficit tries to delete. When the remainder
+// would breach it we raise the calorie target (ease the deficit) instead of
+// shipping sub-floor carbs — see effectiveKcalForFloors.
+const CARB_FLOOR_G_PER_LB = 0.6;
+const MIN_CARB_FLOOR_G = 130; // absolute floor, so a very light person still gets real carbs
+
+// The keto fat floor can never claim more than this share of the day, or a very
+// small target would be all fat and no protein. (Only keto squeezes protein now;
+// every other diet raises calories rather than starve a macro.)
 const MAX_FAT_SHARE_FOR_FLOOR = 0.4;
 const KETO_CARBS_G = 25; // hard carb ceiling on a ketogenic split; fat fills the rest
 const HEALTHY_BMI_MAX = 25; // top of the healthy BMI band; caps the protein basis
@@ -295,9 +311,69 @@ export function stepsFalling(
   };
 }
 
-// Split a calorie target into macros: fixed high protein (by bodyweight),
-// a quarter of calories from fat, the rest from carbs. Also derive the extra
-// nutrient targets — fiber a floor to reach, the rest ceilings to stay under:
+// The fixed protein target in grams: ~1 g per lb of the (capped) basis weight.
+export function proteinTargetG(
+  weightKg: number,
+  heightCm?: number,
+  goalWeightKg?: number | null,
+): number {
+  return Math.round(
+    proteinBasisKg(weightKg, heightCm, goalWeightKg) * KG_TO_LB * PROTEIN_G_PER_LB,
+  );
+}
+
+// The dietary-fat floor in grams: ~0.3 g per lb of bodyweight. Below this the
+// body struggles with sex-hormone production and fat-soluble-vitamin uptake.
+export function fatFloorTargetG(weightKg: number): number {
+  return Math.round(weightKg * KG_TO_LB * FAT_FLOOR_G_PER_LB);
+}
+
+// The carbohydrate floor in grams: the larger of an absolute minimum and a
+// per-lb amount. Carbs are computed as the remainder, but never allowed below
+// this — the deficit is eased instead.
+export function carbFloorTargetG(weightKg: number): number {
+  return Math.max(MIN_CARB_FLOOR_G, Math.round(weightKg * KG_TO_LB * CARB_FLOOR_G_PER_LB));
+}
+
+// The lowest calorie target that can still honour all three floors at once:
+// protein target + fat floor + carb floor. A deficit that lands below this can't
+// hit its carb floor, so the target is raised to here instead (the deficit is
+// reduced). Keto is exempt — its whole point is carbs BELOW any floor.
+export function effectiveKcalForFloors(
+  kcal: number,
+  weightKg: number,
+  diet: DietType = "regular",
+  heightCm?: number,
+  goalWeightKg?: number | null,
+): number {
+  if (diet === "keto") return kcal;
+  const minKcal =
+    proteinTargetG(weightKg, heightCm, goalWeightKg) * 4 +
+    fatFloorTargetG(weightKg) * 9 +
+    carbFloorTargetG(weightKg) * 4;
+  return Math.max(kcal, minKcal);
+}
+
+// Whether a requested calorie target would push carbs below their floor — i.e.
+// the deficit is too aggressive and had to be eased. Used to tell the user why
+// their target isn't as low as they asked for.
+export function carbFloorLimits(
+  kcal: number,
+  weightKg: number,
+  diet: DietType = "regular",
+  heightCm?: number,
+  goalWeightKg?: number | null,
+): boolean {
+  if (diet === "keto") return false;
+  return effectiveKcalForFloors(kcal, weightKg, diet, heightCm, goalWeightKg) > Math.round(kcal);
+}
+
+// Split a calorie target into macros in a FIXED order: protein (a target, ~1
+// g/lb), then fat (a floor, ~0.3 g/lb), then carbs as the remainder — never a
+// set number, and never below their own floor. When the remainder would breach
+// the carb floor the calorie target is raised (the deficit eased) rather than
+// shipping sub-floor carbs. Also derive the extra nutrient targets — fiber a
+// floor to reach, the rest ceilings to stay under:
 //   fiber   14 g per 1000 kcal (dietary guideline)
 //   sugar   free sugars ≤ 10% of energy
 //   satfat  saturated fat ≤ 10% of energy
@@ -309,45 +385,28 @@ export function macrosForKcal(
   heightCm?: number,
   goalWeightKg?: number | null,
 ): Required<Macros> {
-  const wanted = Math.round(
-    proteinBasisKg(weightKg, heightCm, goalWeightKg) * PROTEIN_G_PER_KG,
-  );
+  const protein_g = proteinTargetG(weightKg, heightCm, goalWeightKg);
 
-  // 2 g/kg is what we'd LIKE. On a small calorie target for a heavy person it
-  // doesn't fit — 240 g of protein is 960 kcal, which on its own blows a 1200
-  // kcal day. Prescribing it anyway hands the user a split that contradicts the
-  // calorie number printed beside it. So protein only ever gets the calories
-  // that are actually left, and the deficit costs protein last.
-  const fitProtein = (kcalLeft: number) =>
-    Math.max(0, Math.min(wanted, Math.floor(kcalLeft / 4)));
-
-  // Dietary fat is not a macro to be squeezed to nothing: below roughly
-  // 0.6 g/kg the body struggles with sex-hormone production and with absorbing
-  // the fat-soluble vitamins. The percentage rule alone doesn't protect this —
-  // 25% of a 1200 kcal day is 33 g, already marginal — and on keto, where fat is
-  // whatever protein leaves behind, a heavy user could be handed a "ketogenic"
-  // split with almost no fat in it at all.
-  const fatFloorG = Math.min(
-    Math.round(proteinBasisKg(weightKg, heightCm, goalWeightKg) * MIN_FAT_G_PER_KG),
-    Math.floor((kcal * MAX_FAT_SHARE_FOR_FLOOR) / 9), // never let the floor eat the whole day
-  );
-
-  // Keto flips the split: carbs pinned to a low ceiling, fat fills the rest.
+  // Keto flips the split: carbs pinned to a low ceiling, fat fills the rest, and
+  // there is no carb floor (low carbs are the point). Protein yields to the fat
+  // floor here — a keto split whose fat has been squeezed out is not keto.
   if (diet === "keto") {
-    const carbs_g = Math.min(
-      KETO_CARBS_G,
-      Math.max(0, Math.round(kcal / 4)),
+    const ketoFatFloorG = Math.min(
+      fatFloorTargetG(weightKg),
+      Math.floor((kcal * MAX_FAT_SHARE_FOR_FLOOR) / 9),
     );
-    // Protein yields to the fat floor here, not the other way round — a keto
-    // split whose fat has been squeezed out is not a keto split.
-    const protein_g = fitProtein(kcal - carbs_g * 4 - fatFloorG * 9);
+    const carbs_g = Math.min(KETO_CARBS_G, Math.max(0, Math.round(kcal / 4)));
+    const ketoProtein = Math.max(
+      0,
+      Math.min(protein_g, Math.floor((kcal - carbs_g * 4 - ketoFatFloorG * 9) / 4)),
+    );
     const fat_g = Math.max(
-      fatFloorG,
-      Math.round((kcal - protein_g * 4 - carbs_g * 4) / 9),
+      ketoFatFloorG,
+      Math.round((kcal - ketoProtein * 4 - carbs_g * 4) / 9),
     );
     return {
       kcal: Math.round(kcal),
-      protein_g,
+      protein_g: ketoProtein,
       carbs_g,
       fat_g,
       fiber_g: Math.round((14 * kcal) / 1000),
@@ -357,20 +416,23 @@ export function macrosForKcal(
     };
   }
 
-  const fat_g = Math.max(fatFloorG, Math.round((kcal * FAT_FRACTION_OF_KCAL) / 9));
-  const protein_g = fitProtein(kcal - fat_g * 9);
+  // Fat sits AT its floor so the leftover calories become carbs.
+  const fat_g = fatFloorTargetG(weightKg);
+  const carbFloorG = carbFloorTargetG(weightKg);
+  // Ease the deficit if the remainder can't clear the carb floor.
+  const effKcal = effectiveKcalForFloors(kcal, weightKg, diet, heightCm, goalWeightKg);
   const carbs_g = Math.max(
-    0,
-    Math.round((kcal - protein_g * 4 - fat_g * 9) / 4),
+    carbFloorG,
+    Math.round((effKcal - protein_g * 4 - fat_g * 9) / 4),
   );
   return {
-    kcal: Math.round(kcal),
+    kcal: Math.round(effKcal),
     protein_g,
     carbs_g,
     fat_g,
-    fiber_g: Math.round((14 * kcal) / 1000),
-    sugar_g: Math.round((0.1 * kcal) / 4),
-    satfat_g: Math.round((0.1 * kcal) / 9),
+    fiber_g: Math.round((14 * effKcal) / 1000),
+    sugar_g: Math.round((0.1 * effKcal) / 4),
+    satfat_g: Math.round((0.1 * effKcal) / 9),
     sodium_mg: 2300,
   };
 }

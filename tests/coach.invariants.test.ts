@@ -74,10 +74,23 @@ describe("macrosForKcal invariants", () => {
     );
   });
 
-  it("never prescribes more protein than 2 g per kg of the basis weight", () => {
+  it("never prescribes more protein than ~1 g per lb of the basis weight", () => {
     fc.assert(
       fc.property(kcal, weight, diet, (k, w, d) => {
-        expect(macrosForKcal(k, w, d).protein_g).toBeLessThanOrEqual(w * 2);
+        // 1 g/lb = 2.205 g/kg; basis is capped at bodyweight, so this bounds it.
+        expect(macrosForKcal(k, w, d).protein_g).toBeLessThanOrEqual(w * 2.205 + 1);
+      }),
+    );
+  });
+
+  it("never ships carbs below the floor for a non-keto target", () => {
+    fc.assert(
+      fc.property(kcal, weight, height, (k, w, h) => {
+        const m = macrosForKcal(k, w, "regular", h);
+        // Carb floor is per bodyweight; the target is eased up until it's met.
+        expect(m.carbs_g).toBeGreaterThanOrEqual(
+          Math.max(130, Math.round(w * 2.2046226218 * 0.6)) - 1,
+        );
       }),
     );
   });

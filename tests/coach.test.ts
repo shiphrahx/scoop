@@ -15,6 +15,11 @@ import {
   kcalFloor,
   deficitPerDay,
   macrosForKcal,
+  carbFloorTargetG,
+  fatFloorTargetG,
+  proteinTargetG,
+  carbFloorLimits,
+  effectiveKcalForFloors,
   maintenanceTarget,
   nextPhase,
   observeTdee,
@@ -191,12 +196,22 @@ describe("macrosForKcal", () => {
   // Expected values are written out, not recomputed from the source's own
   // formula — an assertion that re-derives the answer the same way the code does
   // can never catch the code changing.
-  it("fixes protein at 2 g/kg and fat at a quarter of kcal", () => {
+  it("sets protein (~1 g/lb) and fat (~0.3 g/lb floor), carbs the remainder", () => {
     const m = macrosForKcal(2000, 80);
-    expect(m.protein_g).toBe(160); // 80 kg × 2 g/kg
-    expect(m.fat_g).toBe(56); // 25% of 2000 kcal ÷ 9
-    expect(m.carbs_g).toBe(214); // (2000 − 640 − 504) ÷ 4
+    expect(m.protein_g).toBe(176); // 80 kg = 176.4 lb × 1 g/lb
+    expect(m.fat_g).toBe(53); // 176.4 lb × 0.3 g/lb floor
+    expect(m.carbs_g).toBe(205); // remainder: (2000 − 704 − 477) ÷ 4
     expect(m.kcal).toBe(2000);
+  });
+
+  it("computes carbs as the remainder, never a fixed number", () => {
+    // Same person, more calories → all the extra lands in carbs; protein and fat
+    // stay put.
+    const lo = macrosForKcal(1800, 80);
+    const hi = macrosForKcal(2400, 80);
+    expect(hi.protein_g).toBe(lo.protein_g);
+    expect(hi.fat_g).toBe(lo.fat_g);
+    expect(hi.carbs_g - lo.carbs_g).toBe(150); // 600 kcal ÷ 4, all carbs
   });
 
   it("sets the extra nutrient targets from the calorie total", () => {
@@ -207,32 +222,21 @@ describe("macrosForKcal", () => {
     expect(m.sodium_mg).toBe(2300); // flat daily limit
   });
 
-  it("never returns negative carbs when protein+fat exceed kcal", () => {
-    // A tiny calorie target with a heavy person: protein alone blows the budget.
+  it("keeps carbs at their floor and eases the deficit instead of starving them", () => {
+    // A target so low the remainder would breach the carb floor: rather than ship
+    // sub-floor carbs, the calorie target is raised (the deficit reduced) and
+    // protein is left whole.
     const m = macrosForKcal(400, 120);
-    expect(m.carbs_g).toBeGreaterThanOrEqual(0);
+    expect(m.carbs_g).toBeGreaterThanOrEqual(carbFloorTargetG(120));
+    expect(m.protein_g).toBe(proteinTargetG(120)); // never squeezed
+    expect(m.kcal).toBeGreaterThan(400); // deficit eased
+    // and the split still adds up to the (raised) calorie number.
+    expect(m.protein_g * 4 + m.carbs_g * 4 + m.fat_g * 9).toBeCloseTo(m.kcal, -1);
   });
 
-  it("trims protein to fit the calories rather than overshooting them", () => {
-    // 120 kg wants 240 g protein (960 kcal) — more than the whole 400 kcal
-    // target. Prescribing it would tell the user to eat 1059 kcal of macros on a
-    // 400 kcal day. Protein gives way instead.
-    //
-    // Fat does not: it takes the hormone floor first, capped at 40% of the day
-    // (17 g here), and protein takes what's left. 25% of 400 kcal would have
-    // been 11 g of fat, which is below what anyone should eat.
-    const m = macrosForKcal(400, 120);
-    expect(m.fat_g).toBe(17);
-    expect(m.protein_g).toBe(61);
-    expect(m.protein_g * 4 + m.carbs_g * 4 + m.fat_g * 9).toBeLessThanOrEqual(405);
-  });
-
-  it("keeps fat above the hormone floor on a small target", () => {
-    // 0.6 g/kg is the point below which sex-hormone production and fat-soluble
-    // vitamin absorption start to suffer. A percentage rule alone doesn't
-    // protect it: 25% of a 1200 kcal day is 33 g.
+  it("holds fat at its per-lb floor", () => {
     const m = macrosForKcal(1200, 70);
-    expect(m.fat_g).toBeGreaterThanOrEqual(42); // 70 kg x 0.6
+    expect(m.fat_g).toBe(fatFloorTargetG(70)); // 70 kg × 0.3 g/lb
   });
 
   it("does not let keto squeeze the fat out of a ketogenic diet", () => {
@@ -244,9 +248,9 @@ describe("macrosForKcal", () => {
     expect(m.protein_g).toBeGreaterThan(0);
   });
 
-  it("leaves a normal target's protein untouched (the cap only bites when tight)", () => {
-    // Room for the full 2 g/kg here, so nothing is trimmed.
-    expect(macrosForKcal(2000, 80).protein_g).toBe(160);
+  it("exempts keto from the carb floor", () => {
+    // Low carbs are the whole point of keto, so it is never eased up to a floor.
+    expect(macrosForKcal(1400, 110, "keto").carbs_g).toBe(25);
   });
 
   it("rounds kcal", () => {
@@ -255,26 +259,26 @@ describe("macrosForKcal", () => {
 
   it("caps protein at the healthy-weight basis when a height is given", () => {
     // 120 kg at 170 cm: BMI-25 weight is 25 × 1.7² ≈ 72.25 kg, so protein is set
-    // from that (144 g), not the full 120 kg (240 g).
-    expect(macrosForKcal(2000, 120, "regular", 170).protein_g).toBe(144);
-    expect(macrosForKcal(2000, 120).protein_g).toBe(240);
+    // from that (159 g at 1 g/lb), not the full 120 kg (265 g).
+    expect(macrosForKcal(2000, 120, "regular", 170).protein_g).toBe(159);
+    expect(macrosForKcal(2000, 120).protein_g).toBe(265);
   });
 
   it("does not raise protein for someone already at a healthy weight", () => {
     // 65 kg at 175 cm is below the BMI-25 cap (76.6 kg) → basis is bodyweight.
     const m = macrosForKcal(2000, 65, "regular", 175);
-    expect(m.protein_g).toBe(130); // 65 * 2, uncapped
+    expect(m.protein_g).toBe(143); // 65 kg × 1 g/lb, uncapped
   });
 
   it("leaves protein on bodyweight when no height is supplied", () => {
-    expect(macrosForKcal(2000, 120).protein_g).toBe(240); // 120 * 2
+    expect(macrosForKcal(2000, 120).protein_g).toBe(265); // 120 kg × 1 g/lb
   });
 
   it("pins carbs to the keto ceiling and pours the rest into fat", () => {
     const m = macrosForKcal(2000, 80, "keto");
-    expect(m.protein_g).toBe(160); // 80 × 2, unchanged
+    expect(m.protein_g).toBe(176); // 80 kg × 1 g/lb, unchanged
     expect(m.carbs_g).toBe(25); // hard keto carb ceiling
-    expect(m.fat_g).toBe(140); // (2000 − 640 − 100) ÷ 9
+    expect(m.fat_g).toBe(133); // (2000 − 704 − 100) ÷ 9
     // and it really is a low-carb, high-fat split vs the regular one
     expect(m.carbs_g).toBeLessThan(macrosForKcal(2000, 80).carbs_g);
     expect(m.fat_g).toBeGreaterThan(macrosForKcal(2000, 80).fat_g);
@@ -829,7 +833,7 @@ describe("weeklyReview", () => {
       waistDeltaCm: 0,
       current,
     });
-    expect(r.macros.protein_g).toBe(180); // 90 kg x 2 g/kg, uncapped
+    expect(r.macros.protein_g).toBe(198); // 90 kg × 1 g/lb, uncapped
   });
 });
 
