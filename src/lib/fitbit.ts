@@ -182,6 +182,35 @@ async function legacyGetDay(
   };
 }
 
+// Raw, UNPARSED responses for one day — status + body per Fitbit endpoint,
+// exactly as returned. The debug route uses this to confirm the live shape.
+async function legacyProbeDay(
+  accessToken: string,
+  date: string,
+): Promise<Record<string, { status: number; ok: boolean; body: unknown }>> {
+  const paths: Record<string, string> = {
+    activity: `/1/user/-/activities/date/${date}.json`,
+    sleep: `/1.2/user/-/sleep/date/${date}.json`,
+  };
+  const out: Record<string, { status: number; ok: boolean; body: unknown }> = {};
+  for (const [key, path] of Object.entries(paths)) {
+    const res = await fetch(`${API_BASE}${path}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    }).catch(() => null);
+    let body: unknown = null;
+    if (res) {
+      try {
+        body = await res.json();
+      } catch {
+        body = null;
+      }
+    }
+    out[key] = { status: res?.status ?? 0, ok: res?.ok ?? false, body };
+  }
+  return out;
+}
+
 // --- Public API: dispatch to the live provider ------------------------------
 // Same five functions the rest of the app has always imported. The callback
 // route and cron don't change; only which provider answers does.
@@ -206,4 +235,17 @@ export async function refreshTokens(refreshToken: string): Promise<FitbitTokens>
 // Pull one day's steps, active calories and sleep.
 export async function getDay(accessToken: string, date: string): Promise<FitbitDay> {
   return useGoogle() ? google.getDay(accessToken, date) : legacyGetDay(accessToken, date);
+}
+
+// Which provider is live, for diagnostics.
+export function activeProvider(): "google" | "legacy" {
+  return useGoogle() ? "google" : "legacy";
+}
+
+// Raw per-endpoint responses for one day — diagnostics only.
+export async function probeDay(
+  accessToken: string,
+  date: string,
+): Promise<Record<string, { status: number; ok: boolean; body: unknown }>> {
+  return useGoogle() ? google.probeDay(accessToken, date) : legacyProbeDay(accessToken, date);
 }

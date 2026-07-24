@@ -179,6 +179,39 @@ function num(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+// Raw, UNPARSED rollup responses for one day — status + body for each data
+// type, exactly as Google returns them. Used by the debug route so the real
+// response shape can be confirmed against the (previously unverified) nesting
+// getDay assumes. Never called on the hot path.
+export async function probeDay(
+  accessToken: string,
+  date: string,
+): Promise<Record<string, { status: number; ok: boolean; body: unknown }>> {
+  const types = ["steps", "active-energy-burned", "sleep"];
+  const out: Record<string, { status: number; ok: boolean; body: unknown }> = {};
+  for (const t of types) {
+    const res = await fetch(`${API_BASE}/dataTypes/${t}/dataPoints:dailyRollUp`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ range: dayRange(date), windowSizeDays: 1 }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    }).catch(() => null);
+    let body: unknown = null;
+    if (res) {
+      try {
+        body = await res.json();
+      } catch {
+        body = null;
+      }
+    }
+    out[t] = { status: res?.status ?? 0, ok: res?.ok ?? false, body };
+  }
+  return out;
+}
+
 // Pull one day's steps, active calories and sleep. Mirrors lib/fitbit getDay:
 // missing pieces come back null so the caller stores what it did get. Value
 // paths follow the v4 discovery doc; parsed defensively.
