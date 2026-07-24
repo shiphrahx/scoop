@@ -2,8 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_SURPLUS_CARBS_G,
   HIGH_DAYS_BY_PACE,
+  HIGH_DAYS_SAFE_MAX,
+  HIGH_DAYS_SAFE_MIN,
   MAINTENANCE_HIGH_DAYS,
+  MIN_LOW_DAY_CARBS_G,
+  SAFE_KCAL_FLOOR,
   WEEK_DAYS,
+  clampHighDaysChoice,
+  computeSurplusCarbs,
   dayCarbDelta,
   dayTarget,
   effectiveHighDays,
@@ -73,6 +79,49 @@ describe("lowDayCarbDrop", () => {
   it("is zero when there's nothing to redistribute", () => {
     expect(lowDayCarbDrop(75, 0)).toBe(0);
     expect(lowDayCarbDrop(0, 2)).toBe(0);
+  });
+});
+
+describe("clampHighDaysChoice", () => {
+  it("holds the user's count inside the safe adjustable range", () => {
+    expect(clampHighDaysChoice(0)).toBe(HIGH_DAYS_SAFE_MIN);
+    expect(clampHighDaysChoice(2)).toBe(2);
+    expect(clampHighDaysChoice(99)).toBe(HIGH_DAYS_SAFE_MAX);
+    expect(clampHighDaysChoice(2.6)).toBe(3); // rounds
+    expect(clampHighDaysChoice(NaN)).toBe(HIGH_DAYS_SAFE_MIN);
+  });
+});
+
+describe("computeSurplusCarbs", () => {
+  it("calculates a surplus from the day's carbs, in clean steps", () => {
+    // Ideal = 50% of 200 g = 100 g, and the low days can give it back here.
+    const { surplusCarbsG, capped } = computeSurplusCarbs(base, 2);
+    expect(surplusCarbsG).toBe(100);
+    expect(capped).toBe(false);
+    expect(surplusCarbsG % 5).toBe(0);
+  });
+
+  it("caps the surplus so low days keep a safe minimum of carbs", () => {
+    // Small carb base: half of 70 g = 35 g ideal, but with 3 high days each of
+    // the 4 low days must keep >= MIN_LOW_DAY_CARBS_G, capping the surplus below.
+    const small = { ...base, carbs_g: 70, kcal: 2000 };
+    const { surplusCarbsG, capped } = computeSurplusCarbs(small, 3);
+    expect(capped).toBe(true);
+    const low = dayTarget(small, false, cfg({ highDaysPerWeek: 3, surplusCarbsG }));
+    expect(low.carbs_g).toBeGreaterThanOrEqual(MIN_LOW_DAY_CARBS_G);
+  });
+
+  it("caps the surplus so no low day drops below the calorie floor", () => {
+    // A day already near the floor has almost no room to cut.
+    const lean = { ...base, kcal: SAFE_KCAL_FLOOR + 100, carbs_g: 150 };
+    const { surplusCarbsG } = computeSurplusCarbs(lean, 3);
+    const low = dayTarget(lean, false, cfg({ highDaysPerWeek: 3, surplusCarbsG }));
+    expect(low.kcal).toBeGreaterThanOrEqual(SAFE_KCAL_FLOOR);
+  });
+
+  it("is zero when there's nothing to cycle", () => {
+    expect(computeSurplusCarbs(base, 0).surplusCarbsG).toBe(0);
+    expect(computeSurplusCarbs({ ...base, carbs_g: 0 }, 2).surplusCarbsG).toBe(0);
   });
 });
 
@@ -153,6 +202,48 @@ describe("weekly-total invariant", () => {
         expect(fat).toBeCloseTo(flat.fat_g, 6);
       });
     }
+  }
+});
+
+describe("weekly-total invariant with the CALCULATED surplus", () => {
+  // The real feature: with the app-calculated surplus (no user input), a week of
+  // high + low days still sums to seven flat days for kcal AND every macro,
+  // across the whole safe count range.
+  for (let highDays = HIGH_DAYS_SAFE_MIN; highDays <= HIGH_DAYS_SAFE_MAX; highDays++) {
+    it(`holds for ${highDays} calculated high day(s)`, () => {
+      const { surplusCarbsG } = computeSurplusCarbs(base, highDays);
+      const c = cfg({ highDaysPerWeek: highDays, surplusCarbsG });
+      let kcal = 0;
+      let carbs = 0;
+      let protein = 0;
+      let fat = 0;
+      for (let d = 0; d < WEEK_DAYS; d++) {
+        const t = dayTarget(base, d < highDays, c);
+        kcal += t.kcal;
+        carbs += t.carbs_g;
+        protein += t.protein_g;
+        fat += t.fat_g;
+      }
+      expect(kcal).toBeCloseTo(base.kcal * WEEK_DAYS, 6);
+      expect(carbs).toBeCloseTo(base.carbs_g * WEEK_DAYS, 6);
+      expect(protein).toBeCloseTo(base.protein_g * WEEK_DAYS, 6);
+      expect(fat).toBeCloseTo(base.fat_g * WEEK_DAYS, 6);
+    });
+
+    it(`makes high days bigger and low days smaller for ${highDays} high day(s)`, () => {
+      const { surplusCarbsG } = computeSurplusCarbs(base, highDays);
+      const c = cfg({ highDaysPerWeek: highDays, surplusCarbsG });
+      const high = dayTarget(base, true, c);
+      const low = dayTarget(base, false, c);
+      // True refeed: energy up on a high day, down on a low day.
+      expect(high.kcal).toBeGreaterThan(base.kcal);
+      expect(low.kcal).toBeLessThan(base.kcal);
+      // Only carbs move; protein and fat are identical every day.
+      expect(high.protein_g).toBe(base.protein_g);
+      expect(low.protein_g).toBe(base.protein_g);
+      expect(high.fat_g).toBe(base.fat_g);
+      expect(low.fat_g).toBe(base.fat_g);
+    });
   }
 });
 

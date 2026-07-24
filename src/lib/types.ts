@@ -53,6 +53,9 @@ export interface Profile {
   // when the user hasn't overridden the goal-based recommendation.
   cycling_enabled: boolean;
   high_days_per_week: number | null;
+  // Legacy column: the carb surplus is now CALCULATED per-day from the base
+  // target (see computeSurplusCarbs in src/lib/highday.ts), not stored or typed
+  // by the user. Kept only because the DB column still exists.
   high_day_surplus_g_carbs: number;
   // The alcohol-calorie booking the user chose last time (carbs/fat/split), so
   // the drink logger can default to it. Null until they log a first drink.
