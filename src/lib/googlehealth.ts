@@ -131,18 +131,17 @@ function civil(y: number, m: number, d: number) {
   return { year: y, month: m, day: d, hours: 0, minutes: 0, seconds: 0 };
 }
 
-// The day-long civil interval [date 00:00, next-day 00:00). Grouped in UTC:
-// getDay has no timezone, and the cron already works in UTC days. Threading the
-// user's zone through would sharpen the day boundary but isn't needed for a
-// daily total.
+// The day-long civil interval [date 00:00, next-day 00:00). A CivilTimeInterval
+// is { start, end }, each a CivilDateTime — no offset field (civil = local wall
+// time, no zone). Grouped in UTC: getDay has no timezone, and the cron already
+// works in UTC days. Threading the user's zone through would sharpen the day
+// boundary but isn't needed for a daily total.
 function dayRange(date: string) {
   const [y, m, d] = date.split("-").map(Number);
   const next = new Date(Date.UTC(y, m - 1, d + 1));
   return {
-    startTime: civil(y, m, d),
-    endTime: civil(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate()),
-    startUtcOffset: "0s",
-    endUtcOffset: "0s",
+    start: civil(y, m, d),
+    end: civil(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate()),
   };
 }
 
