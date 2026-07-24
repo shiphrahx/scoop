@@ -214,7 +214,7 @@ describe("saveGoals", () => {
       Number(unknown.db.daily_targets[0].kcal),
     );
     // And the goal weight caps the protein basis at 65 kg, not the 80 on the scale.
-    expect(Number(lean.db.daily_targets[0].protein_g)).toBe(130);
+    expect(Number(lean.db.daily_targets[0].protein_g)).toBe(143); // 65 kg × 1 g/lb
   });
 
   it("saves the profile but writes no target when there is no weigh-in yet", async () => {

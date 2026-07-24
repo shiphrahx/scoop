@@ -285,6 +285,40 @@ describe("macrosForKcal", () => {
   });
 });
 
+describe("carb floor eases the deficit", () => {
+  it("flags and raises a target that would breach the carb floor", () => {
+    const w = 120;
+    const minKcal =
+      proteinTargetG(w) * 4 + fatFloorTargetG(w) * 9 + carbFloorTargetG(w) * 4;
+    // Below the floor's minimum → limited, and eased up to exactly that minimum.
+    expect(carbFloorLimits(minKcal - 400, w)).toBe(true);
+    expect(effectiveKcalForFloors(minKcal - 400, w)).toBe(minKcal);
+    // Comfortably above → untouched.
+    expect(carbFloorLimits(minKcal + 400, w)).toBe(false);
+    expect(effectiveKcalForFloors(minKcal + 400, w)).toBe(minKcal + 400);
+  });
+
+  it("never issues a real user carbs below their floor, even on an aggressive cut", () => {
+    const t = dailyTarget({
+      sex: "female",
+      diet: "regular",
+      weightKg: 110,
+      heightCm: 160,
+      age: 40,
+      activity: "sedentary",
+      pace: "aggressive",
+      bodyFatPct: null,
+      goalWeightKg: null,
+    });
+    expect(t.carbs_g).toBeGreaterThanOrEqual(carbFloorTargetG(110));
+  });
+
+  it("keto is exempt — no easing, carbs stay at the ceiling", () => {
+    expect(carbFloorLimits(1000, 90, "keto")).toBe(false);
+    expect(effectiveKcalForFloors(1000, 90, "keto")).toBe(1000);
+  });
+});
+
 describe("healthyLossBand", () => {
   it("slows a lean user down", () => {
     // 1%/week at 12% body fat is a prescription for losing muscle: the leaner

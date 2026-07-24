@@ -64,6 +64,25 @@ describe("recommendedHighDays", () => {
   });
 });
 
+describe("cycling respects the carb floor", () => {
+  it("shrinks the high-day surplus so a low day never breaches the floor", () => {
+    const carbFloorG = 180;
+    const base = { kcal: 2000, carbs_g: 200 };
+    const { surplusCarbsG, capped } = computeSurplusCarbs(base, 2, carbFloorG);
+    // The ideal 50% refeed (100 g) can't fit — it's pulled back.
+    expect(capped).toBe(true);
+    // Each low day gives back at most what keeps it at/above the floor.
+    const lowDrop = lowDayCarbDrop(surplusCarbsG, 2);
+    expect(base.carbs_g - lowDrop).toBeGreaterThanOrEqual(carbFloorG);
+  });
+
+  it("adds nothing when the base already sits at the floor", () => {
+    const carbFloorG = 200;
+    const { surplusCarbsG } = computeSurplusCarbs({ kcal: 2000, carbs_g: 200 }, 2, carbFloorG);
+    expect(surplusCarbsG).toBe(0);
+  });
+});
+
 describe("cycling is locked during calibration", () => {
   const profile = {
     cycling_enabled: true,
