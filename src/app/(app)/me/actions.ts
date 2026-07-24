@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { encryptSecret } from "@/lib/crypto";
-import { ageFromBirthYear, averageActiveKcal, dailyTarget } from "@/lib/coach";
+import {
+  ageFromBirthYear,
+  averageActiveKcal,
+  dailyTarget,
+  maintenanceTarget,
+} from "@/lib/coach";
 import { getTimezone } from "@/lib/queries";
 import { localWeekStart } from "@/lib/time";
 import { clampHighDaysChoice } from "@/lib/highday";
@@ -60,25 +65,36 @@ export async function saveGoals(input: GoalsInput) {
     .toISOString()
     .slice(0, 10);
 
-  const [{ data: prof }, { data: w }, { data: act }] = await Promise.all([
-    supabase
-      .from("users")
-      .select(
-        "height_cm, sex, birth_year, body_fat_pct, goal_weight_kg, tdee_calibration",
-      )
-      .eq("id", user.id)
-      .maybeSingle(),
-    supabase
-      .from("weights")
-      .select("weight_kg")
-      .order("date", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from("activity")
-      .select("workout_kcal")
-      .gte("date", cut7),
-  ]);
+  const weekStart = localWeekStart(await getTimezone());
+  const [{ data: prof }, { data: w }, { data: act }, { data: curTarget }] =
+    await Promise.all([
+      supabase
+        .from("users")
+        .select(
+          "height_cm, sex, birth_year, body_fat_pct, goal_weight_kg, tdee_calibration",
+        )
+        .eq("id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("weights")
+        .select("weight_kg")
+        .order("date", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase.from("activity").select("workout_kcal").gte("date", cut7),
+      supabase
+        .from("daily_targets")
+        .select("phase")
+        .eq("user_id", user.id)
+        .eq("week_start", weekStart)
+        .maybeSingle(),
+    ]);
+
+  // Don't knock a calibrating user out of their maintenance hold: while the
+  // current week's target is a calibration one, recompute at maintenance and
+  // keep the phase. Otherwise it's an ordinary deficit recompute.
+  const curPhase = (curTarget as { phase: string | null } | null)?.phase ?? null;
+  const calibrating = curPhase === "calibration";
 
   const p = prof as
     | {
@@ -101,14 +117,13 @@ export async function saveGoals(input: GoalsInput) {
   );
 
   if (p?.height_cm && p.sex && p.birth_year && weightKg) {
-    const target = dailyTarget({
+    const macroInput = {
       sex: p.sex,
       diet: input.diet_type,
       weightKg,
       heightCm: Number(p.height_cm),
       age: ageFromBirthYear(p.birth_year),
       activity: input.activity_level,
-      pace: input.goal_pace,
       activeKcalPerDay,
       // Everything the target depends on has to come along, or saving an
       // unrelated preference quietly recomputes the user onto a different plan.
@@ -119,11 +134,21 @@ export async function saveGoals(input: GoalsInput) {
       bodyFatPct: p.body_fat_pct,
       goalWeightKg: p.goal_weight_kg,
       tdeeCalibration: p.tdee_calibration,
-    });
+    };
+    const target = calibrating
+      ? maintenanceTarget(macroInput)
+      : dailyTarget({ ...macroInput, pace: input.goal_pace });
     await supabase
       .from("daily_targets")
       .upsert(
-        { user_id: user.id, week_start: localWeekStart(await getTimezone()), ...target },
+        {
+          user_id: user.id,
+          week_start: weekStart,
+          // Keep whatever phase the week already had (diet break, maintenance);
+          // only a calibration hold pins the target to maintenance.
+          phase: curPhase ?? "deficit",
+          ...target,
+        },
         { onConflict: "user_id,week_start" },
       );
   }
