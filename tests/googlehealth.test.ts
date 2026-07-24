@@ -118,24 +118,23 @@ describe("refreshTokens", () => {
 });
 
 describe("getDay", () => {
-  it("maps the v4 rollup values into our day shape", async () => {
-    // Order matches getDay's Promise.all: steps, active-energy, sleep.
+  it("maps the live v4 shapes into our day shape", async () => {
+    // Order matches getDay's Promise.all: steps rollup, energy rollup, sleep
+    // list. The typed value sits directly on the rollup point (no `value`
+    // wrapper) and the summed fields are countSum / kcalSum; sleep is a
+    // separate list whose points carry sleep.summary.minutesAsleep.
     fetchMock
       .mockResolvedValueOnce(
-        jsonResponse({ rollupDataPoints: [{ value: { steps: { count: "8123" } } }] }),
+        jsonResponse({ rollupDataPoints: [{ steps: { countSum: "8123" } }] }),
       )
       .mockResolvedValueOnce(
         jsonResponse({
-          rollupDataPoints: [
-            { value: { activeEnergyBurned: { energy: { kcal: 540 } } } },
-          ],
+          rollupDataPoints: [{ activeEnergyBurned: { kcalSum: 540 } }],
         }),
       )
       .mockResolvedValueOnce(
         jsonResponse({
-          rollupDataPoints: [
-            { value: { sleep: { sleepSummary: { minutesAsleep: "435" } } } },
-          ],
+          dataPoints: [{ sleep: { summary: { minutesAsleep: "435" } } }],
         }),
       );
 
@@ -146,11 +145,28 @@ describe("getDay", () => {
     expect(day.sleep_hours).toBe(7.3); // 435 min → 7.25 h → 7.3
   });
 
-  it("returns nulls for pieces a failed or empty rollup can't supply", async () => {
+  it("sums minutesAsleep across every sleep session that day", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ rollupDataPoints: [] }))
+      .mockResolvedValueOnce(jsonResponse({ rollupDataPoints: [] }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          dataPoints: [
+            { sleep: { summary: { minutesAsleep: "420" } } }, // night
+            { sleep: { summary: { minutesAsleep: "30" } } }, // nap
+          ],
+        }),
+      );
+
+    const day = await getDay("token", "2026-07-05");
+    expect(day.sleep_hours).toBe(7.5); // 450 min
+  });
+
+  it("returns nulls for pieces a failed or empty response can't supply", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({}, false, 404)) // steps request fails
       .mockResolvedValueOnce(jsonResponse({ rollupDataPoints: [] })) // no energy point
-      .mockResolvedValueOnce(jsonResponse({ rollupDataPoints: [{ value: {} }] })); // no sleep
+      .mockResolvedValueOnce(jsonResponse({ dataPoints: [] })); // no sleep session
 
     const day = await getDay("token", "2026-07-06");
     expect(day.steps).toBeNull();
@@ -158,26 +174,34 @@ describe("getDay", () => {
     expect(day.sleep_hours).toBeNull();
   });
 
-  it("POSTs a one-day civil range to the dailyRollUp endpoint", async () => {
+  it("POSTs a one-day civil range ({start,end} of nested dates) for rollups", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ rollupDataPoints: [] }));
     await getDay("token", "2026-07-05");
 
     const [url, init] = fetchMock.mock.calls[0];
-    expect(String(url)).toContain(
-      "/dataTypes/steps/dataPoints:dailyRollUp",
-    );
+    expect(String(url)).toContain("/dataTypes/steps/dataPoints:dailyRollUp");
     expect(init.method).toBe("POST");
     const body = JSON.parse(init.body);
     expect(body.windowSizeDays).toBe(1);
-    expect(body.range.startTime).toEqual({
-      year: 2026,
-      month: 7,
-      day: 5,
-      hours: 0,
-      minutes: 0,
-      seconds: 0,
-    });
-    // Exclusive next-midnight end.
-    expect(body.range.endTime.day).toBe(6);
+    // CivilTimeInterval: { start, end }, each a CivilDateTime whose date is a
+    // nested google.type.Date. No flat fields, no offset.
+    expect(body.range.start).toEqual({ date: { year: 2026, month: 7, day: 5 } });
+    expect(body.range.end.date.day).toBe(6); // exclusive next midnight
+  });
+
+  it("lists sleep sessions ending that day (dailyRollUp is unsupported for sleep)", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ rollupDataPoints: [] }));
+    await getDay("token", "2026-07-05");
+
+    const sleepCall = fetchMock.mock.calls.find(([u]) =>
+      String(u).includes("/dataTypes/sleep/dataPoints"),
+    );
+    expect(sleepCall).toBeDefined();
+    const url = new URL(String(sleepCall![0]));
+    // GET, not a :dailyRollUp POST.
+    expect(url.pathname.endsWith("/dataTypes/sleep/dataPoints")).toBe(true);
+    const filter = url.searchParams.get("filter") ?? "";
+    expect(filter).toContain('sleep.interval.civil_end_time >= "2026-07-05"');
+    expect(filter).toContain('sleep.interval.civil_end_time < "2026-07-06"');
   });
 });

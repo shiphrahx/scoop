@@ -167,11 +167,55 @@ async function rollup(
   return res.json();
 }
 
-// The first rollup point's typed value, or undefined. One day + windowSizeDays 1
-// yields at most one point.
-function firstValue(json: Record<string, unknown> | null): Record<string, unknown> | undefined {
-  const points = (json?.rollupDataPoints ?? []) as Array<{ value?: Record<string, unknown> }>;
-  return points[0]?.value;
+// The first rollup point, or undefined. The typed value sits DIRECTLY on the
+// point (point.steps, point.activeEnergyBurned) — there is no `value` wrapper.
+// One day + windowSizeDays 1 yields at most one point.
+function firstPoint(json: Record<string, unknown> | null): Record<string, unknown> | undefined {
+  const points = (json?.rollupDataPoints ?? []) as Array<Record<string, unknown>>;
+  return points[0];
+}
+
+// The day after `date`, as YYYY-MM-DD (UTC). Used for the exclusive end of a
+// day-long filter window.
+function nextDay(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+}
+
+// Sleep is a Session data type, so dailyRollUp is rejected — we LIST the day's
+// sleep sessions instead. Filter on civil_end_time so a session counts on the
+// day you woke, and sum minutesAsleep across sessions (naps included). null if
+// the call fails or no session ended that day.
+async function listSleep(
+  accessToken: string,
+  date: string,
+): Promise<Record<string, unknown> | null> {
+  const filter =
+    `sleep.interval.civil_end_time >= "${date}" ` +
+    `AND sleep.interval.civil_end_time < "${nextDay(date)}"`;
+  const url = `${API_BASE}/dataTypes/sleep/dataPoints?filter=${encodeURIComponent(filter)}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  }).catch(() => null);
+  if (!res || !res.ok) return null;
+  return res.json();
+}
+
+function sleepHoursFrom(json: Record<string, unknown> | null): number | null {
+  const points = (json?.dataPoints ?? []) as Array<{
+    sleep?: { summary?: { minutesAsleep?: unknown } };
+  }>;
+  let total = 0;
+  let any = false;
+  for (const p of points) {
+    const m = num(p.sleep?.summary?.minutesAsleep);
+    if (m != null) {
+      total += m;
+      any = true;
+    }
+  }
+  return any ? Math.round((total / 60) * 10) / 10 : null;
 }
 
 // A finite number from a field that may arrive as a string (int64) or be absent.
@@ -188,9 +232,21 @@ export async function probeDay(
   accessToken: string,
   date: string,
 ): Promise<Record<string, { status: number; ok: boolean; body: unknown }>> {
-  const types = ["steps", "active-energy-burned", "sleep"];
   const out: Record<string, { status: number; ok: boolean; body: unknown }> = {};
-  for (const t of types) {
+  const read = async (key: string, res: Response | null) => {
+    let body: unknown = null;
+    if (res) {
+      try {
+        body = await res.json();
+      } catch {
+        body = null;
+      }
+    }
+    out[key] = { status: res?.status ?? 0, ok: res?.ok ?? false, body };
+  };
+
+  // Steps and active energy roll up; sleep is a Session type that only lists.
+  for (const t of ["steps", "active-energy-burned"]) {
     const res = await fetch(`${API_BASE}/dataTypes/${t}/dataPoints:dailyRollUp`, {
       method: "POST",
       headers: {
@@ -200,16 +256,21 @@ export async function probeDay(
       body: JSON.stringify({ range: dayRange(date), windowSizeDays: 1 }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     }).catch(() => null);
-    let body: unknown = null;
-    if (res) {
-      try {
-        body = await res.json();
-      } catch {
-        body = null;
-      }
-    }
-    out[t] = { status: res?.status ?? 0, ok: res?.ok ?? false, body };
+    await read(t, res);
   }
+
+  const filter =
+    `sleep.interval.civil_end_time >= "${date}" ` +
+    `AND sleep.interval.civil_end_time < "${nextDay(date)}"`;
+  const sleepRes = await fetch(
+    `${API_BASE}/dataTypes/sleep/dataPoints?filter=${encodeURIComponent(filter)}`,
+    {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    },
+  ).catch(() => null);
+  await read("sleep", sleepRes);
+
   return out;
 }
 
@@ -220,23 +281,18 @@ export async function getDay(accessToken: string, date: string): Promise<FitbitD
   const [stepsJson, energyJson, sleepJson] = await Promise.all([
     rollup(accessToken, "steps", date),
     rollup(accessToken, "active-energy-burned", date),
-    rollup(accessToken, "sleep", date),
+    listSleep(accessToken, date),
   ]);
 
-  const steps = firstValue(stepsJson) as { steps?: { count?: unknown } } | undefined;
-  const energy = firstValue(energyJson) as
-    | { activeEnergyBurned?: { energy?: { kcal?: unknown } } }
+  const steps = firstPoint(stepsJson) as { steps?: { countSum?: unknown } } | undefined;
+  const energy = firstPoint(energyJson) as
+    | { activeEnergyBurned?: { kcalSum?: unknown } }
     | undefined;
-  const sleep = firstValue(sleepJson) as
-    | { sleep?: { sleepSummary?: { minutesAsleep?: unknown } } }
-    | undefined;
-
-  const minutesAsleep = num(sleep?.sleep?.sleepSummary?.minutesAsleep);
 
   return {
     date,
-    steps: num(steps?.steps?.count),
-    workout_kcal: num(energy?.activeEnergyBurned?.energy?.kcal),
-    sleep_hours: minutesAsleep != null ? Math.round((minutesAsleep / 60) * 10) / 10 : null,
+    steps: num(steps?.steps?.countSum),
+    workout_kcal: num(energy?.activeEnergyBurned?.kcalSum),
+    sleep_hours: sleepHoursFrom(sleepJson),
   };
 }
