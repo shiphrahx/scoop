@@ -3,50 +3,59 @@
 import { useState, useTransition } from "react";
 import { Check, Minus, Plus } from "lucide-react";
 import { saveCycling } from "./actions";
-import { lowDayCarbDrop } from "@/lib/highday";
+import {
+  HIGH_DAYS_SAFE_MAX,
+  HIGH_DAYS_SAFE_MIN,
+  computeSurplusCarbs,
+  lowDayCarbDrop,
+} from "@/lib/highday";
 
-const COUNT_MIN = 1;
-const COUNT_MAX = 6;
-const SURPLUS_MIN = 15;
-const SURPLUS_MAX = 300;
-const SURPLUS_STEP = 15;
-
-// Calorie/carb cycling ("high days"). A master toggle, the number of high days
-// a week (defaulting to the goal-based recommendation), and how many extra carbs
-// a high day carries. The weekly total never changes — the copy says so, and the
-// live preview shows what each low day gives back to keep it balanced.
+// Calorie/carb cycling ("high days"). The user sets only two things: a master
+// toggle and — within a safe range — how many high days a week (defaulting to
+// the goal-based recommendation). The carb amount is CALCULATED, never typed:
+// the live preview shows how many carbs a high day adds and what each low day
+// gives back, and warns when a guardrail has trimmed the surplus. The weekly
+// total never changes.
 export default function CyclingSettings({
   initial,
   recommended,
+  base,
 }: {
-  initial: { enabled: boolean; highDaysPerWeek: number | null; surplusCarbsG: number };
+  initial: { enabled: boolean; highDaysPerWeek: number | null };
   recommended: number;
+  // The flat daily target this week — what the app cycles around. Null before
+  // onboarding sets one, in which case there's nothing to preview yet.
+  base: { kcal: number; carbs_g: number } | null;
 }) {
   const [enabled, setEnabled] = useState(initial.enabled);
   // null high_days_per_week means "follow the recommendation".
   const [useRecommended, setUseRecommended] = useState(initial.highDaysPerWeek == null);
   const [count, setCount] = useState(initial.highDaysPerWeek ?? recommended);
-  const [surplus, setSurplus] = useState(initial.surplusCarbsG);
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const effectiveCount = useRecommended ? recommended : count;
-  const lowDrop = Math.round(lowDayCarbDrop(surplus, effectiveCount));
   const lowDays = 7 - effectiveCount;
+
+  // The calculated surplus for the currently-chosen count, and whether a floor
+  // trimmed it. Mirrors the server maths so the preview is exact.
+  const { surplusCarbsG, capped } = base
+    ? computeSurplusCarbs(base, effectiveCount)
+    : { surplusCarbsG: 0, capped: false };
+  const lowDrop = Math.round(lowDayCarbDrop(surplusCarbsG, effectiveCount));
 
   const dirty =
     enabled !== initial.enabled ||
-    (useRecommended ? null : count) !== initial.highDaysPerWeek ||
-    surplus !== initial.surplusCarbsG;
+    (useRecommended ? null : count) !== initial.highDaysPerWeek;
 
   function bumpCount(dir: -1 | 1) {
     setUseRecommended(false);
-    setCount((c) => Math.min(COUNT_MAX, Math.max(COUNT_MIN, (useRecommended ? recommended : c) + dir)));
-    setSaved(false);
-  }
-
-  function bumpSurplus(dir: -1 | 1) {
-    setSurplus((s) => Math.min(SURPLUS_MAX, Math.max(SURPLUS_MIN, s + dir * SURPLUS_STEP)));
+    setCount((c) =>
+      Math.min(
+        HIGH_DAYS_SAFE_MAX,
+        Math.max(HIGH_DAYS_SAFE_MIN, (useRecommended ? recommended : c) + dir),
+      ),
+    );
     setSaved(false);
   }
 
@@ -56,7 +65,6 @@ export default function CyclingSettings({
       await saveCycling({
         enabled,
         highDaysPerWeek: useRecommended ? null : count,
-        surplusCarbsG: surplus,
       });
       setSaved(true);
     });
@@ -96,7 +104,7 @@ export default function CyclingSettings({
 
       {enabled && (
         <>
-          {/* High days per week */}
+          {/* High days per week — the only number the user sets. */}
           <div className="flex items-center gap-3">
             <div className="min-w-0 flex-1">
               <p className="font-medium">High days per week</p>
@@ -120,7 +128,7 @@ export default function CyclingSettings({
             </div>
             <button
               onClick={() => bumpCount(-1)}
-              disabled={pending || effectiveCount <= COUNT_MIN}
+              disabled={pending || effectiveCount <= HIGH_DAYS_SAFE_MIN}
               className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90 disabled:opacity-40"
               aria-label="Fewer high days"
             >
@@ -131,7 +139,7 @@ export default function CyclingSettings({
             </span>
             <button
               onClick={() => bumpCount(1)}
-              disabled={pending || effectiveCount >= COUNT_MAX}
+              disabled={pending || effectiveCount >= HIGH_DAYS_SAFE_MAX}
               className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90 disabled:opacity-40"
               aria-label="More high days"
             >
@@ -139,34 +147,31 @@ export default function CyclingSettings({
             </button>
           </div>
 
-          {/* Extra carbs on a high day */}
-          <div className="flex items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="font-medium">Extra carbs on a high day</p>
-              <p className="text-xs text-[var(--muted)]">
-                Each of your {lowDays} low day{lowDays === 1 ? "" : "s"} gives back
-                ~{lowDrop} g.
+          {/* Calculated carbs — read-only. The app works these out; the user
+              never types them. */}
+          <div className="rounded-2xl bg-[var(--fill-soft)] p-4">
+            <p className="font-medium">We&apos;ll do the carbs for you</p>
+            {base ? (
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                Each high day adds about{" "}
+                <span className="font-semibold text-[var(--ink)]">
+                  {surplusCarbsG} g carbs
+                </span>{" "}
+                (~{surplusCarbsG * 4} kcal). Your {lowDays} low day
+                {lowDays === 1 ? "" : "s"} give back ~{lowDrop} g each, so the
+                week is unchanged. Protein and fat stay the same every day.
               </p>
-            </div>
-            <button
-              onClick={() => bumpSurplus(-1)}
-              disabled={pending || surplus <= SURPLUS_MIN}
-              className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90 disabled:opacity-40"
-              aria-label="Fewer extra carbs"
-            >
-              <Minus size={16} />
-            </button>
-            <span className="w-14 text-center text-sm font-semibold tabular-nums">
-              {surplus} g
-            </span>
-            <button
-              onClick={() => bumpSurplus(1)}
-              disabled={pending || surplus >= SURPLUS_MAX}
-              className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90 disabled:opacity-40"
-              aria-label="More extra carbs"
-            >
-              <Plus size={16} />
-            </button>
+            ) : (
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                Finish setting up your targets and we&apos;ll size your high days
+                automatically.
+              </p>
+            )}
+            {capped && (
+              <p className="mt-2 text-xs font-medium text-[var(--ink-teal)]">
+                Kept a little smaller so your low days stay above a safe level.
+              </p>
+            )}
           </div>
         </>
       )}

@@ -15,7 +15,7 @@ import {
 } from "@/app/(app)/coach/Controls";
 import { createClient } from "@/lib/supabase/server";
 import { decryptSecret } from "@/lib/crypto";
-import { getProfile, hasApiKey } from "@/lib/queries";
+import { getCurrentTargets, getProfile, hasApiKey } from "@/lib/queries";
 
 // Turn the ?fitbit= result of the OAuth round-trip into a one-line banner.
 const FITBIT_NOTES: Record<string, string> = {
@@ -34,10 +34,11 @@ export default async function MePage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ fitbit }, profile, connected] = await Promise.all([
+  const [{ fitbit }, profile, connected, targets] = await Promise.all([
     searchParams,
     getProfile(),
     hasApiKey(),
+    getCurrentTargets(),
   ]);
 
   const [fitbitRes, tokenRes] = await Promise.all([
@@ -107,9 +108,9 @@ export default async function MePage({
             initial={{
               enabled: profile.cycling_enabled,
               highDaysPerWeek: profile.high_days_per_week,
-              surplusCarbsG: profile.high_day_surplus_g_carbs,
             }}
             recommended={recommendedHighDays(profile.goal_pace)}
+            base={targets ? { kcal: targets.kcal, carbs_g: targets.carbs_g } : null}
           />
         </>
       )}
