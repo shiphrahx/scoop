@@ -300,7 +300,9 @@ function toPortions(chosen: Portion[]): MealPortion[] {
     grams: c.grams,
     ...macrosOf(c.food, c.grams),
     // Carry the unit through so the portion can be shown as a count ("2 bagels").
-    ...(c.food.unit_g && c.food.unit_g > 0
+    // Only for a genuine countable — a bulk staple keeps its serving presets off
+    // the plan so rice shows as weighable grams, not a locked "1 medium".
+    ...(isCountable(c.food)
       ? { unit_g: c.food.unit_g, unit_label: c.food.unit_label ?? null }
       : {}),
   }));
