@@ -59,6 +59,10 @@ export const MAINTENANCE_HIGH_DAYS = 3;
 // The high-days count to recommend for a user's goal. Maintenance overrides the
 // pace, since at maintenance the pace no longer describes what they're doing.
 export function recommendedHighDays(pace: GoalPace, phase: Phase = "deficit"): number {
+  // Cycling is locked during calibration: high days only make sense once the
+  // deficit is real and calibrated. Recommending them on an uncalibrated user is
+  // exactly where carbs get pushed far too low.
+  if (phase === "calibration") return 0;
   if (phase === "maintenance") return MAINTENANCE_HIGH_DAYS;
   return HIGH_DAYS_BY_PACE[pace];
 }
@@ -194,6 +198,9 @@ export function resolveHighDaysAllowance(
   profile: Pick<Profile, "high_days_per_week" | "goal_pace">,
   phase: Phase = "deficit",
 ): number {
+  // No high days during calibration, even if the user set a count before — the
+  // deficit hasn't started, so there's nothing to cycle around.
+  if (phase === "calibration") return 0;
   const chosen = profile.high_days_per_week;
   return effectiveHighDays(
     chosen != null ? chosen : recommendedHighDays(profile.goal_pace, phase),
@@ -210,6 +217,10 @@ export function cycleConfigFrom(
   base: Pick<Macros, "kcal" | "carbs_g"> | null,
   phase: Phase = "deficit",
 ): CycleConfig {
+  // Calibration locks cycling entirely: master switch forced off, no allowance.
+  if (phase === "calibration") {
+    return { enabled: false, highDaysPerWeek: 0, surplusCarbsG: 0 };
+  }
   const highDaysPerWeek = resolveHighDaysAllowance(profile, phase);
   return {
     enabled: profile.cycling_enabled,
