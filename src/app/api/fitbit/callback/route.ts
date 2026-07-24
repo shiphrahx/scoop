@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { encryptSecret } from "@/lib/crypto";
 import { exchangeCode } from "@/lib/fitbit";
+import { syncActivityDays } from "@/lib/activity-sync";
+import { logError } from "@/lib/log";
 
 // GET /api/fitbit/callback — Fitbit sends the user back here with a one-time
 // code. We verify the CSRF state, trade the code for tokens, and save them.
@@ -44,6 +46,16 @@ export async function GET(request: NextRequest) {
     { onConflict: "user_id" },
   );
   if (error) return fail("error");
+
+  // Pull the last week straight away so the dashboard's steps / sleep / exercise
+  // charts fill in on the first visit, instead of staying empty until the
+  // nightly cron runs. Best-effort: a fetch hiccup here shouldn't fail the
+  // connect — the cron will catch up.
+  try {
+    await syncActivityDays(supabase, user.id, tokens.access_token);
+  } catch (err) {
+    logError(`initial fitbit sync for user ${user.id}`, err);
+  }
 
   const res = NextResponse.redirect(`${origin}/me?fitbit=connected`);
   res.cookies.delete("fitbit_oauth_state");
