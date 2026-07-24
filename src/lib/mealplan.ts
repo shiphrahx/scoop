@@ -11,6 +11,7 @@
 //    macros.
 
 import { macroRole, isVegetable, isProtein } from "@/lib/foodgroups";
+import { cookedStapleFor } from "@/lib/freshfoods";
 import type {
   Macros,
   MealPortion,
@@ -53,11 +54,21 @@ export interface PantryFood {
   pinned_g?: number | null;
 }
 
+// A food the planner portions in WHOLE UNITS: a discrete item you eat whole — a
+// bagel, an egg, a banana. A unit_g alone isn't enough: bulk staples (rice,
+// pasta, couscous, quinoa, porridge) carry serving-size presets ("medium" rice =
+// 200 g) for quick manual logging, but they're served BY WEIGHT. Snapping them
+// to whole 200 g servings locked rice to a fixed portion and left no room for the
+// rest of the day (issue #27), so a staple is weighable however its presets look.
+export function isCountable(food: PantryFood): boolean {
+  return !!(food.unit_g && food.unit_g > 0) && !cookedStapleFor(food.name);
+}
+
 // Snap a solved gram amount to what the user can actually serve: whole units
 // for a countable food ("2 bagels" = 170 g, not 137 g), else the nearest gram.
 export function snapGrams(grams: number, food: PantryFood): number {
-  if (food.unit_g && food.unit_g > 0) {
-    return Math.round(grams / food.unit_g) * food.unit_g;
+  if (isCountable(food)) {
+    return Math.round(grams / food.unit_g!) * food.unit_g!;
   }
   return Math.round(grams);
 }
@@ -67,10 +78,11 @@ export function snapGrams(grams: number, food: PantryFood): number {
 // nobody eats 3/4 of a bagel — so the cap is applied in units (floored), never
 // mid-unit. Every portion the planner emits goes through this.
 export function portionGrams(raw: number, food: PantryFood, cap: number): number {
-  if (food.unit_g && food.unit_g > 0) {
-    const maxUnits = Math.floor(Math.max(0, cap) / food.unit_g);
-    const units = Math.min(maxUnits, Math.max(0, Math.round(raw / food.unit_g)));
-    return units * food.unit_g;
+  if (isCountable(food)) {
+    const unit = food.unit_g!;
+    const maxUnits = Math.floor(Math.max(0, cap) / unit);
+    const units = Math.min(maxUnits, Math.max(0, Math.round(raw / unit)));
+    return units * unit;
   }
   return clamp(Math.round(raw), 0, cap);
 }
