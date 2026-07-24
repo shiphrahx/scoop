@@ -126,9 +126,11 @@ export async function refreshTokens(
   return toTokens(await res.json(), refreshToken);
 }
 
-// A civil date-time in the shape Google's CivilTimeInterval wants.
+// A CivilDateTime: a nested google.type.Date under `date`. The optional `time`
+// (TimeOfDay) is omitted — it defaults to midnight, exactly the day boundary we
+// want. NOT flat year/month/day fields; those are rejected.
 function civil(y: number, m: number, d: number) {
-  return { year: y, month: m, day: d, hours: 0, minutes: 0, seconds: 0 };
+  return { date: { year: y, month: m, day: d } };
 }
 
 // The day-long civil interval [date 00:00, next-day 00:00). A CivilTimeInterval
