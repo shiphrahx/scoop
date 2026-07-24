@@ -16,6 +16,8 @@ import {
   highDaysRemaining,
   lowDayCarbDrop,
   recommendedHighDays,
+  resolveHighDaysAllowance,
+  cycleConfigFrom,
   type CycleConfig,
 } from "@/lib/highday";
 import type { Macros } from "@/lib/types";
@@ -55,6 +57,31 @@ describe("recommendedHighDays", () => {
   it("uses the pace on a deficit or diet break", () => {
     expect(recommendedHighDays("aggressive", "deficit")).toBe(1);
     expect(recommendedHighDays("gentle", "diet_break")).toBe(3);
+  });
+
+  it("offers no high days during calibration", () => {
+    expect(recommendedHighDays("gentle", "calibration")).toBe(0);
+  });
+});
+
+describe("cycling is locked during calibration", () => {
+  const profile = {
+    cycling_enabled: true,
+    high_days_per_week: 3, // even with a user override
+    goal_pace: "gentle" as const,
+  };
+
+  it("zeroes the allowance even when the user set a count", () => {
+    expect(resolveHighDaysAllowance(profile, "calibration")).toBe(0);
+    // Still honoured outside calibration.
+    expect(resolveHighDaysAllowance(profile, "deficit")).toBe(3);
+  });
+
+  it("forces the master switch off with no surplus", () => {
+    const c = cycleConfigFrom(profile, { kcal: 2000, carbs_g: 200 }, "calibration");
+    expect(c.enabled).toBe(false);
+    expect(c.highDaysPerWeek).toBe(0);
+    expect(c.surplusCarbsG).toBe(0);
   });
 });
 

@@ -6,13 +6,24 @@ import {
   averageActiveKcal,
   bmr,
   bmrKatch,
+  calibrationComplete,
+  calibrationDaysElapsed,
+  calibrationDaysRemaining,
   dailyTarget,
   healthyLossBand,
+  inCalibration,
   kcalFloor,
   deficitPerDay,
   macrosForKcal,
+  maintenanceTarget,
   nextPhase,
   observeTdee,
+  openingDeficitKcal,
+  OPENING_DEFICIT_MAX_KCAL,
+  OPENING_DEFICIT_MIN_KCAL,
+  CALIBRATION_MIN_DAYS,
+  CALIBRATION_MAX_DAYS,
+  type ObservedTdee,
   proteinBasisKg,
   tdeeFromEnergyBalance,
   updateCalibration,
@@ -1112,6 +1123,179 @@ describe("weeklyReview phases", () => {
     expect(r.changed).toBe(true);
     expect(r.macros.kcal).toBe(2500);
     expect(r.headline).toMatch(/diet break/i);
+  });
+});
+
+describe("calibration window", () => {
+  const start = "2026-07-01T00:00:00Z";
+  const at = (days: number) =>
+    new Date(Date.parse(start) + days * 86_400_000);
+  const observed: ObservedTdee = {
+    kcalPerDay: 2500,
+    days: 14,
+    loggedDays: 12,
+    meanIntakeKcal: 2500,
+    trendDeltaKg: 0,
+  };
+
+  it("counts days elapsed and the soft days-remaining count", () => {
+    expect(calibrationDaysElapsed(start, at(5))).toBe(5);
+    expect(calibrationDaysElapsed(null, at(5))).toBe(0);
+    expect(calibrationDaysRemaining(start, at(3))).toBe(CALIBRATION_MIN_DAYS - 3);
+    // Never negative once past the minimum.
+    expect(calibrationDaysRemaining(start, at(20))).toBe(0);
+  });
+
+  it("is not complete before the minimum window, even with a measurement", () => {
+    expect(
+      calibrationComplete({ startedAt: start, now: at(5), observed }),
+    ).toBe(false);
+  });
+
+  it("graduates once the minimum window passes AND there's a measurement", () => {
+    expect(
+      calibrationComplete({ startedAt: start, now: at(CALIBRATION_MIN_DAYS), observed }),
+    ).toBe(true);
+  });
+
+  it("extends when logging is too sparse to measure (observed null)", () => {
+    // Sparse logging keeps observed null — hold rather than cut on thin data.
+    expect(
+      calibrationComplete({ startedAt: start, now: at(CALIBRATION_MIN_DAYS), observed: null }),
+    ).toBe(false);
+  });
+
+  it("forces graduation at the max window regardless of data", () => {
+    expect(
+      calibrationComplete({ startedAt: start, now: at(CALIBRATION_MAX_DAYS), observed: null }),
+    ).toBe(true);
+  });
+
+  it("never calibrates a user who never started", () => {
+    expect(calibrationComplete({ startedAt: null, now: at(30), observed })).toBe(false);
+    expect(inCalibration({ startedAt: null, now: at(1), observed: null })).toBe(false);
+  });
+
+  it("is active while started and not yet graduated", () => {
+    expect(inCalibration({ startedAt: start, now: at(3), observed: null })).toBe(true);
+    expect(
+      inCalibration({ startedAt: start, now: at(CALIBRATION_MIN_DAYS), observed }),
+    ).toBe(false);
+  });
+});
+
+describe("nextPhase calibration", () => {
+  const base = { weeksInDeficit: 0, weeksInBreak: 0, currentWeightKg: 90 };
+
+  it("holds a new user in calibration, not a deficit", () => {
+    expect(
+      nextPhase({ ...base, inCalibration: true, calibrationComplete: false }),
+    ).toBe("calibration");
+  });
+
+  it("moves to a deficit once calibration is complete", () => {
+    expect(
+      nextPhase({ ...base, inCalibration: false, calibrationComplete: true }),
+    ).toBe("deficit");
+  });
+});
+
+describe("maintenanceTarget & openingDeficitKcal", () => {
+  const input = {
+    sex: "male" as const,
+    diet: "regular" as const,
+    weightKg: 90,
+    heightCm: 180,
+    age: 35,
+    activity: "sedentary" as const,
+  };
+
+  it("targets maintenance with no deficit subtracted", () => {
+    const maint = maintenanceTarget(input);
+    expect(maint.kcal).toBe(Math.round(tdee(input)));
+    // A deficit target is strictly below it.
+    expect(dailyTarget({ ...input, pace: "steady" }).kcal).toBeLessThan(maint.kcal);
+  });
+
+  it("clamps the opening deficit into a modest 300–500 band", () => {
+    expect(openingDeficitKcal(825)).toBe(OPENING_DEFICIT_MAX_KCAL); // aggressive → capped
+    expect(openingDeficitKcal(200)).toBe(OPENING_DEFICIT_MIN_KCAL); // tiny → floored
+    expect(openingDeficitKcal(400)).toBe(400);
+  });
+});
+
+describe("weeklyReview calibration phase", () => {
+  const current: Macros = { kcal: 2500, protein_g: 180, carbs_g: 250, fat_g: 70 };
+  const trend: TrendChange = {
+    nowKg: 90,
+    thenKg: 90,
+    changeKg: 0,
+    changePct: 0,
+    spanDays: 7,
+  };
+
+  it("holds at maintenance and frames it as learning, not failing", () => {
+    const r = weeklyReview({
+      sex: "male",
+      trend,
+      waistDeltaCm: null,
+      current,
+      phase: "calibration",
+      prevPhase: "calibration",
+      maintenanceKcal: 2500,
+      calibrationDaysRemaining: 6,
+    });
+    expect(r.changed).toBe(false);
+    expect(r.macros.kcal).toBe(2500);
+    expect(r.headline).toMatch(/learning your body/i);
+    expect(r.detail).toMatch(/6 days/);
+    expect(r.detail).not.toMatch(/failing|failure/i);
+  });
+
+  it("opens a modest deficit when calibration finishes", () => {
+    const r = weeklyReview({
+      sex: "male",
+      trend,
+      waistDeltaCm: null,
+      current,
+      phase: "deficit",
+      prevPhase: "calibration",
+      maintenanceKcal: 2500,
+      deficitKcal: openingDeficitKcal(500),
+      weightKg: 90,
+    });
+    expect(r.changed).toBe(true);
+    expect(r.headline).toMatch(/calibration done/i);
+    const cut = 2500 - r.macros.kcal;
+    expect(cut).toBeGreaterThanOrEqual(OPENING_DEFICIT_MIN_KCAL);
+    expect(cut).toBeLessThanOrEqual(OPENING_DEFICIT_MAX_KCAL);
+  });
+});
+
+describe("maintenance estimate corrects from real weight trend", () => {
+  // The calibration correction reuses the adaptive-TDEE machinery: intake at the
+  // estimated maintenance, read against what the scale actually did.
+  const days = 14;
+
+  it("holds the estimate when weight is stable at maintenance", () => {
+    // Ate the estimate, weight didn't move → observed ≈ estimate → factor ~1.
+    const factor = updateCalibration(1, 2500, 2500);
+    expect(factor).toBeCloseTo(1, 5);
+  });
+
+  it("corrects downward when weight still drifts up at the estimate", () => {
+    // Gaining while eating the estimate means they burn LESS than we guessed —
+    // observed maintenance is below the estimate, so the factor drops below 1.
+    // observeTdee would return ~2200 for a 300-kcal/day gain against 2500 intake.
+    const observed = tdeeFromEnergyBalance(2500, -0.55, days); // gained ~0.55 kg
+    expect(observed).toBeLessThan(2500);
+    const factor = updateCalibration(1, observed, 2500);
+    expect(factor).toBeLessThan(1);
+  });
+
+  it("corrects upward when weight drifts down at the estimate", () => {
+    const factor = updateCalibration(1, 2800, 2500);
+    expect(factor).toBeGreaterThan(1);
   });
 });
 
