@@ -15,10 +15,33 @@ import type { GoalPace, Macros, Profile } from "@/lib/types";
 
 export const WEEK_DAYS = 7;
 
-// Grams of extra carbs a high day adds, by default. Tunable per user
-// (users.high_day_surplus_g_carbs); ~75 g ≈ 300 kcal, a meaningful refeed
-// without swallowing the week.
+// A typical high-day carb surplus, ~75 g ≈ 300 kcal. The app no longer stores a
+// user-entered surplus — computeSurplusCarbs derives one from the day's carb
+// target — but this stays as a sensible reference value for tests and copy.
 export const DEFAULT_SURPLUS_CARBS_G = 75;
+
+// --- Guardrails for the CALCULATED carb surplus ---------------------------
+// A high day aims to add this fraction of the day's base carbs...
+export const REFEED_CARB_FRACTION = 0.5;
+// ...but never so much that a low day drops below a safe calorie floor...
+export const SAFE_KCAL_FLOOR = 1200;
+// ...or is stripped below this many carbs.
+export const MIN_LOW_DAY_CARBS_G = 50;
+// The surplus is rounded DOWN to a clean step, so rounding can never push a low
+// day past the floor.
+export const SURPLUS_STEP_G = 5;
+
+// The count the user may dial to, around the goal-based recommendation. Kept
+// tight: a refeed is a few days at most, and every extra high day makes each low
+// day give more back — which is exactly what the floor protects.
+export const HIGH_DAYS_SAFE_MIN = 1;
+export const HIGH_DAYS_SAFE_MAX = 4;
+
+// Clamp a user's chosen high-days count to the safe adjustable range.
+export function clampHighDaysChoice(n: number): number {
+  if (!Number.isFinite(n)) return HIGH_DAYS_SAFE_MIN;
+  return Math.max(HIGH_DAYS_SAFE_MIN, Math.min(HIGH_DAYS_SAFE_MAX, Math.round(n)));
+}
 
 // Recommended high days per week by loss pace. Faster loss leaves less room in
 // the week to move calories around, so it earns fewer high days; a gentle pace
@@ -73,6 +96,42 @@ export function lowDayCarbDrop(
   const low = weekDays - high;
   if (high <= 0 || low <= 0 || !(surplusCarbsG > 0)) return 0;
   return (surplusCarbsG * high) / low;
+}
+
+// The carb surplus a high day should carry — CALCULATED, never entered. A high
+// day aims to add REFEED_CARB_FRACTION of the day's base carbs, but the surplus
+// is capped so the low days that pay it back never fall below a safe calorie
+// floor (SAFE_KCAL_FLOOR) or lose too many carbs (MIN_LOW_DAY_CARBS_G). Surplus
+// and each low day's give-back stay tied through lowDayCarbDrop, so the weekly
+// total is preserved for any value this returns. `capped` is true when a
+// guardrail pulled the surplus below the ideal refeed — the UI says so when it
+// does, so the user knows why their high day is smaller than they might expect.
+export function computeSurplusCarbs(
+  base: Pick<Macros, "kcal" | "carbs_g">,
+  highDaysPerWeek: number,
+): { surplusCarbsG: number; capped: boolean } {
+  const high = effectiveHighDays(highDaysPerWeek);
+  const low = WEEK_DAYS - high;
+  if (high <= 0 || low <= 0 || !(base.carbs_g > 0)) {
+    return { surplusCarbsG: 0, capped: false };
+  }
+
+  // What we'd add with no limits: a set fraction of the day's carbs.
+  const ideal = base.carbs_g * REFEED_CARB_FRACTION;
+
+  // The most a single low day may give back before it hits a floor: its carbs
+  // can't fall below MIN_LOW_DAY_CARBS_G, and its energy (carbs at 4 kcal/g)
+  // can't fall below SAFE_KCAL_FLOOR. The tighter of the two wins.
+  const maxCutByCarbs = Math.max(0, base.carbs_g - MIN_LOW_DAY_CARBS_G);
+  const maxCutByKcal = Math.max(0, (base.kcal - SAFE_KCAL_FLOOR) / 4);
+  const maxCut = Math.min(maxCutByCarbs, maxCutByKcal);
+  // lowCut = surplus × high / low, so the cut ceiling caps the surplus.
+  const maxSurplus = (maxCut * low) / high;
+
+  const raw = Math.min(ideal, maxSurplus);
+  // Round DOWN to a clean step so rounding never breaches the floor.
+  const surplusCarbsG = Math.max(0, Math.floor(raw / SURPLUS_STEP_G) * SURPLUS_STEP_G);
+  return { surplusCarbsG, capped: maxSurplus < ideal };
 }
 
 // The carb delta applied to a single day: up by the full surplus on a high day,
@@ -142,18 +201,20 @@ export function resolveHighDaysAllowance(
 }
 
 // A user's whole cycling config, ready for dayTarget — the master switch, the
-// resolved allowance, and the carb surplus.
+// resolved allowance, and the CALCULATED carb surplus. The surplus is derived
+// from the day's base target (computeSurplusCarbs), not stored, so it always
+// tracks the current plan and stays inside the safety guardrails. Without a base
+// target (onboarding unfinished) there's nothing to cycle, so the surplus is 0.
 export function cycleConfigFrom(
-  profile: Pick<
-    Profile,
-    "cycling_enabled" | "high_days_per_week" | "goal_pace" | "high_day_surplus_g_carbs"
-  >,
+  profile: Pick<Profile, "cycling_enabled" | "high_days_per_week" | "goal_pace">,
+  base: Pick<Macros, "kcal" | "carbs_g"> | null,
   phase: Phase = "deficit",
 ): CycleConfig {
+  const highDaysPerWeek = resolveHighDaysAllowance(profile, phase);
   return {
     enabled: profile.cycling_enabled,
-    highDaysPerWeek: resolveHighDaysAllowance(profile, phase),
-    surplusCarbsG: profile.high_day_surplus_g_carbs,
+    highDaysPerWeek,
+    surplusCarbsG: base ? computeSurplusCarbs(base, highDaysPerWeek).surplusCarbsG : 0,
   };
 }
 
