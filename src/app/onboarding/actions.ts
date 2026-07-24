@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { ageFromBirthYear, dailyTarget } from "@/lib/coach";
+import { ageFromBirthYear, dailyTarget, maintenanceTarget, tdee } from "@/lib/coach";
 import { localWeekStart, safeTimezone } from "@/lib/time";
 import type {
   ActivityLevel,
@@ -29,6 +29,10 @@ export interface OnboardingInput {
   // Read from the browser, because the server's clock is UTC and the user's day
   // is not. Decides when their day (and their week) rolls over.
   timezone: string;
+  // Experienced dieters can skip the maintenance-first calibration hold and start
+  // losing straight away. We still learn their real burn in the background (the
+  // TDEE correction runs regardless) — they just don't get the holding phase.
+  skip_calibration?: boolean;
 }
 
 export async function saveOnboarding(input: OnboardingInput) {
@@ -37,6 +41,29 @@ export async function saveOnboarding(input: OnboardingInput) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  const now = new Date();
+  const age = ageFromBirthYear(input.birth_year);
+
+  // The formula's maintenance estimate, stored so the progress screen can show
+  // what we're calibrating from before any measurement exists. Raw (no
+  // calibration factor) — a brand-new user hasn't earned a correction yet.
+  const estimatedMaintenance = Math.round(
+    tdee({
+      sex: input.sex,
+      diet: input.diet_type,
+      weightKg: input.weight_kg,
+      heightCm: input.height_cm,
+      age,
+      activity: input.activity_level,
+      bodyFatPct: input.body_fat_pct,
+      goalWeightKg: input.goal_weight_kg,
+    }),
+  );
+
+  // New users start in a calibration hold at maintenance; experienced dieters
+  // can opt to skip straight into the deficit.
+  const calibrating = !input.skip_calibration;
 
   // 1. Save the profile.
   const { error: profileError } = await supabase.from("users").upsert({
@@ -55,8 +82,10 @@ export async function saveOnboarding(input: OnboardingInput) {
     birth_year: input.birth_year,
     slot_weights: input.slot_weights,
     timezone: safeTimezone(input.timezone),
-    onboarded_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    estimated_maintenance_kcal: estimatedMaintenance,
+    calibration_started_at: calibrating ? now.toISOString() : null,
+    onboarded_at: now.toISOString(),
+    updated_at: now.toISOString(),
   });
   if (profileError) throw new Error(profileError.message);
 
@@ -69,18 +98,22 @@ export async function saveOnboarding(input: OnboardingInput) {
     );
   if (weightError) throw new Error(weightError.message);
 
-  // 3. Compute and store this week's macro target.
-  const target = dailyTarget({
+  // 3. Compute and store this week's macro target. Calibrating users open at
+  // maintenance (no deficit) so we can learn their real burn before cutting;
+  // skippers open at the deficit their pace asks for.
+  const macroInput = {
     sex: input.sex,
     diet: input.diet_type,
     weightKg: input.weight_kg,
     heightCm: input.height_cm,
-    age: ageFromBirthYear(input.birth_year),
+    age,
     activity: input.activity_level,
-    pace: input.goal_pace,
     bodyFatPct: input.body_fat_pct,
     goalWeightKg: input.goal_weight_kg,
-  });
+  };
+  const target = calibrating
+    ? maintenanceTarget(macroInput)
+    : dailyTarget({ ...macroInput, pace: input.goal_pace });
 
   const { error: targetError } = await supabase
     .from("daily_targets")
@@ -88,6 +121,7 @@ export async function saveOnboarding(input: OnboardingInput) {
       {
         user_id: user.id,
         week_start: localWeekStart(safeTimezone(input.timezone)),
+        phase: calibrating ? "calibration" : "deficit",
         ...target,
       },
       { onConflict: "user_id,week_start" },
