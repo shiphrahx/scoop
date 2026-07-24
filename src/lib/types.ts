@@ -41,6 +41,14 @@ export interface Profile {
   tdee_calibration: number;
   tdee_observed_kcal: number | null;
   tdee_observed_at: string | null;
+  // Establish maintenance first, then cut. A new user eats at estimated
+  // maintenance for a short window while the app learns their real burn from the
+  // scale, then moves into a modest deficit. calibration_started_at marks when
+  // that window opened (null = they skipped it, e.g. an experienced dieter);
+  // estimated_maintenance_kcal is the formula's maintenance guess at onboarding,
+  // shown while there's no measurement yet.
+  calibration_started_at: string | null;
+  estimated_maintenance_kcal: number | null;
   meal_slots: string[];
   // How big each meal should be relative to the others: slot name -> relative
   // weight. Empty/missing means an even share per meal; a slot missing from a
@@ -84,6 +92,10 @@ export interface Macros {
 
 export interface DailyTargets extends Macros {
   week_start: string;
+  // Which phase this weekly target belongs to (see Phase in coach.ts). Drives
+  // whether cycling is offered and how the next review adapts it. Absent on
+  // older rows, which predate phases and mean 'deficit'.
+  phase?: import("@/lib/coach").Phase;
 }
 
 // A saved "my usual" item — logged to today's food with one tap.

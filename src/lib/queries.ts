@@ -6,8 +6,13 @@ import {
   average,
   averageActiveKcal,
   adherence as computeAdherence,
+  calibrationComplete,
+  calibrationDaysRemaining,
+  deficitPerDay,
+  inCalibration as computeInCalibration,
   nextPhase,
   observeTdee,
+  openingDeficitKcal,
   restingRate,
   stepsFalling,
   tdee,
@@ -96,7 +101,7 @@ export async function getCurrentTargets(): Promise<DailyTargets | null> {
   // over on the user's Monday, not the server's.
   const { data } = await supabase
     .from("daily_targets")
-    .select("week_start, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg")
+    .select("week_start, phase, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg")
     .lte("week_start", localWeekStart(tz))
     .order("week_start", { ascending: false })
     .limit(1)
@@ -135,13 +140,16 @@ export async function getHighDayStatus(date: string): Promise<HighDayStatus> {
   const highDates = ((rows as { date: string }[]) ?? []).map((r) => r.date);
   const isHigh = highDates.includes(date);
 
-  const enabled = profile?.cycling_enabled ?? false;
+  // Cycling is locked during the calibration hold. The phase rides on the
+  // in-force target row, so reading it here needs no recompute.
+  const phase: Phase = (base?.phase as Phase | undefined) ?? "deficit";
+  const enabled = phase !== "calibration" && (profile?.cycling_enabled ?? false);
   const allowance = profile
-    ? resolveHighDaysAllowance(profile)
+    ? resolveHighDaysAllowance(profile, phase)
     : 0;
   // The surplus is derived from the day's base target now, not stored.
   const cfg = profile
-    ? cycleConfigFrom(profile, base)
+    ? cycleConfigFrom(profile, base, phase)
     : { enabled: false, highDaysPerWeek: 0, surplusCarbsG: 0 };
   const surplusCarbsG = cfg.surplusCarbsG;
 
@@ -274,8 +282,14 @@ export interface CoachData {
   // How closely the user ate this week's target. The review will not cut on a
   // stall the user never actually tested.
   adherence: Adherence | null;
-  // Deficit, a planned diet break, or maintenance at the goal weight.
+  // Calibration, deficit, a planned diet break, or maintenance at the goal.
   phase: Phase;
+  // Whether the new-user calibration hold is running, and roughly how many days
+  // are left in it. estimatedMaintenanceKcal is what we're calibrating from —
+  // shown on the progress screen before any measurement exists.
+  calibrationActive: boolean;
+  calibrationDaysRemaining: number;
+  estimatedMaintenanceKcal: number | null;
   // The formula's maintenance estimate with NO calibration applied. The
   // correction is the ratio of the measurement to this raw prediction — measure
   // it against an already-corrected number and the ratio sits at 1 for ever and
@@ -488,12 +502,43 @@ export async function getCoachData(): Promise<CoachData> {
     }
     return n;
   };
+  // Calibration: a new user's first ~2 weeks eating at maintenance while the app
+  // learns their real burn. The window is driven off a timestamp on the user
+  // (not the weekly cadence) because it's shorter than a phase-per-week can
+  // measure; graduation needs a trustworthy measurement (observed) or the max
+  // window to have elapsed.
+  const calStartedAt = profile?.calibration_started_at ?? null;
+  const calState = { startedAt: calStartedAt, now, observed };
+  const calActive = computeInCalibration(calState);
+  const calComplete = calibrationComplete(calState);
+  const calDaysRemaining = calibrationDaysRemaining(calStartedAt, now);
+
   const phase = nextPhase({
     weeksInDeficit: countRun("deficit"),
     weeksInBreak: countRun("diet_break"),
     currentWeightKg: trend?.nowKg ?? latestKg ?? 0,
     goalWeightKg: profile?.goal_weight_kg,
+    inCalibration: calActive,
+    calibrationComplete: calComplete,
   });
+
+  // The phase the in-force target belongs to — lets the review notice the
+  // calibration→deficit transition and open a fresh, modest cut.
+  const prevPhase: Phase = (current?.phase as Phase | undefined) ?? "deficit";
+
+  // The modest deficit to OPEN the cut with when leaving calibration: the
+  // pace-derived deficit, clamped into a sustainable 300–500 kcal/day band.
+  const openingDeficit =
+    profile?.goal_pace && latestKg
+      ? openingDeficitKcal(
+          deficitPerDay(
+            profile.goal_pace,
+            latestKg,
+            profile.body_fat_pct,
+            profile.sex ?? "female",
+          ),
+        )
+      : null;
 
   const sex = profile?.sex ?? "female";
   const review = current
@@ -515,6 +560,12 @@ export async function getCoachData(): Promise<CoachData> {
         bodyFatPct: profile?.body_fat_pct,
         restingRateKcal,
         phase,
+        prevPhase,
+        // Opening deficit + a fallback weight, for the calibration→deficit
+        // transition (a just-graduated user may still have a thin trend).
+        deficitKcal: openingDeficit,
+        weightKg: latestKg,
+        calibrationDaysRemaining: calDaysRemaining,
         // The user's real maintenance, calibrated. Passed in so holding at
         // maintenance never has to be back-derived from the target in force.
         maintenanceKcal:
@@ -540,6 +591,14 @@ export async function getCoachData(): Promise<CoachData> {
     adherence,
     predictedTdee,
     phase,
+    calibrationActive: phase === "calibration",
+    calibrationDaysRemaining: calDaysRemaining,
+    estimatedMaintenanceKcal:
+      profile?.estimated_maintenance_kcal != null
+        ? Number(profile.estimated_maintenance_kcal)
+        : predictedTdee != null
+          ? Math.round(predictedTdee * calibration)
+          : null,
     activity: activityRows,
     fitbitConnected: Boolean((fitbitRes.data as { user_id: string } | null)?.user_id),
     appleIngestToken: (() => {
