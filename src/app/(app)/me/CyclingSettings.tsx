@@ -20,12 +20,16 @@ export default function CyclingSettings({
   initial,
   recommended,
   base,
+  locked = false,
 }: {
   initial: { enabled: boolean; highDaysPerWeek: number | null };
   recommended: number;
   // The flat daily target this week — what the app cycles around. Null before
   // onboarding sets one, in which case there's nothing to preview yet.
   base: { kcal: number; carbs_g: number } | null;
+  // Cycling is locked during the calibration hold — no deficit yet, nothing to
+  // cycle around. Show why rather than hiding it.
+  locked?: boolean;
 }) {
   const [enabled, setEnabled] = useState(initial.enabled);
   // null high_days_per_week means "follow the recommendation".
@@ -68,6 +72,19 @@ export default function CyclingSettings({
       });
       setSaved(true);
     });
+  }
+
+  if (locked) {
+    return (
+      <section className="flex w-full flex-col gap-2 sc-card p-5 text-left">
+        <h2 className="text-lg font-semibold">High days</h2>
+        <p className="text-sm text-[var(--muted)]">
+          Spread your week into a few higher-carb days and the rest lower. This
+          unlocks once you finish calibrating and start your deficit — cycling an
+          uncalibrated plan just pushes your carbs too low.
+        </p>
+      </section>
+    );
   }
 
   return (

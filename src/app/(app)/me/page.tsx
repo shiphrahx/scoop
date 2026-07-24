@@ -111,6 +111,7 @@ export default async function MePage({
             }}
             recommended={recommendedHighDays(profile.goal_pace)}
             base={targets ? { kcal: targets.kcal, carbs_g: targets.carbs_g } : null}
+            locked={targets?.phase === "calibration"}
           />
         </>
       )}
