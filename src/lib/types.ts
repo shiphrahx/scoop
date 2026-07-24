@@ -15,7 +15,7 @@ export type ActivityLevel =
   | "active"
   | "very_active";
 export type GoalPace = "gentle" | "steady" | "aggressive";
-export type FoodSource = "batch" | "barcode" | "recipe" | "manual";
+export type FoodSource = "batch" | "barcode" | "recipe" | "manual" | "alcohol";
 export type ActivitySource = "fitbit" | "apple" | "manual";
 
 export interface Profile {
@@ -54,6 +54,9 @@ export interface Profile {
   cycling_enabled: boolean;
   high_days_per_week: number | null;
   high_day_surplus_g_carbs: number;
+  // The alcohol-calorie booking the user chose last time (carbs/fat/split), so
+  // the drink logger can default to it. Null until they log a first drink.
+  last_alcohol_allocation: "carbs" | "fat" | "split" | null;
   // IANA zone the user lives in ("Europe/London"). Decides where their day
   // starts — the server's clock is UTC and is not the user's day.
   timezone: string;
