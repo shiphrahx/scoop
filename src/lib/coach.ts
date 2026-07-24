@@ -11,12 +11,25 @@ export type { Macros } from "@/lib/types";
 // The Coach math — pure functions, no AI. Mifflin–St Jeor BMR + activity
 // multiplier = TDEE, minus a deficit for weight loss, split into macros.
 
-const ACTIVITY_MULTIPLIER: Record<ActivityLevel, number> = {
+// Base activity factor for the NO-DEVICE fallback ONLY. It represents everyday
+// non-exercise life (NEAT: standing, walking about, chores) and DELIBERATELY
+// excludes workouts — exercise burn is meant to come from measured device data
+// (see tdee), not a self-reported gym habit folded into a multiplier.
+//
+// The old textbook TDEE multipliers (moderate ×1.55, very_active ×1.9) mapped a
+// self-reported "3–5×/week" straight onto a whole-day burn, estimating a 35 yo
+// woman's maintenance ~2050 when it's nearer 1700 — stalling fat loss from day
+// one. So we compress the self-report onto a conservative non-exercise band
+// (~1.2–1.375): the level still nudges the estimate, but even "very active"
+// can't inflate it. A start that's a touch LOW is safe — calibration raises it
+// from real weight change (see updateCalibration / weeklyReview) — whereas a
+// high start silently erases the deficit. Tunable.
+const BASE_ACTIVITY_FACTOR: Record<ActivityLevel, number> = {
   sedentary: 1.2,
-  light: 1.375,
-  moderate: 1.55,
-  active: 1.725,
-  very_active: 1.9,
+  light: 1.25,
+  moderate: 1.3,
+  active: 1.35,
+  very_active: 1.375,
 };
 
 // Thermic effect of food: digesting a mixed diet costs about 10% of what's
@@ -221,7 +234,9 @@ export function tdee(input: Omit<CoachInput, "pace">) {
       activeKcalFromSteps(input.stepsPerDay, input.weightKg, rmr),
     );
   } else {
-    predicted = rmr * ACTIVITY_MULTIPLIER[input.activity];
+    // No device: a deliberately conservative non-exercise estimate. Calibration
+    // corrects it upward if the scale later shows we under-fed.
+    predicted = rmr * BASE_ACTIVITY_FACTOR[input.activity];
   }
 
   const cal = input.tdeeCalibration;
