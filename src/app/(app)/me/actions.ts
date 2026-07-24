@@ -203,6 +203,44 @@ export async function saveNutrientPrefs(prefs: string[]) {
   revalidatePath("/plan/day");
 }
 
+export interface CyclingInput {
+  enabled: boolean;
+  // null = follow the goal-based recommendation; a number overrides it.
+  highDaysPerWeek: number | null;
+  surplusCarbsG: number;
+}
+
+// Save the user's calorie-cycling ("high days") settings. This never touches
+// the weekly calorie total — it only changes how the app spreads it across the
+// week (see src/lib/highday.ts). A null count means "use the recommendation for
+// my goal", so a later goal change re-recommends without overwriting a manual
+// choice. The daily targets themselves aren't recomputed here: they're derived
+// per-day from the flat base at read time.
+export async function saveCycling(input: CyclingInput) {
+  const { supabase, user } = await requireUser();
+
+  const count =
+    input.highDaysPerWeek == null
+      ? null
+      : Math.max(0, Math.min(6, Math.round(input.highDaysPerWeek)));
+  const surplus = Math.max(0, Math.min(300, Math.round(input.surplusCarbsG)));
+
+  const { error } = await supabase
+    .from("users")
+    .update({
+      cycling_enabled: input.enabled,
+      high_days_per_week: count,
+      high_day_surplus_g_carbs: surplus,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", user.id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/me");
+  revalidatePath("/dashboard");
+  revalidatePath("/plan/day");
+}
+
 export async function clearApiKey() {
   const { supabase, user } = await requireUser();
   const { error } = await supabase
