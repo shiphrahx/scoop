@@ -3,7 +3,7 @@ import MobileHome from "@/components/home/MobileHome";
 import DesktopDashboard from "@/components/home/DesktopDashboard";
 import { createClient } from "@/lib/supabase/server";
 import {
-  getCurrentTargets,
+  getDayTarget,
   getTodayConsumed,
   getWeightHistory,
   getActivityHistory,
@@ -12,6 +12,7 @@ import {
   hasTrackedToday,
   getTodayPlan,
   getProfile,
+  localToday,
 } from "@/lib/queries";
 import { normalizePrefs } from "@/lib/nutrients";
 import { sumMacros } from "@/lib/types";
@@ -26,6 +27,8 @@ export default async function DashboardPage() {
     (user?.user_metadata?.full_name as string | undefined)?.split(" ")[0] ??
     "there";
 
+  // The home ring shows TODAY's target — a high or low day when cycling is on,
+  // the flat base when it's off.
   const [
     targets,
     consumed,
@@ -37,7 +40,7 @@ export default async function DashboardPage() {
     plan,
     profile,
   ] = await Promise.all([
-    getCurrentTargets(),
+    getDayTarget(await localToday()),
     getTodayConsumed(),
     getWeightHistory(30),
     getActivityHistory(14),

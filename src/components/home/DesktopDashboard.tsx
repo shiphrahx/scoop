@@ -4,7 +4,7 @@ import ProgressRing from "@/components/ProgressRing";
 import { NutrientBars } from "@/components/NutrientBreakdown";
 import SignOutButton from "@/components/SignOutButton";
 import { WeightTrendChart, WeightVsExercise, SleepChart } from "@/components/Charts";
-import { sumMacros, type Activity, type DailyTargets, type Macros } from "@/lib/types";
+import { sumMacros, type Activity, type Macros } from "@/lib/types";
 import type { NutrientKey } from "@/lib/nutrients";
 
 function StatCard({
@@ -65,7 +65,7 @@ export default function DesktopDashboard({
   prefs,
 }: {
   name: string;
-  targets: DailyTargets | null;
+  targets: Macros | null;
   consumed: Macros;
   planned: Macros;
   coach: { headline: string; detail: string };

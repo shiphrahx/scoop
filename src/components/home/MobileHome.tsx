@@ -3,7 +3,7 @@ import { UtensilsCrossed, Scale, CookingPot, Package, Sparkles, ChevronRight, Ca
 import ProgressRing from "@/components/ProgressRing";
 import { NutrientBars } from "@/components/NutrientBreakdown";
 import SignOutButton from "@/components/SignOutButton";
-import { sumMacros, type DailyTargets, type Macros } from "@/lib/types";
+import { sumMacros, type Macros } from "@/lib/types";
 import type { NutrientKey } from "@/lib/nutrients";
 
 const quickActions = [
@@ -23,7 +23,7 @@ export default function MobileHome({
   prefs,
 }: {
   name: string;
-  targets: DailyTargets | null;
+  targets: Macros | null;
   consumed: Macros;
   planned: Macros;
   coach: { headline: string; detail: string };
