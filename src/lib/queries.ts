@@ -139,10 +139,11 @@ export async function getHighDayStatus(date: string): Promise<HighDayStatus> {
   const allowance = profile
     ? resolveHighDaysAllowance(profile)
     : 0;
-  const surplusCarbsG = profile?.high_day_surplus_g_carbs ?? 0;
+  // The surplus is derived from the day's base target now, not stored.
   const cfg = profile
-    ? cycleConfigFrom(profile)
+    ? cycleConfigFrom(profile, base)
     : { enabled: false, highDaysPerWeek: 0, surplusCarbsG: 0 };
+  const surplusCarbsG = cfg.surplusCarbsG;
 
   return {
     weekStart,
