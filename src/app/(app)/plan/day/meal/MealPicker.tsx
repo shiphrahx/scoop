@@ -258,9 +258,9 @@ export default function MealPicker({
                 {icon} {title}
               </span>
               <div className="flex flex-wrap gap-2">
-                {groups[key].map((f) => (
+                {groups[key].map((f, i) => (
                   <button
-                    key={f.name}
+                    key={`${f.name}-${f.off_barcode ?? i}`}
                     onClick={() => toggle(f)}
                     disabled={busy}
                     data-active={picked(f.name)}
