@@ -146,10 +146,15 @@ describe("saveGoals", () => {
     // Saving an unrelated preference used to recompute the target straight from
     // the formula and throw all of it away, dropping them back onto the
     // textbook's guess.
+    // A larger profile with headroom above the resting-rate floor: the
+    // conservative maintenance estimate sits close to that floor, so a smaller
+    // body would land BOTH the calibrated and uncalibrated targets on the floor
+    // and hide the difference this test exists to prove.
+    const bigBody = { sex: "male" as const, height_cm: 185 };
     const calibrated = installFakeSupabase({
       db: {
-        users: [{ ...userRow(), tdee_calibration: 0.85 }],
-        weights: [{ user_id: "user-1", date: "2026-07-15", weight_kg: 80 }],
+        users: [{ ...userRow(), ...bigBody, tdee_calibration: 0.8 }],
+        weights: [{ user_id: "user-1", date: "2026-07-15", weight_kg: 100 }],
         activity: [],
         daily_targets: [],
       },
@@ -163,8 +168,8 @@ describe("saveGoals", () => {
 
     const plain = installFakeSupabase({
       db: {
-        users: [{ ...userRow(), tdee_calibration: 1 }],
-        weights: [{ user_id: "user-1", date: "2026-07-15", weight_kg: 80 }],
+        users: [{ ...userRow(), ...bigBody, tdee_calibration: 1 }],
+        weights: [{ user_id: "user-1", date: "2026-07-15", weight_kg: 100 }],
         activity: [],
         daily_targets: [],
       },

@@ -90,19 +90,43 @@ describe("restingRate", () => {
 describe("tdee", () => {
   it("builds from the Katch–McArdle rate when body-fat is known", () => {
     const common = { sex: "male", diet: "regular", weightKg: 80, heightCm: 180, age: 30, activity: "moderate" } as const;
-    expect(tdee({ ...common, bodyFatPct: 20 })).toBeCloseTo(bmrKatch(80, 20) * 1.55, 5);
+    expect(tdee({ ...common, bodyFatPct: 20 })).toBeCloseTo(bmrKatch(80, 20) * 1.3, 5);
   });
 
-  it("multiplies BMR by the activity factor", () => {
+  it("multiplies BMR by the conservative base activity factor", () => {
     const base = bmr("male", 80, 180, 30);
     expect(tdee({ sex: "male", diet: "regular", weightKg: 80, heightCm: 180, age: 30, activity: "moderate" }))
-      .toBeCloseTo(base * 1.55, 5);
+      .toBeCloseTo(base * 1.3, 5);
   });
 
-  it("sedentary is the lowest multiplier, very_active the highest", () => {
+  it("sedentary is the lowest base factor, very_active the highest", () => {
     const common = { sex: "female", diet: "regular", weightKg: 70, heightCm: 170, age: 40 } as const;
     expect(tdee({ ...common, activity: "sedentary" }))
       .toBeLessThan(tdee({ ...common, activity: "very_active" }));
+  });
+
+  it("no-device self-report never jumps to a high multiplier", () => {
+    // The whole point of the change: even "very active" self-reported stays in
+    // the conservative non-exercise band (≤ ×1.375), because exercise is meant
+    // to come from measured data, not a checkbox chosen once at onboarding.
+    const base = bmr("female", 70, 170, 40);
+    const veryActive = tdee({
+      sex: "female", diet: "regular", weightKg: 70, heightCm: 170, age: 40,
+      activity: "very_active",
+    });
+    expect(veryActive).toBeCloseTo(base * 1.375, 5);
+    expect(veryActive).toBeLessThan(base * 1.4); // nowhere near the old ×1.9
+  });
+
+  it("lands the example user (35F, 64kg, 163cm, no device) at ~1600–1800", () => {
+    // Regression guard for the reported bug: this profile used to estimate
+    // ~2050 kcal (BMR 1322.75 × 1.55). Conservative band must bring it down.
+    const maintenance = tdee({
+      sex: "female", diet: "regular", weightKg: 64, heightCm: 163, age: 35,
+      activity: "moderate", // "3–5×/week" — no longer inflates the estimate
+    });
+    expect(maintenance).toBeGreaterThanOrEqual(1600);
+    expect(maintenance).toBeLessThanOrEqual(1800);
   });
 
   it("puts measured active energy on the bare resting rate, plus TEF", () => {
@@ -149,7 +173,7 @@ describe("tdee", () => {
       age: 30,
       activity: "moderate",
     } as const;
-    const fallback = bmr("male", 80, 180, 30) * 1.55;
+    const fallback = bmr("male", 80, 180, 30) * 1.3;
     expect(tdee({ ...common, activeKcalPerDay: 0 })).toBeCloseTo(fallback, 5);
     expect(tdee({ ...common, activeKcalPerDay: null })).toBeCloseTo(fallback, 5);
     expect(tdee(common)).toBeCloseTo(fallback, 5);
@@ -379,38 +403,14 @@ describe("deficit caps", () => {
   });
 
   it("holds a lean user to the slower band even on an aggressive pace", () => {
-    const leanTarget = dailyTarget({
-      sex: "male",
-      diet: "regular",
-      weightKg: 80,
-      heightCm: 180,
-      age: 30,
-      activity: "moderate",
-      pace: "aggressive",
-      bodyFatPct: 10,
-    });
-    const softTarget = dailyTarget({
-      sex: "male",
-      diet: "regular",
-      weightKg: 80,
-      heightCm: 180,
-      age: 30,
-      activity: "moderate",
-      pace: "aggressive",
-      bodyFatPct: 30,
-    });
-    // Same person, same pace: the lean one is allowed a smaller deficit, so
-    // eats more. (Body fat also changes the resting-rate equation, so compare
-    // the deficit rather than the raw target.)
-    const leanMaint = tdee({
-      sex: "male", diet: "regular", weightKg: 80, heightCm: 180, age: 30,
-      activity: "moderate", bodyFatPct: 10,
-    });
-    const softMaint = tdee({
-      sex: "male", diet: "regular", weightKg: 80, heightCm: 180, age: 30,
-      activity: "moderate", bodyFatPct: 30,
-    });
-    expect(leanMaint - leanTarget.kcal).toBeLessThan(softMaint - softTarget.kcal);
+    // Same person, same aggressive pace: the leaner one is ALLOWED a smaller
+    // deficit, because there's less fat to draw on. Assert the band-level
+    // allowance directly (deficitPerDay) — the realized target-to-maintenance
+    // gap is now confounded by the resting-rate floor, which the conservative
+    // maintenance estimate sits much closer to.
+    const leanDeficit = deficitPerDay("aggressive", 80, 10, "male");
+    const softDeficit = deficitPerDay("aggressive", 80, 30, "male");
+    expect(leanDeficit).toBeLessThan(softDeficit);
   });
 });
 
