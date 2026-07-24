@@ -16,10 +16,13 @@ export type NavItem = {
   center?: boolean;
 };
 
-// Bottom nav (mobile) — five thumb-reachable tabs, "Log" (the day plan, where
-// food is scanned and logged per meal) in the centre.
+// Bottom nav (mobile) — five thumb-reachable tabs with "Log" (the day plan,
+// where food is scanned and logged per meal) as the raised centre button. Two
+// tabs sit either side of it so the "+" lands dead centre: Home + Coach left,
+// Progress + Me right.
 export const bottomNav: NavItem[] = [
   { href: "/dashboard", label: "Home", icon: Home },
+  { href: "/coach", label: "Coach", icon: Sparkles },
   { href: "/plan/day", label: "Log", icon: Plus, center: true },
   { href: "/progress", label: "Progress", icon: LineChart },
   { href: "/me", label: "Me", icon: User },
