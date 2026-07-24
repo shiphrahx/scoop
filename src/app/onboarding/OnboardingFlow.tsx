@@ -28,6 +28,8 @@ import {
   Scale,
   Sun,
   Moon,
+  Telescope,
+  Rocket,
   type LucideIcon,
 } from "lucide-react";
 import { saveOnboarding, type OnboardingInput } from "./actions";
@@ -113,6 +115,7 @@ export default function OnboardingFlow() {
     "goal_weight",
     "bodyfat",
     "age",
+    "calibration",
   ] as const;
 
   // Sensible default goal: 10% below current weight, never under the slider min.
@@ -128,7 +131,7 @@ export default function OnboardingFlow() {
       : [...list, value];
   }
 
-  async function finish() {
+  async function finish(skipCalibration = false) {
     setSaving(true);
     const input: OnboardingInput = {
       diet_type: state.diet_type!,
@@ -143,6 +146,7 @@ export default function OnboardingFlow() {
       body_fat_pct: state.body_fat_pct ?? null,
       birth_year: CURRENT_YEAR - state.age,
       slot_weights: MEAL_SIZE_WEIGHTS[state.meal_size ?? "even"],
+      skip_calibration: skipCalibration,
       // The browser knows where the user is; the server (UTC) doesn't.
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     };
@@ -409,9 +413,16 @@ export default function OnboardingFlow() {
           step={1}
           display={(v) => `${v}`}
           onChange={(v) => setState({ ...state, age: v })}
-          onNext={finish}
-          nextLabel={saving ? "Setting up…" : "Finish"}
-          nextDisabled={saving}
+          onNext={next}
+          nextLabel="Next"
+        />
+      )}
+
+      {current === "calibration" && (
+        <CalibrationStep
+          saving={saving}
+          onCalibrate={() => finish(false)}
+          onSkip={() => finish(true)}
         />
       )}
     </main>
@@ -873,6 +884,57 @@ function BodyFatStep({
           className="py-2 text-sm font-medium text-[var(--muted)] transition active:scale-95"
         >
           I don&apos;t know — estimate it for me
+        </button>
+      </div>
+    </section>
+  );
+}
+
+// Last step: explain the maintenance-first calibration and let experienced
+// dieters opt straight into losing. Recommended path is calibration.
+function CalibrationStep({
+  saving,
+  onCalibrate,
+  onSkip,
+}: {
+  saving: boolean;
+  onCalibrate: () => void;
+  onSkip: () => void;
+}) {
+  return (
+    <section className="flex flex-1 flex-col">
+      <div className="mb-6 flex justify-center">
+        <span
+          className="grid h-16 w-16 place-items-center rounded-2xl text-white"
+          style={{ background: "var(--grad-primary)", boxShadow: "var(--shadow-glow)" }}
+          aria-hidden
+        >
+          <Telescope size={28} />
+        </span>
+      </div>
+      <h1 className="text-2xl font-semibold">Let&apos;s learn your body first</h1>
+      <p className="mb-6 mt-2 text-[var(--muted)]">
+        For your first couple of weeks you&apos;ll eat at maintenance while I
+        watch the scale and learn what you actually burn. Then I set a deficit
+        from real data — not a formula&apos;s guess. It&apos;s the difference
+        between a target that fits you and one that doesn&apos;t.
+      </p>
+
+      <div className="mt-auto flex flex-col gap-3 pt-8">
+        <button
+          onClick={onCalibrate}
+          disabled={saving}
+          className="sc-btn sc-btn-primary w-full py-4 text-lg"
+        >
+          {saving ? "Setting up…" : "Start with calibration"}
+        </button>
+        <button
+          onClick={onSkip}
+          disabled={saving}
+          className="flex items-center justify-center gap-2 py-2 text-sm font-medium text-[var(--muted)] transition active:scale-95"
+        >
+          <Rocket size={15} />
+          I&apos;ve dieted before — start losing now
         </button>
       </div>
     </section>
