@@ -604,8 +604,8 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
   // #26). Extra whole units are added back only when they genuinely bring the day
   // closer than the weighable sources can on their own (e.g. the countable is the
   // only protein there). Only worth it when both kinds of source are present.
-  const countableIdx = sourceIdx.filter((i) => vars[i].food.unit_g && vars[i].food.unit_g > 0);
-  const looseIdx = sourceIdx.filter((i) => !(vars[i].food.unit_g && vars[i].food.unit_g > 0));
+  const countableIdx = sourceIdx.filter((i) => isCountable(vars[i].food));
+  const looseIdx = sourceIdx.filter((i) => !isCountable(vars[i].food));
   if (countableIdx.length > 0 && looseIdx.length > 0) {
     const unitG = (i: number) => vars[i].food.unit_g as number;
     // Whole units this food could serve given its stock cap, and its FLOOR — the
@@ -718,7 +718,7 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
       const i = vars.findIndex((v) => v.slotIdx === slotIdx && v.food === food);
       const g = portionGrams(grams[i], food, caps[i]);
       if (g < MIN_PORTION) {
-        const why = food.unit_g
+        const why = isCountable(food)
           ? `Couldn't fit a whole ${food.unit_label ?? "unit"} of ${food.name} — it would push the day off target.`
           : `Couldn't fit ${food.name} — it would push the day off target.`;
         warnings.push(why);
