@@ -1,7 +1,21 @@
-// The one and only place that talks to Fitbit. Everything else in the app goes
-// through these functions, so when Fitbit's legacy Web API is turned down
-// (~Sept 2026, migrating to the Google Health API) we swap the endpoints here
-// and nothing else changes. Pure API calls — no database, no cookies.
+// The one and only place the app talks to a wearables provider. Everything else
+// goes through the five exported functions, so the rest of the app doesn't know
+// or care which provider is live.
+//
+// Fitbit's legacy Web API is being turned down (~Sept 2026) in favour of the
+// Google Health API, and new legacy apps can no longer be registered. So this
+// file now DISPATCHES: with HEALTH_PROVIDER=google it delegates to
+// lib/googlehealth.ts; otherwise it uses the legacy Fitbit calls kept below.
+// The stored token shape (FitbitTokens) and the day shape (FitbitDay) are shared
+// by both, so the callback route, the cron, and the DB never change.
+
+import * as google from "@/lib/googlehealth";
+
+// Which provider the five public functions use. Defaults to legacy so anything
+// without the env var set (tests, an un-migrated deploy) keeps its old behaviour.
+function useGoogle(): boolean {
+  return process.env.HEALTH_PROVIDER === "google";
+}
 
 const AUTH_URL = "https://www.fitbit.com/oauth2/authorize";
 const TOKEN_URL = "https://api.fitbit.com/oauth2/token";
@@ -49,7 +63,7 @@ export function redirectUri(origin: string): string {
 }
 
 // The URL we send the user to so they can grant access.
-export function authorizeUrl(origin: string, state: string): string {
+function legacyAuthorizeUrl(origin: string, state: string): string {
   const params = new URLSearchParams({
     response_type: "code",
     client_id: clientId(),
@@ -78,7 +92,7 @@ function toTokens(json: {
 }
 
 // Trade the one-time code from the callback for tokens.
-export async function exchangeCode(
+async function legacyExchangeCode(
   code: string,
   origin: string,
 ): Promise<FitbitTokens> {
@@ -102,7 +116,7 @@ export async function exchangeCode(
 }
 
 // Get a fresh access token from a refresh token.
-export async function refreshTokens(
+async function legacyRefreshTokens(
   refreshToken: string,
 ): Promise<FitbitTokens> {
   const res = await fetch(TOKEN_URL, {
@@ -137,7 +151,7 @@ async function getJson(
 
 // Pull one day's steps, workout calories and sleep. Missing pieces come back
 // null so the caller can still store what it did get.
-export async function getDay(
+async function legacyGetDay(
   accessToken: string,
   date: string,
 ): Promise<FitbitDay> {
@@ -166,4 +180,30 @@ export async function getDay(
         ? Math.round((sleepSummary.totalMinutesAsleep / 60) * 10) / 10
         : null,
   };
+}
+
+// --- Public API: dispatch to the live provider ------------------------------
+// Same five functions the rest of the app has always imported. The callback
+// route and cron don't change; only which provider answers does.
+
+// The URL we send the user to so they can grant access.
+export function authorizeUrl(origin: string, state: string): string {
+  return useGoogle()
+    ? google.authorizeUrl(origin, state)
+    : legacyAuthorizeUrl(origin, state);
+}
+
+// Trade the one-time code from the callback for tokens.
+export async function exchangeCode(code: string, origin: string): Promise<FitbitTokens> {
+  return useGoogle() ? google.exchangeCode(code, origin) : legacyExchangeCode(code, origin);
+}
+
+// Get a fresh access token from a refresh token.
+export async function refreshTokens(refreshToken: string): Promise<FitbitTokens> {
+  return useGoogle() ? google.refreshTokens(refreshToken) : legacyRefreshTokens(refreshToken);
+}
+
+// Pull one day's steps, active calories and sleep.
+export async function getDay(accessToken: string, date: string): Promise<FitbitDay> {
+  return useGoogle() ? google.getDay(accessToken, date) : legacyGetDay(accessToken, date);
 }
