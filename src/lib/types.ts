@@ -47,6 +47,13 @@ export interface Profile {
   // non-empty map falls back to the mean of the listed weights.
   slot_weights: Record<string, number> | null;
   nutrient_prefs: string[];
+  // Calorie/carb cycling ("high days"). Off by default. When on, the weekly
+  // calorie/macro total is unchanged — it's just spread into a few higher-carb
+  // days and the rest lower (see src/lib/highday.ts). high_days_per_week is null
+  // when the user hasn't overridden the goal-based recommendation.
+  cycling_enabled: boolean;
+  high_days_per_week: number | null;
+  high_day_surplus_g_carbs: number;
   // IANA zone the user lives in ("Europe/London"). Decides where their day
   // starts — the server's clock is UTC and is not the user's day.
   timezone: string;
