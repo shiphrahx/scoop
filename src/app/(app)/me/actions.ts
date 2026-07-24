@@ -6,6 +6,7 @@ import { encryptSecret } from "@/lib/crypto";
 import { ageFromBirthYear, averageActiveKcal, dailyTarget } from "@/lib/coach";
 import { getTimezone } from "@/lib/queries";
 import { localWeekStart } from "@/lib/time";
+import { clampHighDaysChoice } from "@/lib/highday";
 import type { ActivityLevel, DietType, GoalPace } from "@/lib/types";
 
 // Save the user's own Anthropic API key. It's read server-side only (never
@@ -207,30 +208,27 @@ export interface CyclingInput {
   enabled: boolean;
   // null = follow the goal-based recommendation; a number overrides it.
   highDaysPerWeek: number | null;
-  surplusCarbsG: number;
 }
 
 // Save the user's calorie-cycling ("high days") settings. This never touches
 // the weekly calorie total — it only changes how the app spreads it across the
-// week (see src/lib/highday.ts). A null count means "use the recommendation for
-// my goal", so a later goal change re-recommends without overwriting a manual
-// choice. The daily targets themselves aren't recomputed here: they're derived
-// per-day from the flat base at read time.
+// week (see src/lib/highday.ts). The user sets only the master switch and (within
+// a safe range) how many high days a week; the carb amount is CALCULATED, never
+// entered. A null count means "use the recommendation for my goal", so a later
+// goal change re-recommends without overwriting a manual choice. The daily
+// targets themselves aren't recomputed here: they're derived per-day from the
+// flat base at read time.
 export async function saveCycling(input: CyclingInput) {
   const { supabase, user } = await requireUser();
 
   const count =
-    input.highDaysPerWeek == null
-      ? null
-      : Math.max(0, Math.min(6, Math.round(input.highDaysPerWeek)));
-  const surplus = Math.max(0, Math.min(300, Math.round(input.surplusCarbsG)));
+    input.highDaysPerWeek == null ? null : clampHighDaysChoice(input.highDaysPerWeek);
 
   const { error } = await supabase
     .from("users")
     .update({
       cycling_enabled: input.enabled,
       high_days_per_week: count,
-      high_day_surplus_g_carbs: surplus,
       updated_at: new Date().toISOString(),
     })
     .eq("id", user.id);
