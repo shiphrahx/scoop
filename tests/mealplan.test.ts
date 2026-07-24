@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isCountable,
   planPickedDay,
   portionGrams,
   snapGrams,
@@ -29,6 +30,43 @@ const oil: PantryFood = {
   fat_100g: 100,
 };
 const budget = { kcal: 1800, protein_g: 150, carbs_g: 180, fat_g: 60 };
+
+// A cooked staple as a pantry row: it carries a "medium" serving preset
+// (unit_g) for quick manual logging, but must still be portioned by weight.
+const cookedRice: PantryFood = {
+  name: "Basmati Rice (cooked)",
+  kcal_100g: 130,
+  protein_100g: 2.7,
+  carbs_100g: 28.2,
+  fat_100g: 0.3,
+  unit_g: 200,
+  unit_label: "medium basmati rice (cooked)",
+};
+
+describe("isCountable", () => {
+  const bagel: PantryFood = { ...rice, name: "Bagel", unit_g: 85, unit_label: "bagel" };
+
+  it("is true for a discrete item with a unit", () => {
+    expect(isCountable(bagel)).toBe(true);
+    expect(isCountable({ ...rice, name: "Banana", unit_g: 118, unit_label: "medium banana" })).toBe(true);
+  });
+
+  it("is false for a bulk staple even with a serving preset", () => {
+    // Rice/pasta carry small/medium/large presets but are served by weight.
+    expect(isCountable(cookedRice)).toBe(false);
+    expect(
+      isCountable({ ...cookedRice, name: "Pasta (cooked)", unit_g: 240, unit_label: "medium pasta (cooked)" }),
+    ).toBe(false);
+    expect(
+      isCountable({ ...cookedRice, name: "Penne (cooked)", unit_g: 240, unit_label: "medium penne (cooked)" }),
+    ).toBe(false);
+  });
+
+  it("is false when there is no unit", () => {
+    expect(isCountable(rice)).toBe(false);
+    expect(isCountable({ ...rice, unit_g: 0 })).toBe(false);
+  });
+});
 
 describe("snapGrams", () => {
   const bagel: PantryFood = { ...rice, name: "Bagel", unit_g: 85, unit_label: "bagel" };
@@ -172,5 +210,59 @@ describe("planPickedDay", () => {
       .flatMap((m) => m.portions)
       .find((p) => p.name === "Onion")?.grams;
     expect(onionG).toBe(40);
+  });
+
+  it("scales a cooked staple by weight and leaves room for the other meals (issue #27)", () => {
+    // Lunch and dinner both have rice + mince + oil; a snack has a banana and
+    // protein powder. Rice carries a 200 g "medium" serving preset — but locking
+    // it to whole 200 g servings ate the whole day and starved the snack. Rice
+    // must portion by weight so every meal, snack included, gets its share.
+    const mince: PantryFood = {
+      name: "Vegan Mince",
+      kcal_100g: 110,
+      protein_100g: 15,
+      carbs_100g: 5,
+      fat_100g: 3,
+    };
+    const banana: PantryFood = {
+      name: "Banana",
+      kcal_100g: 89,
+      protein_100g: 1.1,
+      carbs_100g: 23,
+      fat_100g: 0.3,
+      unit_g: 118,
+      unit_label: "medium banana",
+    };
+    const proteinPowder: PantryFood = {
+      name: "Protein Powder",
+      kcal_100g: 380,
+      protein_100g: 80,
+      carbs_100g: 8,
+      fat_100g: 5,
+    };
+    const meals = planPickedDay({
+      slots: [
+        { slot: "Lunch", foods: [cookedRice, mince, oil] },
+        { slot: "Snack", foods: [banana, proteinPowder] },
+        { slot: "Dinner", foods: [cookedRice, mince, oil] },
+      ],
+      budget: { kcal: 1800, protein_g: 150, carbs_g: 180, fat_g: 60 },
+    });
+
+    // The snack survived — before the fix rice consumed the day and left none.
+    const snack = meals.find((m) => m.slot === "Snack");
+    expect(snack).toBeDefined();
+    expect((snack?.portions ?? []).find((p) => p.name === "Banana")?.grams ?? 0).toBeGreaterThan(0);
+
+    // Rice is portioned by weight: no unit rides on its portion, and it isn't
+    // locked to a whole multiple of the 200 g serving.
+    const ricePortions = meals
+      .flatMap((m) => m.portions)
+      .filter((p) => p.name === "Basmati Rice (cooked)");
+    expect(ricePortions.length).toBeGreaterThan(0);
+    for (const p of ricePortions) {
+      expect(p.unit_g).toBeUndefined();
+      expect(p.grams % 200).not.toBe(0);
+    }
   });
 });
