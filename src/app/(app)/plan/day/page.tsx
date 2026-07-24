@@ -3,10 +3,11 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import DayPlan from "./DayPlan";
 import DayJump from "./DayJump";
 import BuildDayCard from "./BuildDayCard";
+import HighDayToggle from "./HighDayToggle";
 import { createClient } from "@/lib/supabase/server";
 import {
   getProfile,
-  getCurrentTargets,
+  getHighDayStatus,
   getPlanForDate,
   getTimezone,
   localToday,
@@ -43,9 +44,9 @@ export default async function PlanDayPage({
   const date = dateParam && DATE_RE.test(dateParam) ? dateParam : today;
 
   const supabase = await createClient();
-  const [profile, target, plan, { data: favData }] = await Promise.all([
+  const [profile, highDay, plan, { data: favData }] = await Promise.all([
     getProfile(),
-    getCurrentTargets(),
+    getHighDayStatus(date),
     getPlanForDate(date),
     supabase
       .from("favourite_meals")
@@ -53,6 +54,9 @@ export default async function PlanDayPage({
       .order("created_at", { ascending: false }),
   ]);
   const favourites = (favData as FavouriteMeal[]) ?? [];
+  // The ring and the plan compare against THIS day's target — the high or low
+  // day when cycling is on, the flat base when it's off.
+  const target = highDay.target;
 
   const prev = addDaysISO(date, -1);
   const next = addDaysISO(date, 1);
@@ -105,6 +109,16 @@ export default async function PlanDayPage({
           <ChevronRight size={20} />
         </Link>
       </nav>
+
+      {highDay.enabled && (
+        <HighDayToggle
+          date={date === today ? undefined : date}
+          isHigh={highDay.isHigh}
+          remaining={highDay.remaining}
+          allowance={highDay.allowance}
+          surplusCarbsG={highDay.surplusCarbsG}
+        />
+      )}
 
       {pickedMeals.length > 0 && (
         <BuildDayCard
