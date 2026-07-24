@@ -8,11 +8,21 @@ import { getDay } from "@/lib/fitbit";
 const DAY_MS = 86_400_000;
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
+interface ActivityRow {
+  user_id: string;
+  date: string;
+  steps: number | null;
+  workout_kcal: number | null;
+  sleep_hours: number | null;
+  source: string;
+  updated_at: string;
+}
+
 // Minimal shape of the piece of a Supabase client we use here — works with both
 // the user-scoped server client and the service-role admin client.
 type ActivityWriter = {
   from: (table: string) => {
-    upsert: (rows: unknown, opts: { onConflict: string }) => Promise<unknown>;
+    upsert: (rows: ActivityRow[], opts: { onConflict: string }) => PromiseLike<unknown>;
   };
 };
 
@@ -32,7 +42,7 @@ export async function syncActivityDays(
       getDay(accessToken, isoDay(new Date(now - i * DAY_MS))),
     ),
   );
-  const rows = fetched.map((d) => ({
+  const rows: ActivityRow[] = fetched.map((d) => ({
     user_id: userId,
     date: d.date,
     steps: d.steps,

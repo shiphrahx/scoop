@@ -2,15 +2,13 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 import { logError } from "@/lib/log";
-import { getDay, refreshTokens, type FitbitTokens } from "@/lib/fitbit";
+import { refreshTokens, type FitbitTokens } from "@/lib/fitbit";
+import { syncActivityDays } from "@/lib/activity-sync";
 
 // GET /api/cron/fitbit — scheduled pull of the last 7 days of Fitbit data for
 // every connected user, so activity stays fresh without anyone opening the app.
 // No user session; authenticated with CRON_SECRET (Vercel Cron sends it as a
 // Bearer token). Uses the service-role client to read tokens and write activity.
-
-const DAY_MS = 86_400_000;
-const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -50,23 +48,7 @@ export async function GET(request: NextRequest) {
           .eq("user_id", t.user_id);
       }
 
-      const days = await Promise.all(
-        Array.from({ length: 7 }, (_, i) =>
-          getDay(accessToken, isoDay(new Date(now - i * DAY_MS))),
-        ),
-      );
-      const activityRows = days.map((d) => ({
-        user_id: t.user_id,
-        date: d.date,
-        steps: d.steps,
-        workout_kcal: d.workout_kcal,
-        sleep_hours: d.sleep_hours,
-        source: "fitbit",
-        updated_at: new Date().toISOString(),
-      }));
-      await supabase
-        .from("activity")
-        .upsert(activityRows, { onConflict: "user_id,date" });
+      await syncActivityDays(supabase, t.user_id, accessToken);
       synced++;
     } catch (err) {
       // One user's failure shouldn't stop the rest — but log it so a broken
