@@ -421,6 +421,20 @@ export function dailyTarget(input: CoachInput): Macros {
   );
 }
 
+// The full macro target for eating at maintenance — the calibration phase, and
+// the anchor every deficit is measured down from. Same split as a deficit, just
+// with nothing subtracted. Never below the safe floor.
+export function maintenanceTarget(input: Omit<CoachInput, "pace">): Macros {
+  const kcal = Math.max(tdee(input), kcalFloor(input.sex, restingRate(input)));
+  return macrosForKcal(
+    kcal,
+    input.weightKg,
+    input.diet,
+    input.heightCm,
+    input.goalWeightKg,
+  );
+}
+
 // Week boundaries live in src/lib/time.ts (localWeekStart), which draws them in
 // the user's timezone. This used to mix the server's local calendar with UTC.
 
@@ -626,7 +640,83 @@ export function adherence(
 // hold there for ever. Nothing but a too-fast loss ever moved a target up, and
 // reaching the goal weight did nothing at all.
 
-export type Phase = "deficit" | "diet_break" | "maintenance";
+export type Phase = "calibration" | "deficit" | "diet_break" | "maintenance";
+
+// --- Calibration ------------------------------------------------------------
+// A new user is not dropped straight into a deficit. First they eat at estimated
+// maintenance for a short window while the app watches the scale and learns what
+// they actually burn (adaptive TDEE, MacroFactor-style). A deficit built on the
+// formula alone can be hundreds of kcal wrong; one built on a fortnight of real
+// data is not. Only once calibrated does the modest cut begin — and cycling
+// (high days) stays locked until then, since an uncalibrated cut is exactly
+// where carbs get pushed far too low.
+
+// The window the hold lasts. We aim for a fortnight but will graduate a diligent
+// logger at ten days once there's a trustworthy measurement, and we will not
+// hold anyone past the max however patchy their data — an endless "calibrating"
+// screen is its own failure.
+export const CALIBRATION_MIN_DAYS = 10;
+export const CALIBRATION_MAX_DAYS = 14;
+
+// Whole days since the calibration window opened (0 when it never did).
+export function calibrationDaysElapsed(
+  startedAt: string | null | undefined,
+  now = new Date(),
+): number {
+  if (!startedAt) return 0;
+  const ms = now.getTime() - Date.parse(startedAt);
+  if (!Number.isFinite(ms) || ms < 0) return 0;
+  return Math.floor(ms / DAY_MS);
+}
+
+// A soft count-down for the UI: about this many days left before the user can
+// expect to graduate. Never negative.
+export function calibrationDaysRemaining(
+  startedAt: string | null | undefined,
+  now = new Date(),
+): number {
+  return Math.max(0, CALIBRATION_MIN_DAYS - calibrationDaysElapsed(startedAt, now));
+}
+
+export interface CalibrationState {
+  startedAt: string | null | undefined;
+  now?: Date;
+  // The measured burn from intake against the scale — null until there are
+  // enough weigh-ins and food logs to trust one (see observeTdee). Its presence
+  // is what tells us the hold has actually taught us something.
+  observed: ObservedTdee | null;
+}
+
+// Whether the calibration hold is over and a deficit may begin. Graduate when
+// the minimum window has passed AND we have a real measurement, OR when the max
+// window elapses regardless — but never while the user was never calibrating.
+// Sparse logging keeps `observed` null, which extends the hold rather than
+// cutting on data too thin to trust.
+export function calibrationComplete(state: CalibrationState): boolean {
+  if (!state.startedAt) return false;
+  const days = calibrationDaysElapsed(state.startedAt, state.now);
+  if (days >= CALIBRATION_MAX_DAYS) return true;
+  return days >= CALIBRATION_MIN_DAYS && state.observed != null;
+}
+
+// Whether the user is in the calibration hold right now: the window is open and
+// hasn't yet graduated.
+export function inCalibration(state: CalibrationState): boolean {
+  return Boolean(state.startedAt) && !calibrationComplete(state);
+}
+
+// The first deficit after calibration is deliberately modest — a sustainable
+// 300–500 kcal/day, never an aggressive opener however impatient the chosen
+// pace. Real results earn a faster cut later; the data does the arguing, not the
+// user's optimism at onboarding.
+export const OPENING_DEFICIT_MIN_KCAL = 300;
+export const OPENING_DEFICIT_MAX_KCAL = 500;
+
+// Clamp a pace-derived deficit into the modest opening band used when the cut
+// first begins.
+export function openingDeficitKcal(paceDeficitKcal: number): number {
+  return clamp(paceDeficitKcal, OPENING_DEFICIT_MIN_KCAL, OPENING_DEFICIT_MAX_KCAL);
+}
 
 // Weeks of unbroken deficit after which the body deserves a planned break.
 // Long diets blunt their own progress: adaptive thermogenesis, falling NEAT,
@@ -644,11 +734,19 @@ export interface PhaseInput {
   weeksInBreak: number; // consecutive weeks already on a break
   currentWeightKg: number;
   goalWeightKg?: number | null;
+  // The new-user hold at maintenance. When the window is open and hasn't yet
+  // taught us enough, the plan stays in calibration regardless of everything
+  // else — no deficit, no cycling, until the app has learned the real burn.
+  inCalibration?: boolean;
+  calibrationComplete?: boolean;
 }
 
 // Which phase the plan should be in this week.
 export function nextPhase(input: PhaseInput): Phase {
   const { weeksInDeficit, weeksInBreak, currentWeightKg, goalWeightKg } = input;
+
+  // Still learning the user's body — hold at maintenance and cut nothing yet.
+  if (input.inCalibration && !input.calibrationComplete) return "calibration";
 
   // Arrived. Stop dieting — an app that keeps cutting past the goal is not
   // coaching, and "what now" is the question most weight-loss plans never answer.
@@ -662,8 +760,9 @@ export function nextPhase(input: PhaseInput): Phase {
   return "deficit";
 }
 
-// The calorie target for a phase. Maintenance and a diet break both eat at
-// maintenance; the difference is intent and what happens next.
+// The calorie target for a phase. Only a deficit eats below maintenance;
+// calibration, a diet break and maintenance all eat AT it — the difference is
+// intent and what happens next.
 export function kcalForPhase(phase: Phase, maintenanceKcal: number, deficitKcal: number) {
   return phase === "deficit" ? maintenanceKcal - deficitKcal : maintenanceKcal;
 }
@@ -859,6 +958,20 @@ export interface WeeklyReviewInput {
   // Which phase the plan is in this week (see nextPhase). Defaults to a
   // deficit, which is what every caller meant before phases existed.
   phase?: Phase;
+  // The phase the CURRENT (in-force) target belongs to. Lets the review notice a
+  // transition — leaving calibration or a diet break — and open the deficit
+  // fresh from maintenance rather than nudging the maintenance target by a few
+  // per cent. Omitted = same as `phase` (no transition).
+  prevPhase?: Phase;
+  // The modest deficit to OPEN a cut with, in kcal/day (see openingDeficitKcal).
+  // Only used on the calibration→deficit / break→deficit transition; the ongoing
+  // review nudges by percentages instead.
+  deficitKcal?: number | null;
+  // A weight to build recomputed macros from when there's no trend yet (a
+  // just-onboarded calibrating user). Falls back to the trend weight when set.
+  weightKg?: number | null;
+  // Days left in the calibration hold, for the message. 0 = graduating now.
+  calibrationDaysRemaining?: number;
   // This user's maintenance calories, computed from their profile. Needed to
   // hold at maintenance without back-deriving it from the target in force,
   // which compounds every week.
@@ -890,8 +1003,79 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
     bodyFatPct,
     restingRateKcal,
     phase = "deficit",
+    prevPhase,
+    deficitKcal,
+    weightKg,
+    calibrationDaysRemaining,
     maintenanceKcal,
   } = input;
+
+  // A weight to build recomputed macros from: the trend when we have one, else
+  // the fallback the caller passed (a just-onboarded user with no trend yet).
+  const macroWeightKg = trend?.nowKg ?? weightKg ?? null;
+  const maint =
+    maintenanceKcal != null && maintenanceKcal > 0
+      ? Math.round(maintenanceKcal)
+      : null;
+
+  // Calibration: the user's first ~2 weeks eating at estimated maintenance so
+  // the app can learn their real burn from the scale before ever cutting. Hold
+  // the maintenance target and frame it honestly — we're measuring, not judging
+  // a loss that isn't meant to happen yet. This runs before every other gate:
+  // there's nothing to review, because nothing is being adjusted.
+  if (phase === "calibration") {
+    const target = maint ?? current.kcal;
+    const atMaintenance = current.kcal >= target - 20;
+    const daysLeft = calibrationDaysRemaining ?? 0;
+    return {
+      macros:
+        atMaintenance || macroWeightKg == null
+          ? current
+          : macrosForKcal(target, macroWeightKg, diet, heightCm, goalWeightKg),
+      changed: !atMaintenance && macroWeightKg != null,
+      changeKg: trend?.changeKg ?? null,
+      changePct: trend?.changePct ?? null,
+      headline: "Learning your body",
+      detail:
+        daysLeft > 0
+          ? `For your first couple of weeks we eat at your estimated maintenance — about ${target} kcal — so I can see how your body really responds before we cut anything. Around ${daysLeft} day${
+              daysLeft === 1 ? "" : "s"
+            } to go. Log your food and weight daily; I'm measuring, not judging.`
+          : `We're wrapping up your calibration at about ${target} kcal. Keep logging your food and weight and I'll set your deficit from what your body actually does, not a formula's guess.`,
+    };
+  }
+
+  // Leaving calibration (or a diet break) for the deficit: open the cut fresh
+  // from maintenance at a modest, sustainable rate — do NOT nudge the
+  // maintenance target down by a few per cent, which would barely be a deficit.
+  // Only fires when the caller supplies both a maintenance figure and an opening
+  // deficit, so ordinary weekly reviews are untouched.
+  if (
+    phase === "deficit" &&
+    prevPhase != null &&
+    prevPhase !== "deficit" &&
+    maint != null &&
+    deficitKcal != null &&
+    deficitKcal > 0 &&
+    macroWeightKg != null
+  ) {
+    const floorK = kcalFloor(sex, restingRateKcal);
+    const target = Math.max(Math.round(maint - deficitKcal), floorK);
+    const cut = maint - target;
+    const fromCalibration = prevPhase === "calibration";
+    return {
+      macros: macrosForKcal(target, macroWeightKg, diet, heightCm, goalWeightKg),
+      changed: true,
+      changeKg: trend?.changeKg ?? null,
+      changePct: trend?.changePct ?? null,
+      headline: fromCalibration
+        ? "Calibration done — starting your cut"
+        : "Break's over — back to your cut",
+      detail: fromCalibration
+        ? `I've learned what you actually burn: about ${maint} kcal a day. Now we start a gentle ${cut} kcal/day deficit — a sustainable pace, not a crash. Your new target is ${target} kcal. I'll keep correcting it from your real results.`
+        : `Back to it. I've set a modest ${cut} kcal/day deficit from your maintenance of about ${maint} kcal — target ${target} kcal.`,
+    };
+  }
 
   // Not enough history yet — hold and ask for another week. trendChange returns
   // null rather than a rate it can't support, which keeps the coach from
