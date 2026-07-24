@@ -4,9 +4,11 @@ import DayPlan from "./DayPlan";
 import DayJump from "./DayJump";
 import BuildDayCard from "./BuildDayCard";
 import HighDayToggle from "./HighDayToggle";
+import AlcoholLogger from "./AlcoholLogger";
 import { createClient } from "@/lib/supabase/server";
 import {
   getProfile,
+  getConsumedForDate,
   getHighDayStatus,
   getPlanForDate,
   getTimezone,
@@ -44,10 +46,11 @@ export default async function PlanDayPage({
   const date = dateParam && DATE_RE.test(dateParam) ? dateParam : today;
 
   const supabase = await createClient();
-  const [profile, highDay, plan, { data: favData }] = await Promise.all([
+  const [profile, highDay, plan, consumed, { data: favData }] = await Promise.all([
     getProfile(),
     getHighDayStatus(date),
     getPlanForDate(date),
+    getConsumedForDate(date),
     supabase
       .from("favourite_meals")
       .select("id, name, items, kcal, protein_g, carbs_g, fat_g")
@@ -57,6 +60,10 @@ export default async function PlanDayPage({
   // The ring and the plan compare against THIS day's target — the high or low
   // day when cycling is on, the flat base when it's off.
   const target = highDay.target;
+  // Macros left today, so the drink logger can default its carbs-vs-fat booking
+  // to whichever the user has more room in.
+  const carbsLeft = target ? target.carbs_g - consumed.carbs_g : null;
+  const fatLeft = target ? target.fat_g - consumed.fat_g : null;
 
   const prev = addDaysISO(date, -1);
   const next = addDaysISO(date, 1);
@@ -126,6 +133,13 @@ export default async function PlanDayPage({
           mode={anyUnbuilt ? "build" : "rebalance"}
         />
       )}
+
+      <AlcoholLogger
+        date={date === today ? undefined : date}
+        carbsLeft={carbsLeft}
+        fatLeft={fatLeft}
+        lastAllocation={profile?.last_alcohol_allocation ?? null}
+      />
 
       <DayPlan
         slots={slots}
