@@ -8,8 +8,14 @@ vi.mock("@/lib/supabase/server", async () => {
 });
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
-const { saveApiKey, clearApiKey, saveGoals, saveMealSlots, saveNutrientPrefs } =
-  await import("@/app/(app)/me/actions");
+const {
+  saveApiKey,
+  clearApiKey,
+  saveGoals,
+  saveMealSlots,
+  saveNutrientPrefs,
+  saveCycling,
+} = await import("@/app/(app)/me/actions");
 
 const userRow = () => ({
   id: "user-1",
@@ -85,6 +91,28 @@ describe("saveNutrientPrefs", () => {
   it("refuses an empty selection", async () => {
     installFakeSupabase({ db: { users: [userRow()] } });
     await expect(saveNutrientPrefs(["nonsense"])).rejects.toThrow(/at least one/i);
+  });
+});
+
+describe("saveCycling", () => {
+  it("saves the master switch and a manual count clamped to the safe range", async () => {
+    const { db } = installFakeSupabase({ db: { users: [userRow()] } });
+
+    // 9 is above the safe max — it must be clamped, never stored raw.
+    await saveCycling({ enabled: true, highDaysPerWeek: 9 });
+
+    expect(db.users[0].cycling_enabled).toBe(true);
+    expect(db.users[0].high_days_per_week).toBe(4); // HIGH_DAYS_SAFE_MAX
+    // The carb amount is calculated, not stored, so nothing is written for it.
+    expect(db.users[0].high_day_surplus_g_carbs).toBeUndefined();
+  });
+
+  it("stores a null count to follow the goal-based recommendation", async () => {
+    const { db } = installFakeSupabase({ db: { users: [userRow()] } });
+
+    await saveCycling({ enabled: true, highDaysPerWeek: null });
+
+    expect(db.users[0].high_days_per_week).toBeNull();
   });
 });
 
