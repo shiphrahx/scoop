@@ -13,15 +13,17 @@ function StatCard({
   value,
   sub,
   tint,
+  href,
 }: {
   icon: typeof Scale;
   label: string;
   value: string;
   sub?: string;
   tint: string;
+  href?: string;
 }) {
-  return (
-    <div className="sc-card flex items-center gap-4 p-5">
+  const inner = (
+    <>
       <span
         className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-white"
         style={{ background: tint }}
@@ -35,8 +37,19 @@ function StatCard({
         <p className="text-2xl font-bold leading-tight tabular-nums">{value}</p>
         {sub && <p className="truncate text-xs text-[var(--muted)]">{sub}</p>}
       </div>
-    </div>
+    </>
   );
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="sc-card flex items-center gap-4 p-5 transition hover:brightness-95"
+      >
+        {inner}
+      </Link>
+    );
+  }
+  return <div className="sc-card flex items-center gap-4 p-5">{inner}</div>;
 }
 
 export default function DesktopDashboard({
@@ -140,6 +153,7 @@ export default function DesktopDashboard({
               : "Log your weight"
           }
           tint="var(--grad-primary)"
+          href="/progress"
         />
         <StatCard
           icon={Flame}
