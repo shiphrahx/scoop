@@ -8,13 +8,14 @@ import { planPickedDay, portionGrams, type PantryFood } from "@/lib/mealplan";
 import { macrosPer100gSchema, parseOrThrow, portionGramsSchema } from "@/lib/validate";
 import {
   getConsumedForDate,
-  getCurrentTargets,
+  getDayTarget,
+  getHighDayStatus,
   getPlanForDate,
   getProfile,
   getTimezone,
   localToday,
 } from "@/lib/queries";
-import { addDaysISO, dayRangeFor } from "@/lib/time";
+import { addDaysISO, dayRangeFor, weekStartOf } from "@/lib/time";
 import {
   sumItems,
   type DietType,
@@ -454,9 +455,12 @@ export async function buildMyDay(date?: string) {
   const { supabase, user } = await requireUser();
   const day = await resolveDate(date);
 
+  // The budget is THIS day's target, so a high day plans around its extra carbs
+  // and a low day around its smaller share — the weekly total stays fixed either
+  // way. With cycling off this is just the flat daily target.
   const [profile, targets, consumed, plan] = await Promise.all([
     getProfile(),
-    getCurrentTargets(),
+    getDayTarget(day),
     getConsumedForDate(day),
     getPlanForDate(day),
   ]);
@@ -624,6 +628,46 @@ export async function buildMyDay(date?: string) {
       .eq("user_id", user.id);
     if (error) throw new Error(error.message);
   }
+  revalidate();
+}
+
+// Mark (or unmark) a day as a "high day" — an intake day that carries the extra
+// carbs, paid back by the week's low days so the weekly total is unchanged (see
+// src/lib/highday.ts). Taking one consumes one of the week's allowance; the app
+// blocks going over. Idempotent both ways: taking a day that's already high, or
+// clearing one that isn't, is a no-op.
+export async function setHighDay(date: string | undefined, on: boolean) {
+  const { supabase, user } = await requireUser();
+  const day = await resolveDate(date);
+
+  if (!on) {
+    const { error } = await supabase
+      .from("high_days")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("date", day);
+    if (error) throw new Error(error.message);
+    revalidate();
+    return;
+  }
+
+  const status = await getHighDayStatus(day);
+  if (!status.enabled) {
+    throw new Error("Turn on high days in your settings first.");
+  }
+  if (status.isHigh) return; // already a high day
+  if (status.remaining <= 0) {
+    throw new Error(
+      `You've used all ${status.allowance} of this week's high days. This resets on Monday.`,
+    );
+  }
+
+  const { error } = await supabase.from("high_days").insert({
+    user_id: user.id,
+    date: day,
+    week_start: weekStartOf(day),
+  });
+  if (error) throw new Error(error.message);
   revalidate();
 }
 
