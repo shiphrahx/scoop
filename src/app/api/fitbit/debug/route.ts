@@ -14,8 +14,11 @@ import {
 // response for yesterday alongside what getDay parses out of it. This is what
 // tells us whether the connection, the endpoints, or the value nesting is the
 // problem when the dashboard charts come back empty.
-export async function GET() {
+export async function GET(request: Request) {
   const { supabase, user } = await requireUser();
+  // Which origin actually served this — so a stale localhost vs the Vercel
+  // deploy can't be confused when diagnosing.
+  const host = request.headers.get("host");
 
   const { data } = await supabase
     .from("fitbit_tokens")
@@ -66,6 +69,7 @@ export async function GET() {
   }));
 
   return NextResponse.json({
+    host,
     provider: activeProvider(),
     date,
     scope: tokens.scope,
