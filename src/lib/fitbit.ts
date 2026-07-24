@@ -13,7 +13,7 @@ import * as google from "@/lib/googlehealth";
 
 // Which provider the five public functions use. Defaults to legacy so anything
 // without the env var set (tests, an un-migrated deploy) keeps its old behaviour.
-function useGoogle(): boolean {
+function isGoogle(): boolean {
   return process.env.HEALTH_PROVIDER === "google";
 }
 
@@ -217,29 +217,29 @@ async function legacyProbeDay(
 
 // The URL we send the user to so they can grant access.
 export function authorizeUrl(origin: string, state: string): string {
-  return useGoogle()
+  return isGoogle()
     ? google.authorizeUrl(origin, state)
     : legacyAuthorizeUrl(origin, state);
 }
 
 // Trade the one-time code from the callback for tokens.
 export async function exchangeCode(code: string, origin: string): Promise<FitbitTokens> {
-  return useGoogle() ? google.exchangeCode(code, origin) : legacyExchangeCode(code, origin);
+  return isGoogle() ? google.exchangeCode(code, origin) : legacyExchangeCode(code, origin);
 }
 
 // Get a fresh access token from a refresh token.
 export async function refreshTokens(refreshToken: string): Promise<FitbitTokens> {
-  return useGoogle() ? google.refreshTokens(refreshToken) : legacyRefreshTokens(refreshToken);
+  return isGoogle() ? google.refreshTokens(refreshToken) : legacyRefreshTokens(refreshToken);
 }
 
 // Pull one day's steps, active calories and sleep.
 export async function getDay(accessToken: string, date: string): Promise<FitbitDay> {
-  return useGoogle() ? google.getDay(accessToken, date) : legacyGetDay(accessToken, date);
+  return isGoogle() ? google.getDay(accessToken, date) : legacyGetDay(accessToken, date);
 }
 
 // Which provider is live, for diagnostics.
 export function activeProvider(): "google" | "legacy" {
-  return useGoogle() ? "google" : "legacy";
+  return isGoogle() ? "google" : "legacy";
 }
 
 // Raw per-endpoint responses for one day — diagnostics only.
@@ -247,5 +247,5 @@ export async function probeDay(
   accessToken: string,
   date: string,
 ): Promise<Record<string, { status: number; ok: boolean; body: unknown }>> {
-  return useGoogle() ? google.probeDay(accessToken, date) : legacyProbeDay(accessToken, date);
+  return isGoogle() ? google.probeDay(accessToken, date) : legacyProbeDay(accessToken, date);
 }
