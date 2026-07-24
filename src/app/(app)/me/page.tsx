@@ -1,10 +1,12 @@
 import { User } from "lucide-react";
 import ApiKeySettings from "./ApiKeySettings";
+import CyclingSettings from "./CyclingSettings";
 import GoalsSettings from "./GoalsSettings";
 import MealSlotsSettings from "./MealSlotsSettings";
 import NutrientSettings from "./NutrientSettings";
 import SlotWeightsSettings from "./SlotWeightsSettings";
 import { DEFAULT_MEAL_SLOTS } from "@/lib/types";
+import { recommendedHighDays } from "@/lib/highday";
 import SignOutButton from "@/components/SignOutButton";
 import {
   AppleIngest,
@@ -101,6 +103,14 @@ export default async function MePage({
             initial={profile.slot_weights}
           />
           <NutrientSettings initial={profile.nutrient_prefs ?? []} />
+          <CyclingSettings
+            initial={{
+              enabled: profile.cycling_enabled,
+              highDaysPerWeek: profile.high_days_per_week,
+              surplusCarbsG: profile.high_day_surplus_g_carbs,
+            }}
+            recommended={recommendedHighDays(profile.goal_pace)}
+          />
         </>
       )}
 
