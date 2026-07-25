@@ -11,6 +11,8 @@
 ![Vercel](https://img.shields.io/badge/Vercel-black?logo=vercel)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-green)
 
+**[→ scoop-pink-one.vercel.app](https://scoop-pink-one.vercel.app)**
+
 <img src="hero.png" alt="Scoop" width="720" />
 
 </div>
@@ -42,17 +44,24 @@ Phone-first. Big buttons. Almost no typing.
 - **Batch cooking** — log packs + cooked weight; it tracks per-gram macros and
   the leftover.
 - **Pantry** — knows the food you have, filled by barcode and receipt scans.
-- **Plan a meal** — pick a carb, pick a protein from pictures; it suggests dishes
-  from your pantry.
+  Counts things you eat by the piece (bagels, portions), not just by grams, and
+  swaps in cooked weights for staples automatically.
+- **Fresh food, no packet** — banana, apple and the like carry known sizes and
+  macros, so a piece of fruit is one tap.
+- **Plan a meal** — pick per meal (a carb, a protein from pictures), then it
+  builds the day from your pantry to fit your diet and remaining macros.
 - **Import a recipe** — paste a URL or screenshot; AI reads it, scales it to your macros.
+- **High days** — the plan can cycle your carbs and hand you a bigger day when
+  the week's numbers earn it — a surplus it calculates, not one you guess.
+- **Log a drink** — alcohol counted properly from the ethanol, booked against
+  carbs and fat, so a night out doesn't wreck the week.
 - **One-tap logging** — daily weight; weekly waist / arms / thighs / hips.
 - **The Coach** — weekly review of weight, measurements, activity, and food, then
   adjusts your macros and explains why in plain words.
-- **Auto body data** — pulls activity and sleep from Fitbit and Apple Watch.
+- **Auto body data** — pulls activity and sleep from Fitbit / Google Health and
+  Apple Watch.
 
 ## Built with
 
 Next.js · Tailwind · Supabase · Vercel · Anthropic API (bring your own key) ·
 Open Food Facts.
-
-See [`CLAUDE.md`](./CLAUDE.md) for the full plan and build phases.
