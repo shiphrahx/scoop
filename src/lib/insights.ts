@@ -919,4 +919,78 @@ export function weekScorecard(
   };
 }
 
+// --- 13. Actual vs target, week by week ----------------------------------------
+
+export interface MacroSet {
+  kcal: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+}
+
+export interface WeekCompare {
+  weekStart: string;
+  loggedDays: number;
+  actual: MacroSet; // the mean of the days that were logged
+  target: MacroSet;
+  delta: MacroSet; // actual − target; positive = ate more than planned
+}
+
+// What the user actually averaged each week against what they were asked to eat.
+//
+// Averaged over LOGGED days only. Counting an unlogged day as zero would show a
+// 900-calorie deficit that never happened and would make an under-logger look
+// like a saint — the opposite of useful.
+export function actualVsTarget(
+  intake: DayIntake[],
+  targets: WeekTarget[],
+): WeekCompare[] {
+  const targetByWeek = new Map(targets.map((t) => [t.week_start, t]));
+  const byWeek = new Map<string, DayIntake[]>();
+  for (const d of intake) {
+    if (d.kcal <= 0) continue;
+    const wk = weekStartOf(d.date);
+    const list = byWeek.get(wk) ?? [];
+    list.push(d);
+    byWeek.set(wk, list);
+  }
+
+  return [...byWeek.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .flatMap(([weekStart, days]) => {
+      const target = targetByWeek.get(weekStart);
+      if (!target) return [];
+
+      const meanOf = (pick: (d: DayIntake) => number) =>
+        Math.round(average(days.map(pick))!);
+      const actual: MacroSet = {
+        kcal: meanOf((d) => d.kcal),
+        protein_g: meanOf((d) => d.protein_g),
+        carbs_g: meanOf((d) => d.carbs_g),
+        fat_g: meanOf((d) => d.fat_g),
+      };
+      const rounded: MacroSet = {
+        kcal: Math.round(target.kcal),
+        protein_g: Math.round(target.protein_g),
+        carbs_g: Math.round(target.carbs_g),
+        fat_g: Math.round(target.fat_g),
+      };
+
+      return [
+        {
+          weekStart,
+          loggedDays: days.length,
+          actual,
+          target: rounded,
+          delta: {
+            kcal: actual.kcal - rounded.kcal,
+            protein_g: actual.protein_g - rounded.protein_g,
+            carbs_g: actual.carbs_g - rounded.carbs_g,
+            fat_g: actual.fat_g - rounded.fat_g,
+          },
+        },
+      ];
+    });
+}
+
 export { type WeighIn };
