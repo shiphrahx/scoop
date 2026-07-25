@@ -110,6 +110,20 @@ suite("row-level security", () => {
          values ('${id}', 'Chicken & rice', 600, 50, 40, 20)`,
     },
     {
+      table: "non_scale_victories",
+      owner: "user_id",
+      insert: (id) =>
+        `insert into non_scale_victories (user_id, text)
+         values ('${id}', 'Ran 5k without stopping')`,
+    },
+    {
+      table: "custom_milestones",
+      owner: "user_id",
+      insert: (id) =>
+        `insert into custom_milestones (user_id, label, target_weight_kg)
+         values ('${id}', 'Old jeans', 72)`,
+    },
+    {
       table: "activity",
       owner: "user_id",
       insert: (id) =>
