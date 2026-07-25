@@ -26,6 +26,7 @@ import {
   type TrendChange,
   type WeighIn,
 } from "@/lib/coach";
+import { weekStartOf } from "@/lib/time";
 import type { PhotoAngle, Sex } from "@/lib/types";
 
 const DAY_MS = 86_400_000;
@@ -502,6 +503,159 @@ export function photoPairs(
     pairs.push({ angle, start, latest, weeksApart: round(weeksApart, 0) });
   }
   return pairs;
+}
+
+// --- Weekly buckets (the spine of every driver card) --------------------------
+
+// One day's food, summed from the log.
+export interface DayIntake {
+  date: string;
+  kcal: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+}
+
+// One day of wearable data.
+export interface DayActivity {
+  date: string;
+  steps: number | null;
+  workout_kcal: number | null;
+  sleep_hours: number | null;
+}
+
+// One week's calorie/macro target, as it stood that week.
+export interface WeekTarget {
+  week_start: string;
+  kcal: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+}
+
+export interface InsightWeek {
+  weekStart: string; // the Monday
+  // Movement of the smoothed trend across the week. Negative = lost. Null on
+  // the first week (nothing to compare against) or a week with no weigh-ins.
+  weightChangeKg: number | null;
+  meanKcal: number | null;
+  meanProteinG: number | null;
+  loggedDays: number;
+  targetKcal: number | null;
+  // 100 = ate the target exactly every logged day, 0 = missed it by 100% or
+  // more. Null with no target or no logged days.
+  adherencePct: number | null;
+  meanSleepH: number | null;
+  meanSteps: number | null;
+  meanWorkoutKcal: number | null;
+  highDays: number;
+}
+
+export interface WeeklyInput {
+  weighIns: WeighIn[];
+  intake: DayIntake[];
+  activity: DayActivity[];
+  targets: WeekTarget[];
+  highDayDates: string[];
+}
+
+// Roll everything the app knows up into weeks, Monday to Sunday.
+//
+// Every driver card downstream is a comparison of one weekly column against
+// another, so they all read from this one builder. Doing it once means "week"
+// means the same thing on every card — and means a fix to how a week is
+// bucketed can't half-land.
+export function weeklyBuckets(input: WeeklyInput): InsightWeek[] {
+  const trend = trendSeries(
+    input.weighIns.filter((p) => Number.isFinite(p.kg) && p.kg > 0),
+  );
+
+  // Last trend value seen in each week — the week's closing weight.
+  const closing = new Map<string, number>();
+  for (const t of trend) closing.set(weekStartOf(t.date), t.kg);
+
+  const bucket = <T extends { date: string }>(rows: T[]) => {
+    const map = new Map<string, T[]>();
+    for (const r of rows) {
+      const wk = weekStartOf(r.date);
+      const list = map.get(wk) ?? [];
+      list.push(r);
+      map.set(wk, list);
+    }
+    return map;
+  };
+
+  const intakeByWeek = bucket(input.intake);
+  const activityByWeek = bucket(input.activity);
+  const targetByWeek = new Map(input.targets.map((t) => [t.week_start, t]));
+  const highByWeek = new Map<string, number>();
+  for (const d of input.highDayDates) {
+    const wk = weekStartOf(d);
+    highByWeek.set(wk, (highByWeek.get(wk) ?? 0) + 1);
+  }
+
+  const weeks = [
+    ...new Set([
+      ...closing.keys(),
+      ...intakeByWeek.keys(),
+      ...activityByWeek.keys(),
+      ...highByWeek.keys(),
+    ]),
+  ].sort();
+
+  // Carry the last known closing weight forward so a week with no weigh-ins
+  // doesn't make the NEXT week's change look like a fortnight of loss.
+  return weeks.map((weekStart, i) => {
+    const prevWeek = i > 0 ? weeks[i - 1] : null;
+    const here = closing.get(weekStart);
+    const there = prevWeek != null ? closing.get(prevWeek) : undefined;
+    const weightChangeKg =
+      here != null && there != null ? round(here - there, 2) : null;
+
+    const days = intakeByWeek.get(weekStart) ?? [];
+    const acts = activityByWeek.get(weekStart) ?? [];
+    const target = targetByWeek.get(weekStart) ?? null;
+
+    const meanKcal = average(days.map((d) => d.kcal));
+    const adherencePct =
+      target && target.kcal > 0 && days.length > 0
+        ? round(
+            average(
+              days.map((d) =>
+                Math.max(0, 100 - (Math.abs(d.kcal - target.kcal) / target.kcal) * 100),
+              ),
+            )!,
+            0,
+          )
+        : null;
+
+    const meanOf = (pick: (a: DayActivity) => number | null) => {
+      const vals = acts.map(pick).filter((v): v is number => v != null);
+      const m = average(vals);
+      return m == null ? null : m;
+    };
+
+    const sleep = meanOf((a) => a.sleep_hours);
+    const steps = meanOf((a) => a.steps);
+    const burn = meanOf((a) => a.workout_kcal);
+
+    return {
+      weekStart,
+      weightChangeKg,
+      meanKcal: meanKcal == null ? null : round(meanKcal, 0),
+      meanProteinG: (() => {
+        const m = average(days.map((d) => d.protein_g));
+        return m == null ? null : round(m, 0);
+      })(),
+      loggedDays: days.length,
+      targetKcal: target ? Math.round(target.kcal) : null,
+      adherencePct,
+      meanSleepH: sleep == null ? null : round(sleep, 1),
+      meanSteps: steps == null ? null : Math.round(steps),
+      meanWorkoutKcal: burn == null ? null : Math.round(burn),
+      highDays: highByWeek.get(weekStart) ?? 0,
+    };
+  });
 }
 
 export { type WeighIn };
