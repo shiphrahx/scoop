@@ -291,6 +291,46 @@ export interface Activity {
   source: ActivitySource;
 }
 
+// The five tape measurements a check-in captures, each optional (a user may
+// only measure some). Shared by the check-in row, its form, and the delta shown
+// against the previous check-in.
+export interface CheckInMeasurements {
+  chest_cm: number | null;
+  waist_cm: number | null;
+  arms_cm: number | null;
+  thighs_cm: number | null;
+  hips_cm: number | null;
+}
+
+// The angles a progress photo can be tagged with.
+export type PhotoAngle = "front" | "side" | "back" | "other";
+
+// One weekly check-in: measurements plus an optional weight and note. week_start
+// is the Monday of its week; there's one check-in per user per week. Feeds the
+// Progress dashboard and the Coach's waist-vs-scale read.
+export interface CheckIn extends CheckInMeasurements {
+  id: string;
+  week_start: string;
+  date: string;
+  weight_kg: number | null;
+  note: string | null;
+  created_at: string;
+}
+
+// One progress photo attached to a check-in. storage_path points at a file in
+// the private `check-in-photos` bucket; the app mints a short-lived signed URL
+// to show it (never a public link).
+export interface CheckInPhoto {
+  id: string;
+  check_in_id: string;
+  storage_path: string;
+  angle: PhotoAngle;
+  created_at: string;
+  // A freshly-minted signed URL to display the file, when the query asked for
+  // one. Absent when only the row was read.
+  signed_url?: string;
+}
+
 // One ingredient in a suggested dish, with the exact amount to use. Macros are
 // what that portion contributes (optional — older stored plans only have grams).
 // The extras ride along too, so a meal's fibre/sugar/saturates/sodium survive
