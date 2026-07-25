@@ -33,12 +33,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { saveOnboarding, type OnboardingInput } from "./actions";
-import type {
-  ActivityLevel,
-  DietType,
-  GoalPace,
-  Sex,
-} from "@/lib/types";
+import type { ActivityLevel, DietType, GoalPace, Sex } from "@/lib/types";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -142,7 +137,8 @@ export default function OnboardingFlow() {
       sex: state.sex!,
       height_cm: Math.round(state.height_cm),
       weight_kg: Math.round(state.weight_kg * 10) / 10,
-      goal_weight_kg: Math.round((state.goal_weight_kg ?? defaultGoal) * 10) / 10,
+      goal_weight_kg:
+        Math.round((state.goal_weight_kg ?? defaultGoal) * 10) / 10,
       body_fat_pct: state.body_fat_pct ?? null,
       birth_year: CURRENT_YEAR - state.age,
       slot_weights: MEAL_SIZE_WEIGHTS[state.meal_size ?? "even"],
@@ -203,7 +199,7 @@ export default function OnboardingFlow() {
       {current === "allergies" && (
         <Chips
           title="Any allergies?"
-          hint="Tap all that apply — or none. Add your own if it's missing."
+          hint="Tap all that apply — or none. Add your own if yours is missing."
           options={ALLERGENS}
           selected={state.allergies}
           customPlaceholder="e.g. Kiwi"
@@ -217,7 +213,7 @@ export default function OnboardingFlow() {
       {current === "dislikes" && (
         <Chips
           title="Anything you hate?"
-          hint="We'll never suggest these. Add your own if it's missing."
+          hint="We'll never suggest these. Add your own if yours is missing."
           options={DISLIKES}
           selected={state.dislikes}
           customPlaceholder="e.g. Beetroot"
@@ -231,7 +227,7 @@ export default function OnboardingFlow() {
       {current === "activity" && (
         <Choice
           title="How active are you?"
-          hint="Think about a normal week, exercise plus your job."
+          hint="Think about a normal week — exercise plus your job."
           options={[
             {
               value: "sedentary",
@@ -432,16 +428,28 @@ export default function OnboardingFlow() {
 // First thing a brand-new user sees — a plain-words pitch, then one button in.
 function Welcome({ onStart }: { onStart: () => void }) {
   const points: { icon: LucideIcon; text: string }[] = [
-    { icon: Utensils, text: "We tell you the portion to eat — no food searching." },
-    { icon: ScanBarcode, text: "Scan a barcode or a grocery photo to log in a tap." },
-    { icon: Sparkles, text: "A coach adjusts your targets from your real results." },
+    {
+      icon: Utensils,
+      text: "We tell you the portion to eat — no searching for food.",
+    },
+    {
+      icon: ScanBarcode,
+      text: "Scan a barcode or a grocery photo to log it in one tap.",
+    },
+    {
+      icon: Sparkles,
+      text: "A coach adjusts your targets based on your real results.",
+    },
   ];
   return (
     <section className="flex flex-1 flex-col">
       <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
         <span
           className="grid h-24 w-24 place-items-center rounded-[2rem] text-white"
-          style={{ background: "var(--grad-primary)", boxShadow: "var(--shadow-glow)" }}
+          style={{
+            background: "var(--grad-primary)",
+            boxShadow: "var(--shadow-glow)",
+          }}
           aria-hidden
         >
           <span className="text-6xl font-bold">S</span>
@@ -457,7 +465,10 @@ function Welcome({ onStart }: { onStart: () => void }) {
               <li key={p.text} className="sc-card flex items-center gap-3 p-4">
                 <span
                   className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
-                  style={{ background: "var(--tint-teal)", color: "var(--ink-teal)" }}
+                  style={{
+                    background: "var(--tint-teal)",
+                    color: "var(--ink-teal)",
+                  }}
                 >
                   <Icon size={20} />
                 </span>
@@ -490,9 +501,7 @@ function Choice({
   return (
     <section className="flex flex-1 flex-col">
       <h1 className="text-2xl font-semibold">{title}</h1>
-      {hint && (
-        <p className="mb-6 mt-1 text-sm text-[var(--muted)]">{hint}</p>
-      )}
+      {hint && <p className="mb-6 mt-1 text-sm text-[var(--muted)]">{hint}</p>}
       <div className={`flex flex-col gap-3 ${hint ? "" : "mt-6"}`}>
         {options.map((o) => {
           const Icon = o.icon;
@@ -502,7 +511,9 @@ function Choice({
               key={o.value}
               onClick={() => onPick(o.value)}
               className={`flex items-center gap-4 rounded-2xl border px-5 py-4 text-left transition active:scale-95 ${
-                active ? "border-transparent" : "border-[var(--border)] bg-white/40"
+                active
+                  ? "border-transparent"
+                  : "border-[var(--border)] bg-white/40"
               }`}
               style={active ? { background: "var(--tint-teal)" } : undefined}
             >
@@ -564,7 +575,12 @@ function Chips({
 
       <div className="flex flex-wrap gap-2">
         {options.map((o) => (
-          <Chip key={o} label={o} on={selected.includes(o)} onClick={() => onToggle(o)} />
+          <Chip
+            key={o}
+            label={o}
+            on={selected.includes(o)}
+            onClick={() => onToggle(o)}
+          />
         ))}
         {extras.map((o) => (
           <Chip key={o} label={o} on removable onClick={() => onToggle(o)} />
@@ -613,7 +629,11 @@ function Chip({
   onClick: () => void;
 }) {
   return (
-    <button onClick={onClick} data-active={on} className="sc-chip active:scale-95">
+    <button
+      onClick={onClick}
+      data-active={on}
+      className="sc-chip active:scale-95"
+    >
       {label}
       {removable && <X size={14} />}
     </button>
@@ -667,7 +687,11 @@ function Stepper({
         className="mt-8 w-full accent-[var(--g-teal)]"
       />
       <div className="mt-auto pt-8">
-        <NextButton onClick={onNext} label={nextLabel} disabled={nextDisabled} />
+        <NextButton
+          onClick={onNext}
+          label={nextLabel}
+          disabled={nextDisabled}
+        />
       </div>
     </section>
   );
@@ -736,13 +760,23 @@ function MeasureStepper({
 
   return (
     <section className="flex flex-1 flex-col">
-      <h1 className={`text-2xl font-semibold ${hint ? "" : "mb-6"}`}>{title}</h1>
+      <h1 className={`text-2xl font-semibold ${hint ? "" : "mb-6"}`}>
+        {title}
+      </h1>
       {hint && <p className="mb-6 mt-1 text-sm text-[var(--muted)]">{hint}</p>}
 
       {/* unit toggle */}
       <div className="mx-auto mb-8 flex rounded-full bg-[var(--fill)] p-1">
-        <UnitTab on={!imperial} label={metricLabel} onClick={() => setImperial(false)} />
-        <UnitTab on={imperial} label={imperialLabel} onClick={() => setImperial(true)} />
+        <UnitTab
+          on={!imperial}
+          label={metricLabel}
+          onClick={() => setImperial(false)}
+        />
+        <UnitTab
+          on={imperial}
+          label={imperialLabel}
+          onClick={() => setImperial(true)}
+        />
       </div>
 
       <StepperRow
@@ -843,7 +877,7 @@ function BodyFatStep({
   const clamp = (v: number) => Math.min(60, Math.max(3, v));
   return (
     <section className="flex flex-1 flex-col">
-      <h1 className="text-2xl font-semibold">Body-fat %? (optional)</h1>
+      <h1 className="text-2xl font-semibold">Body-fat % (optional)</h1>
       <p className="mb-6 mt-1 text-sm text-[var(--muted)]">
         Not required — skip and we&apos;ll estimate it from your height and
         weight. If you know it (smart scale, calipers, DEXA), telling us makes
@@ -906,18 +940,23 @@ function CalibrationStep({
       <div className="mb-6 flex justify-center">
         <span
           className="grid h-16 w-16 place-items-center rounded-2xl text-white"
-          style={{ background: "var(--grad-primary)", boxShadow: "var(--shadow-glow)" }}
+          style={{
+            background: "var(--grad-primary)",
+            boxShadow: "var(--shadow-glow)",
+          }}
           aria-hidden
         >
           <Telescope size={28} />
         </span>
       </div>
-      <h1 className="text-2xl font-semibold">Let&apos;s learn your body first</h1>
+      <h1 className="text-2xl font-semibold">
+        Let&apos;s learn about your body first
+      </h1>
       <p className="mb-6 mt-2 text-[var(--muted)]">
-        For your first couple of weeks you&apos;ll eat at maintenance while I
-        watch the scale and learn what you actually burn. Then I set a deficit
-        from real data — not a formula&apos;s guess. It&apos;s the difference
-        between a target that fits you and one that doesn&apos;t.
+        For your first couple of weeks you&apos;ll eat at maintenance while we
+        watch the scale and work out what you actually burn. Then we set a
+        deficit from real data — not from a formula&apos;s guess. It&apos;s the
+        difference between a target that fits you and one that doesn&apos;t.
       </p>
 
       <div className="mt-auto flex flex-col gap-3 pt-8">
