@@ -82,7 +82,11 @@ Routes (`src/app/`):
 - [x] `(app)/plan/recipe/` — import (link keyless / screenshot gated), saved recipes
 - [x] `(app)/pantry/` — list/edit, barcode, list import, invoice import, screenshot (gated), matcher
 - [x] `(app)/batches/`
-- [x] `(app)/progress/` — weight + measurements, charts
+- [x] `(app)/progress/` — daily weight logger, "check in for this week" card,
+      interactive trends dashboard (range toggle, chart tooltips), weigh-in and
+      check-in history (empty: dashed cards; connect placeholder for sleep/exercise)
+- [x] `(app)/progress/check-in/` — weekly check-in form, deltas vs last week,
+      optional private photos
 - [x] `(app)/coach/` — weekly review, activity list (empty: connect devices)
 - [x] `(app)/me/` — goals, devices (Fitbit/Apple), API key
 
