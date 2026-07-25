@@ -79,6 +79,45 @@ export default function CheckInForm({
           <span className="font-semibold">Check-in saved for this week</span>
         </div>
 
+        {result.deltas.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
+              Since your last check-in
+            </h3>
+            <ul className="flex flex-col divide-y divide-[var(--border)] rounded-2xl bg-[var(--fill-soft)] p-1">
+              {result.deltas.map((d) => {
+                const down = d.delta < 0;
+                const flat = d.delta === 0;
+                return (
+                  <li
+                    key={d.key}
+                    className="flex items-center justify-between px-3 py-2 text-sm"
+                  >
+                    <span className="text-[var(--muted)]">{d.label}</span>
+                    <span
+                      className="font-semibold tabular-nums"
+                      style={{
+                        color: flat
+                          ? "var(--muted)"
+                          : down
+                            ? "var(--ink-green)"
+                            : "var(--accent)",
+                      }}
+                    >
+                      {d.delta > 0 ? "+" : ""}
+                      {d.delta} {d.unit}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--muted)]">
+            This is your first check-in — next week you&apos;ll see how things moved.
+          </p>
+        )}
+
         <Link href="/progress" className="sc-btn sc-btn-primary w-full py-4 text-lg">
           Back to Progress <ArrowRight size={18} />
         </Link>
