@@ -10,7 +10,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ChevronDown, Watch, X } from "lucide-react";
+import { ChevronDown, Lock, Maximize2, Watch, X } from "lucide-react";
 
 // A card's detail, opened over the dashboard rather than inline.
 //
@@ -120,6 +120,143 @@ export function InsightCard({
       </div>
       {children}
     </div>
+  );
+}
+
+// A card at dashboard size: a headline the eye can read at a glance, with the
+// full detail one tap away in a drawer. Two of these fit across a phone.
+export function CompactCard({
+  icon,
+  title,
+  detail,
+  bodyInteractive = false,
+  wide = false,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  // The full-size version of this insight. Without one the card is just a card.
+  detail?: React.ReactNode;
+  // Set when the compact body has its own controls: a button inside a button is
+  // invalid markup and swallows the inner tap, so only the header opens.
+  bodyInteractive?: boolean;
+  wide?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const head = (
+    <span className="flex w-full items-center gap-2 text-left">
+      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[var(--fill)] text-[var(--muted)]">
+        {icon}
+      </span>
+      <span className="text-xs font-semibold leading-tight text-[var(--foreground)]">
+        {title}
+      </span>
+      {detail ? (
+        <Maximize2 size={14} className="ml-auto shrink-0 text-[var(--muted)]" />
+      ) : null}
+    </span>
+  );
+
+  return (
+    <div className={`sc-card flex flex-col gap-3 p-4 ${wide ? "col-span-2" : ""}`}>
+      {detail && !bodyInteractive ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-haspopup="dialog"
+          className="flex flex-col gap-3 text-left active:scale-[0.99]"
+        >
+          {head}
+          <span className="flex flex-col gap-2">{children}</span>
+        </button>
+      ) : (
+        <>
+          {detail ? (
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              aria-haspopup="dialog"
+              className="active:scale-[0.99]"
+            >
+              {head}
+            </button>
+          ) : (
+            head
+          )}
+          <div className="flex flex-col gap-2">{children}</div>
+        </>
+      )}
+      {detail ? (
+        <Drawer open={open} onClose={() => setOpen(false)} title={title}>
+          {detail}
+        </Drawer>
+      ) : null}
+    </div>
+  );
+}
+
+// What an insight needs before it has anything to say. Collected rather than
+// rendered — see LockedLine.
+export interface LockedInsight {
+  title: string;
+  why: string;
+  // No wearable linked, so this one unlocks by connecting rather than by waiting.
+  connect?: boolean;
+}
+
+// The cards for this section, two across on a phone, plus the one line that
+// stands in for every card that isn't ready yet.
+export function InsightGrid({
+  locked = [],
+  children,
+}: {
+  locked?: LockedInsight[];
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">{children}</div>
+      {locked.length > 0 ? <LockedLine items={locked} /> : null}
+    </div>
+  );
+}
+
+// Every not-yet-available insight in this section, folded into one line.
+//
+// These used to be full-height dashed cards, which meant a user in their first
+// fortnight scrolled a screen of rectangles telling them to come back later. The
+// reasons still matter, so they're a tap away rather than gone.
+function LockedLine({ items }: { items: LockedInsight[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        className="flex items-center justify-center gap-1.5 py-1 text-xs text-[var(--muted)]"
+      >
+        <Lock size={12} />
+        {items.length} more insight{items.length === 1 ? "" : "s"} unlock as you log
+      </button>
+      <Drawer open={open} onClose={() => setOpen(false)} title="Not ready yet">
+        <ul className="flex flex-col gap-2">
+          {items.map((i) => (
+            <li key={i.title} className="rounded-2xl bg-[var(--fill-soft)] px-4 py-3">
+              <p className="text-sm font-semibold">{i.title}</p>
+              <p className="text-sm text-[var(--muted)]">{i.why}</p>
+              {i.connect ? (
+                <Link href="/me" className="sc-btn sc-btn-soft mt-2">
+                  <Watch size={16} /> Connect a device
+                </Link>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      </Drawer>
+    </>
   );
 }
 
