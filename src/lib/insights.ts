@@ -1052,4 +1052,106 @@ export function weekdayVsWeekend(intake: DayIntake[]): WeekdayWeekend | null {
   };
 }
 
+// --- 15. Milestones ---------------------------------------------------------------
+
+// A milestone the user added themselves, as stored.
+export interface CustomMilestone {
+  id: string;
+  label: string;
+  target_weight_kg: number | null;
+  reached_at: string | null;
+}
+
+export interface Milestone {
+  id: string;
+  label: string;
+  kind: "kg" | "custom";
+  targetWeightKg: number | null;
+  reached: boolean;
+  reachedOn: string | null; // the day the trend first crossed it
+}
+
+export interface MilestoneBoard {
+  reached: Milestone[]; // newest first
+  next: Milestone | null; // the one being worked towards
+  toNextKg: number | null;
+}
+
+// The day the smoothed trend first got to or below a weight. Uses the trend,
+// not a raw reading: a milestone should be crossed once and stay crossed, and a
+// single dehydrated morning shouldn't award one.
+function firstDayAtOrBelow(
+  trend: { date: string; kg: number }[],
+  kg: number,
+): string | null {
+  for (const t of trend) if (t.kg <= kg) return t.date;
+  return null;
+}
+
+// Every kilogram off, plus whatever the user added themselves.
+//
+// Kilo markers are generated from the START weight downwards rather than stored,
+// so they can't drift out of step with the weigh-ins, and they stop at the goal:
+// inventing markers below someone's target weight is not encouragement.
+export function milestones(
+  points: WeighIn[],
+  goalKg: number | null | undefined,
+  custom: CustomMilestone[] = [],
+): MilestoneBoard {
+  const trend = trendSeries(points.filter((p) => Number.isFinite(p.kg) && p.kg > 0));
+  if (trend.length === 0) return { reached: [], next: null, toNextKg: null };
+
+  const startKg = trend[0].kg;
+  const currentKg = trend[trend.length - 1].kg;
+  // Stop at the goal when there is one; otherwise a kilo past where they are.
+  const floorKg = goalKg != null && goalKg > 0 ? goalKg : currentKg - 1;
+
+  const all: Milestone[] = [];
+  for (let n = 1; startKg - n >= floorKg - 1; n++) {
+    const at = round(startKg - n, 1);
+    const reachedOn = firstDayAtOrBelow(trend, at);
+    all.push({
+      id: `kg-${n}`,
+      label: `${n} kg down`,
+      kind: "kg",
+      targetWeightKg: at,
+      reached: reachedOn != null,
+      reachedOn,
+    });
+  }
+
+  for (const c of custom) {
+    const auto =
+      c.target_weight_kg != null && c.target_weight_kg > 0
+        ? firstDayAtOrBelow(trend, c.target_weight_kg)
+        : null;
+    const reachedOn = c.reached_at ?? auto;
+    all.push({
+      id: c.id,
+      label: c.label,
+      kind: "custom",
+      targetWeightKg: c.target_weight_kg,
+      reached: reachedOn != null,
+      reachedOn,
+    });
+  }
+
+  const reached = all
+    .filter((m) => m.reached)
+    .sort((a, b) => (b.reachedOn ?? "").localeCompare(a.reachedOn ?? ""));
+
+  // The next one is the nearest unreached milestone that has a weight on it —
+  // a hand-ticked "fit my old jeans" has no distance to report.
+  const next =
+    all
+      .filter((m) => !m.reached && m.targetWeightKg != null)
+      .sort((a, b) => b.targetWeightKg! - a.targetWeightKg!)[0] ?? null;
+
+  return {
+    reached,
+    next,
+    toNextKg: next ? round(currentKg - next.targetWeightKg!, 1) : null,
+  };
+}
+
 export { type WeighIn };
