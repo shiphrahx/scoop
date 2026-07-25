@@ -1,4 +1,6 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/auth";
 import { decryptSecret } from "@/lib/crypto";
 import {
   TREND_WINDOW_DAYS,
@@ -63,11 +65,11 @@ import type {
 // The timezone the signed-in user lives in, falling back to UTC. Every day
 // boundary below is drawn with it: the server's clock is UTC, which is not the
 // user's day (see src/lib/time.ts).
-export async function getTimezone(): Promise<string> {
+// Cached per request: almost every read below draws a day boundary, and each
+// one used to re-fetch this. It cannot change while a request is in flight.
+export const getTimezone = cache(async function getTimezone(): Promise<string> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return DEFAULT_TIMEZONE;
 
   const { data } = await supabase
@@ -77,7 +79,7 @@ export async function getTimezone(): Promise<string> {
     .maybeSingle();
 
   return safeTimezone((data as { timezone: string | null } | null)?.timezone);
-}
+});
 
 // Today's date where the user is, as YYYY-MM-DD. Used for the planned_meals.date
 // column so a plan lines up with the calendar day they're actually living in.
@@ -87,11 +89,13 @@ export async function localToday(): Promise<string> {
 
 // Server-side reads. Each returns the current user's data (RLS enforces scope).
 
-export async function getProfile(): Promise<Profile | null> {
+// Cached per request. The dashboard alone asks for the profile three times
+// (the page, the layout's onboarding gate, and the coach data underneath it).
+// Nothing writes to the users row and then re-reads it inside one request, so
+// there is no staleness to trade for the round trips saved.
+export const getProfile = cache(async function getProfile(): Promise<Profile | null> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return null;
 
   const { data } = await supabase
@@ -101,7 +105,7 @@ export async function getProfile(): Promise<Profile | null> {
     .maybeSingle();
 
   return (data as Profile) ?? null;
-}
+});
 
 export async function getCurrentTargets(): Promise<DailyTargets | null> {
   const supabase = await createClient();
@@ -265,9 +269,7 @@ export async function hasTrackedToday(): Promise<boolean> {
 // the server — we only report whether one exists).
 export async function hasApiKey(): Promise<boolean> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return false;
 
   const { data } = await supabase
@@ -356,9 +358,7 @@ export async function getDailyIntake(
 
 export async function getCoachData(): Promise<CoachData> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionUser();
 
   const now = new Date();
   const tz = await getTimezone();
@@ -765,9 +765,7 @@ export async function getCheckInHistory(
 // exercise" placeholder instead of an empty chart when nothing feeds it.
 export async function getDeviceConnected(): Promise<boolean> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return false;
 
   const [fitbitRes, appleRes] = await Promise.all([
