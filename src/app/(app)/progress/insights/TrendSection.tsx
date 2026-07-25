@@ -10,6 +10,7 @@
 import { useMemo, useState } from "react";
 import { CalendarClock, Flag, Scale, TrendingDown } from "lucide-react";
 import { TrendDotsChart } from "@/components/Charts";
+import { addDaysISO } from "@/lib/time";
 import type { GoalProgress, GoalProjection, LossRate, TrendPoint } from "@/lib/insights";
 import { Hero, InsightCard, NeedsMoreData, Section, StatRow, fmt, signed } from "./ui";
 
@@ -53,11 +54,15 @@ const CONFIDENCE: Record<GoalProjection["confidence"], string> = {
 };
 
 export default function TrendSection({
+  today,
   trend,
   rate,
   projection,
   progress,
 }: {
+  // The user's local today, resolved on the server. The browser clock is not
+  // the user's day and must not decide what "last week" means.
+  today: string;
   trend: TrendPoint[];
   rate: LossRate | null;
   projection: GoalProjection | null;
@@ -67,14 +72,12 @@ export default function TrendSection({
 
   const shown = useMemo(() => {
     const days = RANGES.find((r) => r.key === range)!.days;
-    const cutoff = new Date(Date.now() - (days - 1) * 86_400_000)
-      .toISOString()
-      .slice(0, 10);
+    const cutoff = addDaysISO(today, -(days - 1));
     // The trend itself is always computed over the FULL history; the range only
     // decides how much of it is on screen. Recomputing it per range would give
     // the "week" view a line that starts from scratch every Monday.
     return trend.filter((p) => p.date >= cutoff);
-  }, [trend, range]);
+  }, [trend, range, today]);
 
   return (
     <Section title="Trend">
