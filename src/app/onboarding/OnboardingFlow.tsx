@@ -179,7 +179,7 @@ export default function OnboardingFlow() {
 
       {current === "diet" && (
         <Choice
-          title="How do you eat?"
+          title="How would you describe your diet?"
           options={[
             { value: "regular", label: "Everything", icon: Drumstick },
             { value: "vegetarian", label: "Vegetarian", icon: Salad },
@@ -212,7 +212,7 @@ export default function OnboardingFlow() {
 
       {current === "dislikes" && (
         <Chips
-          title="Anything you hate?"
+          title="Anything you'd rather avoid?"
           hint="We'll never suggest these. Add your own if yours is missing."
           options={DISLIKES}
           selected={state.dislikes}
@@ -270,7 +270,7 @@ export default function OnboardingFlow() {
 
       {current === "pace" && (
         <Choice
-          title="How fast do you want to lose?"
+          title="How fast do you want to lose weight?"
           hint="Slower is easier to stick to. You can change this later."
           options={[
             {
@@ -302,7 +302,7 @@ export default function OnboardingFlow() {
 
       {current === "mealsize" && (
         <Choice
-          title="How do you like your meals sized?"
+          title="How big do you like your meals?"
           hint="Used when we plan your day. You can fine-tune each meal later in settings."
           options={[
             {
