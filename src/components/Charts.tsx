@@ -13,6 +13,8 @@ import {
   LineChart,
   ReferenceLine,
   ResponsiveContainer,
+  Scatter,
+  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
@@ -424,6 +426,126 @@ export function WeightVsExercise({
         </BarChart>
       </ResponsiveContainer>
     </div>
+  );
+}
+
+// ── Weekly driver scatter ───────────────────────────────────────────
+// One dot per week: a habit on x, kilos lost on y, with the fitted line through
+// them. A scatter is the honest form here — it shows the spread the single
+// correlation number hides, which is the whole point of calling these patterns
+// rather than proof.
+export function DriverScatter({
+  points,
+  xLabel,
+  xUnit,
+  height = 200,
+}: {
+  points: { weekStart: string; x: number; y: number }[];
+  xLabel: string;
+  xUnit: string;
+  height?: number;
+}) {
+  if (points.length === 0) return <EmptyChart height={height} />;
+
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  const xMin = Math.min(...xs);
+  const xMax = Math.max(...xs);
+  const yMin = Math.min(...ys);
+  const yMax = Math.max(...ys);
+  const xPad = (xMax - xMin) * 0.1 || 1;
+  const yPad = (yMax - yMin) * 0.15 || 0.2;
+
+  // Least-squares line, drawn edge to edge so the eye has something to follow.
+  const n = points.length;
+  const xMean = xs.reduce((a, b) => a + b, 0) / n;
+  const yMean = ys.reduce((a, b) => a + b, 0) / n;
+  let num = 0;
+  let den = 0;
+  for (let i = 0; i < n; i++) {
+    num += (xs[i] - xMean) * (ys[i] - yMean);
+    den += (xs[i] - xMean) ** 2;
+  }
+  const slope = den === 0 ? 0 : num / den;
+  const at = (x: number) => yMean + slope * (x - xMean);
+  const fit: [{ x: number; y: number }, { x: number; y: number }] = [
+    { x: xMin, y: at(xMin) },
+    { x: xMax, y: at(xMax) },
+  ];
+
+  const fmtX = (v: number) =>
+    Math.abs(v) >= 1000 ? `${Math.round(v / 100) / 10}k` : `${Math.round(v * 10) / 10}`;
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <ScatterChart margin={{ top: 8, right: 12, left: -8, bottom: 16 }}>
+        <CartesianGrid stroke={C.grid} />
+        <XAxis
+          type="number"
+          dataKey="x"
+          name={xLabel}
+          domain={[xMin - xPad, xMax + xPad]}
+          tick={AXIS_TICK}
+          tickLine={false}
+          axisLine={false}
+          tickFormatter={fmtX}
+          label={{
+            value: `${xLabel} (${xUnit})`,
+            position: "insideBottom",
+            offset: -12,
+            fontSize: 11,
+            fill: C.muted,
+          }}
+        />
+        <YAxis
+          type="number"
+          dataKey="y"
+          name="kg lost"
+          domain={[yMin - yPad, yMax + yPad]}
+          tick={AXIS_TICK}
+          tickLine={false}
+          axisLine={false}
+          width={38}
+          tickFormatter={(v) => `${Math.round(v * 10) / 10}`}
+        />
+        {/* Zero is the line that matters: dots below it are weeks that gained. */}
+        <ReferenceLine y={0} stroke={C.axis} strokeOpacity={0.5} />
+        <ReferenceLine
+          segment={fit}
+          stroke={C.teal}
+          strokeWidth={2}
+          strokeDasharray="5 4"
+          ifOverflow="extendDomain"
+        />
+        <Tooltip
+          cursor={{ stroke: C.teal, strokeWidth: 1, strokeDasharray: "4 4" }}
+          content={({ active, payload }) => {
+            if (!active || !payload?.length) return null;
+            const p = payload[0].payload as { weekStart: string; x: number; y: number };
+            return (
+              <TooltipCard
+                title={`Week of ${shortDate(p.weekStart)}`}
+                rows={[
+                  { label: xLabel, value: `${fmtX(p.x)} ${xUnit}`, color: C.blue },
+                  {
+                    label: "Lost",
+                    value: `${(Math.round(p.y * 100) / 100).toFixed(2)} kg`,
+                    color: p.y >= 0 ? C.green : C.violet,
+                  },
+                ]}
+              />
+            );
+          }}
+        />
+        <Scatter
+          data={points}
+          fill={C.blue}
+          shape="circle"
+          isAnimationActive={false}
+          r={5}
+        />
+      </ScatterChart>
+    </ResponsiveContainer>
   );
 }
 
