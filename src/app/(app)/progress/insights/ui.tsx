@@ -155,8 +155,7 @@ export function CompactCard({
   );
 }
 
-// What an insight needs before it has anything to say. Collected rather than
-// rendered — see LockedLine.
+// An insight that hasn't got its data yet, and what would give it some.
 export interface LockedInsight {
   title: string;
   why: string;
@@ -164,8 +163,8 @@ export interface LockedInsight {
   connect?: boolean;
 }
 
-// The cards for this section, two across on a phone, plus the one line that
-// stands in for every card that isn't ready yet.
+// Everything in this section: the cards that have data first, then the ones that
+// don't, two across on a phone.
 export function InsightGrid({
   locked = [],
   children,
@@ -174,47 +173,39 @@ export function InsightGrid({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">{children}</div>
-      {locked.length > 0 ? <LockedLine items={locked} /> : null}
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+      {children}
+      {locked.map((i) => (
+        <LockedCard key={i.title} item={i} />
+      ))}
     </div>
   );
 }
 
-// Every not-yet-available insight in this section, folded into one line.
+// An insight the user hasn't earned yet, shown rather than hidden.
 //
-// These used to be full-height dashed cards, which meant a user in their first
-// fortnight scrolled a screen of rectangles telling them to come back later. The
-// reasons still matter, so they're a tap away rather than gone.
-function LockedLine({ items }: { items: LockedInsight[] }) {
-  const [open, setOpen] = useState(false);
+// Hiding these would hide the reason to log anything: someone who never sees
+// "sleep vs weight loss" has no idea that wearing the watch to bed would buy
+// them one. So it keeps its place in the grid at a card's size — quiet, dashed
+// and empty of numbers, so it can't be mistaken for a result.
+function LockedCard({ item }: { item: LockedInsight }) {
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-haspopup="dialog"
-        className="flex items-center justify-center gap-1.5 py-1 text-xs text-[var(--muted)]"
-      >
-        <Lock size={12} />
-        {items.length} more insight{items.length === 1 ? "" : "s"} unlock as you log
-      </button>
-      <Drawer open={open} onClose={() => setOpen(false)} title="Not ready yet">
-        <ul className="flex flex-col gap-2">
-          {items.map((i) => (
-            <li key={i.title} className="rounded-2xl bg-[var(--fill-soft)] px-4 py-3">
-              <p className="text-sm font-semibold">{i.title}</p>
-              <p className="text-sm text-[var(--muted)]">{i.why}</p>
-              {i.connect ? (
-                <Link href="/me" className="sc-btn sc-btn-soft mt-2">
-                  <Watch size={16} /> Connect a device
-                </Link>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      </Drawer>
-    </>
+    <div className="flex flex-col gap-2 rounded-[var(--radius)] border border-dashed border-[var(--border)] p-4">
+      <span className="flex w-full items-center gap-2">
+        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[var(--fill)] text-[var(--muted)]">
+          <Lock size={14} />
+        </span>
+        <span className="text-xs font-semibold leading-tight text-[var(--muted)]">
+          {item.title}
+        </span>
+      </span>
+      <span className="text-xs leading-snug text-[var(--muted)]">{item.why}</span>
+      {item.connect ? (
+        <Link href="/me" className="sc-btn sc-btn-soft mt-auto px-3 py-2 text-xs">
+          <Watch size={14} /> Connect
+        </Link>
+      ) : null}
+    </div>
   );
 }
 
