@@ -4,11 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Correlation, MilestoneBoard, WeekScorecard } from "@/lib/insights";
 
-// The Progress dashboard has to fit on a phone, and the rule that makes it fit
-// is: a card renders only when it has something to say. Everything else — the
-// four "needs more data" cards a new user would otherwise scroll past — is one
-// line. These tests hold that rule, and the tab/drawer plumbing that makes the
-// rest of the insights reachable without stacking them.
+// The Progress dashboard has to fit on a phone AND has to advertise itself: an
+// insight with no data yet still takes its place in the grid, naming what the
+// user would get for logging a bit more. Hiding those would hide the reason to
+// log anything. These tests hold that rule, and the tab/drawer plumbing that
+// keeps the rest reachable without stacking full-height cards.
 
 vi.mock("@/app/(app)/progress/actions", () => ({
   addMilestone: vi.fn(),
@@ -79,39 +79,32 @@ const overview = {
 };
 
 describe("progress dashboard — locked insights", () => {
-  it("renders no cards at all for a user with nothing yet, just one line", async () => {
+  it("still shows every insight to a user with no data, saying what it would tell them", () => {
     render(<DriversTab {...drivers} />);
 
-    // Not one of the four driver cards is on the page.
-    expect(screen.queryByText("Sleep and weight loss")).toBeNull();
-    expect(screen.queryByText("Movement and weight loss")).toBeNull();
-    expect(screen.queryByText("Sticking to the plan")).toBeNull();
-    expect(screen.queryByText("High days")).toBeNull();
+    // All four driver insights are on the page, none of them hidden for want of
+    // data — each one is a pitch for the logging that would fill it in.
+    expect(screen.getByText("Sleep and weight loss")).toBeTruthy();
+    expect(screen.getByText("Movement and weight loss")).toBeTruthy();
+    expect(screen.getByText("Sticking to the plan")).toBeTruthy();
+    expect(screen.getByText("High days")).toBeTruthy();
 
-    expect(
-      screen.getByRole("button", { name: /4 more insights unlock as you log/ }),
-    ).toBeTruthy();
+    expect(screen.getByText(/the weeks you sleep more are the weeks you lose more/i))
+      .toBeTruthy();
+    expect(screen.getByText(/four weeks of logging against a target/i)).toBeTruthy();
+    expect(screen.getByText(/turn calorie cycling on/i)).toBeTruthy();
   });
 
-  it("keeps every unlock reason a tap away, device link included", async () => {
-    const user = userEvent.setup();
+  it("offers the link on the insights a wearable would unlock", () => {
     render(<DriversTab {...drivers} />);
 
-    await user.click(
-      screen.getByRole("button", { name: /4 more insights unlock as you log/ }),
-    );
-
-    const sheet = screen.getByRole("dialog");
-    expect(within(sheet).getByText("Sleep and weight loss")).toBeTruthy();
-    expect(within(sheet).getByText(/four weeks of food logging/i)).toBeTruthy();
-    expect(within(sheet).getByText(/calorie cycling is off/i)).toBeTruthy();
-    // A wearable insight never unlocks by waiting, so it offers the link.
-    expect(within(sheet).getAllByRole("link", { name: /connect a device/i }).length).toBe(
-      2,
-    );
+    // Sleep and movement never fill in by waiting, so they route to /me.
+    const links = screen.getAllByRole("link", { name: /connect/i });
+    expect(links.length).toBe(2);
+    expect(links.every((l) => l.getAttribute("href") === "/me")).toBe(true);
   });
 
-  it("renders a card once it has data and counts down the locked line", () => {
+  it("swaps the locked tile for a real card once the data is there", () => {
     render(
       <DriversTab
         {...drivers}
@@ -121,13 +114,15 @@ describe("progress dashboard — locked insights", () => {
       />,
     );
 
-    expect(screen.getByText("Sleep and weight loss")).toBeTruthy();
     // The contrast, not the coefficient — best weeks against worst.
     expect(screen.getByText("7.8")).toBeTruthy();
     expect(screen.getByText(/6.4 h on your worst/)).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: /3 more insights unlock as you log/ }),
-    ).toBeTruthy();
+    // And the sleep card is no longer pitching itself.
+    expect(screen.queryByText(/the weeks you sleep more are the weeks you lose more/i))
+      .toBeNull();
+    // The three that still have no data keep their place.
+    expect(screen.getByText("Movement and weight loss")).toBeTruthy();
+    expect(screen.getByText("High days")).toBeTruthy();
   });
 });
 
@@ -152,9 +147,13 @@ describe("progress dashboard — KPI row", () => {
     expect(screen.getByText("Now")).toBeTruthy();
     expect(screen.getByText("84.2")).toBeTruthy();
     expect(screen.getByText("To goal")).toBeTruthy();
-    // No rate and no projection yet, so neither tile takes up space.
+    // No rate and no projection yet, so no tile pretends to have one — but the
+    // insight itself is still on the page as a locked card, with its pitch.
     expect(screen.queryByText("Per week")).toBeNull();
-    expect(screen.queryByText("Goal date")).toBeNull();
+    expect(screen.getByText("Rate of loss")).toBeTruthy();
+    expect(screen.getByText(/how fast you're losing/i)).toBeTruthy();
+    expect(screen.getByText("Goal date")).toBeTruthy();
+    expect(screen.getByText(/on course to hit your goal/i)).toBeTruthy();
   });
 
   it("keeps the detail behind the tile until it's asked for", async () => {
