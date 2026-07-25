@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
-  ScanLine,
+  Watch,
   Sparkles,
   ChefHat,
   LineChart,
@@ -293,12 +293,15 @@ export default async function LandingPage() {
 
         {/* ---------- Features ---------- */}
         <section className="mx-auto w-full max-w-6xl px-6 py-16">
-          <div className="grid gap-6 md:grid-cols-2">
+          <h2 className="text-center text-3xl font-semibold tracking-tight sm:text-4xl">
+            What it does while you get on with your day
+          </h2>
+          <div className="mt-12 grid gap-6 md:grid-cols-2">
             {[
               {
-                icon: ScanLine,
-                title: "Scan, don't type",
-                body: "Barcodes via your camera, labels and receipts read by AI. Your usual meals live one tap away.",
+                icon: Watch,
+                title: "Your watch does the counting",
+                body: "Connect a Fitbit or Google-Health wearable, or send Apple Watch data across. Steps, workouts and sleep feed straight into today's target.",
               },
               {
                 icon: Sparkles,
