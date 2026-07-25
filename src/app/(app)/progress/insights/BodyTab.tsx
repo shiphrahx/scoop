@@ -7,9 +7,9 @@
 // this tab is where a stalled week stops looking like failure.
 
 import { useMemo, useState } from "react";
-import { Camera, ClipboardList, Ruler, Sparkles, Target } from "lucide-react";
+import { Camera, ClipboardList, Ruler, Target } from "lucide-react";
 import { MeasurementsChart } from "@/components/Charts";
-import type { FatLossSignal, PhotoPair, WaistToHeight } from "@/lib/insights";
+import type { PhotoPair, WaistToHeight } from "@/lib/insights";
 import type { CheckIn, CheckInPhoto } from "@/lib/types";
 import CheckInHistory from "../CheckInHistory";
 import PhotoCompare from "./PhotoCompare";
@@ -72,13 +72,11 @@ const BAND: Record<WaistToHeight["band"], { label: string; note: string; tone: "
 };
 
 export default function BodyTab({
-  fatLoss,
   whtr,
   measurements,
   pairs,
   checkIns,
 }: {
-  fatLoss: FatLossSignal | null;
   whtr: WaistToHeight | null;
   measurements: MeasurementRow[];
   pairs: PhotoPair[];
@@ -117,23 +115,6 @@ export default function BodyTab({
 
   return (
     <InsightGrid locked={locked}>
-      {/* The callout only appears when it's earned — a permanent "you might be
-          losing fat!" panel would mean nothing the week it's actually true. */}
-      {fatLoss?.detected ? (
-        <div className="sc-grad-panel col-span-2 flex flex-col gap-2 p-4 lg:col-span-3">
-          <div className="flex items-center gap-2">
-            <Sparkles size={18} />
-            <span className="font-semibold">You&apos;re losing fat</span>
-          </div>
-          <p className="text-sm">
-            Over the last {fatLoss.windowDays} days the scale moved{" "}
-            {signed(fatLoss.weightDeltaKg)} kg, but your waist is down{" "}
-            {fmt(Math.abs(fatLoss.waistDeltaCm))} cm. That&apos;s fat leaving while water
-            and muscle hold the number up. Keep going.
-          </p>
-        </div>
-      ) : null}
-
       {whtr != null ? (
         <CompactCard
           icon={<Target size={16} />}

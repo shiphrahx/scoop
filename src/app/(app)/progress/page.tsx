@@ -1,11 +1,10 @@
 import WeightLogger from "./WeightLogger";
-import WeightHistory from "./WeightHistory";
 import CheckInCard from "./CheckInCard";
-import TrendSection from "./insights/TrendSection";
+import OverviewTab from "./insights/OverviewTab";
 import BodyTab from "./insights/BodyTab";
 import DriversTab from "./insights/DriversTab";
 import AdherenceSection from "./insights/AdherenceTab";
-import MotivationSection from "./insights/MotivationSection";
+import VictoriesCard from "./insights/VictoriesCard";
 import { getCurrentCheckIn, getInsightsData } from "@/lib/queries";
 import {
   actualVsTarget,
@@ -91,16 +90,21 @@ export default async function ProgressPage() {
         />
       </section>
 
-      <TrendSection
+      <OverviewTab
         today={today}
         trend={trendLine(weighIns)}
         rate={profile ? lossRate(weighIns, profile.sex, profile.body_fat_pct) : null}
         projection={projectGoalDate(weighIns, profile?.goal_weight_kg)}
         progress={goalProgress(weighIns, profile?.goal_weight_kg)}
+        weights={data.weights}
+        fatLoss={fatLossSignal(weighIns, tape)}
+        plateau={plateau(weighIns)}
+        scorecard={weekScorecard(data.intake, currentTarget, today)}
+        hasTarget={data.targets.length > 0}
+        board={milestones(weighIns, profile?.goal_weight_kg, data.customMilestones)}
       />
 
       <BodyTab
-        fatLoss={fatLossSignal(weighIns, tape)}
         whtr={waistToHeight(latestWaist, profile?.height_cm)}
         measurements={tape}
         pairs={photoPairs(
@@ -134,19 +138,7 @@ export default async function ProgressPage() {
         hasTarget={data.targets.length > 0}
       />
 
-      <MotivationSection
-        board={milestones(weighIns, profile?.goal_weight_kg, data.customMilestones)}
-        plateau={plateau(weighIns)}
-        victories={data.victories}
-        today={today}
-      />
-
-      <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
-          All weigh-ins
-        </h2>
-        <WeightHistory weights={data.weights} />
-      </section>
+      <VictoriesCard victories={data.victories} today={today} />
     </main>
   );
 }
