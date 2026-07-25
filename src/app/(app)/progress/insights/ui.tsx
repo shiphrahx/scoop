@@ -28,9 +28,6 @@ export function Drawer({
   title: string;
   children: React.ReactNode;
 }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -47,7 +44,10 @@ export function Drawer({
     };
   }, [open, onClose]);
 
-  if (!mounted || !open) return null;
+  // Every trigger starts closed, so the server and the first client render agree
+  // on null and there's nothing to hydrate — by the time this is open there is a
+  // document to portal into.
+  if (!open || typeof document === "undefined") return null;
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6">

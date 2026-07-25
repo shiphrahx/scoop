@@ -1,12 +1,10 @@
 import WeightLogger from "./WeightLogger";
 import WeightHistory from "./WeightHistory";
 import CheckInCard from "./CheckInCard";
-import CheckInHistory from "./CheckInHistory";
 import TrendSection from "./insights/TrendSection";
-import BodySection from "./insights/BodySection";
-import PhotoCompare from "./insights/PhotoCompare";
-import DriversSection from "./insights/DriversSection";
-import AdherenceSection from "./insights/AdherenceSection";
+import BodyTab from "./insights/BodyTab";
+import DriversSection from "./insights/DriversTab";
+import AdherenceSection from "./insights/AdherenceTab";
 import MotivationSection from "./insights/MotivationSection";
 import { getCurrentCheckIn, getInsightsData } from "@/lib/queries";
 import {
@@ -101,17 +99,15 @@ export default async function ProgressPage() {
         progress={goalProgress(weighIns, profile?.goal_weight_kg)}
       />
 
-      <BodySection
+      <BodyTab
         fatLoss={fatLossSignal(weighIns, tape)}
         whtr={waistToHeight(latestWaist, profile?.height_cm)}
         measurements={tape}
-      >
-        <PhotoCompare
-          pairs={photoPairs(
-            checkInsAsc.map((c) => ({ date: c.date, photos: c.photos })),
-          )}
-        />
-      </BodySection>
+        pairs={photoPairs(
+          checkInsAsc.map((c) => ({ date: c.date, photos: c.photos })),
+        )}
+        checkIns={data.checkIns}
+      />
 
       <DriversSection
         sleep={sleepVsLoss(weeks)}
@@ -150,13 +146,6 @@ export default async function ProgressPage() {
           All weigh-ins
         </h2>
         <WeightHistory weights={data.weights} />
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
-          Past check-ins
-        </h2>
-        <CheckInHistory initial={data.checkIns} />
       </section>
     </main>
   );
