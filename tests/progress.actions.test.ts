@@ -7,7 +7,15 @@ vi.mock("@/lib/supabase/server", async () => {
 });
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
-const { logWeight, logMeasurements } = await import("@/app/(app)/progress/actions");
+const {
+  logWeight,
+  logMeasurements,
+  addVictory,
+  deleteVictory,
+  addMilestone,
+  setMilestoneReached,
+  deleteMilestone,
+} = await import("@/app/(app)/progress/actions");
 
 describe("logWeight", () => {
   it("saves a weigh-in", async () => {
@@ -79,5 +87,102 @@ describe("logMeasurements", () => {
     ).rejects.toThrow(/waist/i);
     await expect(logMeasurements({ ...empty, waist_cm: -5 })).rejects.toThrow();
     expect(db.measurements).toHaveLength(0);
+  });
+});
+
+describe("addVictory", () => {
+  it("saves a trimmed win against the signed-in user", async () => {
+    const { db } = installFakeSupabase({ db: { non_scale_victories: [] } });
+    await addVictory("  Ran 5k without stopping  ");
+    expect(db.non_scale_victories).toHaveLength(1);
+    expect(db.non_scale_victories[0].text).toBe("Ran 5k without stopping");
+    expect(db.non_scale_victories[0].user_id).toBe("user-1");
+  });
+
+  it("refuses an empty win and one that's an essay", async () => {
+    const { db } = installFakeSupabase({ db: { non_scale_victories: [] } });
+    await expect(addVictory("   ")).rejects.toThrow(/write what you did/i);
+    await expect(addVictory("x".repeat(201))).rejects.toThrow(/200 characters/);
+    expect(db.non_scale_victories).toHaveLength(0);
+  });
+
+  it("ignores a future date and falls back to today", async () => {
+    const { db } = installFakeSupabase({ db: { non_scale_victories: [] } });
+    await addVictory("Slept 8 hours", "2999-01-01");
+    expect(db.non_scale_victories[0].date).toBe(
+      new Date().toISOString().slice(0, 10),
+    );
+  });
+});
+
+describe("deleteVictory", () => {
+  it("only deletes the signed-in user's row", async () => {
+    const { db } = installFakeSupabase({
+      db: {
+        non_scale_victories: [
+          { id: "mine", user_id: "user-1", date: "2026-07-01", text: "Mine" },
+          { id: "theirs", user_id: "user-2", date: "2026-07-01", text: "Theirs" },
+        ],
+      },
+    });
+    await deleteVictory("theirs");
+    expect(db.non_scale_victories.map((v) => v.id).sort()).toEqual(["mine", "theirs"]);
+    await deleteVictory("mine");
+    expect(db.non_scale_victories.map((v) => v.id)).toEqual(["theirs"]);
+  });
+});
+
+describe("custom milestones", () => {
+  it("saves one with a target weight and one without", async () => {
+    const { db } = installFakeSupabase({ db: { custom_milestones: [] } });
+    await addMilestone("Holiday weight", 72.5);
+    await addMilestone("  Old jeans  ");
+    expect(db.custom_milestones[0].target_weight_kg).toBe(72.5);
+    expect(db.custom_milestones[1].label).toBe("Old jeans");
+    expect(db.custom_milestones[1].target_weight_kg).toBeNull();
+  });
+
+  it("refuses a nameless milestone and an impossible target", async () => {
+    const { db } = installFakeSupabase({ db: { custom_milestones: [] } });
+    await expect(addMilestone("  ")).rejects.toThrow(/name the milestone/i);
+    await expect(addMilestone("Goal", 5)).rejects.toThrow(/target weight/i);
+    expect(db.custom_milestones).toHaveLength(0);
+  });
+
+  it("ticks a milestone off and back on again", async () => {
+    const { db } = installFakeSupabase({
+      db: {
+        custom_milestones: [
+          {
+            id: "m",
+            user_id: "user-1",
+            label: "Ran 5k",
+            target_weight_kg: null,
+            reached_at: null,
+          },
+        ],
+      },
+    });
+    await setMilestoneReached("m", true);
+    expect(db.custom_milestones[0].reached_at).toBe(
+      new Date().toISOString().slice(0, 10),
+    );
+    await setMilestoneReached("m", false);
+    expect(db.custom_milestones[0].reached_at).toBeNull();
+  });
+
+  it("only deletes the signed-in user's milestone", async () => {
+    const { db } = installFakeSupabase({
+      db: {
+        custom_milestones: [
+          { id: "mine", user_id: "user-1", label: "Mine", target_weight_kg: null },
+          { id: "theirs", user_id: "user-2", label: "Theirs", target_weight_kg: null },
+        ],
+      },
+    });
+    await deleteMilestone("theirs");
+    expect(db.custom_milestones).toHaveLength(2);
+    await deleteMilestone("mine");
+    expect(db.custom_milestones.map((m) => m.id)).toEqual(["theirs"]);
   });
 });
