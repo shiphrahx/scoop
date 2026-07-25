@@ -331,6 +331,14 @@ export interface CheckInPhoto {
   signed_url?: string;
 }
 
+// A win the scale can't measure — "ran 5k without stopping", "rings fit again".
+// Logged by the user, shown on the Progress dashboard.
+export interface NonScaleVictory {
+  id: string;
+  date: string;
+  text: string;
+}
+
 // One ingredient in a suggested dish, with the exact amount to use. Macros are
 // what that portion contributes (optional — older stored plans only have grams).
 // The extras ride along too, so a meal's fibre/sugar/saturates/sodium survive

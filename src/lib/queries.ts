@@ -43,6 +43,11 @@ import {
   roundMacros,
 } from "@/lib/highday";
 import type {
+  CustomMilestone,
+  DayIntake,
+  WeekTarget,
+} from "@/lib/insights";
+import type {
   Activity,
   CheckIn,
   CheckInPhoto,
@@ -50,6 +55,7 @@ import type {
   FreshFood,
   FreshFoodSize,
   Macros,
+  NonScaleVictory,
   PlannedMeal,
   Profile,
 } from "@/lib/types";
@@ -864,6 +870,170 @@ export async function searchFreshFoods(query: string): Promise<FreshFood[]> {
         .sort((a, b) => a.grams - b.grams),
     }))
     .sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name));
+}
+
+// --- Progress insights -------------------------------------------------------
+
+// Food logged per LOCAL day, with macros, over a window. Sibling of
+// getDailyIntake (which only needs calories, for the coach); the insights cards
+// break intake down by macro and by weekday, so they need the whole row.
+//
+// Days with nothing logged are absent rather than zero — an unlogged day is
+// unknown, and scoring it as a fast would flatter every average built on it.
+export async function getDailyMacros(days = 180): Promise<DayIntake[]> {
+  const supabase = await createClient();
+  const tz = await getTimezone();
+  const from = startOfLocalDay(tz, new Date(Date.now() - (days - 1) * DAY_MS));
+
+  const { data } = await supabase
+    .from("food_logs")
+    .select("logged_at, kcal, protein_g, carbs_g, fat_g")
+    .gte("logged_at", from.toISOString());
+
+  const byDay = new Map<string, DayIntake>();
+  for (const row of (data as Record<string, unknown>[]) ?? []) {
+    const date = localDate(tz, new Date(row.logged_at as string));
+    const acc = byDay.get(date) ?? {
+      date,
+      kcal: 0,
+      protein_g: 0,
+      carbs_g: 0,
+      fat_g: 0,
+    };
+    acc.kcal += Number(row.kcal ?? 0);
+    acc.protein_g += Number(row.protein_g ?? 0);
+    acc.carbs_g += Number(row.carbs_g ?? 0);
+    acc.fat_g += Number(row.fat_g ?? 0);
+    byDay.set(date, acc);
+  }
+
+  return [...byDay.values()]
+    .filter((d) => d.kcal > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// Every weekly target the user has been given, oldest first. The insights cards
+// judge a week against the target that was actually in force THAT week, not
+// against today's — a target that was cut in June shouldn't retroactively make
+// May look like an overshoot.
+export async function getTargetHistory(weeks = 52): Promise<WeekTarget[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("daily_targets")
+    .select("week_start, kcal, protein_g, carbs_g, fat_g")
+    .order("week_start", { ascending: false })
+    .limit(weeks);
+
+  return ((data as Record<string, unknown>[]) ?? [])
+    .map((r) => ({
+      week_start: r.week_start as string,
+      kcal: Number(r.kcal),
+      protein_g: Number(r.protein_g),
+      carbs_g: Number(r.carbs_g),
+      fat_g: Number(r.fat_g),
+    }))
+    .sort((a, b) => a.week_start.localeCompare(b.week_start));
+}
+
+// The days the user took as high days, for the cycling-impact comparison.
+export async function getHighDayDates(days = 180): Promise<string[]> {
+  const supabase = await createClient();
+  const cut = isoDay(new Date(Date.now() - (days - 1) * DAY_MS));
+  const { data } = await supabase
+    .from("high_days")
+    .select("date")
+    .gte("date", cut)
+    .order("date", { ascending: true });
+  return ((data as { date: string }[]) ?? []).map((r) => r.date);
+}
+
+// The user's logged non-scale victories, newest first.
+export async function getNonScaleVictories(limit = 50): Promise<NonScaleVictory[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("non_scale_victories")
+    .select("id, date, text")
+    .order("date", { ascending: false })
+    .limit(limit);
+  return (data as NonScaleVictory[]) ?? [];
+}
+
+// Milestones the user set for themselves, oldest first.
+export async function getCustomMilestones(): Promise<CustomMilestone[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("custom_milestones")
+    .select("id, label, target_weight_kg, reached_at")
+    .order("created_at", { ascending: true });
+  return ((data as Record<string, unknown>[]) ?? []).map((r) => ({
+    id: r.id as string,
+    label: r.label as string,
+    target_weight_kg: numOrNull(r.target_weight_kg),
+    reached_at: (r.reached_at as string | null) ?? null,
+  }));
+}
+
+// Everything the Progress insights dashboard reads, in one round trip.
+export interface InsightsData {
+  profile: Profile | null;
+  today: string;
+  weights: { date: string; weight_kg: number }[];
+  checkIns: (CheckIn & { photos: CheckInPhoto[] })[];
+  intake: DayIntake[];
+  targets: WeekTarget[];
+  activity: Activity[];
+  highDayDates: string[];
+  victories: NonScaleVictory[];
+  customMilestones: CustomMilestone[];
+  deviceConnected: boolean;
+}
+
+// How far back the dashboard looks. A year of weigh-ins and check-ins (the
+// journey), half a year of food and activity (enough weeks for every driver
+// card, without dragging the whole food diary over the wire).
+const INSIGHTS_BODY_DAYS = 365;
+const INSIGHTS_HABIT_DAYS = 180;
+
+export async function getInsightsData(): Promise<InsightsData> {
+  const [
+    profile,
+    today,
+    weights,
+    checkIns,
+    intake,
+    targets,
+    activity,
+    highDayDates,
+    victories,
+    customMilestones,
+    deviceConnected,
+  ] = await Promise.all([
+    getProfile(),
+    localToday(),
+    getWeightHistory(INSIGHTS_BODY_DAYS),
+    getCheckInHistory(),
+    getDailyMacros(INSIGHTS_HABIT_DAYS),
+    getTargetHistory(),
+    getActivityHistory(INSIGHTS_HABIT_DAYS),
+    getHighDayDates(INSIGHTS_HABIT_DAYS),
+    getNonScaleVictories(),
+    getCustomMilestones(),
+    getDeviceConnected(),
+  ]);
+
+  return {
+    profile,
+    today,
+    weights,
+    checkIns,
+    intake,
+    targets,
+    activity,
+    highDayDates,
+    victories,
+    customMilestones,
+    deviceConnected,
+  };
 }
 
 export async function getLatestWeight(): Promise<number | null> {
