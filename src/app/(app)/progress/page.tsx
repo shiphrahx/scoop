@@ -1,5 +1,7 @@
 import WeightLogger from "./WeightLogger";
+import CheckInCard from "./CheckInCard";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentCheckIn } from "@/lib/queries";
 
 interface WeightRow {
   date: string;
@@ -9,11 +11,14 @@ interface WeightRow {
 export default async function ProgressPage() {
   const supabase = await createClient();
 
-  const { data: weightData } = await supabase
-    .from("weights")
-    .select("date, weight_kg")
-    .order("date", { ascending: false })
-    .limit(7);
+  const [{ data: weightData }, currentCheckIn] = await Promise.all([
+    supabase
+      .from("weights")
+      .select("date, weight_kg")
+      .order("date", { ascending: false })
+      .limit(7),
+    getCurrentCheckIn(),
+  ]);
 
   const weights = (weightData as WeightRow[]) ?? [];
   const last = weights[0] ? Number(weights[0].weight_kg) : null;
@@ -21,6 +26,8 @@ export default async function ProgressPage() {
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-5 pt-8 pb-6 lg:px-8">
       <h1 className="text-3xl font-semibold">Progress</h1>
+
+      <CheckInCard done={Boolean(currentCheckIn)} />
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
