@@ -1,5 +1,5 @@
-import WeightLogger from "./WeightLogger";
-import CheckInCard from "./CheckInCard";
+import ActionBar from "./ActionBar";
+import Tabs from "./insights/Tabs";
 import OverviewTab from "./insights/OverviewTab";
 import BodyTab from "./insights/BodyTab";
 import DriversTab from "./insights/DriversTab";
@@ -70,71 +70,98 @@ export default async function ProgressPage() {
   const rawCut = addDaysISO(today, -(RAW_CHART_DAYS - 1));
   const recentActivity = data.activity.filter((a) => a.date >= rawCut);
 
+  const latestWeight =
+    data.weights.length > 0 ? data.weights[data.weights.length - 1] : null;
+
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-5 pt-8 pb-6 lg:px-8">
-      <h1 className="text-3xl font-semibold">Progress</h1>
+    // Wider than a phone column on a desktop or an iPad: the grids inside the
+    // tabs are what use the space, and a 2xl column would waste it.
+    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-5 pt-6 pb-6 lg:max-w-5xl lg:px-8">
+      <h1 className="text-2xl font-semibold">Progress</h1>
 
-      <CheckInCard done={Boolean(currentCheckIn)} />
-
-      <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
-          Daily weight
-        </h2>
-        <WeightLogger
-          last={
-            data.weights.length > 0
-              ? data.weights[data.weights.length - 1].weight_kg
-              : null
-          }
-        />
-      </section>
-
-      <OverviewTab
-        today={today}
-        trend={trendLine(weighIns)}
-        rate={profile ? lossRate(weighIns, profile.sex, profile.body_fat_pct) : null}
-        projection={projectGoalDate(weighIns, profile?.goal_weight_kg)}
-        progress={goalProgress(weighIns, profile?.goal_weight_kg)}
-        weights={data.weights}
-        fatLoss={fatLossSignal(weighIns, tape)}
-        plateau={plateau(weighIns)}
-        scorecard={weekScorecard(data.intake, currentTarget, today)}
-        hasTarget={data.targets.length > 0}
-        board={milestones(weighIns, profile?.goal_weight_kg, data.customMilestones)}
+      <ActionBar
+        last={latestWeight?.weight_kg ?? null}
+        loggedToday={latestWeight?.date === today}
+        checkedIn={Boolean(currentCheckIn)}
       />
 
-      <BodyTab
-        whtr={waistToHeight(latestWaist, profile?.height_cm)}
-        measurements={tape}
-        pairs={photoPairs(
-          checkInsAsc.map((c) => ({ date: c.date, photos: c.photos })),
-        )}
-        checkIns={data.checkIns}
-      />
-
-      <DriversTab
-        sleep={sleepVsLoss(weeks)}
-        movement={movementVsLoss(weeks)}
-        adherence={adherenceVsLoss(weeks)}
-        highDay={highDayImpact(weeks)}
-        cyclingEnabled={Boolean(profile?.cycling_enabled)}
-        deviceConnected={data.deviceConnected}
-        weightSeries={data.weights
-          .filter((w) => w.date >= rawCut)
-          .map((w) => ({ date: w.date, weight: w.weight_kg }))}
-        burnSeries={recentActivity
-          .filter((a) => a.workout_kcal != null)
-          .map((a) => ({ date: a.date, kcal: a.workout_kcal as number }))}
-        sleepSeries={recentActivity
-          .filter((a) => a.sleep_hours != null)
-          .map((a) => ({ date: a.date, hours: a.sleep_hours as number }))}
-      />
-
-      <AdherenceTab
-        weeks={actualVsTarget(data.intake, data.targets)}
-        pattern={weekdayVsWeekend(data.intake)}
-        victories={data.victories}
-        today={today}
+      <Tabs
+        tabs={[
+          {
+            key: "overview",
+            label: "Overview",
+            content: (
+              <OverviewTab
+                today={today}
+                trend={trendLine(weighIns)}
+                rate={
+                  profile ? lossRate(weighIns, profile.sex, profile.body_fat_pct) : null
+                }
+                projection={projectGoalDate(weighIns, profile?.goal_weight_kg)}
+                progress={goalProgress(weighIns, profile?.goal_weight_kg)}
+                weights={data.weights}
+                fatLoss={fatLossSignal(weighIns, tape)}
+                plateau={plateau(weighIns)}
+                scorecard={weekScorecard(data.intake, currentTarget, today)}
+                hasTarget={data.targets.length > 0}
+                board={milestones(
+                  weighIns,
+                  profile?.goal_weight_kg,
+                  data.customMilestones,
+                )}
+              />
+            ),
+          },
+          {
+            key: "body",
+            label: "Body",
+            content: (
+              <BodyTab
+                whtr={waistToHeight(latestWaist, profile?.height_cm)}
+                measurements={tape}
+                pairs={photoPairs(
+                  checkInsAsc.map((c) => ({ date: c.date, photos: c.photos })),
+                )}
+                checkIns={data.checkIns}
+              />
+            ),
+          },
+          {
+            key: "drivers",
+            label: "Drivers",
+            content: (
+              <DriversTab
+                sleep={sleepVsLoss(weeks)}
+                movement={movementVsLoss(weeks)}
+                adherence={adherenceVsLoss(weeks)}
+                highDay={highDayImpact(weeks)}
+                cyclingEnabled={Boolean(profile?.cycling_enabled)}
+                deviceConnected={data.deviceConnected}
+                weightSeries={data.weights
+                  .filter((w) => w.date >= rawCut)
+                  .map((w) => ({ date: w.date, weight: w.weight_kg }))}
+                burnSeries={recentActivity
+                  .filter((a) => a.workout_kcal != null)
+                  .map((a) => ({ date: a.date, kcal: a.workout_kcal as number }))}
+                sleepSeries={recentActivity
+                  .filter((a) => a.sleep_hours != null)
+                  .map((a) => ({ date: a.date, hours: a.sleep_hours as number }))}
+              />
+            ),
+          },
+          {
+            key: "adherence",
+            label: "Adherence",
+            content: (
+              <AdherenceTab
+                weeks={actualVsTarget(data.intake, data.targets)}
+                pattern={weekdayVsWeekend(data.intake)}
+                victories={data.victories}
+                today={today}
+              />
+            ),
+          },
+        ]}
       />
     </main>
   );
