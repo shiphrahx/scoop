@@ -7,7 +7,11 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Scoop",
     description:
       "We tell you the portion to eat to hit your macros. No searching, just scooping.",
-    start_url: "/",
+    // The installed app opens straight into the app, not the marketing page —
+    // otherwise every cold open paid for a full landing render and a second
+    // navigation before the user saw a single number. Signed-out visitors are
+    // sent to /login by the proxy, so nothing is exposed.
+    start_url: "/dashboard",
     scope: "/",
     display: "standalone",
     orientation: "portrait",
