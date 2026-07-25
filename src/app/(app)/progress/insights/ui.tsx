@@ -210,8 +210,8 @@ function LockedCard({ item }: { item: LockedInsight }) {
 }
 
 // Something *inside* an open card has nothing to say yet — a measure with no
-// readings, a board with no markers. A whole card in this state never renders;
-// it goes in the locked line instead.
+// readings, a board with no markers. A whole card in this state gets a
+// LockedCard instead, which names what would fill it in.
 export function NeedsMoreData({ what }: { what: string }) {
   return (
     <div className="rounded-2xl border border-dashed border-[var(--border)] px-4 py-5 text-center">
