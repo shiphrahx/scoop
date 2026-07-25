@@ -44,6 +44,8 @@ import {
 } from "@/lib/highday";
 import type {
   Activity,
+  CheckIn,
+  CheckInPhoto,
   DailyTargets,
   FreshFood,
   FreshFoodSize,
@@ -643,6 +645,143 @@ export async function getActivityHistory(days = 14): Promise<Activity[]> {
     .gte("date", cut)
     .order("date", { ascending: true });
   return (data as Activity[]) ?? [];
+}
+
+// A PostgREST numeric arrives as a string; coerce to number, keeping null.
+const numOrNull = (v: unknown): number | null =>
+  v == null ? null : Number(v);
+
+// Shape a raw check_ins row (numeric columns as strings) into a CheckIn.
+function toCheckIn(r: Record<string, unknown>): CheckIn {
+  return {
+    id: r.id as string,
+    week_start: r.week_start as string,
+    date: r.date as string,
+    weight_kg: numOrNull(r.weight_kg),
+    chest_cm: numOrNull(r.chest_cm),
+    waist_cm: numOrNull(r.waist_cm),
+    arms_cm: numOrNull(r.arms_cm),
+    thighs_cm: numOrNull(r.thighs_cm),
+    hips_cm: numOrNull(r.hips_cm),
+    note: (r.note as string | null) ?? null,
+    created_at: r.created_at as string,
+  };
+}
+
+// A short-lived signed URL for a private photo, or undefined if signing fails.
+// The bucket is private, so this is the only way the browser can fetch a file.
+const PHOTO_URL_TTL_SECONDS = 60 * 60;
+async function signPhotoUrl(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  path: string,
+): Promise<string | undefined> {
+  const { data } = await supabase.storage
+    .from("check-in-photos")
+    .createSignedUrl(path, PHOTO_URL_TTL_SECONDS);
+  return data?.signedUrl;
+}
+
+// This week's check-in, or null when it hasn't been done yet. Drives whether the
+// Progress page shows a "check in for this week" prompt or a done state. The week
+// turns over on the user's Monday, not the server's.
+export async function getCurrentCheckIn(): Promise<CheckIn | null> {
+  const supabase = await createClient();
+  const tz = await getTimezone();
+  const { data } = await supabase
+    .from("check_ins")
+    .select("*")
+    .eq("week_start", localWeekStart(tz))
+    .maybeSingle();
+  return data ? toCheckIn(data as Record<string, unknown>) : null;
+}
+
+// The most recent check-in of an EARLIER week than `exceptWeekStart` (defaults to
+// this week), used both to prefill the form and as the baseline the confirmation
+// deltas measure against. Null on a user's very first check-in.
+export async function getPreviousCheckIn(
+  exceptWeekStart?: string,
+): Promise<CheckIn | null> {
+  const supabase = await createClient();
+  const tz = await getTimezone();
+  const before = exceptWeekStart ?? localWeekStart(tz);
+  const { data } = await supabase
+    .from("check_ins")
+    .select("*")
+    .lt("week_start", before)
+    .order("week_start", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data ? toCheckIn(data as Record<string, unknown>) : null;
+}
+
+// All past check-ins, newest first, each with its photos (already signed for
+// display). For the Progress history list. `limit` caps how many weeks back.
+export async function getCheckInHistory(
+  limit = 52,
+): Promise<(CheckIn & { photos: CheckInPhoto[] })[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("check_ins")
+    .select("*")
+    .order("week_start", { ascending: false })
+    .limit(limit);
+  const checkIns = ((data as Record<string, unknown>[]) ?? []).map(toCheckIn);
+  if (checkIns.length === 0) return [];
+
+  const { data: photoData } = await supabase
+    .from("check_in_photos")
+    .select("id, check_in_id, storage_path, angle, created_at")
+    .in(
+      "check_in_id",
+      checkIns.map((c) => c.id),
+    )
+    .order("created_at", { ascending: true });
+  const photoRows = (photoData as CheckInPhoto[]) ?? [];
+
+  const signed = await Promise.all(
+    photoRows.map(async (p) => ({
+      ...p,
+      signed_url: await signPhotoUrl(supabase, p.storage_path),
+    })),
+  );
+  const byCheckIn = new Map<string, CheckInPhoto[]>();
+  for (const p of signed) {
+    const list = byCheckIn.get(p.check_in_id) ?? [];
+    list.push(p);
+    byCheckIn.set(p.check_in_id, list);
+  }
+
+  return checkIns.map((c) => ({ ...c, photos: byCheckIn.get(c.id) ?? [] }));
+}
+
+// Measurement series for the dashboard chart, oldest→newest, drawn from
+// check-ins. Each point carries every tape reading so the chart can switch which
+// one it shows. Days back caps the window (all = a big number).
+export async function getMeasurementHistory(days = 365): Promise<
+  {
+    date: string;
+    chest_cm: number | null;
+    waist_cm: number | null;
+    arms_cm: number | null;
+    thighs_cm: number | null;
+    hips_cm: number | null;
+  }[]
+> {
+  const supabase = await createClient();
+  const cut = isoDay(new Date(Date.now() - (days - 1) * DAY_MS));
+  const { data } = await supabase
+    .from("check_ins")
+    .select("date, chest_cm, waist_cm, arms_cm, thighs_cm, hips_cm")
+    .gte("date", cut)
+    .order("date", { ascending: true });
+  return ((data as Record<string, unknown>[]) ?? []).map((r) => ({
+    date: r.date as string,
+    chest_cm: numOrNull(r.chest_cm),
+    waist_cm: numOrNull(r.waist_cm),
+    arms_cm: numOrNull(r.arms_cm),
+    thighs_cm: numOrNull(r.thighs_cm),
+    hips_cm: numOrNull(r.hips_cm),
+  }));
 }
 
 // Fresh whole foods from the shared reference whose name matches what the user
