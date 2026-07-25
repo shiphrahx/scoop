@@ -993,4 +993,63 @@ export function actualVsTarget(
     });
 }
 
+// --- 14. Weekday vs weekend ------------------------------------------------------
+
+export interface WeekdayWeekend {
+  weekdayMeanKcal: number;
+  weekendMeanKcal: number;
+  differenceKcal: number; // weekend − weekday; positive = bigger weekends
+  weekdayDays: number;
+  weekendDays: number;
+  // The weekly cost of the gap, which is the number that actually matters:
+  // +600 kcal on both weekend days is a whole day's deficit gone.
+  weeklyCostKcal: number;
+  pattern: "bigger-weekends" | "even" | "bigger-weekdays";
+}
+
+// Enough of each kind of day to average. Fewer and one birthday sets the verdict.
+const MIN_WEEKDAY_DAYS = 6;
+const MIN_WEEKEND_DAYS = 3;
+
+// Below this the two are the same, and calling it a pattern would invent one.
+const MEANINGFUL_KCAL_GAP = 100;
+
+// Saturday and Sunday against the rest of the week.
+//
+// This is where most stalled diets actually go: five tidy days and two that
+// quietly refund the whole deficit. Seeing the two averages side by side is
+// usually enough to fix it without changing the target at all.
+export function weekdayVsWeekend(intake: DayIntake[]): WeekdayWeekend | null {
+  const logged = intake.filter((d) => d.kcal > 0);
+  const isWeekend = (date: string) => {
+    const dow = new Date(dayMs(date)).getUTCDay();
+    return dow === 0 || dow === 6;
+  };
+
+  const weekend = logged.filter((d) => isWeekend(d.date));
+  const weekday = logged.filter((d) => !isWeekend(d.date));
+  if (weekday.length < MIN_WEEKDAY_DAYS || weekend.length < MIN_WEEKEND_DAYS) {
+    return null;
+  }
+
+  const weekdayMean = average(weekday.map((d) => d.kcal))!;
+  const weekendMean = average(weekend.map((d) => d.kcal))!;
+  const diff = weekendMean - weekdayMean;
+
+  return {
+    weekdayMeanKcal: Math.round(weekdayMean),
+    weekendMeanKcal: Math.round(weekendMean),
+    differenceKcal: Math.round(diff),
+    weekdayDays: weekday.length,
+    weekendDays: weekend.length,
+    weeklyCostKcal: Math.round(Math.abs(diff) * 2),
+    pattern:
+      Math.abs(diff) < MEANINGFUL_KCAL_GAP
+        ? "even"
+        : diff > 0
+          ? "bigger-weekends"
+          : "bigger-weekdays",
+  };
+}
+
 export { type WeighIn };
