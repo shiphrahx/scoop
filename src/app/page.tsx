@@ -322,13 +322,7 @@ export default async function LandingPage() {
               const Icon = f.icon;
               return (
                 <div key={f.title} className="sc-card-solid flex gap-4 p-6">
-                  <span
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--radius-sm)]"
-                    style={{
-                      background: "var(--tint-teal)",
-                      color: "var(--ink-teal)",
-                    }}
-                  >
+                  <span className="sc-icon-tile-soft">
                     <Icon size={22} strokeWidth={2.2} />
                   </span>
                   <div>
