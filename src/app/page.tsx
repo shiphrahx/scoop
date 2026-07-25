@@ -19,6 +19,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import InstallAppButton from "@/components/InstallAppButton";
 import SiteFooter from "@/components/SiteFooter";
+import AppPreview from "@/components/AppPreview";
 
 export const metadata: Metadata = {
   alternates: { canonical: "/" },
@@ -119,32 +120,9 @@ export default async function LandingPage() {
             Free. Google sign-in. No card. Installs to your home screen.
           </p>
 
-          {/* Floating stat preview — a taste of the app surface. */}
-          <div className="mt-16 w-full max-w-md">
-            <div className="sc-card p-6 text-left">
-              <p className="text-sm font-medium text-[var(--muted)]">
-                Left to eat today
-              </p>
-              <div className="mt-1 flex items-end gap-2">
-                <span className="sc-grad-text text-5xl font-bold">820</span>
-                <span className="mb-1.5 text-lg text-[var(--muted)]">kcal</span>
-              </div>
-              <div className="mt-5 grid grid-cols-3 gap-3">
-                {[
-                  { label: "Protein", value: "64 g" },
-                  { label: "Carbs", value: "72 g" },
-                  { label: "Fat", value: "21 g" },
-                ].map((m) => (
-                  <div
-                    key={m.label}
-                    className="rounded-[var(--radius-sm)] bg-[var(--fill-soft)] p-3"
-                  >
-                    <p className="text-xs text-[var(--muted)]">{m.label}</p>
-                    <p className="mt-0.5 text-lg font-semibold">{m.value}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {/* The actual Home screen, rendered from the app's own components. */}
+          <div className="mt-16 flex w-full justify-center">
+            <AppPreview />
           </div>
         </section>
 
