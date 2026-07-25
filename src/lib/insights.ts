@@ -761,4 +761,28 @@ export function sleepVsLoss(weeks: InsightWeek[]): Correlation | null {
   return correlate(weeks, (w) => w.meanSleepH);
 }
 
+// --- 9. Drivers: exercise and steps -------------------------------------------
+
+export type MovementMetric = "steps" | "workout";
+
+export interface MovementCorrelation extends Correlation {
+  metric: MovementMetric;
+}
+
+// Movement against weight loss, using whichever measure the user's device
+// actually fills in.
+//
+// Steps first: for most people non-exercise movement moves the daily burn far
+// more than a gym session does, and every tracker reports it. Workout calories
+// are the fallback for someone whose device only logs sessions. Null when
+// neither has enough weeks — which is also what a disconnected device looks
+// like, so the UI shows its connect-prompt instead.
+export function movementVsLoss(weeks: InsightWeek[]): MovementCorrelation | null {
+  const steps = correlate(weeks, (w) => w.meanSteps);
+  if (steps) return { ...steps, metric: "steps" };
+  const workout = correlate(weeks, (w) => w.meanWorkoutKcal);
+  if (workout) return { ...workout, metric: "workout" };
+  return null;
+}
+
 export { type WeighIn };
