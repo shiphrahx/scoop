@@ -42,6 +42,8 @@ hard-code palette values in components.
 ## Component classes
 
 - `.sc-card` — frosted panel, the workhorse surface. `.sc-card-solid` for dense/text-heavy panels.
+- `.sc-grad-panel` — gradient-filled panel with glow, for closing calls to action.
+- `.sc-icon-tile` — icon on a rounded gradient square. `.sc-icon-dot` is the small round one for checklist bullets.
 - `.sc-btn` + one of:
   - `.sc-btn-primary` — gradient + glow. The single main action on a screen.
   - `.sc-btn-soft` — teal-tinted secondary action.

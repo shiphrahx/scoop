@@ -135,6 +135,37 @@ h3 {
     box-shadow: var(--shadow-soft);
   }
 
+  /* Gradient-filled panel — hero fills and closing calls to action. */
+  .sc-grad-panel {
+    border-radius: var(--radius);
+    background: var(--grad-primary);
+    box-shadow: var(--shadow-glow);
+    color: #fff;
+  }
+
+  /* Icon on a gradient chip. Square by default; `.sc-icon-dot` is the small
+     round one used for checklist bullets. */
+  .sc-icon-tile {
+    display: grid;
+    place-items: center;
+    height: 2.75rem;
+    width: 2.75rem;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
+    background: var(--grad-primary);
+    color: #fff;
+  }
+  .sc-icon-dot {
+    display: grid;
+    place-items: center;
+    height: 1.5rem;
+    width: 1.5rem;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: var(--grad-primary);
+    color: #fff;
+  }
+
   /* Buttons — big, soft, tappable. Primary carries the gradient. */
   .sc-btn {
     display: inline-flex;

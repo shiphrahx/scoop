@@ -144,10 +144,7 @@ export default async function LandingPage() {
             return (
               <div key={s.step} className="sc-card p-6">
                 <div className="flex items-center gap-3">
-                  <span
-                    className="grid h-11 w-11 place-items-center rounded-[var(--radius-sm)] text-white"
-                    style={{ background: "var(--grad-primary)" }}
-                  >
+                  <span className="sc-icon-tile">
                     <Icon size={22} strokeWidth={2.2} />
                   </span>
                   <span className="text-sm font-semibold text-[var(--ink-teal)]">
@@ -205,10 +202,7 @@ export default async function LandingPage() {
             const Icon = s.icon;
             return (
               <div key={s.title} className="sc-card flex flex-col p-6">
-                <span
-                  className="grid h-11 w-11 place-items-center rounded-[var(--radius-sm)] text-white"
-                  style={{ background: "var(--grad-primary)" }}
-                >
+                <span className="sc-icon-tile">
                   <Icon size={22} strokeWidth={2.2} />
                 </span>
                 <h3 className="mt-4 text-xl font-semibold">{s.title}</h3>
@@ -274,10 +268,7 @@ export default async function LandingPage() {
               },
             ].map((c) => (
               <div key={c.title} className="flex gap-3">
-                <span
-                  className="mt-1 grid h-6 w-6 shrink-0 place-items-center rounded-full text-white"
-                  style={{ background: "var(--grad-primary)" }}
-                >
+                <span className="sc-icon-dot mt-1">
                   <Check size={14} strokeWidth={3} />
                 </span>
                 <div>
@@ -342,13 +333,7 @@ export default async function LandingPage() {
 
       {/* ---------- Final CTA ---------- */}
       <section className="mx-auto w-full max-w-6xl px-6 py-16">
-        <div
-          className="sc-card overflow-hidden px-8 py-14 text-center"
-          style={{
-            background: "var(--grad-primary)",
-            boxShadow: "var(--shadow-glow)",
-          }}
-        >
+        <div className="sc-grad-panel overflow-hidden px-8 py-14 text-center">
           <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             Know your next scoop
           </h2>
