@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Check, ArrowRight } from "lucide-react";
 import { saveCheckIn, type SaveCheckInResult } from "./actions";
+import PhotoUploader from "./PhotoUploader";
 
 const fields = [
   { key: "chest_cm", label: "Chest" },
@@ -117,6 +118,8 @@ export default function CheckInForm({
             This is your first check-in — next week you&apos;ll see how things moved.
           </p>
         )}
+
+        <PhotoUploader checkInId={result.checkInId} />
 
         <Link href="/progress" className="sc-btn sc-btn-primary w-full py-4 text-lg">
           Back to Progress <ArrowRight size={18} />
