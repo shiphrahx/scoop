@@ -10,7 +10,7 @@ import { useState } from "react";
 import { PartyPopper, Plus, Trash2 } from "lucide-react";
 import type { NonScaleVictory } from "@/lib/types";
 import { addVictory, deleteVictory } from "../actions";
-import { Expandable, InsightCard } from "./ui";
+import { CompactCard, Expandable, Hero } from "./ui";
 
 const shortDate = (iso: string) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", {
@@ -43,49 +43,72 @@ export default function VictoriesCard({
     }
   }
 
+  // This card carries the "add a win" form, so unlike an insight it renders
+  // whether or not there's anything in the list — otherwise there'd be nowhere
+  // to write the first one down.
   return (
-    <InsightCard icon={<PartyPopper size={16} />} title="Wins the scale missed">
-      {victories.length === 0 ? (
-        <p className="text-sm text-[var(--muted)]">
-          Stairs without stopping, a shirt that fits, sleeping better. Write them down —
-          on the weeks the scale sulks, this list is the evidence.
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-1.5">
-          {victories.slice(0, 5).map((v) => (
-            <VictoryRow key={v.id} victory={v} />
-          ))}
-        </ul>
-      )}
+    <CompactCard
+      icon={<PartyPopper size={16} />}
+      title="Wins the scale missed"
+      detail={
+        <>
+          {victories.length === 0 ? (
+            <p className="text-sm text-[var(--muted)]">
+              Stairs without stopping, a shirt that fits, sleeping better. Write them
+              down — on the weeks the scale sulks, this list is the evidence.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-1.5">
+              {victories.slice(0, 5).map((v) => (
+                <VictoryRow key={v.id} victory={v} />
+              ))}
+            </ul>
+          )}
 
-      {victories.length > 5 ? (
-        <Expandable label={`All ${victories.length} wins`}>
-          <ul className="flex flex-col gap-1.5">
-            {victories.slice(5).map((v) => (
-              <VictoryRow key={v.id} victory={v} />
-            ))}
-          </ul>
-        </Expandable>
-      ) : null}
+          {victories.length > 5 ? (
+            <Expandable label={`All ${victories.length} wins`}>
+              <ul className="flex flex-col gap-1.5">
+                {victories.slice(5).map((v) => (
+                  <VictoryRow key={v.id} victory={v} />
+                ))}
+              </ul>
+            </Expandable>
+          ) : null}
 
-      <div className="flex flex-col gap-2 border-t border-[var(--border)] pt-3">
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Ran 5k without stopping"
-          className="sc-input"
-          maxLength={200}
-        />
-        {error ? <p className="text-sm text-[var(--accent)]">{error}</p> : null}
-        <button
-          onClick={add}
-          disabled={busy || text.trim() === ""}
-          className="sc-btn sc-btn-soft self-start"
-        >
-          <Plus size={16} /> {busy ? "Saving…" : "Add a win"}
-        </button>
-      </div>
-    </InsightCard>
+          <div className="flex flex-col gap-2 border-t border-[var(--border)] pt-3">
+            <input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Ran 5k without stopping"
+              className="sc-input"
+              maxLength={200}
+            />
+            {error ? <p className="text-sm text-[var(--accent)]">{error}</p> : null}
+            <button
+              onClick={add}
+              disabled={busy || text.trim() === ""}
+              className="sc-btn sc-btn-soft self-start"
+            >
+              <Plus size={16} /> {busy ? "Saving…" : "Add a win"}
+            </button>
+          </div>
+        </>
+      }
+    >
+      <Hero
+        size="sm"
+        value={`${victories.length}`}
+        label={
+          victories.length === 0
+            ? "none yet — write one down"
+            : // The list holds a sentence; the tile holds a line of one.
+              victories[0].text.length > 42
+              ? `${victories[0].text.slice(0, 40)}…`
+              : victories[0].text
+        }
+        tone={victories.length > 0 ? "good" : "cool"}
+      />
+    </CompactCard>
   );
 }
 

@@ -2,22 +2,24 @@
 
 // Adherence: did the plan get followed?
 //
-// This section exists so a stall can be diagnosed instead of guessed at. If the
+// This tab exists so a stall can be diagnosed instead of guessed at. If the
 // target was hit most days and the scale still didn't move, the target is wrong;
 // if it wasn't, the target was never tested. Those need opposite fixes, and the
 // scale alone can't tell them apart.
 
-import { CalendarClock, CircleCheck, Flame } from "lucide-react";
+import { CalendarClock, Flame } from "lucide-react";
 import { CompareBars, WeeklyIntakeChart } from "@/components/Charts";
-import type { WeekCompare, WeekScorecard, WeekdayWeekend } from "@/lib/insights";
+import type { WeekCompare, WeekdayWeekend } from "@/lib/insights";
+import type { NonScaleVictory } from "@/lib/types";
+import VictoriesCard from "./VictoriesCard";
 import {
+  CompactCard,
   Expandable,
-  InsightCard,
-  NeedsMoreData,
-  Section,
-  StatRow,
+  Hero,
+  InsightGrid,
   fmt,
   signed,
+  type LockedInsight,
 } from "./ui";
 
 const shortDate = (iso: string) =>
@@ -26,71 +28,48 @@ const shortDate = (iso: string) =>
     month: "short",
   });
 
-export default function AdherenceSection({
-  scorecard,
+export default function AdherenceTab({
   weeks,
   pattern,
-  hasTarget,
+  victories,
+  today,
 }: {
-  scorecard: WeekScorecard;
   weeks: WeekCompare[];
   pattern: WeekdayWeekend | null;
-  hasTarget: boolean;
+  victories: NonScaleVictory[];
+  today: string;
 }) {
   const latest = weeks.length > 0 ? weeks[weeks.length - 1] : null;
+  const locked: LockedInsight[] = [];
+
+  if (weeks.length === 0) {
+    locked.push({
+      title: "Eaten vs target",
+      why: "Log food for a week that has a target on it.",
+    });
+  }
+  if (pattern == null) {
+    locked.push({
+      title: "Weekdays vs weekends",
+      why: "Six weekdays and three weekend days of food logging are needed to compare them.",
+    });
+  }
 
   return (
-    <Section title="Adherence">
-      <InsightCard icon={<CircleCheck size={16} />} title="This week">
-        {!hasTarget ? (
-          <NeedsMoreData what="finish onboarding so the Coach can set a weekly target to measure against." />
-        ) : (
-          <>
-            <StatRow
-              stats={[
-                {
-                  label: "Calories hit",
-                  value: `${scorecard.kcalHitDays} / ${scorecard.daysSoFar}`,
-                  tone: scorecard.kcalHitDays >= scorecard.daysSoFar - 1 ? "good" : undefined,
-                },
-                {
-                  label: "Protein hit",
-                  value: `${scorecard.proteinHitDays} / ${scorecard.daysSoFar}`,
-                  tone:
-                    scorecard.proteinHitDays >= scorecard.daysSoFar - 1 ? "good" : undefined,
-                },
-                {
-                  label: "Days logged",
-                  value: `${scorecard.loggedDays} / ${scorecard.daysSoFar}`,
-                },
-                {
-                  label: "Streak",
-                  value: `${scorecard.streakDays} day${scorecard.streakDays === 1 ? "" : "s"}`,
-                  tone: scorecard.streakDays >= 7 ? "good" : undefined,
-                },
-              ]}
-            />
-            <p className="text-sm text-[var(--muted)]">
-              Week of {shortDate(scorecard.weekStart)}. Calories count as hit within 15% of
-              the target; protein counts once you reach 90% of it.
-            </p>
-          </>
-        )}
-      </InsightCard>
-
-      <InsightCard icon={<Flame size={16} />} title="Eaten vs target">
-        {weeks.length === 0 ? (
-          <NeedsMoreData what="log food for a week that has a target on it." />
-        ) : (
-          <>
-            <WeeklyIntakeChart
-              data={weeks.map((w) => ({
-                weekStart: w.weekStart,
-                actual: w.actual.kcal,
-                target: w.target.kcal,
-              }))}
-            />
-            {latest ? (
+    <InsightGrid locked={locked}>
+      {latest != null ? (
+        <CompactCard
+          icon={<Flame size={16} />}
+          title="Eaten vs target"
+          detail={
+            <>
+              <WeeklyIntakeChart
+                data={weeks.map((w) => ({
+                  weekStart: w.weekStart,
+                  actual: w.actual.kcal,
+                  target: w.target.kcal,
+                }))}
+              />
               <Expandable label={`Macros for the week of ${shortDate(latest.weekStart)}`}>
                 <div className="flex flex-col gap-2">
                   {(
@@ -128,41 +107,71 @@ export default function AdherenceSection({
                   </p>
                 </div>
               </Expandable>
-            ) : null}
-          </>
-        )}
-      </InsightCard>
+            </>
+          }
+        >
+          <Hero
+            size="sm"
+            value={signed(latest.delta.kcal, 0)}
+            unit="kcal"
+            label={`vs target, week of ${shortDate(latest.weekStart)}`}
+            tone={
+              Math.abs(latest.delta.kcal) <= Math.max(5, latest.target.kcal * 0.05)
+                ? "good"
+                : "warn"
+            }
+          />
+        </CompactCard>
+      ) : null}
 
-      <InsightCard icon={<CalendarClock size={16} />} title="Weekdays vs weekends">
-        {pattern == null ? (
-          <NeedsMoreData what="six weekdays and three weekend days of food logging are needed to compare them." />
-        ) : (
-          <>
-            <CompareBars
-              unit="kcal / day"
-              rows={[
-                {
-                  label: `Weekdays (${pattern.weekdayDays} days)`,
-                  value: pattern.weekdayMeanKcal,
-                  tint: "teal",
-                },
-                {
-                  label: `Weekends (${pattern.weekendDays} days)`,
-                  value: pattern.weekendMeanKcal,
-                  tint: "violet",
-                },
-              ]}
-            />
-            <p className="text-sm text-[var(--muted)]">
-              {pattern.pattern === "even"
-                ? "Your weekends look like your weekdays. That consistency is doing a lot of the work."
+      {pattern != null ? (
+        <CompactCard
+          icon={<CalendarClock size={16} />}
+          title="Weekdays vs weekends"
+          detail={
+            <>
+              <CompareBars
+                unit="kcal / day"
+                rows={[
+                  {
+                    label: `Weekdays (${pattern.weekdayDays} days)`,
+                    value: pattern.weekdayMeanKcal,
+                    tint: "teal",
+                  },
+                  {
+                    label: `Weekends (${pattern.weekendDays} days)`,
+                    value: pattern.weekendMeanKcal,
+                    tint: "violet",
+                  },
+                ]}
+              />
+              <p className="text-sm text-[var(--muted)]">
+                {pattern.pattern === "even"
+                  ? "Your weekends look like your weekdays. That consistency is doing a lot of the work."
+                  : pattern.pattern === "bigger-weekends"
+                    ? `Weekends run ${fmt(pattern.differenceKcal, 0)} kcal a day higher — about ${fmt(pattern.weeklyCostKcal, 0)} kcal a week, which is most of a day's deficit.`
+                    : `Weekdays run ${fmt(Math.abs(pattern.differenceKcal), 0)} kcal a day higher than your weekends.`}
+              </p>
+            </>
+          }
+        >
+          <Hero
+            size="sm"
+            value={fmt(Math.abs(pattern.differenceKcal), 0)}
+            unit="kcal"
+            label={
+              pattern.pattern === "even"
+                ? "a day between weekdays and weekends"
                 : pattern.pattern === "bigger-weekends"
-                  ? `Weekends run ${fmt(pattern.differenceKcal, 0)} kcal a day higher — about ${fmt(pattern.weeklyCostKcal, 0)} kcal a week, which is most of a day's deficit.`
-                  : `Weekdays run ${fmt(Math.abs(pattern.differenceKcal), 0)} kcal a day higher than your weekends.`}
-            </p>
-          </>
-        )}
-      </InsightCard>
-    </Section>
+                  ? "a day more at weekends"
+                  : "a day more on weekdays"
+            }
+            tone={pattern.pattern === "even" ? "good" : "cool"}
+          />
+        </CompactCard>
+      ) : null}
+
+      <VictoriesCard victories={victories} today={today} />
+    </InsightGrid>
   );
 }

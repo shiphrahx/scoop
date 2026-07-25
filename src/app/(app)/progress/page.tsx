@@ -3,8 +3,7 @@ import CheckInCard from "./CheckInCard";
 import OverviewTab from "./insights/OverviewTab";
 import BodyTab from "./insights/BodyTab";
 import DriversTab from "./insights/DriversTab";
-import AdherenceSection from "./insights/AdherenceTab";
-import VictoriesCard from "./insights/VictoriesCard";
+import AdherenceTab from "./insights/AdherenceTab";
 import { getCurrentCheckIn, getInsightsData } from "@/lib/queries";
 import {
   actualVsTarget,
@@ -131,14 +130,12 @@ export default async function ProgressPage() {
           .map((a) => ({ date: a.date, hours: a.sleep_hours as number }))}
       />
 
-      <AdherenceSection
-        scorecard={weekScorecard(data.intake, currentTarget, today)}
+      <AdherenceTab
         weeks={actualVsTarget(data.intake, data.targets)}
         pattern={weekdayVsWeekend(data.intake)}
-        hasTarget={data.targets.length > 0}
+        victories={data.victories}
+        today={today}
       />
-
-      <VictoriesCard victories={data.victories} today={today} />
     </main>
   );
 }
