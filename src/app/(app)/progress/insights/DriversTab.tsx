@@ -7,21 +7,22 @@
 // it's the contrast line underneath it ("your best weeks slept 7.8 h, your worst
 // 6.4 h"), which is a thing a person can go and do something about.
 
-import { Flame, Footprints, Moon, UtensilsCrossed, Zap } from "lucide-react";
+import { Flame, Footprints, Moon, UtensilsCrossed } from "lucide-react";
 import { CompareBars, DriverScatter, SleepChart, WeightVsExercise } from "@/components/Charts";
 import type { Correlation, HighDayImpact, MovementCorrelation } from "@/lib/insights";
 import {
-  ConnectPrompt,
+  CompactCard,
   Expandable,
-  InsightCard,
-  NeedsMoreData,
+  Hero,
+  InsightGrid,
   PatternNote,
-  Section,
   StatRow,
   fmt,
+  type LockedInsight,
 } from "./ui";
 
-const NEED_WEEKS = "four weeks of both weigh-ins and this habit are needed before a pattern means anything.";
+const NEED_WEEKS =
+  "Four weeks of both weigh-ins and this habit are needed before a pattern means anything.";
 
 function Finding({
   c,
@@ -53,7 +54,28 @@ function Finding({
   );
 }
 
-export default function DriversSection({
+// The compact face of a correlation card: the contrast, not the coefficient.
+function DriverFace({
+  c,
+  unit,
+  decimals = 1,
+}: {
+  c: Correlation;
+  unit: string;
+  decimals?: number;
+}) {
+  return (
+    <Hero
+      size="sm"
+      value={fmt(c.bestWeeksMean, decimals)}
+      unit={unit}
+      label={`on your best weeks · ${fmt(c.worstWeeksMean, decimals)} ${unit} on your worst`}
+      tone={c.strength !== "none" && c.direction === "helps" ? "good" : "cool"}
+    />
+  );
+}
+
+export default function DriversTab({
   sleep,
   movement,
   adherence,
@@ -74,71 +96,120 @@ export default function DriversSection({
   burnSeries: { date: string; kcal: number }[];
   sleepSeries: { date: string; hours: number }[];
 }) {
+  const locked: LockedInsight[] = [];
+
+  // No wearable means these two never fill in by waiting, so they say so and
+  // offer the link rather than counting weeks.
+  if (!deviceConnected) {
+    locked.push({
+      title: "Sleep and weight loss",
+      why: "No wearable linked, so there are no sleep hours to compare.",
+      connect: true,
+    });
+    locked.push({
+      title: "Movement and weight loss",
+      why: "No wearable linked, so there are no steps or workouts to compare.",
+      connect: true,
+    });
+  } else {
+    if (sleep == null) locked.push({ title: "Sleep and weight loss", why: NEED_WEEKS });
+    if (movement == null) {
+      locked.push({ title: "Movement and weight loss", why: NEED_WEEKS });
+    }
+  }
+  if (adherence == null) {
+    locked.push({
+      title: "Sticking to the plan",
+      why: "Four weeks of food logging against a weekly target are needed here.",
+    });
+  }
+  if (!cyclingEnabled) {
+    locked.push({
+      title: "High days",
+      why: "Calorie cycling is off, so there's nothing to compare. Turn it on in your profile if you want a couple of higher-carb days a week.",
+    });
+  } else if (highDay == null) {
+    locked.push({
+      title: "High days",
+      why: "Two weeks with high days and two without are needed to compare them.",
+    });
+  }
+
+  const movementUnit = movement?.metric === "steps" ? "steps/day" : "kcal/day";
+
   return (
-    <Section title="Drivers">
-      <InsightCard icon={<Moon size={16} />} title="Sleep and weight loss">
-        {!deviceConnected ? (
-          <ConnectPrompt what="how your sleep tracks against your losses" />
-        ) : sleep == null ? (
-          <NeedsMoreData what={NEED_WEEKS} />
-        ) : (
-          <>
-            <DriverScatter points={sleep.points} xLabel="Sleep" xUnit="h" />
-            <Finding c={sleep} driver="sleep" unit="h" />
-            <Expandable label="See the week-by-week hours">
-              <SleepChart data={sleepSeries} />
-            </Expandable>
-          </>
-        )}
-      </InsightCard>
+    <InsightGrid locked={locked}>
+      {deviceConnected && sleep != null ? (
+        <CompactCard
+          icon={<Moon size={16} />}
+          title="Sleep and weight loss"
+          detail={
+            <>
+              <DriverScatter points={sleep.points} xLabel="Sleep" xUnit="h" />
+              <Finding c={sleep} driver="sleep" unit="h" />
+              <Expandable label="See the week-by-week hours">
+                <SleepChart data={sleepSeries} />
+              </Expandable>
+            </>
+          }
+        >
+          <DriverFace c={sleep} unit="h" />
+        </CompactCard>
+      ) : null}
 
-      <InsightCard icon={<Footprints size={16} />} title="Movement and weight loss">
-        {!deviceConnected ? (
-          <ConnectPrompt what="how your movement tracks against your losses" />
-        ) : movement == null ? (
-          <NeedsMoreData what={NEED_WEEKS} />
-        ) : (
-          <>
-            <DriverScatter
-              points={movement.points}
-              xLabel={movement.metric === "steps" ? "Steps" : "Exercise burn"}
-              xUnit={movement.metric === "steps" ? "/ day" : "kcal"}
-            />
-            <Finding
-              c={movement}
-              driver={movement.metric === "steps" ? "walking" : "exercise"}
-              unit={movement.metric === "steps" ? "steps/day" : "kcal/day"}
-              decimals={0}
-            />
-            <Expandable label="See weight against exercise burn">
-              <WeightVsExercise weights={weightSeries} burn={burnSeries} />
-            </Expandable>
-          </>
-        )}
-      </InsightCard>
+      {deviceConnected && movement != null ? (
+        <CompactCard
+          icon={<Footprints size={16} />}
+          title="Movement and weight loss"
+          detail={
+            <>
+              <DriverScatter
+                points={movement.points}
+                xLabel={movement.metric === "steps" ? "Steps" : "Exercise burn"}
+                xUnit={movement.metric === "steps" ? "/ day" : "kcal"}
+              />
+              <Finding
+                c={movement}
+                driver={movement.metric === "steps" ? "walking" : "exercise"}
+                unit={movementUnit}
+                decimals={0}
+              />
+              <Expandable label="See weight against exercise burn">
+                <WeightVsExercise weights={weightSeries} burn={burnSeries} />
+              </Expandable>
+            </>
+          }
+        >
+          <DriverFace c={movement} unit={movementUnit} decimals={0} />
+        </CompactCard>
+      ) : null}
 
-      <InsightCard icon={<UtensilsCrossed size={16} />} title="Sticking to the plan">
-        {adherence == null ? (
-          <NeedsMoreData what="four weeks of food logging against a weekly target are needed here." />
-        ) : (
-          <>
-            <DriverScatter points={adherence.points} xLabel="Stuck to target" xUnit="%" />
-            <Finding c={adherence} driver="sticking to the target" unit="%" decimals={0} />
-            {adherence.direction === "helps" ? (
-              <p className="text-sm text-[var(--muted)]">
-                Your plan works when you follow it — so a stall is a cue to eat the plan,
-                not to cut it further.
-              </p>
-            ) : null}
-          </>
-        )}
-      </InsightCard>
+      {adherence != null ? (
+        <CompactCard
+          icon={<UtensilsCrossed size={16} />}
+          title="Sticking to the plan"
+          detail={
+            <>
+              <DriverScatter points={adherence.points} xLabel="Stuck to target" xUnit="%" />
+              <Finding c={adherence} driver="sticking to the target" unit="%" decimals={0} />
+              {adherence.direction === "helps" ? (
+                <p className="text-sm text-[var(--muted)]">
+                  Your plan works when you follow it — so a stall is a cue to eat the
+                  plan, not to cut it further.
+                </p>
+              ) : null}
+            </>
+          }
+        >
+          <DriverFace c={adherence} unit="%" decimals={0} />
+        </CompactCard>
+      ) : null}
 
-      {cyclingEnabled ? (
-        <InsightCard icon={<Flame size={16} />} title="High days">
-          {highDay == null ? (
-            <NeedsMoreData what="two weeks with high days and two without are needed to compare them." />
-          ) : (
+      {cyclingEnabled && highDay != null ? (
+        <CompactCard
+          icon={<Flame size={16} />}
+          title="High days"
+          detail={
             <>
               <CompareBars
                 unit="kg / week"
@@ -170,16 +241,17 @@ export default function DriversSection({
                 ]}
               />
             </>
-          )}
-        </InsightCard>
-      ) : (
-        <InsightCard icon={<Zap size={16} />} title="High days">
-          <p className="text-sm text-[var(--muted)]">
-            Calorie cycling is off, so there&apos;s nothing to compare. Turn it on in your
-            profile if you want a couple of higher-carb days a week.
-          </p>
-        </InsightCard>
-      )}
-    </Section>
+          }
+        >
+          <Hero
+            size="sm"
+            value={fmt(highDay.meanLossWithKg, 2)}
+            unit="kg/wk"
+            label={`on high-day weeks · ${fmt(highDay.meanLossWithoutKg, 2)} without`}
+            tone={highDay.verdict === "better" ? "good" : "cool"}
+          />
+        </CompactCard>
+      ) : null}
+    </InsightGrid>
   );
 }

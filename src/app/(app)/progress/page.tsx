@@ -3,7 +3,7 @@ import WeightHistory from "./WeightHistory";
 import CheckInCard from "./CheckInCard";
 import TrendSection from "./insights/TrendSection";
 import BodyTab from "./insights/BodyTab";
-import DriversSection from "./insights/DriversTab";
+import DriversTab from "./insights/DriversTab";
 import AdherenceSection from "./insights/AdherenceTab";
 import MotivationSection from "./insights/MotivationSection";
 import { getCurrentCheckIn, getInsightsData } from "@/lib/queries";
@@ -109,7 +109,7 @@ export default async function ProgressPage() {
         checkIns={data.checkIns}
       />
 
-      <DriversSection
+      <DriversTab
         sleep={sleepVsLoss(weeks)}
         movement={movementVsLoss(weeks)}
         adherence={adherenceVsLoss(weeks)}
