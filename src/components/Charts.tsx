@@ -9,6 +9,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  ComposedChart,
   Line,
   LineChart,
   ReferenceLine,
@@ -641,6 +642,133 @@ export function MeasurementsChart({
         <Stat label="Range" value={`${min.toFixed(1)}–${max.toFixed(1)}`} />
         <Stat label="Points" value={`${data.length}`} />
       </div>
+    </div>
+  );
+}
+
+// ── Two-group comparison ────────────────────────────────────────────
+// Two or three labelled quantities side by side (weekday vs weekend, high-day
+// weeks vs the rest). Plain markup rather than a plotting library: at this size
+// axes and gridlines are noise, and every bar carries its own number, which is
+// also the relief for these fills sitting under 3:1 against the surface.
+export function CompareBars({
+  rows,
+  unit,
+  decimals = 0,
+}: {
+  rows: { label: string; value: number; tint?: "teal" | "violet" | "green" }[];
+  unit: string;
+  decimals?: number;
+}) {
+  if (rows.length === 0) return <EmptyChart height={120} />;
+  const max = Math.max(...rows.map((r) => Math.abs(r.value)), 1);
+  const fill = { teal: C.teal, violet: C.violet, green: C.green } as const;
+
+  return (
+    <div className="flex flex-col gap-3">
+      {rows.map((r) => (
+        <div key={r.label} className="flex flex-col gap-1.5">
+          <div className="flex items-baseline justify-between">
+            <span className="text-sm text-[var(--muted)]">{r.label}</span>
+            <span className="text-sm font-semibold tabular-nums text-[var(--foreground)]">
+              {r.value.toFixed(decimals)} {unit}
+            </span>
+          </div>
+          <div className="h-2.5 overflow-hidden rounded-full bg-[var(--fill)]">
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${Math.max(2, (Math.abs(r.value) / max) * 100)}%`,
+                background: fill[r.tint ?? "teal"],
+              }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Weekly intake against the week's target ─────────────────────────
+// Bars are what was eaten on an average logged day that week; the line is what
+// was asked for. One axis, both in kcal.
+export function WeeklyIntakeChart({
+  data,
+  height = 200,
+}: {
+  data: { weekStart: string; actual: number; target: number }[];
+  height?: number;
+}) {
+  if (data.length === 0) return <EmptyChart height={height} />;
+
+  return (
+    <div>
+      <div className="mb-2 flex gap-4">
+        <Legend color={C.teal}>Eaten (daily avg)</Legend>
+        <Legend color={C.violet}>Target</Legend>
+      </div>
+      <ResponsiveContainer width="100%" height={height - 24}>
+        <ComposedChart data={data} margin={{ top: 6, right: 8, left: -8, bottom: 0 }}>
+          <defs>
+            <linearGradient id="wk-bar" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={C.teal} stopOpacity={0.9} />
+              <stop offset="100%" stopColor={C.teal} stopOpacity={0.35} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid vertical={false} stroke={C.grid} />
+          <XAxis
+            dataKey="weekStart"
+            tickFormatter={shortDate}
+            tick={AXIS_TICK}
+            tickLine={false}
+            axisLine={false}
+            interval={tickInterval(data.length)}
+            minTickGap={16}
+          />
+          <YAxis
+            tick={AXIS_TICK}
+            tickLine={false}
+            axisLine={false}
+            width={42}
+            allowDecimals={false}
+          />
+          <Tooltip
+            cursor={{ fill: "rgba(20, 184, 166, 0.08)" }}
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const p = payload[0].payload as {
+                weekStart: string;
+                actual: number;
+                target: number;
+              };
+              const delta = p.actual - p.target;
+              return (
+                <TooltipCard
+                  title={`Week of ${shortDate(p.weekStart)}`}
+                  rows={[
+                    { label: "Eaten", value: `${Math.round(p.actual)} kcal`, color: C.teal },
+                    { label: "Target", value: `${Math.round(p.target)} kcal`, color: C.violet },
+                    {
+                      label: "Gap",
+                      value: `${delta > 0 ? "+" : ""}${Math.round(delta)} kcal`,
+                      color: Math.abs(delta) < 150 ? C.green : C.violet,
+                    },
+                  ]}
+                />
+              );
+            }}
+          />
+          <Bar dataKey="actual" fill="url(#wk-bar)" radius={[4, 4, 0, 0]} maxBarSize={30} />
+          <Line
+            type="monotone"
+            dataKey="target"
+            stroke={C.violet}
+            strokeWidth={2}
+            strokeDasharray="5 4"
+            dot={false}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
     </div>
   );
 }
