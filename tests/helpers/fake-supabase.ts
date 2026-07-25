@@ -287,9 +287,38 @@ export interface FakeSupabaseOptions {
   failTable?: string | null;
 }
 
+// A record of what the fake storage was asked to do, so a test can assert an
+// action uploaded to (or cleaned up from) the right paths.
+export interface FakeStorage {
+  uploaded: { bucket: string; path: string }[];
+  removed: { bucket: string; paths: string[] }[];
+}
+
 export function createFakeSupabase(opts: FakeSupabaseOptions = {}) {
   const db: FakeDb = opts.db ?? {};
   const user = opts.user === undefined ? { id: "user-1" } : opts.user;
+
+  // A tiny stand-in for Supabase Storage: it doesn't hold bytes, it just records
+  // the calls and mints a deterministic "signed" URL. Enough to run the photo
+  // actions and the history read end to end without a bucket.
+  const storage: FakeStorage = { uploaded: [], removed: [] };
+  const storageApi = {
+    from(bucket: string) {
+      return {
+        async upload(path: string) {
+          storage.uploaded.push({ bucket, path });
+          return { data: { path }, error: null };
+        },
+        async remove(paths: string[]) {
+          storage.removed.push({ bucket, paths });
+          return { data: null, error: null };
+        },
+        async createSignedUrl(path: string) {
+          return { data: { signedUrl: `signed:${bucket}/${path}` }, error: null };
+        },
+      };
+    },
+  };
 
   const client = {
     auth: {
@@ -298,9 +327,10 @@ export function createFakeSupabase(opts: FakeSupabaseOptions = {}) {
     from(table: string) {
       return new FakeQuery(db, table, opts.failTable === table ? "boom" : null);
     },
+    storage: storageApi,
   };
 
-  return { client, db };
+  return { client, db, storage };
 }
 
 // The client the mocked `@/lib/supabase/server` hands out. A test file points

@@ -51,6 +51,40 @@ const AUTH_SCHEMA = `
   $$;
 `;
 
+// Supabase also ships a `storage` schema (buckets + objects + helper functions).
+// Our photo migration (0029) creates a private bucket and policies on
+// storage.objects, so a plain Postgres needs a stand-in for those to apply.
+// Only enough of the shape to let the migration run — the storage RLS itself is
+// Supabase's, not ours, so it isn't exercised here.
+const STORAGE_SCHEMA = `
+  create schema if not exists storage;
+
+  create table if not exists storage.buckets (
+    id text primary key,
+    name text,
+    public boolean default false
+  );
+
+  create table if not exists storage.objects (
+    id uuid primary key default gen_random_uuid(),
+    bucket_id text,
+    name text,
+    owner uuid
+  );
+
+  alter table storage.objects enable row level security;
+
+  -- Real Supabase's helper: the path split into folder segments (minus the file).
+  create or replace function storage.foldername(name text) returns text[]
+    language sql immutable
+  as $$
+    select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1]
+  $$;
+
+  grant usage on schema storage to authenticated, anon;
+  grant all on all tables in schema storage to authenticated;
+`;
+
 export async function connect(): Promise<Client> {
   const client = new Client({ connectionString: DATABASE_URL });
   await client.connect();
@@ -67,6 +101,7 @@ export async function resetSchema(client: Client): Promise<void> {
     create schema public;
   `);
   await client.query(AUTH_SCHEMA);
+  await client.query(STORAGE_SCHEMA);
 
   const files = readdirSync(MIGRATIONS_DIR)
     .filter((f) => f.endsWith(".sql"))
