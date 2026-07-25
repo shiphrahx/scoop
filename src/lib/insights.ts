@@ -26,7 +26,7 @@ import {
   type TrendChange,
   type WeighIn,
 } from "@/lib/coach";
-import type { Sex } from "@/lib/types";
+import type { PhotoAngle, Sex } from "@/lib/types";
 
 const DAY_MS = 86_400_000;
 
@@ -449,6 +449,59 @@ export function waistToHeight(
     heightCm: round(heightCm, 0),
     healthyMaxWaistCm: round(heightCm * WHTR_HEALTHY_MAX, 0),
   };
+}
+
+// --- 7. Progress-photo comparison ---------------------------------------------
+
+export interface ComparablePhoto {
+  angle: PhotoAngle;
+  date: string;
+  url: string;
+}
+
+export interface PhotoPair {
+  angle: PhotoAngle;
+  start: ComparablePhoto;
+  latest: ComparablePhoto;
+  weeksApart: number;
+}
+
+// The first and most recent photo of each angle, so the UI can put a slider
+// between them.
+//
+// Photos are the only record that shows what the numbers can't: shape. But a
+// side-by-side is only worth showing when the two shots are the same view and
+// far enough apart to differ, so this pairs strictly by angle and drops any
+// angle with a single photo or both shots in the same week. Signed URLs are
+// short-lived, so anything without one is skipped rather than rendered broken.
+export function photoPairs(
+  checkIns: {
+    date: string;
+    photos: { angle: PhotoAngle; signed_url?: string }[];
+  }[],
+): PhotoPair[] {
+  const byAngle = new Map<PhotoAngle, ComparablePhoto[]>();
+  for (const c of checkIns) {
+    for (const p of c.photos) {
+      if (!p.signed_url) continue;
+      const list = byAngle.get(p.angle) ?? [];
+      list.push({ angle: p.angle, date: c.date, url: p.signed_url });
+      byAngle.set(p.angle, list);
+    }
+  }
+
+  const order: PhotoAngle[] = ["front", "side", "back", "other"];
+  const pairs: PhotoPair[] = [];
+  for (const angle of order) {
+    const list = (byAngle.get(angle) ?? []).sort((a, b) => a.date.localeCompare(b.date));
+    if (list.length < 2) continue;
+    const start = list[0];
+    const latest = list[list.length - 1];
+    const weeksApart = (dayMs(latest.date) - dayMs(start.date)) / DAY_MS / 7;
+    if (weeksApart < 1) continue;
+    pairs.push({ angle, start, latest, weeksApart: round(weeksApart, 0) });
+  }
+  return pairs;
 }
 
 export { type WeighIn };
