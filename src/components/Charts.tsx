@@ -381,7 +381,7 @@ export function MeasurementsChart({
               if (!active || !payload?.length) return null;
               const p = payload[0].payload as { date: string; value: number };
               const i = data.findIndex((d) => d.date === p.date);
-              const rows = [
+              const rows: { label: string; value: string; color: string }[] = [
                 { label, value: `${p.value.toFixed(1)} cm`, color: C.green },
               ];
               if (i > 0) {
