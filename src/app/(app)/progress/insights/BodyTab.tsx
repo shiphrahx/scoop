@@ -91,25 +91,25 @@ export default function BodyTab({
   if (whtr == null) {
     locked.push({
       title: "Waist to height",
-      why: "Log a waist measurement at your next check-in (and a height on your profile).",
+      why: "The health number that beats the scale. Add a waist at a check-in and a height on your profile.",
     });
   }
   if (!anyMeasurement) {
     locked.push({
       title: "Measurements",
-      why: "No tape readings yet — take them at a check-in and the chart appears.",
+      why: "Watch your waist, chest, arms, thighs and hips move on the weeks the scale won't. Take them at a check-in.",
     });
   }
   if (pair == null) {
     locked.push({
       title: "Then and now",
-      why: "Add a progress photo at two check-ins a week or more apart.",
+      why: "Slide your first photo over your latest. Add one at two check-ins a week or more apart.",
     });
   }
   if (checkIns.length === 0) {
     locked.push({
       title: "Past check-ins",
-      why: "Your first weekly check-in starts the record.",
+      why: "Every check-in with its measurements, notes and photos. Your first one starts the record.",
     });
   }
 
