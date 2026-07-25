@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import BottomNav from "@/components/BottomNav";
 import Sidebar from "@/components/Sidebar";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/auth";
 import { getProfile } from "@/lib/queries";
 
 // Shared shell for every signed-in screen: content area + bottom nav.
@@ -11,17 +11,15 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Both are cached for the request, so the page rendering alongside this
+  // layout shares the same two round trips rather than repeating them.
+  const [user, profile] = await Promise.all([getSessionUser(), getProfile()]);
 
   if (!user) {
     redirect("/login");
   }
 
   // New users must finish onboarding before reaching the app.
-  const profile = await getProfile();
   if (!profile?.onboarded_at) {
     redirect("/onboarding");
   }

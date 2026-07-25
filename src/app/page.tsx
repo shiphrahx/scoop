@@ -16,7 +16,7 @@ import {
   KeyRound,
 } from "lucide-react";
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/auth";
 import InstallAppButton from "@/components/InstallAppButton";
 import SiteFooter from "@/components/SiteFooter";
 import AppPreview from "@/components/AppPreview";
@@ -27,10 +27,7 @@ export const metadata: Metadata = {
 
 // Public front door. Everyone lands here; signing in sends them to /dashboard.
 export default async function LandingPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionUser();
 
   // Signed-in visitors get a shortcut straight into the app.
   const primaryHref = user ? "/dashboard" : "/login";

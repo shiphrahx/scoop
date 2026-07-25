@@ -1,7 +1,7 @@
 import AutoReview from "@/app/(app)/coach/AutoReview";
 import MobileHome from "@/components/home/MobileHome";
 import DesktopDashboard from "@/components/home/DesktopDashboard";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/auth";
 import {
   getDayTarget,
   getTodayConsumed,
@@ -18,10 +18,7 @@ import { normalizePrefs } from "@/lib/nutrients";
 import { sumMacros } from "@/lib/types";
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionUser();
 
   const name =
     (user?.user_metadata?.full_name as string | undefined)?.split(" ")[0] ??

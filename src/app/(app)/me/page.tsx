@@ -15,6 +15,7 @@ import {
   FitbitButton,
 } from "@/app/(app)/coach/Controls";
 import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/auth";
 import { decryptSecret } from "@/lib/crypto";
 import { getCurrentTargets, getLatestWeight, getProfile, hasApiKey } from "@/lib/queries";
 
@@ -31,9 +32,7 @@ export default async function MePage({
   searchParams: Promise<{ fitbit?: string }>;
 }) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionUser();
 
   const [{ fitbit }, profile, connected, targets, weightKg] = await Promise.all([
     searchParams,
