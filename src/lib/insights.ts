@@ -327,4 +327,74 @@ export function goalProgress(
   };
 }
 
+// --- 5. Fat loss the scale can't see -----------------------------------------
+
+// One check-in's tape readings. Only what the body modules need; the full row
+// lives in CheckIn.
+export interface TapePoint {
+  date: string;
+  waist_cm: number | null;
+  hips_cm: number | null;
+  thighs_cm: number | null;
+  arms_cm: number | null;
+  chest_cm: number | null;
+}
+
+export interface FatLossSignal {
+  windowDays: number;
+  weightDeltaKg: number; // positive = the scale went UP
+  waistDeltaCm: number; // negative = the waist shrank
+  detected: boolean;
+}
+
+// The window the detector compares over. Four weeks: long enough that a single
+// week of water retention can't fake it, short enough to still be news.
+export const FAT_LOSS_WINDOW_DAYS = 28;
+
+// How flat the scale has to be, and how much waist has to go, before we say it.
+// Half a centimetre is about the limit of what a tape measure can resolve
+// honestly; below that we'd be reading measurement error back to the user as
+// progress.
+const FLAT_SCALE_KG = -0.2; // weight change at or above this counts as "not falling"
+const REAL_WAIST_DROP_CM = -0.5;
+
+// "The scale is stuck but you're losing fat" — said only when the data actually
+// says it.
+//
+// This is the single most useful thing a weight-loss app can tell someone,
+// because it's the moment most people quit. Recomposition is real: glycogen and
+// water refill as fat leaves, and the scale sits still for weeks while the tape
+// keeps moving. Null when there isn't a pair of tape readings spanning the
+// window to compare — the callout has to be earned.
+export function fatLossSignal(
+  weighIns: WeighIn[],
+  tape: TapePoint[],
+  windowDays = FAT_LOSS_WINDOW_DAYS,
+  now = new Date(),
+): FatLossSignal | null {
+  const cutoff = new Date(now.getTime() - (windowDays - 1) * DAY_MS)
+    .toISOString()
+    .slice(0, 10);
+
+  const waist = tape
+    .filter((t) => t.waist_cm != null && t.date >= cutoff)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (waist.length < 2) return null;
+
+  const series = trendSeries(
+    weighIns.filter((p) => Number.isFinite(p.kg) && p.kg > 0 && p.date >= cutoff),
+  );
+  if (series.length < 2) return null;
+
+  const weightDeltaKg = series[series.length - 1].kg - series[0].kg;
+  const waistDeltaCm = waist[waist.length - 1].waist_cm! - waist[0].waist_cm!;
+
+  return {
+    windowDays,
+    weightDeltaKg: round(weightDeltaKg, 1),
+    waistDeltaCm: round(waistDeltaCm, 1),
+    detected: weightDeltaKg >= FLAT_SCALE_KG && waistDeltaCm <= REAL_WAIST_DROP_CM,
+  };
+}
+
 export { type WeighIn };
