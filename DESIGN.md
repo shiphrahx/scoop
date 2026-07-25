@@ -37,6 +37,7 @@ hard-code palette values in components.
 - `--grad-progress` conic — the progress ring motif
 
 **Glass** — `--glass-bg`, `--glass-bg-solid`, `--glass-border`, `--glass-blur`
+**Scrim** — `--scrim`, the dimmer behind a modal sheet
 **Shape/depth** — `--radius`, `--radius-lg`, `--radius-sm`, `--shadow-soft`, `--shadow-glow`
 
 ## Component classes
@@ -97,19 +98,29 @@ Routes (`src/app/`):
 - [x] `(app)/plan/recipe/` — import (link keyless / screenshot gated), saved recipes
 - [x] `(app)/pantry/` — list/edit, barcode, list import, invoice import, screenshot (gated), matcher
 - [x] `(app)/batches/`
-- [x] `(app)/progress/` — daily weight logger, "check in for this week" card,
-      the insights dashboard (below), weigh-in and check-in history
-- [x] `(app)/progress/insights/` — the dashboard, grouped into five sections:
-      **Trend** (trend line over raw dots + range toggle, rate of loss vs the
-      healthy band, projected goal date, journey bar), **Body** (fat-loss
-      callout, waist-to-height, measurements, then-and-now photo wipe),
-      **Drivers** (sleep / movement / adherence scatters, high-day impact),
-      **Adherence** (this week's scorecard, eaten vs target, weekday vs
-      weekend), **Motivation** (milestones, plateau alert, wins log).
-      Card states live in `insights/ui.tsx`: `NeedsMoreData` (dashed card naming
-      what would unlock it), `ConnectPrompt` (no wearable), `PatternNote`
-      ("patterns, not proof") on every correlation card. Detail that would crowd
-      a phone folds behind `Expandable`.
+- [x] `(app)/progress/` — an `ActionBar` (log weight / check in, two buttons on
+      one row, the weight stepper in a sheet) over the tabbed insights dashboard
+- [x] `(app)/progress/insights/` — the dashboard: a KPI row, one primary chart,
+      then compact cards in four tabs. Rules it holds to:
+      - **A card renders only when it has data.** Everything not ready yet is
+        collected into `LockedInsight[]` and rendered as ONE line per tab
+        ("3 more insights unlock as you log"), tappable for the reasons and the
+        connect-a-device link. Never a full-size "needs more data" card.
+      - **KPI row first** (`KpiRow` / `KpiTile`): now, per week, % to goal,
+        goal date — only the ones with a number. Each opens its detail.
+      - **One primary chart** (weight trend over raw dots + range toggle) on
+        Overview. Every other chart lives inside a card's detail drawer.
+      - **Grid, not a stack** (`InsightGrid`): two across on a phone, three from
+        `lg`. Cards are `CompactCard` — a headline figure, tap to open the full
+        detail in `Drawer` (bottom sheet on a phone, centred panel from `sm`).
+      - Tabs (`Tabs.tsx`, all panels stay mounted): **Overview** (KPIs, weight
+        chart, fat-loss callout, plateau alert, this week, milestones),
+        **Body** (waist-to-height, measurements, then-and-now photo wipe, past
+        check-ins), **Drivers** (sleep / movement / adherence scatters, high-day
+        impact), **Adherence** (eaten vs target, weekday vs weekend, wins log).
+      - `PatternNote` ("patterns, not proof") on every correlation card;
+        `NeedsMoreData` only for an empty *part* of an open card; `Expandable`
+        for detail that would crowd even the drawer.
 - [x] `(app)/progress/check-in/` — weekly check-in form, deltas vs last week,
       optional private photos
 - [x] `(app)/coach/` — weekly review, activity list (empty: connect devices)
