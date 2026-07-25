@@ -45,6 +45,22 @@ suite("row-level security", () => {
       insert: (id) => `insert into measurements (user_id, waist_cm) values ('${id}', 86)`,
     },
     {
+      table: "check_ins",
+      owner: "user_id",
+      insert: (id) =>
+        `insert into check_ins (user_id, week_start, waist_cm) values ('${id}', '2026-07-06', 84)`,
+    },
+    {
+      table: "check_in_photos",
+      owner: "user_id",
+      insert: (id) =>
+        `with c as (
+           insert into check_ins (user_id, week_start) values ('${id}', '2026-07-13') returning id
+         )
+         insert into check_in_photos (check_in_id, user_id, storage_path)
+         select id, '${id}', '${id}/photo.jpg' from c`,
+    },
+    {
       table: "food_logs",
       owner: "user_id",
       insert: (id) =>
