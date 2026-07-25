@@ -81,48 +81,6 @@ export function Drawer({
   );
 }
 
-export function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="flex flex-col gap-3">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
-        {title}
-      </h2>
-      {children}
-    </section>
-  );
-}
-
-export function InsightCard({
-  icon,
-  title,
-  aside,
-  children,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  aside?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="sc-card flex flex-col gap-3 p-5">
-      <div className="flex items-center gap-2">
-        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[var(--fill)] text-[var(--muted)]">
-          {icon}
-        </span>
-        <span className="text-sm font-semibold text-[var(--foreground)]">{title}</span>
-        {aside ? <span className="ml-auto">{aside}</span> : null}
-      </div>
-      {children}
-    </div>
-  );
-}
-
 // A card at dashboard size: a headline the eye can read at a glance, with the
 // full detail one tap away in a drawer. Two of these fit across a phone.
 export function CompactCard({
@@ -260,26 +218,13 @@ function LockedLine({ items }: { items: LockedInsight[] }) {
   );
 }
 
-// The card has nothing to say yet and says so, with what would unlock it.
+// Something *inside* an open card has nothing to say yet — a measure with no
+// readings, a board with no markers. A whole card in this state never renders;
+// it goes in the locked line instead.
 export function NeedsMoreData({ what }: { what: string }) {
   return (
     <div className="rounded-2xl border border-dashed border-[var(--border)] px-4 py-5 text-center">
       <p className="text-sm text-[var(--muted)]">Needs more data — {what}</p>
-    </div>
-  );
-}
-
-// No wearable linked, so there is nothing to plot and never will be until one is.
-export function ConnectPrompt({ what }: { what: string }) {
-  return (
-    <div className="grid place-items-center gap-2 rounded-2xl border border-dashed border-[var(--border)] px-4 py-8 text-center">
-      <Watch size={22} className="text-[var(--muted)]" />
-      <p className="text-sm text-[var(--muted)]">
-        Connect a device to see {what}.
-      </p>
-      <Link href="/me" className="sc-btn sc-btn-soft mt-1">
-        Connect a device
-      </Link>
     </div>
   );
 }
