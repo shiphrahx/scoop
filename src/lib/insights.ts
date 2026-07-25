@@ -796,4 +796,56 @@ export function adherenceVsLoss(weeks: InsightWeek[]): Correlation | null {
   return correlate(weeks, (w) => w.adherencePct);
 }
 
+// --- 11. High-day impact -------------------------------------------------------
+
+export interface HighDayImpact {
+  withWeeks: number;
+  withoutWeeks: number;
+  meanLossWithKg: number; // positive = lost
+  meanLossWithoutKg: number;
+  differenceKg: number; // with − without; positive = high-day weeks lost more
+  verdict: "better" | "worse" | "no-difference";
+}
+
+// Both groups need at least this many weeks before the comparison says anything.
+export const MIN_WEEKS_PER_GROUP = 2;
+
+// Below this the two groups are the same week wearing different labels.
+const MEANINGFUL_DIFFERENCE_KG = 0.1;
+
+// Weeks with high days against weeks without them.
+//
+// Cycling doesn't change the weekly calorie total by design (see highday.ts),
+// so the honest expectation is no difference in loss — the point of high days
+// is adherence and training fuel. This card exists to let the user check that
+// on their own body rather than take our word for it, and to catch the case
+// where high days quietly became extra days.
+export function highDayImpact(weeks: InsightWeek[]): HighDayImpact | null {
+  const usable = weeks.filter((w) => w.weightChangeKg != null);
+  const withHigh = usable.filter((w) => w.highDays > 0);
+  const without = usable.filter((w) => w.highDays === 0);
+  if (withHigh.length < MIN_WEEKS_PER_GROUP || without.length < MIN_WEEKS_PER_GROUP) {
+    return null;
+  }
+
+  const lost = (ws: InsightWeek[]) => average(ws.map((w) => -w.weightChangeKg!))!;
+  const meanWith = lost(withHigh);
+  const meanWithout = lost(without);
+  const diff = meanWith - meanWithout;
+
+  return {
+    withWeeks: withHigh.length,
+    withoutWeeks: without.length,
+    meanLossWithKg: round(meanWith, 2),
+    meanLossWithoutKg: round(meanWithout, 2),
+    differenceKg: round(diff, 2),
+    verdict:
+      Math.abs(diff) < MEANINGFUL_DIFFERENCE_KG
+        ? "no-difference"
+        : diff > 0
+          ? "better"
+          : "worse",
+  };
+}
+
 export { type WeighIn };
