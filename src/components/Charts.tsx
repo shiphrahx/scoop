@@ -211,6 +211,108 @@ export function WeightTrendChart({
   );
 }
 
+// ── Trend line over the raw dots ────────────────────────────────────
+// The daily weigh-ins as recessive dots with the smoothed trend drawn through
+// them. Two encodings of the same measure, so they share one axis: the dots are
+// the user's data, the line is what it means.
+export function TrendDotsChart({
+  data,
+  height = 220,
+}: {
+  data: { date: string; weight: number | null; trend: number }[];
+  height?: number;
+}) {
+  if (data.length === 0) return <EmptyChart height={height} />;
+
+  const values = data.flatMap((d) => (d.weight == null ? [d.trend] : [d.weight, d.trend]));
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const pad = (max - min) * 0.15 || 1;
+  const logs = data.filter((d) => d.weight != null).length;
+  const change = data[data.length - 1].trend - data[0].trend;
+
+  return (
+    <div>
+      <div className="mb-2 flex gap-4">
+        <Legend color={C.axis}>Weigh-ins</Legend>
+        <Legend color={C.teal}>Trend</Legend>
+      </div>
+      <ResponsiveContainer width="100%" height={height}>
+        <LineChart data={data} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+          <CartesianGrid vertical={false} stroke={C.grid} />
+          <XAxis
+            dataKey="date"
+            tickFormatter={shortDate}
+            tick={AXIS_TICK}
+            tickLine={false}
+            axisLine={false}
+            interval={tickInterval(data.length)}
+            minTickGap={16}
+          />
+          <YAxis
+            domain={[Math.floor(min - pad), Math.ceil(max + pad)]}
+            tick={AXIS_TICK}
+            tickLine={false}
+            axisLine={false}
+            width={34}
+          />
+          <Tooltip
+            cursor={{ stroke: C.teal, strokeWidth: 1, strokeDasharray: "4 4" }}
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const p = payload[0].payload as {
+                date: string;
+                weight: number | null;
+                trend: number;
+              };
+              const rows = [
+                { label: "Trend", value: `${p.trend.toFixed(1)} kg`, color: C.teal },
+              ];
+              if (p.weight != null) {
+                rows.unshift({
+                  label: "Weighed",
+                  value: `${p.weight.toFixed(1)} kg`,
+                  color: C.axis,
+                });
+              }
+              return <TooltipCard title={longDate(p.date)} rows={rows} />;
+            }}
+          />
+          {/* Raw readings: dots only, never joined — a line between two weigh-ins
+              four days apart draws a journey the body didn't take. */}
+          <Line
+            type="monotone"
+            dataKey="weight"
+            stroke="none"
+            dot={{ r: 2.5, strokeWidth: 0, fill: C.axis }}
+            activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff", fill: C.axis }}
+            isAnimationActive={false}
+          />
+          <Line
+            type="monotone"
+            dataKey="trend"
+            stroke={C.teal}
+            strokeWidth={2.5}
+            dot={false}
+            activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff", fill: C.teal }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+
+      <div className="mt-3 flex items-center justify-between border-t border-[var(--border)] pt-3">
+        <Stat label="Trend now" value={`${data[data.length - 1].trend.toFixed(1)} kg`} />
+        <Stat
+          label="Change"
+          value={`${change > 0 ? "+" : ""}${change.toFixed(1)} kg`}
+          tint={change <= 0 ? "var(--ink-green)" : "var(--accent)"}
+        />
+        <Stat label="Range" value={`${min.toFixed(1)}–${max.toFixed(1)}`} />
+        <Stat label="Weigh-ins" value={`${logs}`} />
+      </div>
+    </div>
+  );
+}
+
 // ── Weight vs exercise (synced small multiples — never a dual axis) ──
 export function WeightVsExercise({
   weights,
