@@ -2,39 +2,77 @@ import WeightLogger from "./WeightLogger";
 import WeightHistory from "./WeightHistory";
 import CheckInCard from "./CheckInCard";
 import CheckInHistory from "./CheckInHistory";
-import Dashboard from "./Dashboard";
+import TrendSection from "./insights/TrendSection";
+import BodySection from "./insights/BodySection";
+import PhotoCompare from "./insights/PhotoCompare";
+import DriversSection from "./insights/DriversSection";
+import AdherenceSection from "./insights/AdherenceSection";
+import MotivationSection from "./insights/MotivationSection";
+import { getCurrentCheckIn, getInsightsData } from "@/lib/queries";
 import {
-  getActivityHistory,
-  getCheckInHistory,
-  getCurrentCheckIn,
-  getDeviceConnected,
-  getMeasurementHistory,
-  getWeightHistory,
-} from "@/lib/queries";
+  actualVsTarget,
+  adherenceVsLoss,
+  fatLossSignal,
+  goalProgress,
+  highDayImpact,
+  lossRate,
+  milestones,
+  movementVsLoss,
+  photoPairs,
+  plateau,
+  projectGoalDate,
+  sleepVsLoss,
+  trendLine,
+  waistToHeight,
+  weekScorecard,
+  weekdayVsWeekend,
+  weeklyBuckets,
+  type WeighIn,
+} from "@/lib/insights";
+import { addDaysISO, weekStartOf } from "@/lib/time";
+
+// How much history the small "see the raw days" charts inside the driver cards
+// show. The correlations read months; these are just context for the pattern.
+const RAW_CHART_DAYS = 30;
 
 export default async function ProgressPage() {
-  const [
-    currentCheckIn,
-    weightHistory,
-    measurementHistory,
-    activity,
-    deviceConnected,
-    checkInHistory,
-  ] = await Promise.all([
+  const [currentCheckIn, data] = await Promise.all([
     getCurrentCheckIn(),
-    getWeightHistory(365),
-    getMeasurementHistory(365),
-    getActivityHistory(90),
-    getDeviceConnected(),
-    getCheckInHistory(),
+    getInsightsData(),
   ]);
 
-  // Newest weigh-in is the last point (history is oldest→newest); it prefills
-  // the one-tap logger.
-  const last =
-    weightHistory.length > 0
-      ? weightHistory[weightHistory.length - 1].weight_kg
-      : null;
+  const { profile, today } = data;
+  const weighIns: WeighIn[] = data.weights.map((w) => ({
+    date: w.date,
+    kg: w.weight_kg,
+  }));
+
+  // Check-ins arrive newest-first; the tape series wants oldest-first.
+  const checkInsAsc = [...data.checkIns].sort((a, b) => a.date.localeCompare(b.date));
+  const tape = checkInsAsc.map((c) => ({
+    date: c.date,
+    waist_cm: c.waist_cm,
+    hips_cm: c.hips_cm,
+    thighs_cm: c.thighs_cm,
+    arms_cm: c.arms_cm,
+    chest_cm: c.chest_cm,
+  }));
+  const latestWaist = [...tape].reverse().find((t) => t.waist_cm != null)?.waist_cm ?? null;
+
+  const weeks = weeklyBuckets({
+    weighIns,
+    intake: data.intake,
+    activity: data.activity,
+    targets: data.targets,
+    highDayDates: data.highDayDates,
+  });
+
+  const thisWeek = weekStartOf(today);
+  const currentTarget = data.targets.find((t) => t.week_start === thisWeek) ?? null;
+
+  // Raw day series for the expandable detail inside the driver cards.
+  const rawCut = addDaysISO(today, -(RAW_CHART_DAYS - 1));
+  const recentActivity = data.activity.filter((a) => a.date >= rawCut);
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-5 pt-8 pb-6 lg:px-8">
@@ -46,28 +84,79 @@ export default async function ProgressPage() {
         <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
           Daily weight
         </h2>
-        <WeightLogger last={last} />
+        <WeightLogger
+          last={
+            data.weights.length > 0
+              ? data.weights[data.weights.length - 1].weight_kg
+              : null
+          }
+        />
       </section>
 
-      <Dashboard
-        weights={weightHistory}
-        measurements={measurementHistory}
-        activity={activity}
-        deviceConnected={deviceConnected}
+      <TrendSection
+        today={today}
+        trend={trendLine(weighIns)}
+        rate={profile ? lossRate(weighIns, profile.sex, profile.body_fat_pct) : null}
+        projection={projectGoalDate(weighIns, profile?.goal_weight_kg)}
+        progress={goalProgress(weighIns, profile?.goal_weight_kg)}
+      />
+
+      <BodySection
+        fatLoss={fatLossSignal(weighIns, tape)}
+        whtr={waistToHeight(latestWaist, profile?.height_cm)}
+        measurements={tape}
+      >
+        <PhotoCompare
+          pairs={photoPairs(
+            checkInsAsc.map((c) => ({ date: c.date, photos: c.photos })),
+          )}
+        />
+      </BodySection>
+
+      <DriversSection
+        sleep={sleepVsLoss(weeks)}
+        movement={movementVsLoss(weeks)}
+        adherence={adherenceVsLoss(weeks)}
+        highDay={highDayImpact(weeks)}
+        cyclingEnabled={Boolean(profile?.cycling_enabled)}
+        deviceConnected={data.deviceConnected}
+        weightSeries={data.weights
+          .filter((w) => w.date >= rawCut)
+          .map((w) => ({ date: w.date, weight: w.weight_kg }))}
+        burnSeries={recentActivity
+          .filter((a) => a.workout_kcal != null)
+          .map((a) => ({ date: a.date, kcal: a.workout_kcal as number }))}
+        sleepSeries={recentActivity
+          .filter((a) => a.sleep_hours != null)
+          .map((a) => ({ date: a.date, hours: a.sleep_hours as number }))}
+      />
+
+      <AdherenceSection
+        scorecard={weekScorecard(data.intake, currentTarget, today)}
+        weeks={actualVsTarget(data.intake, data.targets)}
+        pattern={weekdayVsWeekend(data.intake)}
+        hasTarget={data.targets.length > 0}
+      />
+
+      <MotivationSection
+        board={milestones(weighIns, profile?.goal_weight_kg, data.customMilestones)}
+        plateau={plateau(weighIns)}
+        victories={data.victories}
+        today={today}
       />
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
           All weigh-ins
         </h2>
-        <WeightHistory weights={weightHistory} />
+        <WeightHistory weights={data.weights} />
       </section>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
           Past check-ins
         </h2>
-        <CheckInHistory initial={checkInHistory} />
+        <CheckInHistory initial={data.checkIns} />
       </section>
     </main>
   );
