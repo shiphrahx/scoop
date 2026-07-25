@@ -39,7 +39,6 @@ export default async function LandingPage() {
             width={36}
             height={36}
             className="rounded-xl"
-            priority
           />
           <span className="text-xl font-semibold tracking-tight">Scoop</span>
         </div>
