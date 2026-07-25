@@ -1,7 +1,14 @@
 import WeightLogger from "./WeightLogger";
 import CheckInCard from "./CheckInCard";
+import Dashboard from "./Dashboard";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentCheckIn } from "@/lib/queries";
+import {
+  getActivityHistory,
+  getCurrentCheckIn,
+  getDeviceConnected,
+  getMeasurementHistory,
+  getWeightHistory,
+} from "@/lib/queries";
 
 interface WeightRow {
   date: string;
@@ -11,13 +18,24 @@ interface WeightRow {
 export default async function ProgressPage() {
   const supabase = await createClient();
 
-  const [{ data: weightData }, currentCheckIn] = await Promise.all([
+  const [
+    { data: weightData },
+    currentCheckIn,
+    weightHistory,
+    measurementHistory,
+    activity,
+    deviceConnected,
+  ] = await Promise.all([
     supabase
       .from("weights")
       .select("date, weight_kg")
       .order("date", { ascending: false })
       .limit(7),
     getCurrentCheckIn(),
+    getWeightHistory(365),
+    getMeasurementHistory(365),
+    getActivityHistory(90),
+    getDeviceConnected(),
   ]);
 
   const weights = (weightData as WeightRow[]) ?? [];
@@ -50,6 +68,13 @@ export default async function ProgressPage() {
           </ul>
         )}
       </section>
+
+      <Dashboard
+        weights={weightHistory}
+        measurements={measurementHistory}
+        activity={activity}
+        deviceConnected={deviceConnected}
+      />
     </main>
   );
 }
