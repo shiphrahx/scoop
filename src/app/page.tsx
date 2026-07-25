@@ -38,31 +38,60 @@ export default async function LandingPage() {
   return (
     <>
       {/* ---------- Header ---------- */}
-      <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-5">
-        <div className="flex items-center gap-2.5">
-          <Image
-            src="/logos/icon.png"
-            alt="Scoop"
-            width={36}
-            height={36}
-            className="rounded-xl"
-          />
-          <span className="text-xl font-semibold tracking-tight">Scoop</span>
+      {/* Sticky so the way in is always one tap away on a long page. */}
+      <header className="sticky top-0 z-40 border-b border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)]">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-6 py-3.5">
+          <div className="flex items-center gap-2.5">
+            <Image
+              src="/logos/icon.png"
+              alt="Scoop"
+              width={32}
+              height={32}
+              className="rounded-xl"
+            />
+            <span className="text-lg font-semibold tracking-tight">Scoop</span>
+          </div>
+
+          {/* Room for the section links only once there is room. */}
+          <nav
+            aria-label="Sections"
+            className="hidden items-center gap-6 text-sm text-[var(--muted)] md:flex"
+          >
+            <a href="#how" className="hover:text-[var(--foreground)]">
+              How it works
+            </a>
+            <a href="#maths" className="hover:text-[var(--foreground)]">
+              The maths
+            </a>
+            <a href="#coach" className="hover:text-[var(--foreground)]">
+              The coach
+            </a>
+            <a href="#features" className="hover:text-[var(--foreground)]">
+              Features
+            </a>
+          </nav>
+
+          <Link href={primaryHref} className="sc-btn sc-btn-primary text-sm">
+            {user ? "Dashboard" : "Get started"}
+          </Link>
         </div>
-        <Link href={primaryHref} className="sc-btn sc-btn-neutral text-sm">
-          {user ? "Dashboard" : "Log in"}
-        </Link>
       </header>
 
       <main className="flex flex-1 flex-col">
         {/* ---------- Hero ---------- */}
-        <section className="mx-auto flex w-full max-w-6xl flex-col items-center px-6 pb-20 pt-10 text-center lg:pt-16">
+        <section
+          aria-labelledby="hero-title"
+          className="mx-auto flex w-full max-w-6xl flex-col items-center px-6 pb-20 pt-10 text-center lg:pt-16"
+        >
           <span className="sc-chip mb-6" data-active="true">
             <Sparkles size={16} strokeWidth={2.5} />
             Your portion coach
           </span>
 
-          <h1 className="max-w-3xl text-5xl font-semibold leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl">
+          <h1
+            id="hero-title"
+            className="max-w-3xl text-5xl font-semibold leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl"
+          >
             Stop counting.
             <br />
             We tell you the{" "}
@@ -120,8 +149,15 @@ export default async function LandingPage() {
         </section>
 
         {/* ---------- How it works ---------- */}
-        <section className="mx-auto w-full max-w-6xl px-6 py-16">
-          <h2 className="text-center text-3xl font-semibold tracking-tight sm:text-4xl">
+        <section
+          id="how"
+          aria-labelledby="how-title"
+          className="mx-auto w-full max-w-6xl px-6 py-16"
+        >
+          <h2
+            id="how-title"
+            className="text-center text-3xl font-semibold tracking-tight sm:text-4xl"
+          >
             Three taps, not a food diary
           </h2>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
@@ -165,13 +201,20 @@ export default async function LandingPage() {
         </section>
 
         {/* ---------- The maths (trust) ---------- */}
-        <section className="mx-auto w-full max-w-6xl px-6 py-16">
+        <section
+          id="maths"
+          aria-labelledby="maths-title"
+          className="mx-auto w-full max-w-6xl px-6 py-16"
+        >
           <div className="text-center">
             <span className="sc-chip mb-5" data-active="true">
               <Calculator size={16} strokeWidth={2.5} />
               No black box
             </span>
-            <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+            <h2
+              id="maths-title"
+              className="text-3xl font-semibold tracking-tight sm:text-4xl"
+            >
               The maths, in plain words
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-lg text-[var(--muted)]">
@@ -249,9 +292,16 @@ export default async function LandingPage() {
         </section>
 
         {/* ---------- How the coach adjusts ---------- */}
-        <section className="mx-auto w-full max-w-6xl px-6 py-16">
+        <section
+          id="coach"
+          aria-labelledby="coach-title"
+          className="mx-auto w-full max-w-6xl px-6 py-16"
+        >
           <div className="sc-card p-8 md:p-10">
-            <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+            <h2
+              id="coach-title"
+              className="text-3xl font-semibold tracking-tight sm:text-4xl"
+            >
               A coach that changes its mind{" "}
               <span className="sc-grad-text">slowly</span>
             </h2>
@@ -293,8 +343,15 @@ export default async function LandingPage() {
         </section>
 
         {/* ---------- Features ---------- */}
-        <section className="mx-auto w-full max-w-6xl px-6 py-16">
-          <h2 className="text-center text-3xl font-semibold tracking-tight sm:text-4xl">
+        <section
+          id="features"
+          aria-labelledby="features-title"
+          className="mx-auto w-full max-w-6xl px-6 py-16"
+        >
+          <h2
+            id="features-title"
+            className="text-center text-3xl font-semibold tracking-tight sm:text-4xl"
+          >
             What it does while you get on with your day
           </h2>
           <div className="mt-12 grid gap-6 md:grid-cols-2">
@@ -356,9 +413,15 @@ export default async function LandingPage() {
         </section>
 
         {/* ---------- Final CTA ---------- */}
-        <section className="mx-auto w-full max-w-6xl px-6 py-16">
+        <section
+          aria-labelledby="cta-title"
+          className="mx-auto w-full max-w-6xl px-6 py-16"
+        >
           <div className="sc-grad-panel overflow-hidden px-8 py-14 text-center">
-            <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+            <h2
+              id="cta-title"
+              className="text-3xl font-semibold tracking-tight text-white sm:text-4xl"
+            >
               Know your next scoop
             </h2>
             <p className="mx-auto mt-3 max-w-md text-lg text-white/85">
