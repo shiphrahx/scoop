@@ -13,7 +13,7 @@
 
 **[→ scoop-pink-one.vercel.app](https://scoop-pink-one.vercel.app)**
 
-<img src="hero.png" alt="Scoop" width="720" />
+<img src="public/hero.png" alt="Scoop" width="720" />
 
 </div>
 

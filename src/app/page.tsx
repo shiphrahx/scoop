@@ -14,8 +14,13 @@ import {
   Drumstick,
   Calculator,
 } from "lucide-react";
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import InstallAppButton from "@/components/InstallAppButton";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 // Public front door. Everyone lands here; signing in sends them to /dashboard.
 export default async function LandingPage() {
