@@ -14,7 +14,15 @@ function localToday(): string {
 
 // One-tap weigh-in: pre-filled with the last weight, nudge with ± then Save.
 // Defaults to today; pick a past date to back-fill a day you forgot.
-export default function WeightLogger({ last }: { last: number | null }) {
+export default function WeightLogger({
+  last,
+  onSaved,
+}: {
+  last: number | null;
+  // Set when the logger is in a sheet: the save is the whole reason it opened,
+  // so it closes itself rather than leaving a "Saved" panel over the dashboard.
+  onSaved?: () => void;
+}) {
   const today = localToday();
   const [value, setValue] = useState(last ?? 80);
   const [date, setDate] = useState(today);
@@ -30,6 +38,7 @@ export default function WeightLogger({ last }: { last: number | null }) {
     try {
       await logWeight(value, date);
       setSaved(true);
+      onSaved?.();
     } finally {
       setSaving(false);
     }
