@@ -382,7 +382,7 @@ export async function getCoachData(): Promise<CoachData> {
         .gte("date", cutTrend)
         .order("date", { ascending: false }),
       supabase
-        .from("measurements")
+        .from("check_ins")
         .select("date, waist_cm")
         .not("waist_cm", "is", null)
         .gte("date", cutWaist)
