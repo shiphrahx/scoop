@@ -38,6 +38,9 @@ export async function updateSession(request: NextRequest) {
     pathname === "/" ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/auth") ||
+    // Legal pages must be readable before anyone signs in.
+    pathname === "/privacy" ||
+    pathname === "/terms" ||
     // PWA install files must be reachable without a session.
     pathname === "/manifest.webmanifest" ||
     pathname === "/sw.js" ||

@@ -166,6 +166,34 @@ h3 {
     color: #fff;
   }
 
+  /* Long-form prose, used only by the legal pages. */
+  .sc-legal h2 {
+    margin-top: 2.5rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+  .sc-legal p,
+  .sc-legal ul {
+    margin-top: 1rem;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .sc-legal ul {
+    list-style: disc;
+    padding-left: 1.25rem;
+  }
+  .sc-legal li {
+    margin-top: 0.5rem;
+  }
+  .sc-legal a {
+    color: var(--ink-teal);
+    text-decoration: underline;
+  }
+  .sc-legal strong {
+    color: var(--foreground);
+    font-weight: 600;
+  }
+
   /* Buttons — big, soft, tappable. Primary carries the gradient. */
   .sc-btn {
     display: inline-flex;
