@@ -325,6 +325,102 @@ export function WeightVsExercise({
   );
 }
 
+// ── Measurements over time ──────────────────────────────────────────
+// One tape measurement (waist, chest…) plotted from the weekly check-ins. The
+// series to show is chosen by the parent; this just draws it. A shrinking line
+// is the win, so the change stat greens when it falls.
+export function MeasurementsChart({
+  data,
+  label,
+  height = 200,
+}: {
+  data: { date: string; value: number }[];
+  label: string;
+  height?: number;
+}) {
+  if (data.length === 0) return <EmptyChart height={height} />;
+
+  const values = data.map((d) => d.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const pad = (max - min) * 0.2 || 1;
+  const first = data[0].value;
+  const last = data[data.length - 1].value;
+  const change = Math.round((last - first) * 10) / 10;
+
+  return (
+    <div>
+      <ResponsiveContainer width="100%" height={height}>
+        <AreaChart data={data} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+          <defs>
+            <linearGradient id="meas-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={C.green} stopOpacity={0.3} />
+              <stop offset="100%" stopColor={C.teal} stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid vertical={false} stroke={C.grid} />
+          <XAxis
+            dataKey="date"
+            tickFormatter={shortDate}
+            tick={AXIS_TICK}
+            tickLine={false}
+            axisLine={false}
+            interval={tickInterval(data.length)}
+            minTickGap={16}
+          />
+          <YAxis
+            domain={[Math.floor(min - pad), Math.ceil(max + pad)]}
+            tick={AXIS_TICK}
+            tickLine={false}
+            axisLine={false}
+            width={34}
+          />
+          <Tooltip
+            cursor={{ stroke: C.green, strokeWidth: 1, strokeDasharray: "4 4" }}
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const p = payload[0].payload as { date: string; value: number };
+              const i = data.findIndex((d) => d.date === p.date);
+              const rows = [
+                { label, value: `${p.value.toFixed(1)} cm`, color: C.green },
+              ];
+              if (i > 0) {
+                const delta = p.value - data[i - 1].value;
+                rows.push({
+                  label: "vs prev",
+                  value: `${delta > 0 ? "+" : ""}${delta.toFixed(1)} cm`,
+                  color: delta <= 0 ? C.green : C.violet,
+                });
+              }
+              return <TooltipCard title={longDate(p.date)} rows={rows} />;
+            }}
+          />
+          <Area
+            type="monotone"
+            dataKey="value"
+            stroke={C.green}
+            strokeWidth={2.5}
+            fill="url(#meas-fill)"
+            dot={{ r: 3, strokeWidth: 0, fill: C.green }}
+            activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff", fill: C.green }}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+
+      <div className="mt-3 flex items-center justify-between border-t border-[var(--border)] pt-3">
+        <Stat label="Current" value={`${last.toFixed(1)} cm`} />
+        <Stat
+          label="Change"
+          value={`${change > 0 ? "+" : ""}${change.toFixed(1)} cm`}
+          tint={change <= 0 ? "var(--ink-green)" : "var(--accent)"}
+        />
+        <Stat label="Range" value={`${min.toFixed(1)}–${max.toFixed(1)}`} />
+        <Stat label="Points" value={`${data.length}`} />
+      </div>
+    </div>
+  );
+}
+
 // ── Sleep ───────────────────────────────────────────────────────────
 export function SleepChart({
   data,
