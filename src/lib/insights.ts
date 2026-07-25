@@ -785,4 +785,15 @@ export function movementVsLoss(weeks: InsightWeek[]): MovementCorrelation | null
   return null;
 }
 
+// --- 10. Drivers: how closely they ate the plan --------------------------------
+
+// Sticking to the calorie target against weight loss.
+//
+// This is the one card that can answer "is the plan wrong, or am I not doing
+// it?" — the question every stall turns on. A strong positive here means the
+// plan works when it's followed, and the fix is adherence, not a smaller target.
+export function adherenceVsLoss(weeks: InsightWeek[]): Correlation | null {
+  return correlate(weeks, (w) => w.adherencePct);
+}
+
 export { type WeighIn };
