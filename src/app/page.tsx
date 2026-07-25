@@ -15,6 +15,7 @@ import {
   Calculator,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import InstallAppButton from "@/components/InstallAppButton";
 
 // Public front door. Everyone lands here; signing in sends them to /dashboard.
 export default async function LandingPage() {
@@ -70,7 +71,7 @@ export default async function LandingPage() {
           today&rsquo;s macros. Mostly tapping, almost no typing.
         </p>
 
-        <div className="mt-9 flex flex-col items-center gap-4 sm:flex-row">
+        <div className="mt-9 flex flex-col items-center gap-4 sm:flex-row sm:items-start">
           <Link
             href={primaryHref}
             className="sc-btn sc-btn-primary px-7 py-4 text-lg"
@@ -78,10 +79,12 @@ export default async function LandingPage() {
             {primaryLabel}
             <ArrowRight size={20} strokeWidth={2.5} />
           </Link>
-          <span className="text-sm text-[var(--muted)]">
-            Free. Google sign-in. No card.
-          </span>
+          {/* Only appears on phones/browsers that can actually install. */}
+          <InstallAppButton />
         </div>
+        <p className="mt-4 text-sm text-[var(--muted)]">
+          Free. Google sign-in. No card. Installs to your home screen.
+        </p>
 
         {/* Floating stat preview — a taste of the app surface. */}
         <div className="mt-16 w-full max-w-md">
