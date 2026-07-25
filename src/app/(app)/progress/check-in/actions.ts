@@ -140,7 +140,12 @@ export async function uploadCheckInPhoto(
     ? (rawAngle as PhotoAngle)
     : "other";
 
-  const ext = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+  // Only treat text after a real dot as an extension — a dotless name like
+  // "photo" must not become an extension of "photo".
+  const dot = file.name.lastIndexOf(".");
+  const ext =
+    (dot >= 0 ? file.name.slice(dot + 1) : "").toLowerCase().replace(/[^a-z0-9]/g, "") ||
+    "jpg";
   const path = `${user.id}/${checkInId}/${crypto.randomUUID()}.${ext}`;
 
   const { error: upErr } = await supabase.storage
