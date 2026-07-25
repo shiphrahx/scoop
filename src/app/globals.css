@@ -171,9 +171,9 @@ h3 {
   }
 
   .sc-btn-neutral {
-    background: rgba(255, 255, 255, 0.6);
+    background: var(--fill);
     color: var(--foreground);
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--border);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
   }
