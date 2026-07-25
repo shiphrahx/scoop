@@ -58,6 +58,9 @@
   --glass-bg-solid: rgba(255, 255, 255, 0.82);
   --glass-border: rgba(255, 255, 255, 0.7);
   --glass-blur: 20px;
+  /* Dimmer behind a modal sheet. Slate rather than black so the frosted
+     surfaces on top keep their cool cast. */
+  --scrim: rgba(15, 23, 42, 0.38);
 
   /* Shape + depth */
   --radius: 20px;
