@@ -102,12 +102,16 @@ Routes (`src/app/`):
       one row, the weight stepper in a sheet) over the tabbed insights dashboard
 - [x] `(app)/progress/insights/` — the dashboard: a KPI row, one primary chart,
       then compact cards in four tabs. Rules it holds to:
-      - **A card renders only when it has data.** Everything not ready yet is
-        collected into `LockedInsight[]` and rendered as ONE line per tab
-        ("3 more insights unlock as you log"), tappable for the reasons and the
-        connect-a-device link. Never a full-size "needs more data" card.
-      - **KPI row first** (`KpiRow` / `KpiTile`): now, per week, % to goal,
-        goal date — only the ones with a number. Each opens its detail.
+      - **Nothing is hidden for want of data.** An insight with no data yet is a
+        `LockedInsight` and renders as a `LockedCard` in the same grid slot:
+        dashed, muted, lock icon, no numbers, and a line saying what it would
+        tell you plus what unlocks it (a Connect button when it needs a
+        wearable). Hiding these would hide the reason to log anything. Cards
+        with data sort first. Never a full-height "needs more data" panel.
+      - **KPI row first** (`KpiRow` / `KpiTile`): now, per week, % to goal, goal
+        date — only the ones with a number, since a row of dashes says nothing;
+        the missing ones appear as locked cards below instead. Each tile opens
+        its detail.
       - **One primary chart** (weight trend over raw dots + range toggle) on
         Overview. Every other chart lives inside a card's detail drawer.
       - **Grid, not a stack** (`InsightGrid`): two across on a phone, three from
