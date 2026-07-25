@@ -7,9 +7,79 @@
 // failed. Giving them one implementation is what stops the dashboard degrading
 // into a wall of empty rectangles for a user in their first fortnight.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ChevronDown, Watch } from "lucide-react";
+import { ChevronDown, Watch, X } from "lucide-react";
+
+// A card's detail, opened over the dashboard rather than inline.
+//
+// Bottom sheet on a phone (thumb reaches the top of it), centred panel from
+// sm up. Portalled to the body: the trigger lives inside a card that scales on
+// press, and a transformed ancestor would make `fixed` mean "inside that card".
+export function Drawer({
+  open,
+  onClose,
+  title,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+}) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    // Freeze the page behind the sheet, or a flick on the sheet scrolls the
+    // dashboard and the user loses their place on close.
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previous;
+    };
+  }, [open, onClose]);
+
+  if (!mounted || !open) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6">
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={onClose}
+        className="absolute inset-0 bg-[var(--scrim)]"
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className="relative flex max-h-[88vh] w-full flex-col overflow-hidden rounded-t-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-solid)] shadow-[var(--shadow-soft)] backdrop-blur-[var(--glass-blur)] sm:max-w-xl sm:rounded-[var(--radius-lg)]"
+      >
+        <div className="flex items-center gap-3 border-b border-[var(--border)] px-5 py-4">
+          <h3 className="text-base font-semibold">{title}</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="ml-auto grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] text-[var(--muted)] active:scale-90"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="flex flex-col gap-3 overflow-y-auto px-5 py-4">{children}</div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
 export function Section({
   title,
