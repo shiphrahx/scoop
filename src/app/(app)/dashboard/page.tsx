@@ -37,7 +37,9 @@ export default async function DashboardPage() {
     plan,
     profile,
   ] = await Promise.all([
-    getDayTarget(await localToday()),
+    // Not `await localToday()` inline: awaiting it here would hold up all eight
+    // queries below behind one round trip before any of them started.
+    localToday().then(getDayTarget),
     getTodayConsumed(),
     getWeightHistory(30),
     getActivityHistory(14),
