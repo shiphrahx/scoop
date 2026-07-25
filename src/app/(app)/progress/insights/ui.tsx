@@ -339,6 +339,80 @@ export function Hero({
   );
 }
 
+// The numbers a user opens this page for, before any chart: two across on a
+// phone, four on a desktop. Only tiles with a real number are ever passed in —
+// an "—" placeholder would take the same space as an answer.
+export function KpiRow({ children }: { children: React.ReactNode }) {
+  return <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{children}</div>;
+}
+
+export function KpiTile({
+  label,
+  value,
+  unit,
+  tone = "cool",
+  detail,
+  detailTitle,
+}: {
+  label: string;
+  value: string;
+  unit?: string;
+  tone?: "cool" | "good" | "warn";
+  detail?: React.ReactNode;
+  detailTitle?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const tint =
+    tone === "good"
+      ? "var(--ink-green)"
+      : tone === "warn"
+        ? "var(--accent)"
+        : "var(--foreground)";
+  // A projected date is three words where a weight is three characters; shrink
+  // rather than wrap to four lines in a half-width tile.
+  const scale = value.length > 9 ? "text-sm" : value.length > 5 ? "text-lg" : "text-2xl";
+
+  const inner = (
+    <>
+      <span className="text-[11px] uppercase tracking-wider text-[var(--muted)]">
+        {label}
+      </span>
+      <span className={`font-semibold tabular-nums ${scale}`} style={{ color: tint }}>
+        {value}
+        {unit ? (
+          <span className="ml-1 text-xs font-medium text-[var(--muted)]">{unit}</span>
+        ) : null}
+      </span>
+    </>
+  );
+
+  return (
+    <div className="sc-card flex flex-col p-4">
+      {detail ? (
+        <>
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-haspopup="dialog"
+            className="flex flex-col items-start text-left active:scale-[0.99]"
+          >
+            {inner}
+          </button>
+          <Drawer
+            open={open}
+            onClose={() => setOpen(false)}
+            title={detailTitle ?? label}
+          >
+            {detail}
+          </Drawer>
+        </>
+      ) : (
+        inner
+      )}
+    </div>
+  );
+}
+
 // A row of small figures under a chart or hero.
 export function StatRow({
   stats,
