@@ -754,6 +754,27 @@ export async function getCheckInHistory(
   return checkIns.map((c) => ({ ...c, photos: byCheckIn.get(c.id) ?? [] }));
 }
 
+// Whether the user has linked a wearable — Fitbit/Google Health (a token row)
+// or Apple (an ingest token). Lets the dashboard show a "connect to see sleep /
+// exercise" placeholder instead of an empty chart when nothing feeds it.
+export async function getDeviceConnected(): Promise<boolean> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const [fitbitRes, appleRes] = await Promise.all([
+    supabase.from("fitbit_tokens").select("user_id").eq("user_id", user.id).maybeSingle(),
+    supabase.from("users").select("apple_ingest_token").eq("id", user.id).maybeSingle(),
+  ]);
+  const hasFitbit = Boolean((fitbitRes.data as { user_id: string } | null)?.user_id);
+  const hasApple = Boolean(
+    (appleRes.data as { apple_ingest_token: string | null } | null)?.apple_ingest_token,
+  );
+  return hasFitbit || hasApple;
+}
+
 // Measurement series for the dashboard chart, oldest→newest, drawn from
 // check-ins. Each point carries every tape reading so the chart can switch which
 // one it shows. Days back caps the window (all = a big number).
