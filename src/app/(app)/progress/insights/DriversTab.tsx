@@ -21,8 +21,7 @@ import {
   type LockedInsight,
 } from "./ui";
 
-const NEED_WEEKS =
-  "Four weeks of both weigh-ins and this habit are needed before a pattern means anything.";
+const NEED_WEEKS = "Four weeks of weigh-ins and this habit unlocks it.";
 
 function Finding({
   c,
@@ -103,35 +102,43 @@ export default function DriversTab({
   if (!deviceConnected) {
     locked.push({
       title: "Sleep and weight loss",
-      why: "No wearable linked, so there are no sleep hours to compare.",
+      why: "See whether the weeks you sleep more are the weeks you lose more. Needs a wearable.",
       connect: true,
     });
     locked.push({
       title: "Movement and weight loss",
-      why: "No wearable linked, so there are no steps or workouts to compare.",
+      why: "See whether your busiest weeks are your best ones. Needs a wearable.",
       connect: true,
     });
   } else {
-    if (sleep == null) locked.push({ title: "Sleep and weight loss", why: NEED_WEEKS });
+    if (sleep == null) {
+      locked.push({
+        title: "Sleep and weight loss",
+        why: `Sleep is the driver people never suspect. ${NEED_WEEKS}`,
+      });
+    }
     if (movement == null) {
-      locked.push({ title: "Movement and weight loss", why: NEED_WEEKS });
+      locked.push({
+        title: "Movement and weight loss",
+        why: `Find out if moving more really moves your scale. ${NEED_WEEKS}`,
+      });
     }
   }
   if (adherence == null) {
     locked.push({
       title: "Sticking to the plan",
-      why: "Four weeks of food logging against a weekly target are needed here.",
+      why: "See how much your losses depend on hitting the target. Four weeks of logging against a target unlocks it.",
     });
   }
   if (!cyclingEnabled) {
     locked.push({
       title: "High days",
-      why: "Calorie cycling is off, so there's nothing to compare. Turn it on in your profile if you want a couple of higher-carb days a week.",
+      why: "Compare weeks with high days against weeks without. Turn calorie cycling on in your profile.",
     });
   } else if (highDay == null) {
     locked.push({
       title: "High days",
-      why: "Two weeks with high days and two without are needed to compare them.",
+      why: "Compare weeks with high days against weeks without. Needs two weeks of each.",
     });
   }
 
