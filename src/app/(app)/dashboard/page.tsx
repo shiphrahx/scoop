@@ -1,6 +1,6 @@
 import AutoReview from "@/app/(app)/coach/AutoReview";
 import MobileHome from "@/components/home/MobileHome";
-import DesktopDashboard from "@/components/home/DesktopDashboard";
+import DesktopDashboardMount from "@/components/home/DesktopDashboardMount";
 import { getSessionUser } from "@/lib/auth";
 import {
   getDayTarget,
@@ -88,7 +88,7 @@ export default async function DashboardPage() {
         prefs={prefs}
         calibration={calibration}
       />
-      <DesktopDashboard
+      <DesktopDashboardMount
         name={name}
         targets={targets}
         consumed={consumed}
