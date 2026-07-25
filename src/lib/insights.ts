@@ -174,4 +174,157 @@ export function slopeWithError(
   };
 }
 
+// --- 3. Projected goal date ---------------------------------------------------
+
+export type Confidence = "low" | "medium" | "high";
+
+export interface GoalProjection {
+  goalKg: number;
+  currentKg: number; // trend weight today
+  remainingKg: number;
+  // The window the goal plausibly lands in. `latest` is null when the slower
+  // end of the error band doesn't reach the goal at all inside a year — an
+  // honest "we can't put a back edge on this yet".
+  earliest: string;
+  midpoint: string;
+  latest: string | null;
+  weeksMid: number;
+  confidence: Confidence;
+}
+
+// A projection needs a real stretch of history behind it. Three weeks is the
+// shortest span where a slope means anything through normal water noise, and
+// eight weigh-ins is the fewest that can draw it.
+export const MIN_PROJECTION_DAYS = 21;
+export const MIN_PROJECTION_WEIGH_INS = 8;
+
+// Nothing beyond a year is a prediction; it's a mood. Anything past it is
+// reported as unbounded rather than as a date in 2031.
+const MAX_PROJECTION_DAYS = 365;
+
+const addDays = (fromMs: number, days: number) =>
+  new Date(fromMs + days * DAY_MS).toISOString().slice(0, 10);
+
+// When the current trend reaches the goal weight — as a RANGE, never a date.
+//
+// A single "you'll hit 75 kg on 4 October" is a promise the body has not made.
+// The honest version is the error band of the fitted slope: fast end, middle,
+// slow end, plus how much to trust the whole thing. Null when there isn't
+// enough history, when the user isn't actually losing, or when the goal is
+// already met (goalProgress says that better).
+export function projectGoalDate(
+  points: WeighIn[],
+  goalKg: number | null | undefined,
+  now = new Date(),
+): GoalProjection | null {
+  if (goalKg == null || !(goalKg > 0)) return null;
+
+  const clean = points.filter((p) => Number.isFinite(p.kg) && p.kg > 0);
+  if (clean.length < MIN_PROJECTION_WEIGH_INS) return null;
+
+  const dates = clean.map((p) => dayMs(p.date));
+  const spanDays = (Math.max(...dates) - Math.min(...dates)) / DAY_MS;
+  if (spanDays < MIN_PROJECTION_DAYS) return null;
+
+  const fit = slopeWithError(clean);
+  const series = trendSeries(clean);
+  if (!fit || series.length === 0) return null;
+  if (!(fit.slopeKgPerDay < 0)) return null; // flat or gaining: no arrival date
+
+  const currentKg = series[series.length - 1].kg;
+  const remainingKg = currentKg - goalKg;
+  if (remainingKg <= 0) return null; // already there
+
+  // Rates in kg lost per day. The fast edge of the band arrives first.
+  const mid = -fit.slopeKgPerDay;
+  const fast = mid + fit.stdErrKgPerDay;
+  const slow = mid - fit.stdErrKgPerDay;
+
+  const startMs = now.getTime();
+  const daysAt = (rate: number) => (rate > 0 ? remainingKg / rate : Infinity);
+  const midDays = daysAt(mid);
+  const slowDays = daysAt(slow);
+
+  if (midDays > MAX_PROJECTION_DAYS) return null; // even the middle is past the horizon
+
+  // How tight the fit is, in the only terms that matter: how big the error is
+  // next to the rate itself. A 0.05 kg/week error on a 0.5 kg/week loss is a
+  // firm answer; the same error on 0.1 kg/week is barely a direction.
+  const relError = fit.stdErrKgPerDay / mid;
+  const confidence: Confidence =
+    relError < 0.2 && spanDays >= 42
+      ? "high"
+      : relError < 0.4 && spanDays >= 28
+        ? "medium"
+        : "low";
+
+  return {
+    goalKg: round(goalKg, 1),
+    currentKg: round(currentKg, 1),
+    remainingKg: round(remainingKg, 1),
+    earliest: addDays(startMs, Math.round(daysAt(fast))),
+    midpoint: addDays(startMs, Math.round(midDays)),
+    latest:
+      slowDays <= MAX_PROJECTION_DAYS ? addDays(startMs, Math.round(slowDays)) : null,
+    weeksMid: round(midDays / 7, 0),
+    confidence,
+  };
+}
+
+// --- 4. How far through the journey ------------------------------------------
+
+export interface GoalProgress {
+  startKg: number;
+  currentKg: number;
+  goalKg: number;
+  lostKg: number; // positive = lost since the start
+  remainingKg: number; // clamped at 0 once the goal is met
+  pctComplete: number; // 0–100
+  reached: boolean;
+}
+
+// Total lost, left to go, and the share of the journey done.
+//
+// The start is the FIRST smoothed value, not the first reading: someone whose
+// first weigh-in happened to be a heavy day would otherwise be credited a kilo
+// they never carried, and every later percentage inherits the lie.
+export function goalProgress(
+  points: WeighIn[],
+  goalKg: number | null | undefined,
+): GoalProgress | null {
+  if (goalKg == null || !(goalKg > 0)) return null;
+
+  const series = trendSeries(points.filter((p) => Number.isFinite(p.kg) && p.kg > 0));
+  if (series.length === 0) return null;
+
+  const startKg = series[0].kg;
+  const currentKg = series[series.length - 1].kg;
+  const journey = startKg - goalKg;
+  const lostKg = startKg - currentKg;
+
+  // Started at or below the goal: there's no journey to be a percentage of.
+  if (journey <= 0) {
+    return {
+      startKg: round(startKg, 1),
+      currentKg: round(currentKg, 1),
+      goalKg: round(goalKg, 1),
+      lostKg: round(lostKg, 1),
+      remainingKg: 0,
+      pctComplete: 100,
+      reached: true,
+    };
+  }
+
+  const pct = Math.max(0, Math.min(100, (lostKg / journey) * 100));
+  return {
+    startKg: round(startKg, 1),
+    currentKg: round(currentKg, 1),
+    goalKg: round(goalKg, 1),
+    lostKg: round(lostKg, 1),
+    remainingKg: round(Math.max(0, currentKg - goalKg), 1),
+    pctComplete: round(pct, 0),
+    reached: currentKg <= goalKg,
+  };
+}
+
 export { type WeighIn };
