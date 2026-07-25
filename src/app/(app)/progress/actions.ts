@@ -67,3 +67,101 @@ export async function logMeasurements(input: MeasurementInput) {
 
   revalidatePath("/progress");
 }
+
+// --- Non-scale victories -----------------------------------------------------
+
+// Free text the user writes about themselves, so the only limits are sanity
+// ones: something has to be there, and it can't be an essay in a list row.
+const MAX_VICTORY_CHARS = 200;
+const MAX_MILESTONE_CHARS = 60;
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+// Log a win the scale can't see. The scale stalls for weeks at a time and these
+// are what carry someone through it, so they're kept as a dated record.
+export async function addVictory(text: string, dateISO?: string) {
+  const { supabase, user } = await requireUser();
+
+  const clean = text.trim();
+  if (!clean) throw new Error("Write what you did first.");
+  if (clean.length > MAX_VICTORY_CHARS) {
+    throw new Error(`Keep it under ${MAX_VICTORY_CHARS} characters.`);
+  }
+
+  const date =
+    dateISO && /^\d{4}-\d{2}-\d{2}$/.test(dateISO) && dateISO <= todayISO()
+      ? dateISO
+      : todayISO();
+
+  const { error } = await supabase
+    .from("non_scale_victories")
+    .insert({ user_id: user.id, text: clean, date });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/progress");
+}
+
+export async function deleteVictory(id: string) {
+  const { supabase, user } = await requireUser();
+  const { error } = await supabase
+    .from("non_scale_victories")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/progress");
+}
+
+// --- Custom milestones -------------------------------------------------------
+
+// A milestone the user picked themselves. With a target weight the app ticks it
+// off from the trend; without one (a clothing size, an event) they tick it by
+// hand — see milestones() in src/lib/insights.ts.
+export async function addMilestone(label: string, targetWeightKg?: number | null) {
+  const { supabase, user } = await requireUser();
+
+  const clean = label.trim();
+  if (!clean) throw new Error("Name the milestone first.");
+  if (clean.length > MAX_MILESTONE_CHARS) {
+    throw new Error(`Keep it under ${MAX_MILESTONE_CHARS} characters.`);
+  }
+
+  const target =
+    targetWeightKg == null
+      ? null
+      : parseOrThrow(weightKgSchema, targetWeightKg, "Target weight");
+
+  const { error } = await supabase
+    .from("custom_milestones")
+    .insert({ user_id: user.id, label: clean, target_weight_kg: target });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/progress");
+}
+
+// Tick a milestone off, or un-tick one ticked by mistake. Only meaningful for a
+// milestone with no target weight; one with a weight is decided by the trend.
+export async function setMilestoneReached(id: string, reached: boolean) {
+  const { supabase, user } = await requireUser();
+  const { error } = await supabase
+    .from("custom_milestones")
+    .update({ reached_at: reached ? todayISO() : null })
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/progress");
+}
+
+export async function deleteMilestone(id: string) {
+  const { supabase, user } = await requireUser();
+  const { error } = await supabase
+    .from("custom_milestones")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/progress");
+}
