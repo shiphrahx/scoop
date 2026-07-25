@@ -397,4 +397,58 @@ export function fatLossSignal(
   };
 }
 
+// --- 6. Waist-to-height ratio -------------------------------------------------
+
+export type WhtrBand = "low" | "healthy" | "increased" | "high";
+
+export interface WaistToHeight {
+  ratio: number; // waist ÷ height, e.g. 0.48
+  band: WhtrBand;
+  waistCm: number;
+  heightCm: number;
+  // The waist that would put this person at the top of the healthy band, so the
+  // UI can show something to aim at rather than only a verdict.
+  healthyMaxWaistCm: number;
+}
+
+// Band edges as a share of height. "Keep your waist to less than half your
+// height" is the NICE guideline; below 0.4 is thin enough to be worth flagging
+// rather than praising, and 0.6 is where the risk curve turns sharply up.
+const WHTR_LOW = 0.4;
+const WHTR_HEALTHY_MAX = 0.5;
+const WHTR_INCREASED_MAX = 0.6;
+
+// Waist against height — a better read on health risk than BMI, and one the app
+// already has both numbers for.
+//
+// BMI can't tell a lifter from a couch, because it doesn't know where the mass
+// sits. Visceral fat around the middle is the part that predicts metabolic
+// trouble, and the tape measures exactly that. Null when either number is
+// missing (no waist check-in yet, or no height on the profile).
+export function waistToHeight(
+  waistCm: number | null | undefined,
+  heightCm: number | null | undefined,
+): WaistToHeight | null {
+  if (waistCm == null || !(waistCm > 0)) return null;
+  if (heightCm == null || !(heightCm > 0)) return null;
+
+  const ratio = waistCm / heightCm;
+  const band: WhtrBand =
+    ratio < WHTR_LOW
+      ? "low"
+      : ratio < WHTR_HEALTHY_MAX
+        ? "healthy"
+        : ratio < WHTR_INCREASED_MAX
+          ? "increased"
+          : "high";
+
+  return {
+    ratio: round(ratio, 2),
+    band,
+    waistCm: round(waistCm, 1),
+    heightCm: round(heightCm, 0),
+    healthyMaxWaistCm: round(heightCm * WHTR_HEALTHY_MAX, 0),
+  };
+}
+
 export { type WeighIn };
