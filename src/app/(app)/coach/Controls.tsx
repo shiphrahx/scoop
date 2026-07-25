@@ -77,7 +77,7 @@ export function FitbitButton({ connected }: { connected: boolean }) {
       <button
         onClick={sync}
         disabled={syncing}
-        className="sc-btn sc-btn-neutral w-full py-4 text-lg"
+        className="sc-btn sc-btn-primary w-full py-4 text-lg"
       >
         {syncing ? "Syncing…" : "Sync last 7 days"}
       </button>
