@@ -658,4 +658,107 @@ export function weeklyBuckets(input: WeeklyInput): InsightWeek[] {
   });
 }
 
+// --- 8. Drivers: the correlation engine + sleep -------------------------------
+
+export type Strength = "none" | "weak" | "moderate" | "strong";
+export type Direction = "helps" | "hurts" | "none";
+
+export interface Correlation {
+  r: number; // Pearson correlation of the driver against kg LOST
+  n: number; // weeks compared
+  strength: Strength;
+  direction: Direction;
+  // Each week as a plotted point: the driver on x, kg lost on y.
+  points: { weekStart: string; x: number; y: number }[];
+  // The driver's mean in the weeks that went best vs the weeks that went worst
+  // — the same finding stated in a way a person can act on.
+  bestWeeksMean: number;
+  worstWeeksMean: number;
+}
+
+// Fewer weeks than this and a correlation is a coincidence with a decimal
+// point. Four is already generous; the UI says "patterns, not proof" on top.
+export const MIN_CORRELATION_WEEKS = 4;
+
+// |r| below this is noise and gets reported as no relationship at all, rather
+// than as a faint one the user will over-read.
+const R_NOISE = 0.3;
+
+// Pearson's r. Null when a series doesn't vary (every week identical), because
+// a constant can't correlate with anything and the formula divides by zero.
+function pearson(xs: number[], ys: number[]): number | null {
+  const n = xs.length;
+  if (n < 2) return null;
+  const xMean = average(xs)!;
+  const yMean = average(ys)!;
+  let num = 0;
+  let xss = 0;
+  let yss = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = xs[i] - xMean;
+    const dy = ys[i] - yMean;
+    num += dx * dy;
+    xss += dx * dx;
+    yss += dy * dy;
+  }
+  if (xss === 0 || yss === 0) return null;
+  return num / Math.sqrt(xss * yss);
+}
+
+// Compare one weekly driver against how much weight came off that week.
+//
+// This is a paired weekly comparison and nothing more ambitious — no lags, no
+// controls, no significance test. That is the honest ceiling of a few dozen
+// weeks of one person's data, and it's why every card built on it is labelled
+// a pattern rather than a cause.
+export function correlate(
+  weeks: InsightWeek[],
+  pick: (w: InsightWeek) => number | null,
+): Correlation | null {
+  const pairs = weeks
+    .map((w) => ({ weekStart: w.weekStart, x: pick(w), y: w.weightChangeKg }))
+    .filter((p): p is { weekStart: string; x: number; y: number } =>
+      p.x != null && p.y != null,
+    )
+    // y is kg LOST, so a falling trend reads as a positive result.
+    .map((p) => ({ ...p, y: round(-p.y, 2) }));
+
+  if (pairs.length < MIN_CORRELATION_WEEKS) return null;
+
+  const r = pearson(
+    pairs.map((p) => p.x),
+    pairs.map((p) => p.y),
+  );
+  if (r == null) return null;
+
+  const abs = Math.abs(r);
+  const strength: Strength =
+    abs < R_NOISE ? "none" : abs < 0.5 ? "weak" : abs < 0.7 ? "moderate" : "strong";
+  const direction: Direction =
+    strength === "none" ? "none" : r > 0 ? "helps" : "hurts";
+
+  // Split the weeks at the median result and average the driver on each side.
+  const byResult = [...pairs].sort((a, b) => b.y - a.y);
+  const half = Math.max(1, Math.floor(byResult.length / 2));
+  const best = byResult.slice(0, half).map((p) => p.x);
+  const worst = byResult.slice(-half).map((p) => p.x);
+
+  return {
+    r: round(r, 2),
+    n: pairs.length,
+    strength,
+    direction,
+    points: pairs,
+    bestWeeksMean: round(average(best)!, 1),
+    worstWeeksMean: round(average(worst)!, 1),
+  };
+}
+
+// Sleep against weight loss. Short sleep raises ghrelin and blunts insulin
+// sensitivity, so this one often shows up — but it's still a pattern in one
+// person's weeks, not a finding.
+export function sleepVsLoss(weeks: InsightWeek[]): Correlation | null {
+  return correlate(weeks, (w) => w.meanSleepH);
+}
+
 export { type WeighIn };
