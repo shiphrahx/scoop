@@ -1,9 +1,11 @@
 import WeightLogger from "./WeightLogger";
 import WeightHistory from "./WeightHistory";
 import CheckInCard from "./CheckInCard";
+import CheckInHistory from "./CheckInHistory";
 import Dashboard from "./Dashboard";
 import {
   getActivityHistory,
+  getCheckInHistory,
   getCurrentCheckIn,
   getDeviceConnected,
   getMeasurementHistory,
@@ -17,12 +19,14 @@ export default async function ProgressPage() {
     measurementHistory,
     activity,
     deviceConnected,
+    checkInHistory,
   ] = await Promise.all([
     getCurrentCheckIn(),
     getWeightHistory(365),
     getMeasurementHistory(365),
     getActivityHistory(90),
     getDeviceConnected(),
+    getCheckInHistory(),
   ]);
 
   // Newest weigh-in is the last point (history is oldest→newest); it prefills
@@ -57,6 +61,13 @@ export default async function ProgressPage() {
           All weigh-ins
         </h2>
         <WeightHistory weights={weightHistory} />
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
+          Past check-ins
+        </h2>
+        <CheckInHistory initial={checkInHistory} />
       </section>
     </main>
   );
