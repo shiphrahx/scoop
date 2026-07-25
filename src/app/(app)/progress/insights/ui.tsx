@@ -301,11 +301,14 @@ export function Hero({
   unit,
   label,
   tone = "cool",
+  size = "lg",
 }: {
   value: string;
   unit?: string;
   label: string;
   tone?: "cool" | "good" | "warn";
+  // "sm" is the dashboard-tile version — same figure, sized for half a phone.
+  size?: "lg" | "sm";
 }) {
   const tint =
     tone === "good"
@@ -313,15 +316,25 @@ export function Hero({
       : tone === "warn"
         ? "var(--accent)"
         : "var(--foreground)";
+  const small = size === "sm";
   return (
     <div>
-      <p className="text-3xl font-semibold tabular-nums" style={{ color: tint }}>
+      <p
+        className={`font-semibold tabular-nums ${small ? "text-xl" : "text-3xl"}`}
+        style={{ color: tint }}
+      >
         {value}
         {unit ? (
-          <span className="ml-1 text-base font-medium text-[var(--muted)]">{unit}</span>
+          <span
+            className={`ml-1 font-medium text-[var(--muted)] ${small ? "text-xs" : "text-base"}`}
+          >
+            {unit}
+          </span>
         ) : null}
       </p>
-      <p className="text-sm text-[var(--muted)]">{label}</p>
+      <p className={`text-[var(--muted)] ${small ? "text-xs leading-snug" : "text-sm"}`}>
+        {label}
+      </p>
     </div>
   );
 }
