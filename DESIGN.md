@@ -55,9 +55,24 @@ hard-code palette values in components.
 
 ## Charts
 
-Hand-rolled SVG (`Charts.tsx`, `ProgressRing.tsx`, `MacroBar.tsx`). Gradient stops
-and strokes use the palette tokens via `var(--g-…)` so charts stay in the family.
+Recharts in `Charts.tsx`; hand-rolled SVG in `ProgressRing.tsx` / `MacroBar.tsx`.
+Gradient stops and strokes use the palette tokens so charts stay in the family.
 Empty state: dashed-border card reading "No data yet".
+
+Rules the chart set holds to:
+- **Never a dual axis.** Two measures on different scales become synced small
+  multiples sharing one x (`WeightVsExercise`) — never two y-scales on one plot.
+- **A legend whenever there are two series**, plus a stat row or direct labels.
+  The teal and green fills sit under 3:1 against the surface, so a number always
+  accompanies the colour.
+- Recessive grid and axes, thin marks, hover tooltips on every plot.
+- Categorical order is fixed: teal → blue → green → violet. Validated for
+  colour-vision deficiency; don't substitute hues per chart.
+
+Charts available: `WeightTrendChart`, `TrendDotsChart` (raw dots + smoothed
+line), `WeightVsExercise`, `MeasurementsChart`, `SleepChart`, `DriverScatter`
+(weekly habit vs kg lost, with a fitted line), `WeeklyIntakeChart` (eaten vs
+target), `CompareBars` (two labelled quantities, plain markup).
 
 ## Rules of thumb
 
@@ -83,8 +98,18 @@ Routes (`src/app/`):
 - [x] `(app)/pantry/` — list/edit, barcode, list import, invoice import, screenshot (gated), matcher
 - [x] `(app)/batches/`
 - [x] `(app)/progress/` — daily weight logger, "check in for this week" card,
-      interactive trends dashboard (range toggle, chart tooltips), weigh-in and
-      check-in history (empty: dashed cards; connect placeholder for sleep/exercise)
+      the insights dashboard (below), weigh-in and check-in history
+- [x] `(app)/progress/insights/` — the dashboard, grouped into five sections:
+      **Trend** (trend line over raw dots + range toggle, rate of loss vs the
+      healthy band, projected goal date, journey bar), **Body** (fat-loss
+      callout, waist-to-height, measurements, then-and-now photo wipe),
+      **Drivers** (sleep / movement / adherence scatters, high-day impact),
+      **Adherence** (this week's scorecard, eaten vs target, weekday vs
+      weekend), **Motivation** (milestones, plateau alert, wins log).
+      Card states live in `insights/ui.tsx`: `NeedsMoreData` (dashed card naming
+      what would unlock it), `ConnectPrompt` (no wearable), `PatternNote`
+      ("patterns, not proof") on every correlation card. Detail that would crowd
+      a phone folds behind `Expandable`.
 - [x] `(app)/progress/check-in/` — weekly check-in form, deltas vs last week,
       optional private photos
 - [x] `(app)/coach/` — weekly review, activity list (empty: connect devices)
