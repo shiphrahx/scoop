@@ -26,7 +26,7 @@ import {
   type TrendChange,
   type WeighIn,
 } from "@/lib/coach";
-import { weekStartOf } from "@/lib/time";
+import { addDaysISO, weekStartOf } from "@/lib/time";
 import type { PhotoAngle, Sex } from "@/lib/types";
 
 const DAY_MS = 86_400_000;
@@ -845,6 +845,77 @@ export function highDayImpact(weeks: InsightWeek[]): HighDayImpact | null {
         : diff > 0
           ? "better"
           : "worse",
+  };
+}
+
+// --- 12. This week: days hit, and the logging streak ---------------------------
+
+export interface WeekScorecard {
+  weekStart: string;
+  daysSoFar: number; // days of the week that have happened
+  loggedDays: number;
+  kcalHitDays: number;
+  proteinHitDays: number;
+  streakDays: number; // consecutive days logged, ending today or yesterday
+}
+
+// The same ±15% window the coach judges adherence by, so the scorecard and the
+// weekly review can never disagree about what "hit it" means.
+const KCAL_HIT_TOLERANCE = 0.15;
+
+// Protein is a floor, not a window — going over is fine and often good — so a
+// day counts once intake reaches this share of the target.
+const PROTEIN_HIT_SHARE = 0.9;
+
+// Consecutive days with any food logged, counted back from today.
+//
+// Yesterday is allowed to be the last logged day: at 9am today nobody has
+// eaten yet, and zeroing a real streak because the day is young is the fastest
+// way to make someone stop caring about it.
+export function loggingStreak(intake: DayIntake[], today: string): number {
+  const logged = new Set(intake.filter((d) => d.kcal > 0).map((d) => d.date));
+  const yesterday = addDaysISO(today, -1);
+  let cursor = logged.has(today) ? today : logged.has(yesterday) ? yesterday : null;
+  if (cursor == null) return 0;
+
+  let streak = 0;
+  while (logged.has(cursor)) {
+    streak++;
+    cursor = addDaysISO(cursor, -1);
+  }
+  return streak;
+}
+
+// How this week is going: days logged, days the calorie target was hit, days
+// the protein target was reached, and the streak.
+export function weekScorecard(
+  intake: DayIntake[],
+  target: WeekTarget | null,
+  today: string,
+): WeekScorecard {
+  const weekStart = weekStartOf(today);
+  const days = intake.filter((d) => weekStartOf(d.date) === weekStart && d.kcal > 0);
+  const daysSoFar =
+    Math.round((dayMs(today) - dayMs(weekStart)) / DAY_MS) + 1;
+
+  const kcalHitDays =
+    target && target.kcal > 0
+      ? days.filter(
+          (d) => Math.abs(d.kcal - target.kcal) / target.kcal <= KCAL_HIT_TOLERANCE,
+        ).length
+      : 0;
+  const proteinHitDays =
+    target && target.protein_g > 0
+      ? days.filter((d) => d.protein_g >= target.protein_g * PROTEIN_HIT_SHARE).length
+      : 0;
+
+  return {
+    weekStart,
+    daysSoFar,
+    loggedDays: days.length,
+    kcalHitDays,
+    proteinHitDays,
+    streakDays: loggingStreak(intake, today),
   };
 }
 
