@@ -14,7 +14,7 @@ import {
   Wheat,
   X,
 } from "lucide-react";
-import BarcodeScanner from "@/components/BarcodeScanner";
+import BarcodeScanner from "@/components/BarcodeScannerLazy";
 import type { FoodChoice, FreshFood, MealPick, OffProduct } from "@/lib/types";
 import { cookedName, cookedStapleFor, defaultSize, pantryUnitLabel } from "@/lib/freshfoods";
 import { searchFoods, setMealPicks } from "../actions";

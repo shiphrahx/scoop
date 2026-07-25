@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ScanBarcode, Plus, X } from "lucide-react";
-import BarcodeScanner from "@/components/BarcodeScanner";
+import BarcodeScanner from "@/components/BarcodeScannerLazy";
 import type { OffProduct, SourcePack } from "@/lib/types";
 import { createBatch } from "./actions";
 

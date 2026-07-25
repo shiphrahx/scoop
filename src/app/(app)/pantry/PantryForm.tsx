@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ScanBarcode, Link2, Apple } from "lucide-react";
-import BarcodeScanner from "@/components/BarcodeScanner";
+import BarcodeScanner from "@/components/BarcodeScannerLazy";
 import { cookedName, cookedStapleFor, defaultSize, pantryUnitLabel } from "@/lib/freshfoods";
 import type { ExtraPer100g, FreshFood, OffProduct, UnitOption } from "@/lib/types";
 import { addFreshFoodSize, addPantryItem, findFreshFoods, importPantryUrl } from "./actions";
