@@ -265,7 +265,7 @@ export function TrendDotsChart({
                 weight: number | null;
                 trend: number;
               };
-              const rows = [
+              const rows: { label: string; value: string; color: string }[] = [
                 { label: "Trend", value: `${p.trend.toFixed(1)} kg`, color: C.teal },
               ];
               if (p.weight != null) {
