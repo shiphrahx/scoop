@@ -1154,4 +1154,65 @@ export function milestones(
   };
 }
 
+// --- 16. Plateau detection --------------------------------------------------------
+
+export interface Plateau {
+  weeks: number;
+  changeKg: number; // trend movement over the window; negative = still losing
+  changePct: number; // as a share of bodyweight
+  detected: boolean;
+}
+
+// How long the trend has to sit still before it's a plateau rather than a
+// fortnight. Three weeks clears a menstrual cycle's water swing, which is the
+// commonest thing mistaken for a stall.
+export const PLATEAU_WEEKS = 3;
+
+// Movement below this share of bodyweight over the window counts as no
+// movement. Half a percent — under a pound for most people, which is inside
+// what the scale and the trend can resolve.
+const PLATEAU_PCT = 0.005;
+
+// "The trend hasn't moved in three weeks."
+//
+// Worth saying out loud, because the answer is usually NOT to cut further: a
+// long deficit drops resting burn and daily movement, and the fix is a diet
+// break or a fresh maintenance measurement. The card points at the Coach for
+// exactly that. Null when the weigh-ins don't span the window — silence beats
+// declaring a plateau on a fortnight of data.
+export function plateau(
+  points: WeighIn[],
+  weeks = PLATEAU_WEEKS,
+  now = new Date(),
+): Plateau | null {
+  const windowDays = weeks * 7;
+  const cutoff = new Date(now.getTime() - (windowDays - 1) * DAY_MS)
+    .toISOString()
+    .slice(0, 10);
+
+  const inWindow = points.filter(
+    (p) => Number.isFinite(p.kg) && p.kg > 0 && p.date >= cutoff,
+  );
+  if (inWindow.length < MIN_WEIGH_INS_FOR_TREND) return null;
+
+  const dates = inWindow.map((p) => dayMs(p.date));
+  // Needs to cover most of the window, not just its last few days.
+  if ((Math.max(...dates) - Math.min(...dates)) / DAY_MS < windowDays - 7) return null;
+
+  const series = trendSeries(inWindow);
+  if (series.length < 2) return null;
+
+  const startKg = series[0].kg;
+  const changeKg = series[series.length - 1].kg - startKg;
+  const changePct = changeKg / startKg;
+
+  return {
+    weeks,
+    changeKg: round(changeKg, 2),
+    changePct: round(changePct * 100, 2),
+    // A plateau is "not falling", which includes creeping up.
+    detected: changePct > -PLATEAU_PCT,
+  };
+}
+
 export { type WeighIn };
