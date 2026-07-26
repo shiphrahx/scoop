@@ -102,10 +102,15 @@ const CAP: Record<MacroKey, number> = {
 const MIN_PORTION = 2;
 
 type MacroKey = "protein_g" | "carbs_g" | "fat_g";
-const KEY_TO_100: Record<MacroKey, keyof PantryFood> = {
+// A row of the day solve: the three macros plus total energy. Energy is not an
+// extra macro, it's the sum of them — but giving it its own row lets a solve keep
+// the day's CALORIES honest even where a single macro has to bend.
+type RowKey = MacroKey | "kcal";
+const KEY_TO_100: Record<RowKey, keyof PantryFood> = {
   protein_g: "protein_100g",
   carbs_g: "carbs_100g",
   fat_g: "fat_100g",
+  kcal: "kcal_100g",
 };
 
 const clamp = (n: number, lo: number, hi: number) =>
@@ -116,8 +121,8 @@ const clamp = (n: number, lo: number, hi: number) =>
 const capFor = (food: PantryFood, key: MacroKey) =>
   Math.min(CAP[key], food.available_g ?? Infinity);
 
-// Per-gram amount of one macro in a food.
-const perGram = (food: PantryFood, key: MacroKey) =>
+// Per-gram amount of one macro (or of energy) in a food.
+const perGram = (food: PantryFood, key: RowKey) =>
   (food[KEY_TO_100[key]] as number) / 100;
 
 // The macros of `grams` of a food, ROUNDED to whole numbers — the same figures
@@ -341,10 +346,16 @@ export interface PlanPickedDayInput {
 // the single fattiest food onto one plate (and drag all its protein there too)
 // just to close a few grams of fat. A softer fat goal keeps portions realistic
 // and lets fat land a little under when the picks can't reach it cleanly.
-const DAY_WEIGHT: Record<MacroKey, number> = {
+//
+// ENERGY has a weight too, per kcal rather than per gram, for the solves that hold
+// total calories as well. Per kcal it sits just above carbs' per-gram weight for a
+// typical carb food (~5 kcal a gram), so energy accuracy beats a few grams of
+// carbs, but stays under protein's — protein is the anchor nothing trades away.
+const DAY_WEIGHT: Record<RowKey, number> = {
   protein_g: 30,
   carbs_g: 30,
   fat_g: 3,
+  kcal: 6,
 };
 // Tiny ridge keeps the normal equations solvable when two picks have identical
 // macro profiles (it splits the grams evenly between them instead of failing).
@@ -353,6 +364,8 @@ const RIDGE = 1e-6;
 const SMALL_PORTION = 10;
 
 const MACRO_KEYS: MacroKey[] = ["protein_g", "carbs_g", "fat_g"];
+// The rows of the day solve when total energy has to be held as well.
+const ENERGY_ROWS: RowKey[] = [...MACRO_KEYS, "kcal"];
 // The macros a countable's whole-unit count is chosen to fit: the anchored ones.
 // Fat is left out on purpose — it's the soft "rest" macro, so a fat shortfall
 // can't push the planner into adding another whole portion of a dense food.
@@ -474,26 +487,31 @@ function boundedLeastSquares(
 // share of each macro (soft). `pinnedDay`/`pinnedMeal` report macros already
 // committed by foods held OUTSIDE this solve (snapped countable portions), so
 // the active foods aim at what's LEFT of the day and of each meal's share.
+// `rows` picks which totals are held: the three macros normally, macros plus
+// total energy when the day's calories have to be held too.
 function solvePicks(
   active: PickVar[],
   activeCaps: number[],
   slots: PickedSlotInput[],
   fractions: number[],
   budget: Macros,
-  pinnedDay: (key: MacroKey) => number = () => 0,
-  pinnedMeal: (slotIdx: number, key: MacroKey) => number = () => 0,
+  pinnedDay: (key: RowKey) => number = () => 0,
+  pinnedMeal: (slotIdx: number, key: RowKey) => number = () => 0,
+  rows: RowKey[] = MACRO_KEYS,
 ): number[] {
   const A: number[][] = [];
   const b: number[] = [];
-  for (const key of MACRO_KEYS) {
+  for (const key of rows) {
     const w = DAY_WEIGHT[key];
     A.push(active.map((v) => perGram(v.food, key) * w));
-    b.push((Math.max(0, budget[key]) - pinnedDay(key)) * w);
+    b.push((Math.max(0, budget[key] ?? 0) - pinnedDay(key)) * w);
   }
   slots.forEach((s, slotIdx) => {
-    for (const key of MACRO_KEYS) {
+    for (const key of rows) {
       A.push(active.map((v) => (v.slotIdx === slotIdx ? perGram(v.food, key) : 0)));
-      b.push(Math.max(0, budget[key]) * fractions[slotIdx] - pinnedMeal(slotIdx, key));
+      b.push(
+        Math.max(0, budget[key] ?? 0) * fractions[slotIdx] - pinnedMeal(slotIdx, key),
+      );
     }
   });
   return boundedLeastSquares(A, b, activeCaps);
@@ -568,9 +586,9 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
   // meal's share, so the sources aim at what's LEFT. Same shape as the
   // countable-pin below; they all combine when present.
   const heldIdx = [...pinnedIdx, ...fillerIdx];
-  const heldDay = (key: MacroKey) =>
+  const heldDay = (key: RowKey) =>
     heldIdx.reduce((s, i) => s + perGram(vars[i].food, key) * grams[i], 0);
-  const heldMeal = (slotIdx: number, key: MacroKey) =>
+  const heldMeal = (slotIdx: number, key: RowKey) =>
     heldIdx.reduce(
       (s, i) => (vars[i].slotIdx === slotIdx ? s + perGram(vars[i].food, key) * grams[i] : s),
       0,
@@ -622,7 +640,7 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
     // slot when `inSlot` is given).
     const unitContribution = (
       units: Map<number, number>,
-      key: MacroKey,
+      key: RowKey,
       inSlot?: number,
     ) =>
       countableIdx.reduce(
