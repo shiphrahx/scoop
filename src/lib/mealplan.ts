@@ -24,7 +24,7 @@
 
 import { solveBoxLsq } from "@/lib/boxqp";
 import { macroRole, isVegetable, isProtein } from "@/lib/foodgroups";
-import { cookedStapleFor } from "@/lib/freshfoods";
+import { isBulkStaple } from "@/lib/freshfoods";
 import type {
   Macros,
   MealPortion,
@@ -72,9 +72,10 @@ export interface PantryFood {
 // pasta, couscous, quinoa, porridge) carry serving-size presets ("medium" rice =
 // 200 g) for quick manual logging, but they're served BY WEIGHT. Snapping them
 // to whole 200 g servings locked rice to a fixed portion and left no room for the
-// rest of the day (issue #27), so a staple is weighable however its presets look.
+// rest of the day (issue #27), so a staple is weighable however its presets look
+// — and however it was sold, dry bag or steamed pouch.
 export function isCountable(food: PantryFood): boolean {
-  return !!(food.unit_g && food.unit_g > 0) && !cookedStapleFor(food.name);
+  return !!(food.unit_g && food.unit_g > 0) && !isBulkStaple(food.name);
 }
 
 // Snap a solved gram amount to what the user can actually serve: whole units

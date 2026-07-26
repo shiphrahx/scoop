@@ -3,6 +3,7 @@ import fc from "fast-check";
 import {
   cookedName,
   cookedStapleFor,
+  isBulkStaple,
   defaultSize,
   macrosForGrams,
   pantryUnitLabel,
@@ -148,5 +149,41 @@ describe("macrosForGrams", () => {
         },
       ),
     );
+  });
+});
+
+describe("packs that already come cooked", () => {
+  it("keeps a steamed or microwave pouch's own label", () => {
+    // The swap exists to turn a DRY pack's numbers into as-eaten ones. A pouch is
+    // already as-eaten, and denser than boiled-from-dry, so replacing its label
+    // with the shared reference under-counts it (315 g read as 89 g of carbs
+    // instead of the pack's 102 g).
+    expect(cookedStapleFor("Tilda Steamed Basmati Rice")).toBeNull();
+    expect(cookedStapleFor("Microwave Basmati Rice")).toBeNull();
+    expect(cookedStapleFor("Ready to Heat Long Grain Rice")).toBeNull();
+    expect(cookedStapleFor("Boiled Basmati Rice")).toBeNull();
+    expect(cookedStapleFor("Basmati Rice (cooked)")).toBeNull();
+    expect(cookedStapleFor("Rice, cooked")).toBeNull();
+  });
+
+  it("still swaps a dry pack", () => {
+    expect(cookedStapleFor("Tilda Pure Basmati Rice")).toBe("White Rice (cooked)");
+    expect(cookedStapleFor("Penne Pasta 500g")).toBe("Pasta (cooked)");
+  });
+
+  it("never tags a name cooked twice", () => {
+    expect(cookedName("Basmati Rice (cooked)")).toBe("Basmati Rice (cooked)");
+    expect(cookedName("Rice, cooked")).toBe("Rice, cooked");
+    expect(cookedName("Tilda Steamed Basmati")).toBe("Tilda Steamed Basmati");
+    expect(cookedName("Basmati Rice")).toBe("Basmati Rice (cooked)");
+  });
+
+  it("treats a staple as served by weight however it was sold", () => {
+    // Both are portioned by weight: neither a dry bag nor a pouch is a fixed
+    // serving you eat whole (issue #27).
+    expect(isBulkStaple("Tilda Pure Basmati Rice")).toBe(true);
+    expect(isBulkStaple("Tilda Steamed Basmati Rice")).toBe(true);
+    expect(isBulkStaple("Rice Milk")).toBe(false);
+    expect(isBulkStaple("Bagel")).toBe(false);
   });
 });
