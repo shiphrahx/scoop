@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { bottomNav } from "@/components/nav-items";
+import LinkHint from "@/components/LinkHint";
 
 // Mobile-only tab bar. Hidden on desktop, where the sidebar takes over.
 export default function BottomNav() {
@@ -21,9 +22,10 @@ export default function BottomNav() {
                 <Link
                   href={item.href}
                   aria-label={item.label}
-                  className="sc-btn-primary flex h-16 w-16 -translate-y-4 items-center justify-center rounded-full"
+                  className="sc-btn-primary relative flex h-16 w-16 -translate-y-4 items-center justify-center rounded-full"
                 >
                   <Icon size={28} strokeWidth={2.5} />
+                  <LinkHint />
                 </Link>
               </li>
             );
@@ -33,11 +35,12 @@ export default function BottomNav() {
             <li key={item.href}>
               <Link
                 href={item.href}
-                className="flex w-16 flex-col items-center gap-1 rounded-2xl py-1.5 text-xs font-medium transition"
+                className="relative flex w-16 flex-col items-center gap-1 rounded-2xl py-1.5 text-xs font-medium transition"
                 style={{ color: active ? "var(--ink-teal)" : "var(--muted)" }}
               >
                 <Icon size={24} strokeWidth={active ? 2.5 : 2} />
                 {item.label}
+                <LinkHint />
               </Link>
             </li>
           );
