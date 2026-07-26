@@ -29,7 +29,10 @@ export default async function AddToPantryPage({
         <h1 className="text-3xl font-semibold">Add to pantry</h1>
       </div>
 
-      <PantryForm initialName={name ?? ""} />
+      {/* Keyed on the pre-filled name: arriving again from a different "not in
+          your pantry" prompt is the same segment to the router, so without this
+          the form would keep the first food's name. */}
+      <PantryForm key={name ?? ""} initialName={name ?? ""} />
       <ListImport />
       <InvoiceImport />
       <GroceryScan connected={connected} />
