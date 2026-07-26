@@ -413,26 +413,66 @@ function vegServingG(food: PantryFood): number {
   return clamp(Math.round(grams), VEG_MIN_G, VEG_MAX_G);
 }
 
-// The least amount of a food worth putting on a plate — the serving the planner
-// falls back to for a pick the free solve squeezed out (see stage 3). Sized by
-// ENERGY like a veg serving, so it reads as a real serving of THAT food: a fat
-// spread lands around 10 g, a sauce around a spoonful, an oil a few grams.
-// Bounded so a dense food can't shrink to a smear and a light one can't take a
-// meaningful bite out of the budget just for being a floor.
+// ---------------------------------------------------------------------------
+// Serving bounds. These are the planner's HARD limits on one portion of one food
+// in one meal, and they carry the two rules the fit itself must not be allowed to
+// decide: a food the user picked is on the plate at a recognisable serving, and
+// no food is served in an amount nobody would eat.
+// ---------------------------------------------------------------------------
+
+// The least amount of a food worth putting on a plate. Sized by ENERGY like a veg
+// serving, so it reads as a real serving of THAT food: a fat spread lands around
+// 10 g, a sauce around a spoonful, an oil a few grams. Bounded so a dense food
+// can't shrink to a smear and a light one can't take a meaningful bite out of the
+// budget just for being a floor.
 const MIN_SERVE_KCAL = 60;
 const MIN_SERVE_MIN_G = 5;
 const MIN_SERVE_MAX_G = 40;
-function minServingG(food: PantryFood): number {
+export function minServingG(food: PantryFood): number {
   const perG = food.kcal_100g / 100;
   const grams = perG > 0 ? MIN_SERVE_KCAL / perG : MIN_SERVE_MAX_G;
   return clamp(Math.round(grams), MIN_SERVE_MIN_G, MIN_SERVE_MAX_G);
 }
 
+// The most of a food that belongs in ONE meal. The old ceilings were per-macro
+// constants (350 g of any protein, 600 g of any carb), which let the fit serve
+// 600 g of potatoes or six eggs to close a macro. A serving is bounded three
+// ways instead: by energy (no single food is half a day on its own), by a
+// realistic mass for its role, and — for a countable — by a plausible number of
+// whole units. Stock still caps everything.
+const MAX_SERVE_KCAL = 500;
+const MAX_SERVE_UNITS = 4;
+const MAX_SERVE_G: Record<"protein" | "carb" | "fat" | "other", number> = {
+  protein: 300,
+  carb: 300,
+  fat: 60,
+  other: 250,
+};
+export function maxServingG(food: PantryFood, cap = Infinity): number {
+  if (isCountable(food)) {
+    const unit = food.unit_g!;
+    const inStock = Math.floor(Math.max(0, cap) / unit);
+    if (inStock < 1) return 0; // not even one whole unit left
+    const unitKcal = (food.kcal_100g / 100) * unit;
+    const byEnergy = unitKcal > 0 ? Math.floor(MAX_SERVE_KCAL / unitKcal) : MAX_SERVE_UNITS;
+    const units = Math.max(1, Math.min(MAX_SERVE_UNITS, byEnergy, inStock));
+    return units * unit;
+  }
+  const perG = food.kcal_100g / 100;
+  const byEnergy = perG > 0 ? MAX_SERVE_KCAL / perG : Infinity;
+  const byRole = MAX_SERVE_G[macroRole(food) ?? "other"];
+  return Math.min(Math.round(Math.min(byEnergy, byRole)), Math.max(0, cap));
+}
+
 // The smallest servable amount of a picked food: one whole unit for a countable
 // (you can't serve a third of a bagel), else its energy-sized minimum serving —
-// never more than the stock. Zero means even the minimum doesn't fit the pack.
-function floorPortion(food: PantryFood, cap: number): number {
-  return portionGrams(isCountable(food) ? food.unit_g! : minServingG(food), food, cap);
+// never more than the stock, and never more than one sensible serving. Zero means
+// the pack can't cover even the minimum.
+export function floorPortion(food: PantryFood, cap: number): number {
+  const most = maxServingG(food, cap);
+  if (most <= 0) return 0;
+  const want = isCountable(food) ? food.unit_g! : minServingG(food);
+  return Math.min(portionGrams(want, food, cap), most);
 }
 
 // A picked food the planner treats as a filler rather than a macro source: a
