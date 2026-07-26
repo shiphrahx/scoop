@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import AutoReview from "@/app/(app)/coach/AutoReview";
 import MobileHome from "@/components/home/MobileHome";
-import DesktopDashboardMount from "@/components/home/DesktopDashboardMount";
+import DesktopHome from "@/components/home/DesktopHome";
 import {
   CoachText,
   CoachTextSkeleton,
@@ -11,9 +11,6 @@ import { getSessionUser } from "@/lib/auth";
 import {
   getDayTarget,
   getTodayConsumed,
-  getWeightHistory,
-  getActivityHistory,
-  getLatestWeight,
   hasTrackedToday,
   getTodayPlan,
   getProfile,
@@ -34,23 +31,11 @@ export default async function DashboardPage() {
   // batch: it's the slowest read on the page, and the ring needs none of it, so
   // it streams in its own Suspense boundary below. This await now waits on one
   // round trip of light queries, not the coach's heavier scans.
-  const [
-    targets,
-    consumed,
-    weightHistory,
-    activity,
-    latestWeight,
-    trackedToday,
-    plan,
-    profile,
-  ] = await Promise.all([
+  const [targets, consumed, trackedToday, plan, profile] = await Promise.all([
     // Not `await localToday()` inline: awaiting it here would hold up all the
     // queries below behind one round trip before any of them started.
     localToday().then(getDayTarget),
     getTodayConsumed(),
-    getWeightHistory(30),
-    getActivityHistory(14),
-    getLatestWeight(),
     hasTrackedToday(),
     getTodayPlan(),
     getProfile(),
@@ -107,19 +92,22 @@ export default async function DashboardPage() {
         prefs={prefs}
         calibration={calibrationSlot}
       />
-      <DesktopDashboardMount
-        name={name}
-        targets={targets}
-        consumed={consumed}
-        planned={planned}
-        coach={desktopCoachSlot}
-        weightHistory={weightHistory}
-        activity={activity}
-        latestWeight={latestWeight}
-        planPrompt={planPrompt}
-        prefs={prefs}
-        calibration={desktopCalibrationSlot}
-      />
+      {/* Desktop charts fetch their own data (a phone never shows them), so they
+          stream here instead of blocking the mobile ring. Fallback is null: it's
+          `hidden lg:flex` markup, and DesktopDashboardMount brings its own
+          skeleton once a desktop client mounts. */}
+      <Suspense fallback={null}>
+        <DesktopHome
+          name={name}
+          targets={targets}
+          consumed={consumed}
+          planned={planned}
+          coach={desktopCoachSlot}
+          planPrompt={planPrompt}
+          prefs={prefs}
+          calibration={desktopCalibrationSlot}
+        />
+      </Suspense>
     </>
   );
 }
