@@ -323,6 +323,12 @@ export function createFakeSupabase(opts: FakeSupabaseOptions = {}) {
   const client = {
     auth: {
       getUser: async () => ({ data: { user }, error: null }),
+      // Mirrors getUser: the app reads identity from the JWT claims now, so the
+      // fake returns the same signed-in user shaped as claims (sub = id).
+      getClaims: async () => ({
+        data: user ? { claims: { sub: user.id } } : null,
+        error: null,
+      }),
     },
     from(table: string) {
       return new FakeQuery(db, table, opts.failTable === table ? "boom" : null);
