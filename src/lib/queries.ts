@@ -378,8 +378,24 @@ export async function getCoachData(): Promise<CoachData> {
   // for ever. Measurements are weekly, so a month covers a real pair.
   const cutWaist = cutDay(WAIST_WINDOW_DAYS - 1);
 
-  const [profile, current, weightsRes, measRes, activityRes, fitbitRes, tokenRes] =
-    await Promise.all([
+  // Everything the review reads is fetched in one parallel batch. None of these
+  // depend on each other's results — the cut-offs and the week boundary are all
+  // derived from `tz`/`now` up front — so the daily intake (a 28-day food_logs
+  // scan) and the weekly-target history join the batch rather than each adding a
+  // sequential round trip after it. Home waits on one Supabase round trip here,
+  // not three.
+  const thisWeekStart = localWeekStart(tz, now);
+  const [
+    profile,
+    current,
+    weightsRes,
+    measRes,
+    activityRes,
+    fitbitRes,
+    tokenRes,
+    intake,
+    histRes,
+  ] = await Promise.all([
       getProfile(),
       getCurrentTargets(),
       supabase
@@ -406,6 +422,13 @@ export async function getCoachData(): Promise<CoachData> {
       user
         ? supabase.from("users").select("apple_ingest_token").eq("id", user.id).maybeSingle()
         : Promise.resolve({ data: null }),
+      getDailyIntake(tz, TREND_WINDOW_DAYS, now),
+      supabase
+        .from("daily_targets")
+        .select("week_start, kcal, phase")
+        .lte("week_start", thisWeekStart)
+        .order("week_start", { ascending: false })
+        .limit(26),
     ]);
 
   const weights = (weightsRes.data as { date: string; weight_kg: number }[]) ?? [];
@@ -418,9 +441,9 @@ export async function getCoachData(): Promise<CoachData> {
     meas.length >= 2 ? Number(meas[0].waist_cm) - Number(meas[1].waist_cm) : null;
 
   // What the user's own numbers say they burn. This is the measurement that
-  // outranks the formula: intake against the slope of their weight.
+  // outranks the formula: intake against the slope of their weight. `intake` is
+  // fetched in the batch above.
   const weighIns = weights.map((w) => ({ date: w.date, kg: Number(w.weight_kg) }));
-  const intake = await getDailyIntake(tz, TREND_WINDOW_DAYS, now);
   const observed = observeTdee(weighIns, intake);
   const adherence = current ? computeAdherence(intake, current.kcal) : null;
   const calibration =
@@ -480,22 +503,17 @@ export async function getCoachData(): Promise<CoachData> {
   // Adaptation gate: how many whole weeks the current calorie target has been
   // unchanged. The review won't cut or add until the body has had ~2 weeks to
   // respond. We measure it as the span from the start of the current unbroken
-  // run of same-kcal weekly targets up to this week.
-  const thisWeekStart = localWeekStart(tz, now);
+  // run of same-kcal weekly targets up to this week. The history was fetched in
+  // the batch above; it's only meaningful once there's a current target.
+  const targetHistory = current
+    ? ((histRes.data as
+        | { week_start: string; kcal: number; phase: string | null }[]
+        | null) ?? [])
+    : [];
   let weeksOnTarget = 0;
-  let targetHistory: { week_start: string; kcal: number; phase: string | null }[] = [];
   if (current) {
-    const { data: histData } = await supabase
-      .from("daily_targets")
-      .select("week_start, kcal, phase")
-      .lte("week_start", thisWeekStart)
-      .order("week_start", { ascending: false })
-      .limit(26);
-    const hist =
-      (histData as { week_start: string; kcal: number; phase: string | null }[]) ?? [];
-    targetHistory = hist;
     let runStart = thisWeekStart;
-    for (const row of hist) {
+    for (const row of targetHistory) {
       if (Math.round(Number(row.kcal)) === Math.round(current.kcal)) {
         runStart = row.week_start;
       } else {
