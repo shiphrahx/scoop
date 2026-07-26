@@ -89,3 +89,20 @@ describe("floorPortion", () => {
     expect(floorPortion(oil, Infinity)).toBeLessThanOrEqual(maxServingG(oil));
   });
 });
+
+describe("a cooked staple's serving window", () => {
+  it("lets a plate of cooked rice be a real plateful", () => {
+    // Cooked rice is mostly water, so holding it to the same mass ceiling as a
+    // dense food left the day short of carbs with the rice pinned at its cap and
+    // no way to grow. The energy ceiling still applies.
+    const cookedRice = f("Basmati Rice (cooked)", 130, 2.7, 28, 0.3);
+    const most = maxServingG(cookedRice);
+    expect(most).toBeGreaterThan(350);
+    expect((most * 130) / 100).toBeLessThanOrEqual(500);
+  });
+
+  it("does not let a dense food take the same mass", () => {
+    expect(maxServingG(f("Chicken Breast", 106, 24, 0, 1.4))).toBeLessThanOrEqual(350);
+    expect(maxServingG(f("Basmati Rice", 349, 7.1, 78, 0.9))).toBeLessThanOrEqual(150);
+  });
+});

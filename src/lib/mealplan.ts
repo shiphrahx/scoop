@@ -350,10 +350,18 @@ const MAX_SERVE_G: Record<"protein" | "carb" | "fat" | "other", number> = {
   fat: 60,
   other: 250,
 };
+// A cooked staple is mostly water: 350 g of boiled rice is a normal big plate,
+// not a stunt, and holding it to the same mass as 350 g of chicken stopped the
+// day reaching its carbs while the rice sat pinned at the ceiling. The ENERGY
+// ceiling still applies, so this buys a bigger plate of rice, not a bigger
+// plate of anything dense.
+const MAX_SERVE_STAPLE_G = 450;
 export function maxServingG(food: PantryFood, cap = Infinity): number {
   const perG = food.kcal_100g / 100;
   const byEnergy = perG > 0 ? MAX_SERVE_KCAL / perG : Infinity;
-  const byRole = MAX_SERVE_G[macroRole(food) ?? "other"];
+  const byRole = isBulkStaple(food.name)
+    ? MAX_SERVE_STAPLE_G
+    : MAX_SERVE_G[macroRole(food) ?? "other"];
   // Floored, never rounded: a cap that rounds up can put two meals of the same
   // food past the pack between them.
   const most = Math.floor(Math.min(byEnergy, byRole, Math.max(0, cap)));
@@ -832,6 +840,31 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
         ? ` Your ${listed[0]} is already at its limit for the day, so nothing else can grow.`
         : ` Your ${listed.slice(0, -1).join(", ")} and ${listed[listed.length - 1]} are already at their limits for the day, so nothing else can grow.`;
 
+  // A pick that has grown as far as it goes. When the day is short, this is the
+  // other reason it can't close — not "no room left" but "this food is already
+  // the biggest portion Scoop will plan" — and the user can only act on it if
+  // the plan names the food.
+  // Only worth naming for the macro that is actually short: that the bananas are
+  // maxed out is no help when the gap is fat.
+  const maxedFor = (key: MacroKey) => [
+    ...new Set(
+      vars
+        .filter(
+          (v, i) =>
+            v.kind === "source" &&
+            served[i] > 0 &&
+            served[i] >= v.hi &&
+            perGram(v.food, key) >= 0.05,
+        )
+        .map((v) => v.food.name),
+    ),
+  ];
+  const maxedNoteFor = (key: MacroKey) => {
+    const names = maxedFor(key);
+    if (names.length === 0) return "";
+    return ` ${names.slice(0, 2).join(" and ")} ${names.length === 1 ? "is" : "are"} already at the biggest serving Scoop will plan.`;
+  };
+
   // Which macro the missing calories actually are. "You're 300 under" is not much
   // use on its own; "the gap is fat" tells the user what to go and pick.
   const KCAL_PER_G: Record<MacroKey, number> = { protein_g: 4, carbs_g: 4, fat_g: 9 };
@@ -855,7 +888,7 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
         ? atSmallest
           ? `Even at their smallest sensible servings these picks come to ${dayTotals.kcal} kcal — ${kcalMiss} over today's target. Take something out to bring the day back.`
           : `This day comes to ${dayTotals.kcal} kcal — ${kcalMiss} over today's target, the closest these picks get.`
-        : `This day comes to ${dayTotals.kcal} kcal — ${-kcalMiss} under today's target.${blocking || " Add to your picks to fill the gap."}${gapNote}`;
+        : `This day comes to ${dayTotals.kcal} kcal — ${-kcalMiss} under today's target.${blocking || " Add to your picks to fill the gap."}${gapNote}${biggest ? maxedNoteFor(biggest.key) : ""}`;
 
   // Any macro that still ends up OVER its limit gets named. With the limits
   // pressed hard this only happens when the picks' smallest servings already
@@ -868,6 +901,22 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
       `${MACRO_LABEL[key][0].toUpperCase()}${MACRO_LABEL[key].slice(1)} lands ${dayTotals[key] - Math.max(0, input.budget[key] ?? 0)} g over — these picks don't go any smaller.`,
   );
 
+  // A macro can land well short while the day's ENERGY lands — the picks simply
+  // can't carry that macro. Say which, and why it stopped, rather than leaving the
+  // user to spot a red number on the day's tiles with no explanation.
+  const shortNotes =
+    energyNote === null
+      ? MACRO_KEYS.filter((key) => {
+          const target = Math.max(0, input.budget[key] ?? 0);
+          return target > 0 && target - dayTotals[key] > Math.max(10, target * 0.08);
+        }).map(
+          (key) =>
+            `${MACRO_LABEL[key][0].toUpperCase()}${MACRO_LABEL[key].slice(1)} lands ${
+              Math.max(0, input.budget[key] ?? 0) - dayTotals[key]
+            } g under.${blocking}${maxedNoteFor(key)}`,
+        )
+      : [];
+
   // Protein SHORT is worth saying too: on a cut it's the macro that keeps muscle.
   const proteinTarget = Math.max(0, input.budget.protein_g ?? 0);
   const proteinShort = proteinTarget - dayTotals.protein_g;
@@ -876,7 +925,8 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
       ? `Protein lands ${proteinShort} g under — these picks can't carry more of it.`
       : null;
   const dayNote =
-    [energyNote, ...overNotes, proteinNote].filter(Boolean).join(" ") || null;
+    [energyNote, ...overNotes, ...shortNotes, proteinNote].filter(Boolean).join(" ") ||
+    null;
 
   const out: PlannedSlot[] = [];
   slots.forEach((s, slotIdx) => {
