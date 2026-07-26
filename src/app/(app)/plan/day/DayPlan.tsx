@@ -673,7 +673,7 @@ function ItemPicker({
                 /* Weighed food: the grams stepper. */
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={() => setGrams(i, it.grams - 25)}
+                    onClick={() => setGrams(i, it.grams - 5)}
                     disabled={busy || it.grams <= 0}
                     className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90 disabled:opacity-40"
                     aria-label="Less"
@@ -689,7 +689,7 @@ function ItemPicker({
                   />
                   <span className="text-xs text-[var(--muted)]">g</span>
                   <button
-                    onClick={() => setGrams(i, it.grams + 25)}
+                    onClick={() => setGrams(i, it.grams + 5)}
                     disabled={busy}
                     className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90"
                     aria-label="More"
@@ -1156,7 +1156,7 @@ function AiMealEditor({
               ) : (
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={() => setGrams(i, p.grams - 25)}
+                    onClick={() => setGrams(i, p.grams - 5)}
                     disabled={saving || p.grams <= 0}
                     className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90 disabled:opacity-40"
                     aria-label="Less"
@@ -1172,7 +1172,7 @@ function AiMealEditor({
                   />
                   <span className="text-xs text-[var(--muted)]">g</span>
                   <button
-                    onClick={() => setGrams(i, p.grams + 25)}
+                    onClick={() => setGrams(i, p.grams + 5)}
                     disabled={saving}
                     className="grid h-7 w-7 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90"
                     aria-label="More"
