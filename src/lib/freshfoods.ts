@@ -80,6 +80,40 @@ const NOT_PLAIN_STAPLE = [
   "cereal", "biscuit", "bread", "wine", "vinegar", "paper",
 ];
 
+// Words that say the pack is ALREADY as-eaten: a steamed pouch, a microwave rice,
+// anything labelled cooked or boiled. Its label is the real cooked number for
+// THAT product — usually denser than the generic reference, because a pouch is
+// steamed rather than boiled — so swapping it onto the shared cooked staple
+// would replace a true figure with an approximate one.
+const ALREADY_COOKED = [
+  "cooked", "steamed", "boiled", "precooked", "pre-cooked", "ready to heat",
+  "ready-to-heat", "ready to eat", "ready-to-eat", "microwave", "microwaveable",
+  "heat and eat", "heat & eat",
+];
+
+// Punctuation-insensitive words of a name: "Basmati Rice (cooked)" and
+// "Ready-to-heat rice" both come out as plain spaced words to match against.
+const words = (s: string) => ` ${s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
+
+// Does this product's name say it comes cooked?
+export function isAlreadyCooked(productName: string): boolean {
+  const n = words(productName);
+  return ALREADY_COOKED.some((w) => n.includes(words(w)));
+}
+
+// Is this a bulk staple — rice, pasta, couscous, quinoa, oats — however it was
+// sold? True for a dry bag AND for a steamed pouch, because the thing that makes
+// a staple special is that it's served BY WEIGHT, not by a fixed serving (issue
+// #27). Kept separate from the cooked-macro swap below, which only applies to
+// packs whose numbers are dry.
+export function isBulkStaple(productName: string): boolean {
+  const n = ` ${productName.toLowerCase()} `;
+  if (NOT_PLAIN_STAPLE.some((d) => new RegExp(`\\b${d}`).test(n))) return false;
+  return COOKED_STAPLES.some((s) =>
+    s.words.some((w) => new RegExp(`\\b${w}\\b`).test(n)),
+  );
+}
+
 // Mark a food's own name cooked without losing it: "Basmati Rice" → "Basmati
 // Rice (cooked)". Idempotent — an already-cooked name is returned unchanged, so
 // re-adding never doubles the tag. Used when a dry staple is swapped onto the
@@ -88,15 +122,22 @@ const NOT_PLAIN_STAPLE = [
 // the shared "Pasta (cooked)" / "White Rice (cooked)" reference name.
 export function cookedName(productName: string): string {
   const n = productName.trim();
-  if (/\(cooked\)\s*$/i.test(n)) return n;
+  // Already says it: "Basmati Rice (cooked)", "Steamed Basmati", "rice, cooked".
+  if (isAlreadyCooked(n)) return n;
   return `${n} (cooked)`;
 }
 
 // The cooked reference staple a scanned/typed product name should use, or null
-// when it isn't a plain dry staple. Conservative on purpose: a single
-// disqualifying word (see NOT_PLAIN_STAPLE) blocks the swap. Whole-word matches
-// only, so "priced" never reads as "rice".
+// when it isn't a plain DRY staple. Conservative on purpose: a single
+// disqualifying word (see NOT_PLAIN_STAPLE) blocks the swap, and whole-word
+// matches only, so "priced" never reads as "rice".
+//
+// A pack that ALREADY comes cooked keeps its own label: a steamed pouch's
+// numbers are the truth for that pouch, and they run denser than boiled-from-dry
+// (around 32 g of carbs per 100 g against the reference's 28), so swapping them
+// onto the shared reference would replace a real figure with an approximate one.
 export function cookedStapleFor(productName: string): string | null {
+  if (isAlreadyCooked(productName)) return null;
   const n = ` ${productName.toLowerCase()} `;
   if (NOT_PLAIN_STAPLE.some((d) => new RegExp(`\\b${d}`).test(n))) return null;
   for (const s of COOKED_STAPLES) {

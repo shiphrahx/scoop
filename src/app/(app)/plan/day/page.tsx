@@ -141,7 +141,11 @@ export default async function PlanDayPage({
         lastAllocation={profile?.last_alcohol_allocation ?? null}
       />
 
+      {/* Keyed on the day. ?date=A and ?date=B are one segment to the router,
+          which keeps client state across them — so foods half-added to one day's
+          empty slot would still be sitting there on the next day's screen. */}
       <DayPlan
+        key={date}
         slots={slots}
         target={target}
         prefs={prefs}

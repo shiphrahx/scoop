@@ -64,7 +64,9 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-const save = () => screen.getByRole("button", { name: /save this meal/i });
+// The save button, once it's back from any other pending work (adding a scanned
+// product to the pantry disables the form while it writes).
+const save = () => screen.findByRole("button", { name: /save this meal/i });
 
 // The picks handed to the action — second argument of the call.
 const savedPicks = (): MealPick[] => setMealPicks.mock.calls[0]?.[1] ?? [];
@@ -76,7 +78,7 @@ describe("MealPicker", () => {
 
     await user.click(screen.getByRole("button", { name: /^pasta$/i }));
     await user.click(screen.getByRole("button", { name: /^firm tofu$/i }));
-    await user.click(save());
+    await user.click(await save());
 
     expect(setMealPicks).toHaveBeenCalledTimes(1);
     expect(setMealPicks.mock.calls[0][0]).toBe("Lunch");
@@ -94,7 +96,7 @@ describe("MealPicker", () => {
     // meal" list — un-tap the chip in the grid.
     const oilButtons = screen.getAllByRole("button", { name: /olive oil/i });
     await user.click(oilButtons[oilButtons.length - 1]);
-    await user.click(save());
+    await user.click(await save());
 
     expect(savedPicks().map((p) => p.name)).toEqual(["Pasta"]);
   });
@@ -106,7 +108,7 @@ describe("MealPicker", () => {
     );
 
     expect(screen.getByText(/bagel/i)).toBeTruthy();
-    await user.click(save());
+    await user.click(await save());
     expect(savedPicks().map((p) => p.name)).toEqual(["Bagel"]);
   });
 
@@ -130,7 +132,7 @@ describe("MealPicker", () => {
     );
 
     await user.click(screen.getByRole("button", { name: /^pasta$/i }));
-    await user.click(save());
+    await user.click(await save());
 
     expect(setMealPicks.mock.calls[0][2]).toBe("2026-07-20");
     expect(push).toHaveBeenCalledWith("/plan/day?date=2026-07-20");
@@ -144,7 +146,7 @@ describe("MealPicker", () => {
     render(<MealPicker slot="Lunch" groups={groups} initial={[]} />);
 
     await user.click(screen.getByRole("button", { name: /^pasta$/i }));
-    await user.click(save());
+    await user.click(await save());
 
     expect(await screen.findByText(/already logged/i)).toBeTruthy();
     expect(push).not.toHaveBeenCalled();
@@ -184,7 +186,7 @@ describe("MealPicker", () => {
       quantity: 1,
     });
 
-    await user.click(save());
+    await user.click(await save());
     expect(savedPicks().map((p) => p.name)).toEqual(["Rye Bagel"]);
 
     vi.unstubAllGlobals();
@@ -217,7 +219,7 @@ describe("MealPicker", () => {
     await user.click(await screen.findByRole("button", { name: /^no$/i }));
 
     expect(addPantryItem).not.toHaveBeenCalled();
-    await user.click(save());
+    await user.click(await save());
     expect(savedPicks().map((p) => p.name)).toEqual(["Rye Bagel"]);
 
     vi.unstubAllGlobals();

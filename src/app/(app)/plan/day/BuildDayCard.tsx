@@ -16,12 +16,25 @@ export default function BuildDayCard({
 }) {
   const [busy, startTransition] = useTransition();
   const [err, setErr] = useState<string | null>(null);
+  const [result, setResult] = useState<string | null>(null);
 
   function run() {
     setErr(null);
+    setResult(null);
     startTransition(async () => {
       try {
-        await buildMyDay(date);
+        const r = await buildMyDay(date);
+        // A rebalance that moves nothing is a real answer, but a button that
+        // gives no sign of having run reads as broken — so say which it was.
+        if (r.changed) {
+          setResult(`Rebalanced — ${r.moves.join(", ")}.`);
+        } else if (r.held.length > 0) {
+          setResult(
+            `Nothing moved: ${r.held.join(", ")} ${r.held.length === 1 ? "is" : "are"} held at the amount you set. Press again to free ${r.held.length === 1 ? "it" : "them"}.`,
+          );
+        } else {
+          setResult("Nothing moved — this is the closest these picks get today.");
+        }
       } catch (e) {
         setErr(e instanceof Error ? e.message : "Couldn't build your day.");
       }
@@ -55,6 +68,9 @@ export default function BuildDayCard({
         <p className="text-center text-sm font-medium text-[var(--danger,#e5484d)]">
           {err}
         </p>
+      )}
+      {!err && result && (
+        <p className="text-center text-sm text-[var(--muted)]">{result}</p>
       )}
     </div>
   );

@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, Loader2, Pencil, Search, Trash2, X } from "lucide-react";
 import type { ImportedItem, OffCandidate } from "@/lib/types";
-import { addMatchedItems, matchCandidates, type PantryInput } from "./actions";
+import {
+  addMatchedItems,
+  matchCandidates,
+  searchProductOptions,
+  type PantryInput,
+} from "./actions";
 
 // Shared final step for every non-barcode import (PDF #3, list #4, screenshot
 // #5): for each parsed item, search Open Food Facts, show the best match to
@@ -21,6 +26,10 @@ type Row = {
   // Inline name editor: `editing` toggles it, `draft` holds the pending name.
   editing: boolean;
   draft: string;
+  // In-panel product hunt: `query` is what the user typed, `searching` guards it
+  // while a wider search runs. Its results reuse `candidates`.
+  query: string;
+  searching: boolean;
 };
 
 export default function MatchItems({
@@ -46,6 +55,8 @@ export default function MatchItems({
       expanded: false,
       editing: false,
       draft: item.name,
+      query: item.name,
+      searching: false,
     })),
   );
   const [saving, setSaving] = useState(false);
@@ -106,6 +117,25 @@ export default function MatchItems({
       prev.map((r, j) =>
         j === i
           ? { ...r, loading: false, candidates: found, chosen: found[0] ?? null }
+          : r,
+      ),
+    );
+  }
+
+  // Hunt for a product by a query the user types inside the row, when the
+  // offered matches aren't right. Searches a WIDER list than the auto-match and
+  // replaces the candidate options in place, leaving the item's own name alone —
+  // repeatable until they find the product they meant. Whatever they then pick
+  // supplies the saved name and macros.
+  async function searchMore(i: number, rawQuery: string) {
+    const term = rawQuery.trim();
+    if (!term) return;
+    patch(i, { searching: true });
+    const found = await searchProductOptions(term);
+    setRows((prev) =>
+      prev.map((r, j) =>
+        j === i
+          ? { ...r, searching: false, candidates: found, chosen: found[0] ?? null }
           : r,
       ),
     );
@@ -248,6 +278,11 @@ export default function MatchItems({
 
             {r.expanded && !r.loading && (
               <div className="flex flex-col gap-1.5 px-4 pb-3">
+                {r.candidates.length === 0 && !r.searching && (
+                  <p className="px-1 py-1 text-xs text-[var(--muted)]">
+                    No products found — try a different search below.
+                  </p>
+                )}
                 {r.candidates.map((c, ci) => (
                   <button
                     key={ci}
@@ -284,6 +319,33 @@ export default function MatchItems({
                 >
                   None of these — add without macros
                 </button>
+
+                {/* Not the right product? Type anything and search a wider list,
+                    as many times as it takes to find it. */}
+                <div className="mt-1 flex items-center gap-2 border-t border-[var(--border)] pt-2.5">
+                  <input
+                    value={r.query}
+                    onChange={(e) => patch(i, { query: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") searchMore(i, r.query);
+                    }}
+                    placeholder="Search for another product…"
+                    className="sc-input min-w-0 flex-1 text-sm"
+                  />
+                  <button
+                    onClick={() => searchMore(i, r.query)}
+                    disabled={!r.query.trim() || r.searching}
+                    aria-label="Search products"
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-white transition active:scale-90 disabled:opacity-40"
+                    style={{ background: "var(--grad-primary)" }}
+                  >
+                    {r.searching ? (
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : (
+                      <Search size={15} />
+                    )}
+                  </button>
+                </div>
               </div>
             )}
           </li>

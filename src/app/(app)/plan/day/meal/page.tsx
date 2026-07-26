@@ -112,7 +112,18 @@ export default async function PlanMealPage({
         </p>
       </div>
 
-      <MealPicker slot={slot} date={date} groups={groups} initial={initial} />
+      {/* Keyed on the meal being planned. Two URLs that differ only by their
+          query (?slot=Lunch vs ?slot=Snack) are the SAME segment to the router,
+          which deliberately keeps client state across them — so without a key
+          the picker opens on snack still holding lunch's foods, and saving
+          writes them into snack. The key makes each meal its own component. */}
+      <MealPicker
+        key={`${slot}|${date ?? ""}`}
+        slot={slot}
+        date={date}
+        groups={groups}
+        initial={initial}
+      />
     </main>
   );
 }

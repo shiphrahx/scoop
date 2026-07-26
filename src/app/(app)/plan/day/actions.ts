@@ -579,6 +579,10 @@ export async function buildMyDay(date?: string) {
 
   const bySlot = new Map(meals.map((m) => [m.slot, m]));
   const slotNames = profile.meal_slots ?? [];
+  // What actually moved, so the button can say. A rebalance that changes nothing
+  // is a legitimate answer — the plan was already the closest these picks get —
+  // but in silence it reads as a broken button.
+  const moves: string[] = [];
   for (const row of picked) {
     const m = bySlot.get(row.slot);
     // A pin is a ONE-SHOT constraint: it holds a hand-set food through the ONE
@@ -605,9 +609,11 @@ export async function buildMyDay(date?: string) {
           sodium_mg: m.sodium_mg ?? 0,
         }
       : {
-          // Nothing fitted this meal at all — keep the picks, explain why.
+          // The solver serves every pick the pantry can cover, so a meal only
+          // comes back empty when there isn't enough of ANY of its foods left for
+          // a serving. Keep the picks and say that, rather than blaming macros.
           portions: [],
-          why: "No room left in today's macros for this meal — change the picks or free something up.",
+          why: "There isn't enough of any of these foods left for a serving — restock them, or pick something else for this meal.",
           kcal: 0,
           protein_g: 0,
           carbs_g: 0,
@@ -617,6 +623,18 @@ export async function buildMyDay(date?: string) {
           satfat_g: 0,
           sodium_mg: 0,
         };
+    const before = new Map(row.portions.map((p) => [p.name, p.grams]));
+    for (const p of m?.portions ?? []) {
+      const was = before.get(p.name);
+      if (was == null) moves.push(`${p.name} added at ${p.grams} g`);
+      else if (was !== p.grams) moves.push(`${p.name} ${was} → ${p.grams} g`);
+    }
+    for (const [name, grams] of before) {
+      if (!(m?.portions ?? []).some((p) => p.name === name)) {
+        moves.push(`${name} dropped (was ${grams} g)`);
+      }
+    }
+
     const { error } = await supabase
       .from("planned_meals")
       .update({
@@ -629,6 +647,18 @@ export async function buildMyDay(date?: string) {
     if (error) throw new Error(error.message);
   }
   revalidate();
+
+  // The held foods are the usual reason a rebalance can't move anything: they
+  // were hand-set, so this run had to honour them. The pins are spent now, so
+  // saying so tells the user a second press is worth it.
+  const held = picked.flatMap((row) =>
+    row.picks.filter((p) => p.pinned_g != null).map((p) => p.name),
+  );
+  return {
+    changed: moves.length > 0,
+    moves: moves.slice(0, 4),
+    held: [...new Set(held)],
+  };
 }
 
 // Mark (or unmark) a day as a "high day" — an intake day that carries the extra
