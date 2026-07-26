@@ -296,6 +296,56 @@ describe("planPickedDay", () => {
     expect(Math.abs(plan[0].fat_g - 30)).toBeLessThanOrEqual(TOLERANCE);
   });
 
+  it("serves less of the flexible food rather than dropping a picked sauce", () => {
+    // Issue #28: the reported dinner — chicken, chips, three veg and a fat spread —
+    // on a day with barely any fat left. The fit is cheapest with the spread left
+    // out entirely, so it used to be dropped ("couldn't fit it") while the chips
+    // stayed at their full portion. The user asked for the spread: it has to be on
+    // the plate, and the chips give way to make room for it.
+    const label = (
+      name: string,
+      kcal: number,
+      p: number,
+      c: number,
+      f: number,
+    ): PantryFood => ({
+      name,
+      kcal_100g: kcal,
+      protein_100g: p,
+      carbs_100g: c,
+      fat_100g: f,
+    });
+    const chips = label("Straight cut chips", 151, 2.7, 21.7, 4.9);
+    const spread = label("Plant Butter Spreadable", 531, 0, 0, 59);
+    const dinner = [
+      label("Chicken Breast Fillets", 106, 24, 0, 1.4),
+      chips,
+      label("Sweet peppers", 27, 0.9, 6.3, 0.3),
+      label("Tenderstem Broccoli", 27, 3.5, 2.3, 0.4),
+      label("Wild Rocket", 24, 4.3, 0.3, 0.6),
+    ];
+    const budget = { kcal: 475, protein_g: 45, carbs_g: 49, fat_g: 11 };
+
+    const without = planPickedDay({ slots: [{ slot: "Dinner", foods: dinner }], budget });
+    const with_ = planPickedDay({
+      slots: [{ slot: "Dinner", foods: [...dinner, spread] }],
+      budget,
+    });
+
+    // The spread is served, at a real serving rather than a smear.
+    expect(gramsOf(with_, "Plant Butter Spreadable")).toBeGreaterThanOrEqual(8);
+    // And the chips shrank to pay for it.
+    expect(gramsOf(with_, "Straight cut chips")).toBeLessThan(
+      gramsOf(without, "Straight cut chips"),
+    );
+    // Nothing else fell off the plate, and the meal says what it traded.
+    expect(with_[0].portions).toHaveLength(dinner.length + 1);
+    expect(with_[0].why).toMatch(/trimmed the rest/i);
+    // The day's calories and protein still hold: the give was carbs and fat.
+    expect(Math.abs(with_[0].kcal - budget.kcal)).toBeLessThanOrEqual(25);
+    expect(Math.abs(with_[0].protein_g - budget.protein_g)).toBeLessThanOrEqual(5);
+  });
+
   it("shrinks a pick that barely fits and says so", () => {
     // Almost no carbs in the budget, but the user insists on pasta for dinner.
     const plan = planPickedDay({
