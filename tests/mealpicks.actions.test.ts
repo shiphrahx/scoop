@@ -267,17 +267,27 @@ describe("buildMyDay", () => {
     for (const m of meals) {
       expect((m.portions as { grams: number }[]).length).toBeGreaterThan(0);
     }
-    const total = meals.reduce<{ protein_g: number; carbs_g: number; fat_g: number }>(
+    const total = meals.reduce<{
+      kcal: number;
+      protein_g: number;
+      carbs_g: number;
+      fat_g: number;
+    }>(
       (s, m) => ({
+        kcal: s.kcal + Number(m.kcal),
         protein_g: s.protein_g + Number(m.protein_g),
         carbs_g: s.carbs_g + Number(m.carbs_g),
         fat_g: s.fat_g + Number(m.fat_g),
       }),
-      { protein_g: 0, carbs_g: 0, fat_g: 0 },
+      { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
     );
+    expect(Math.abs(total.kcal - 2000)).toBeLessThanOrEqual(5);
     expect(Math.abs(total.protein_g - 150)).toBeLessThanOrEqual(5);
     expect(Math.abs(total.carbs_g - 200)).toBeLessThanOrEqual(5);
-    expect(Math.abs(total.fat_g - 65)).toBeLessThanOrEqual(5);
+    // Oil is picked for BOTH meals, so both get a serving; those calories come out
+    // of the rest of the day, which leaves fat a few grams under. Fat is the soft
+    // macro that gives when a pick has to be kept (issue #28).
+    expect(Math.abs(total.fat_g - 65)).toBeLessThanOrEqual(8);
   });
 
   it("budgets around hand-built meals instead of re-solving them", async () => {

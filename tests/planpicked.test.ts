@@ -635,15 +635,40 @@ const reachablePickedDay = fc
       }),
   );
 
+// A plan that had to trim the meal to keep a pick in makes a different promise
+// (see below), so the ±5-on-every-macro property is stated over the plans that
+// didn't have to.
+const trimmedToFit = (plan: PlannedSlot[]) =>
+  plan.some((m) => /trimmed the rest/i.test(m.why ?? ""));
+
 describe("planPickedDay invariants", () => {
   it("lands the day within ±5 of every macro when the picks can reach it", () => {
     fc.assert(
       fc.property(reachablePickedDay, ({ slots, budget }) => {
         const plan = planPickedDay({ slots, budget });
+        if (trimmedToFit(plan)) return;
         const tot = sumPlan(plan);
         expect(Math.abs(tot.protein_g - budget.protein_g)).toBeLessThanOrEqual(TOLERANCE);
         expect(Math.abs(tot.carbs_g - budget.carbs_g)).toBeLessThanOrEqual(TOLERANCE);
         expect(Math.abs(tot.fat_g - budget.fat_g)).toBeLessThanOrEqual(TOLERANCE);
+      }),
+    );
+  });
+
+  it("only trims the meal for a pick when protein and calories survive it", () => {
+    // The trade the planner is allowed to make to keep a pick the fit would have
+    // dropped: carbs and fat may give, the day's ENERGY and PROTEIN may not.
+    fc.assert(
+      fc.property(reachablePickedDay, ({ slots, budget }) => {
+        const plan = planPickedDay({ slots, budget });
+        if (!trimmedToFit(plan)) return;
+        const tot = sumPlan(plan);
+        expect(Math.abs(tot.protein_g - budget.protein_g)).toBeLessThanOrEqual(
+          Math.min(TOLERANCE, budget.protein_g * 0.25) + 1,
+        );
+        expect(Math.abs(tot.kcal - budget.kcal)).toBeLessThanOrEqual(
+          Math.min(25, budget.kcal * 0.08) + 5,
+        );
       }),
     );
   });
