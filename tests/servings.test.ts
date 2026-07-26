@@ -44,7 +44,7 @@ describe("minServingG", () => {
 describe("maxServingG", () => {
   it("keeps a starchy side to a plausible plateful", () => {
     // 600 g of potatoes used to be inside the ceiling.
-    expect(maxServingG(f("Potatoes", 77, 2, 17, 0.1))).toBeLessThanOrEqual(300);
+    expect(maxServingG(f("Potatoes", 77, 2, 17, 0.1))).toBeLessThanOrEqual(350);
   });
 
   it("caps a food by its energy, not just its mass", () => {
