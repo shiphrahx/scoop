@@ -330,7 +330,9 @@ export function maxServingG(food: PantryFood, cap = Infinity): number {
   const perG = food.kcal_100g / 100;
   const byEnergy = perG > 0 ? MAX_SERVE_KCAL / perG : Infinity;
   const byRole = MAX_SERVE_G[macroRole(food) ?? "other"];
-  const most = Math.min(byEnergy, byRole, Math.max(0, cap));
+  // Floored, never rounded: a cap that rounds up can put two meals of the same
+  // food past the pack between them.
+  const most = Math.floor(Math.min(byEnergy, byRole, Math.max(0, cap)));
   if (isCountable(food)) {
     // Whole units, and never more of them than the same energy and mass limits
     // allow — four bagels is as unreasonable as 400 g of loose bread.
@@ -338,7 +340,7 @@ export function maxServingG(food: PantryFood, cap = Infinity): number {
     const units = Math.min(MAX_SERVE_UNITS, Math.floor(most / unit));
     return Math.max(0, units) * unit;
   }
-  return Math.round(most);
+  return most;
 }
 
 // The smallest servable amount of a picked food: one whole unit for a countable
@@ -672,7 +674,7 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
   // Are the sources already as small as they go? Then the day being over is the
   // picks' doing, not the portioning's, and the note says so.
   const atSmallest = vars.every((v, i) => v.kind !== "source" || served[i] <= v.lo);
-  const dayNote =
+  const energyNote =
     Math.abs(kcalMiss) <= ON_TARGET_KCAL
       ? null
       : kcalMiss > 0
@@ -680,6 +682,20 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
           ? `Even at their smallest sensible servings these picks come to ${dayTotals.kcal} kcal — ${kcalMiss} over today's target. Take something out to bring the day back.`
           : `This day comes to ${dayTotals.kcal} kcal — ${kcalMiss} over today's target, the closest these picks get.`
         : `This day comes to ${dayTotals.kcal} kcal — ${-kcalMiss} under today's target. Add to your picks to fill the gap.`;
+
+  // Protein gets its own line when it misses: on a cut it's the macro that keeps
+  // muscle, and "the day lands on target" must never paper over a plan 20 g short
+  // of it. Judged in proportion, so a big target isn't held to the same grams as
+  // a small one.
+  const proteinTarget = Math.max(0, input.budget.protein_g ?? 0);
+  const proteinMiss = dayTotals.protein_g - proteinTarget;
+  const proteinNote =
+    Math.abs(proteinMiss) <= Math.max(10, proteinTarget * 0.1)
+      ? null
+      : proteinMiss < 0
+        ? `Protein lands ${-proteinMiss} g under — these picks can't carry more of it.`
+        : `Protein lands ${proteinMiss} g over, which is what filling the day on these picks costs.`;
+  const dayNote = [energyNote, proteinNote].filter(Boolean).join(" ") || null;
 
   const out: PlannedSlot[] = [];
   slots.forEach((s, slotIdx) => {
