@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { sidebarNav } from "@/components/nav-items";
+import LinkHint from "@/components/LinkHint";
 
 // Desktop-only sidebar. Hidden below lg, where the bottom nav takes over.
 export default function Sidebar() {
@@ -32,7 +33,7 @@ export default function Sidebar() {
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className={`flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm transition ${
+                  className={`relative flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm transition ${
                     active
                       ? "sc-card-solid font-semibold"
                       : "font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
@@ -44,6 +45,7 @@ export default function Sidebar() {
                     color={active ? "var(--ink-teal)" : "currentColor"}
                   />
                   {item.label}
+                  <LinkHint />
                 </Link>
               </li>
             );
