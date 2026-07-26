@@ -34,22 +34,22 @@ export default async function MePage({
   const supabase = await createClient();
   const user = await getSessionUser();
 
-  const [{ fitbit }, profile, connected, targets, weightKg] = await Promise.all([
-    searchParams,
-    getProfile(),
-    hasApiKey(),
-    getCurrentTargets(),
-    getLatestWeight(),
-  ]);
-
-  const [fitbitRes, tokenRes] = await Promise.all([
-    user
-      ? supabase.from("fitbit_tokens").select("user_id").eq("user_id", user.id).maybeSingle()
-      : Promise.resolve({ data: null }),
-    user
-      ? supabase.from("users").select("apple_ingest_token").eq("id", user.id).maybeSingle()
-      : Promise.resolve({ data: null }),
-  ]);
+  // One batch, not two: the fitbit/apple token reads don't depend on the profile
+  // batch, so splitting them cost a second sequential round trip for nothing.
+  const [{ fitbit }, profile, connected, targets, weightKg, fitbitRes, tokenRes] =
+    await Promise.all([
+      searchParams,
+      getProfile(),
+      hasApiKey(),
+      getCurrentTargets(),
+      getLatestWeight(),
+      user
+        ? supabase.from("fitbit_tokens").select("user_id").eq("user_id", user.id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      user
+        ? supabase.from("users").select("apple_ingest_token").eq("id", user.id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
 
   const fitbitConnected = Boolean(
     (fitbitRes.data as { user_id: string } | null)?.user_id,
