@@ -27,11 +27,13 @@ export default function MobileHome({
   targets: Macros | null;
   consumed: Macros;
   planned: Macros;
-  coach: { headline: string; detail: string };
+  // Streamed slots: the coach headline/detail and the calibration banner both
+  // come from the weekly review, the slowest read on the page, so they arrive
+  // behind their own Suspense boundaries after the ring has painted.
+  coach: React.ReactNode;
   planPrompt: { hasPlan: boolean } | null;
   prefs: NutrientKey[];
-  // The new-user calibration hold, or null when not calibrating.
-  calibration: { daysRemaining: number } | null;
+  calibration: React.ReactNode;
 }) {
   // Everything the day is spoken for: eaten food + meals lined up but not yet
   // eaten. The ring and "left" figures budget against this, not eaten alone.
@@ -48,7 +50,7 @@ export default function MobileHome({
         <SignOutButton />
       </header>
 
-      {calibration && <CalibrationBanner daysRemaining={calibration.daysRemaining} />}
+      {calibration}
 
       {planPrompt && (
         <Link
@@ -121,10 +123,7 @@ export default function MobileHome({
         >
           <Sparkles size={22} />
         </span>
-        <div className="min-w-0">
-          <p className="font-semibold">{coach.headline}</p>
-          <p className="truncate text-sm text-[var(--muted)]">{coach.detail}</p>
-        </div>
+        <div className="min-w-0">{coach}</div>
         <ChevronRight size={22} className="ml-auto shrink-0 text-[var(--muted)]" />
       </Link>
 

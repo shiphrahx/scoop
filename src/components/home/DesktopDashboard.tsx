@@ -6,7 +6,6 @@ import SignOutButton from "@/components/SignOutButton";
 import { WeightTrendChart, WeightVsExercise, SleepChart } from "@/components/Charts";
 import { sumMacros, type Activity, type Macros } from "@/lib/types";
 import type { NutrientKey } from "@/lib/nutrients";
-import { CalibrationBanner } from "./MobileHome";
 
 function StatCard({
   icon: Icon,
@@ -70,13 +69,13 @@ export default function DesktopDashboard({
   targets: Macros | null;
   consumed: Macros;
   planned: Macros;
-  coach: { headline: string; detail: string };
+  coach: React.ReactNode;
   weightHistory: { date: string; weight_kg: number }[];
   activity: Activity[];
   latestWeight: number | null;
   planPrompt: { hasPlan: boolean } | null;
   prefs: NutrientKey[];
-  calibration: { daysRemaining: number } | null;
+  calibration: React.ReactNode;
 }) {
   // Eaten food plus meals planned for later today — what the day is committed
   // to. "Left" figures budget against this, not eaten alone.
@@ -121,7 +120,7 @@ export default function DesktopDashboard({
         <SignOutButton />
       </header>
 
-      {calibration && <CalibrationBanner daysRemaining={calibration.daysRemaining} />}
+      {calibration}
 
       {planPrompt && (
         <Link
@@ -244,10 +243,7 @@ export default function DesktopDashboard({
             >
               <Sparkles size={22} />
             </span>
-            <div className="min-w-0">
-              <p className="font-semibold">{coach.headline}</p>
-              <p className="truncate text-sm text-[var(--muted)]">{coach.detail}</p>
-            </div>
+            <div className="min-w-0">{coach}</div>
             <ChevronRight size={20} className="ml-auto shrink-0 text-[var(--muted)]" />
           </Link>
         </div>
