@@ -163,6 +163,42 @@ describe("the day plan, over random realistic days", () => {
     );
   });
 
+  it("never plans a day over its energy or its macros", () => {
+    // The day's numbers are ceilings. A plan may land under them — and say so —
+    // but going over spends the deficit the whole app exists to protect. The only
+    // exception is a day whose picks cannot go smaller, which the note names.
+    fc.assert(
+      fc.property(pickedDay, ({ slots, budget }) => {
+        const plan = planPickedDay({ slots, budget });
+        const tot = sumPlan(plan);
+        const over: string[] = [];
+        // The same slack the planner treats as landing ON a limit: whole grams and
+        // rounded label energy can't hit a number exactly.
+        if (tot.kcal > budget.kcal + Math.max(20, budget.kcal * 0.01)) {
+          over.push(`kcal ${tot.kcal}/${budget.kcal}`);
+        }
+        for (const [key, value] of [
+          ["protein_g", tot.protein_g],
+          ["carbs_g", tot.carbs_g],
+          ["fat_g", tot.fat_g],
+        ] as const) {
+          const limit = budget[key];
+          if (value > limit + Math.max(2, limit * 0.01)) {
+            over.push(`${key} ${value}/${limit}`);
+          }
+        }
+        if (over.length > 0) {
+          // Allowed only when it is admitted in the note.
+          expect(
+            plan.some((m) => /over/i.test(m.why ?? "")),
+            `over ${over.join(", ")} with no note saying so`,
+          ).toBe(true);
+        }
+      }),
+      { numRuns: 400 },
+    );
+  });
+
   it("lands the day's energy on target, or says how far off it is", () => {
     fc.assert(
       fc.property(pickedDay, ({ slots, budget }) => {

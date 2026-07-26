@@ -844,8 +844,11 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
       ? ` Most of the gap is ${MACRO_LABEL[biggest.key]} — ${biggest.short} g short.`
       : "";
 
+  // Over its limit is reported as soon as it is measurably over; under gets the
+  // wider band, because a day a little short is not a failure worth a warning.
+  const kcalSlack = Math.max(20, Math.max(0, input.budget.kcal ?? 0) * 0.01);
   const energyNote =
-    Math.abs(kcalMiss) <= ON_TARGET_KCAL
+    kcalMiss <= kcalSlack && kcalMiss >= -ON_TARGET_KCAL
       ? null
       : kcalMiss > 0
         ? atSmallest
