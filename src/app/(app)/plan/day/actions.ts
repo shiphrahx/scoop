@@ -605,9 +605,11 @@ export async function buildMyDay(date?: string) {
           sodium_mg: m.sodium_mg ?? 0,
         }
       : {
-          // Nothing fitted this meal at all — keep the picks, explain why.
+          // The solver serves every pick the pantry can cover, so a meal only
+          // comes back empty when there isn't enough of ANY of its foods left for
+          // a serving. Keep the picks and say that, rather than blaming macros.
           portions: [],
-          why: "No room left in today's macros for this meal — change the picks or free something up.",
+          why: "There isn't enough of any of these foods left for a serving — restock them, or pick something else for this meal.",
           kcal: 0,
           protein_g: 0,
           carbs_g: 0,
