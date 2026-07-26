@@ -8,7 +8,7 @@
 // scale alone can't tell them apart.
 
 import { CalendarClock, Flame } from "lucide-react";
-import { CompareBars, WeeklyIntakeChart } from "@/components/Charts";
+import { CompareBars, WeeklyIntakeChart } from "@/components/ChartsLazy";
 import type { WeekCompare, WeekdayWeekend } from "@/lib/insights";
 import type { NonScaleVictory } from "@/lib/types";
 import VictoriesCard from "./VictoriesCard";

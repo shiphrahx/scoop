@@ -8,7 +8,7 @@
 
 import { useMemo, useState } from "react";
 import { Camera, ClipboardList, Ruler, Target } from "lucide-react";
-import { MeasurementsChart } from "@/components/Charts";
+import { MeasurementsChart } from "@/components/ChartsLazy";
 import type { PhotoPair, WaistToHeight } from "@/lib/insights";
 import type { CheckIn, CheckInPhoto } from "@/lib/types";
 import CheckInHistory from "../CheckInHistory";

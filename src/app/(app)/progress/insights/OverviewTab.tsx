@@ -19,7 +19,7 @@ import {
   TriangleAlert,
   Trophy,
 } from "lucide-react";
-import { TrendDotsChart } from "@/components/Charts";
+import { TrendDotsChart } from "@/components/ChartsLazy";
 import { addDaysISO } from "@/lib/time";
 import type {
   FatLossSignal,

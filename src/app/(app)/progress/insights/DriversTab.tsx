@@ -8,7 +8,7 @@
 // 6.4 h"), which is a thing a person can go and do something about.
 
 import { Flame, Footprints, Moon, UtensilsCrossed } from "lucide-react";
-import { CompareBars, DriverScatter, SleepChart, WeightVsExercise } from "@/components/Charts";
+import { CompareBars, DriverScatter, SleepChart, WeightVsExercise } from "@/components/ChartsLazy";
 import type { Correlation, HighDayImpact, MovementCorrelation } from "@/lib/insights";
 import {
   CompactCard,
