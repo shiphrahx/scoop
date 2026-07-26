@@ -320,6 +320,39 @@ textarea {
   color: var(--muted);
 }
 
+/* Nav tap feedback (see LinkHint.tsx). A pulsing dot that only reveals itself
+   if the navigation is slow: it sits invisible for 120ms so quick transitions
+   never flash it, then fades in while the link's navigation is pending. */
+.sc-link-hint {
+  position: absolute;
+  top: 0.35rem;
+  right: 50%;
+  translate: 0.9rem 0;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 9999px;
+  background: var(--g-teal);
+  opacity: 0;
+  pointer-events: none;
+}
+.sc-link-hint[data-pending] {
+  animation: sc-link-hint-in 0.3s ease 0.12s forwards, sc-link-hint-pulse 0.9s ease 0.42s infinite;
+}
+@keyframes sc-link-hint-in {
+  to {
+    opacity: 1;
+  }
+}
+@keyframes sc-link-hint-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
 /* Visible keyboard focus everywhere. */
 :focus-visible {
   outline: 2px solid var(--g-teal);
