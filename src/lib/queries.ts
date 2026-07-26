@@ -107,7 +107,11 @@ export const getProfile = cache(async function getProfile(): Promise<Profile | n
   return (data as Profile) ?? null;
 });
 
-export async function getCurrentTargets(): Promise<DailyTargets | null> {
+// Cached per request: the in-force target is read by both the home ring
+// (getHighDayStatus) and the coach underneath it in the same render, and nothing
+// writes a target then re-reads it inside one request. One daily_targets round
+// trip instead of one per caller.
+export const getCurrentTargets = cache(async function getCurrentTargets(): Promise<DailyTargets | null> {
   const supabase = await createClient();
   const tz = await getTimezone();
   // Prefer this week's target; fall back to the most recent one. The week turns
@@ -121,7 +125,7 @@ export async function getCurrentTargets(): Promise<DailyTargets | null> {
     .maybeSingle();
 
   return (data as DailyTargets) ?? null;
-}
+});
 
 // The high-day picture for one calendar day: whether cycling is on, whether this
 // day is a high day, the weekly allowance and how much of it is left, and the
@@ -1052,7 +1056,10 @@ export async function getInsightsData(): Promise<InsightsData> {
   };
 }
 
-export async function getLatestWeight(): Promise<number | null> {
+// Cached per request: the home page reads the latest weight directly and again
+// through getHighDayStatus (for the carb floor) in the same render. Same weigh-in
+// either way within a request.
+export const getLatestWeight = cache(async function getLatestWeight(): Promise<number | null> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("weights")
@@ -1062,4 +1069,4 @@ export async function getLatestWeight(): Promise<number | null> {
     .maybeSingle();
 
   return data ? Number((data as { weight_kg: number }).weight_kg) : null;
-}
+});
