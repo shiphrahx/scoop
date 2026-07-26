@@ -528,6 +528,55 @@ describe("buildMyDay", () => {
     expect(picks.find((p) => p.name === "Chicken Breast")!.pinned_g).toBeNull();
   });
 
+  it("reports what it moved, and what held it back", async () => {
+    // A rebalance that changes nothing is a real answer, but silence reads as a
+    // broken button — so the action says what moved, or which held food stopped
+    // anything moving.
+    const { db } = installFakeSupabase({
+      db: {
+        users: [profile()],
+        daily_targets: targets(),
+        food_logs: [],
+        pantry_items: [
+          pantryRow("Chicken Breast", 165, 31, 0, 3.6),
+          pantryRow("Pasta", 371, 13, 71, 1.5),
+        ],
+        planned_meals: [
+          {
+            id: "meal-1",
+            user_id: "user-1",
+            date: today(),
+            slot: "Dinner",
+            origin: "ai",
+            name: "",
+            items: [],
+            picks: [{ ...chickenPick(), pinned_g: 150 }, pastaPick()],
+            portions: [{ name: "Chicken Breast", grams: 150 }],
+            swaps: [],
+            why: null,
+            kcal: 0,
+            protein_g: 0,
+            carbs_g: 0,
+            fat_g: 0,
+            logged_food_id: null,
+          },
+        ],
+      },
+    });
+
+    const first = await buildMyDay();
+    // Pasta was not portioned before, so it shows as a move; the held chicken is
+    // named so the user knows a second press frees it.
+    expect(first.changed).toBe(true);
+    expect(first.moves.join(" ")).toMatch(/Pasta/);
+    expect(first.held).toContain("Chicken Breast");
+    expect(db.planned_meals).toHaveLength(1);
+
+    // Second press: the pin is spent, so nothing is held any more.
+    const second = await buildMyDay();
+    expect(second.held).toEqual([]);
+  });
+
   it("sizes meals by the profile's slot weights", async () => {
     const mkMeal = (id: string, slot: string): Row => ({
       id,
