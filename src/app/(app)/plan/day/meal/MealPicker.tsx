@@ -78,7 +78,12 @@ export default function MealPicker({
 }) {
   const router = useRouter();
   const [picks, setPicks] = useState<MealPick[]>(initial);
-  const [busy, startTransition] = useTransition();
+  // Two separate pending states: writing the scanned product to the pantry is
+  // not saving the meal, and sharing one flag made the primary button read
+  // "Saving…" when nothing was being saved (and left the test racing it).
+  const [pantryBusy, startPantryTransition] = useTransition();
+  const [saving, startTransition] = useTransition();
+  const busy = pantryBusy || saving;
   const [err, setErr] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [scanNote, setScanNote] = useState<string | null>(null);
@@ -178,7 +183,7 @@ export default function MealPicker({
     const offer = pantryOffer;
     if (!offer) return;
     setPantryOffer(null);
-    startTransition(async () => {
+    startPantryTransition(async () => {
       try {
         await addPantryItem({
           name: offer.name,
@@ -329,7 +334,7 @@ export default function MealPicker({
         disabled={busy}
         className="sc-btn sc-btn-primary py-4 text-lg"
       >
-        {busy ? (
+        {saving ? (
           "Saving…"
         ) : picks.length > 0 ? (
           <>
