@@ -738,6 +738,64 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
     }
   }
 
+  // Pressing a limit down is a blunt instrument: it can leave the day short of
+  // its calories while there is still headroom under every ceiling. So finish by
+  // FILLING — grow portions, largest energy gain first and hungriest meal first,
+  // as far as the ceilings and the serving windows allow. Nothing here can push a
+  // total past its limit; it only takes back room the pressure gave away.
+  // A cushion under each ceiling, so the rounding to whole grams that happens
+  // after this can't tip a total over the limit the fill just filled to.
+  const FILL_CUSHION: Record<RowKey, number> = {
+    kcal: 8,
+    protein_g: 1,
+    carbs_g: 1,
+    fat_g: 1,
+  };
+  const headroom = (g: number[], key: RowKey) => {
+    const limit = Math.max(0, input.budget[key] ?? 0);
+    if (limit <= 0) return 0;
+    return limit - FILL_CUSHION[key] - totalOn(g, key);
+  };
+  for (let round = 0; round < 30; round++) {
+    const gap = headroom(grams, "kcal");
+    if (gap <= 1) break;
+    // How much each meal is under its own share of the day's energy, so the
+    // filling doesn't all land on one plate.
+    const slotGap = fractions.map((frac, slotIdx) => {
+      const want = Math.max(0, input.budget.kcal ?? 0) * frac;
+      const has = vars.reduce(
+        (s, v, i) => (v.slotIdx === slotIdx ? s + perGram(v.food, "kcal") * grams[i] : s),
+        0,
+      );
+      return want - has;
+    });
+    let bestIdx = -1;
+    let bestStep = 0;
+    let bestScore = 0;
+    for (const i of freeIdx) {
+      const v = vars[i];
+      let step = v.hi - grams[i];
+      if (isCountable(v.food)) step = 0; // whole units only; handled by the solve
+      for (const key of LIMIT_KEYS) {
+        const per = perGram(v.food, key);
+        if (per <= 0) continue;
+        step = Math.min(step, headroom(grams, key) / per);
+      }
+      const perKcal = perGram(v.food, "kcal");
+      if (perKcal > 0) step = Math.min(step, gap / perKcal);
+      if (step < 1) continue;
+      // Energy this would add, favouring the meal that is furthest under its share.
+      const score = step * perKcal * (1 + Math.max(0, slotGap[v.slotIdx]) / 500);
+      if (score > bestScore) {
+        bestScore = score;
+        bestStep = step;
+        bestIdx = i;
+      }
+    }
+    if (bestIdx < 0) break;
+    grams[bestIdx] += bestStep;
+  }
+
   // Grams as they will be served: whole units for a countable, never past the
   // food's window. A pick with any window at all keeps at least its serving.
   const served = vars.map((v, i) =>
