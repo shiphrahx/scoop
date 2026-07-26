@@ -360,7 +360,10 @@ export async function getDailyIntake(
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-export async function getCoachData(): Promise<CoachData> {
+// Cached per request: the home page now streams the coach headline and the
+// calibration banner as two separate slots, and both call this. Deduped to one
+// computation (and one set of DB reads) per render.
+export const getCoachData = cache(async function getCoachData(): Promise<CoachData> {
   const supabase = await createClient();
   const user = await getSessionUser();
 
@@ -644,7 +647,7 @@ export async function getCoachData(): Promise<CoachData> {
       return stored ? decryptSecret(stored) : null;
     })(),
   };
-}
+});
 
 // Recent weigh-ins, oldest→newest, for the dashboard trend chart.
 export async function getWeightHistory(
