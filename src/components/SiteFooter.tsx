@@ -1,4 +1,5 @@
 import Link from "next/link";
+import CopyrightYear from "@/components/CopyrightYear";
 
 export const ISSUES_URL = "https://github.com/shiphrahx/scoop/issues/new";
 
@@ -9,7 +10,7 @@ export default function SiteFooter() {
     <footer className="mx-auto w-full max-w-6xl px-6 py-10 text-sm text-[var(--muted)]">
       <div className="flex flex-col items-center gap-4 border-t border-[var(--border)] pt-8 sm:flex-row sm:justify-between">
         <p>
-          Scoop — your portion coach. &copy; {new Date().getFullYear()}
+          Scoop — your portion coach. &copy; <CopyrightYear />
         </p>
         <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
           <Link href="/privacy" className="hover:text-[var(--foreground)]">

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
+import { Suspense } from "react";
 import "./globals.css";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import { siteUrl } from "@/lib/site";
@@ -78,7 +79,14 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <div className="sc-bg" aria-hidden />
-        {children}
+        {/* With Cache Components on, every route's dynamic (per-user) work needs
+            a Suspense boundary above it. This is the outermost one: it lets the
+            static shell — <html>, fonts, the background — paint instantly while
+            the signed-in layout and page stream in. Inner routes add their own
+            (loading.tsx, per-section boundaries) for finer-grained shells; the
+            background stays painted throughout, so the fallback is not a blank
+            screen. */}
+        <Suspense fallback={null}>{children}</Suspense>
         <ServiceWorkerRegister />
       </body>
     </html>
