@@ -366,6 +366,25 @@ const DAY_WEIGHT: Record<RowKey, number> = {
 const RIDGE = 1e-6;
 // Below this a solved portion reads as "didn't really fit" and earns a warning.
 const SMALL_PORTION = 10;
+// What keeping a squeezed-out pick may cost the day (see stage 3). Energy and
+// protein are the two things a plan must not give away: 25 kcal is noise on a
+// day, 5 g of protein is the ±5 the planner already promises. CARBS AND FAT are
+// deliberately absent — trimming the chips to fit the sauce in leaves the day
+// under on carbs, and that's the trade the user asked for. Past these bounds the
+// pick can't be served without wrecking the plan, so it's dropped as before.
+//
+// Each bound is also read as a SHARE of the budget, and the smaller of the two
+// applies: 25 kcal is nothing against a 2000 kcal day but a third of a 200 kcal
+// slot, and a pick may never eat a third of what's left.
+const FORCE_SLACK: Record<"protein_g" | "kcal", number> = {
+  protein_g: 5,
+  kcal: 25,
+};
+const FORCE_SLACK_SHARE: Record<"protein_g" | "kcal", number> = {
+  protein_g: 0.25,
+  kcal: 0.08,
+};
+
 const MACRO_KEYS: MacroKey[] = ["protein_g", "carbs_g", "fat_g"];
 // The rows of the day solve when total energy has to be held as well (stage 3).
 const ENERGY_ROWS: RowKey[] = [...MACRO_KEYS, "kcal"];
@@ -392,6 +411,28 @@ function vegServingG(food: PantryFood): number {
   const perG = food.kcal_100g / 100;
   const grams = perG > 0 ? VEG_PORTION_KCAL / perG : VEG_MAX_G;
   return clamp(Math.round(grams), VEG_MIN_G, VEG_MAX_G);
+}
+
+// The least amount of a food worth putting on a plate — the serving the planner
+// falls back to for a pick the free solve squeezed out (see stage 3). Sized by
+// ENERGY like a veg serving, so it reads as a real serving of THAT food: a fat
+// spread lands around 10 g, a sauce around a spoonful, an oil a few grams.
+// Bounded so a dense food can't shrink to a smear and a light one can't take a
+// meaningful bite out of the budget just for being a floor.
+const MIN_SERVE_KCAL = 60;
+const MIN_SERVE_MIN_G = 5;
+const MIN_SERVE_MAX_G = 40;
+function minServingG(food: PantryFood): number {
+  const perG = food.kcal_100g / 100;
+  const grams = perG > 0 ? MIN_SERVE_KCAL / perG : MIN_SERVE_MAX_G;
+  return clamp(Math.round(grams), MIN_SERVE_MIN_G, MIN_SERVE_MAX_G);
+}
+
+// The smallest servable amount of a picked food: one whole unit for a countable
+// (you can't serve a third of a bagel), else its energy-sized minimum serving —
+// never more than the stock. Zero means even the minimum doesn't fit the pack.
+function floorPortion(food: PantryFood, cap: number): number {
+  return portionGrams(isCountable(food) ? food.unit_g! : minServingG(food), food, cap);
 }
 
 // A picked food the planner treats as a filler rather than a macro source: a
@@ -580,7 +621,8 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
 
   // The whole staged solve, run for a given set of FORCED sources — foods held at
   // a fixed amount alongside the pinned foods and fillers, so the free sources
-  // portion around them. With no forced foods it is the plain solve.
+  // portion around them. Stage 3 re-runs this to keep a pick the free solve had
+  // squeezed out; with no forced foods it's the plain solve.
   const solveDay = (
     forced: Map<number, number>,
     rows: RowKey[] = MACRO_KEYS,
@@ -748,7 +790,65 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
     return grams;
   };
 
-  const grams = solveDay(new Map());
+  // Stage 3: the user PICKED these foods, so a pick must not be squeezed out just
+  // because the free solve found it cheaper to leave out. A least-squares fit is
+  // symmetric — it happily sends a food to zero grams rather than trim the others
+  // — which dropped a barbecue sauce instead of serving fewer chips (issue #28).
+  // So for every pick that came out too small to serve, HOLD it at its minimum
+  // serving and re-solve the rest around it, energy included, so its calories come
+  // out of the flexible foods. Kept only when the day's protein and calories
+  // survive the trade (see FORCE_SLACK) and no other pick is pushed off the plate;
+  // with no room at all — no carbs left and pasta is the pick — the food really
+  // can't be served, and it's dropped with the same warning as before.
+  let grams = solveDay(new Map());
+  const forced = new Map<number, number>();
+  // Picks that turned out to have no room even after trimming: never retried.
+  const noRoom = new Set<number>();
+  // How far a set of portions lands from the day's budget on one row.
+  const dayMiss = (g: number[], key: RowKey) =>
+    Math.abs(
+      Math.max(0, input.budget[key] ?? 0) -
+        vars.reduce((s, v, i) => s + perGram(v.food, key) * g[i], 0),
+    );
+  // Which picks a set of portions actually serves.
+  const served = (g: number[]) =>
+    vars.map((v, i) => portionGrams(g[i], v.food, caps[i]) >= MIN_PORTION);
+  // Worth keeping the pick: it costs the day no more energy or protein than the
+  // bounds allow (and never more than the plan was already missing by), and it
+  // doesn't push ANOTHER pick off the plate — trading one food for another is no
+  // help to someone who asked for both.
+  const affordable = (g: number[], base: number[]) => {
+    const [now, before] = [served(g), served(base)];
+    if (before.some((was, i) => was && !now[i])) return false;
+    return (Object.keys(FORCE_SLACK) as (keyof typeof FORCE_SLACK)[]).every((key) => {
+      const slack = Math.min(
+        FORCE_SLACK[key],
+        Math.max(0, input.budget[key] ?? 0) * FORCE_SLACK_SHARE[key],
+      );
+      return dayMiss(g, key) <= Math.max(dayMiss(base, key), slack);
+    });
+  };
+  for (let pass = 0; pass < sourceIdx.length; pass++) {
+    // The first pick that has no servable amount, and a floor that fits its stock.
+    const next = sourceIdx.find(
+      (i) =>
+        !forced.has(i) &&
+        !noRoom.has(i) &&
+        portionGrams(grams[i], vars[i].food, caps[i]) < MIN_PORTION &&
+        floorPortion(vars[i].food, caps[i]) >= MIN_PORTION,
+    );
+    if (next === undefined) break;
+    const trial = new Map(forced).set(next, floorPortion(vars[next].food, caps[next]));
+    // Held with total ENERGY as a row too: the forced serving's calories have to
+    // come out of the other foods (fewer chips), not land on top of the plate.
+    const trialGrams = solveDay(trial, ENERGY_ROWS);
+    if (!affordable(trialGrams, grams)) {
+      noRoom.add(next);
+      continue;
+    }
+    forced.set(next, trial.get(next)!);
+    grams = trialGrams;
+  }
 
   const out: PlannedSlot[] = [];
   slots.forEach((s, slotIdx) => {
@@ -762,6 +862,14 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
           ? `Couldn't fit a whole ${food.unit_label ?? "unit"} of ${food.name} — it would push the day off target.`
           : `Couldn't fit ${food.name} — it would push the day off target.`;
         warnings.push(why);
+        return;
+      }
+      if (forced.has(i)) {
+        // Held at its minimum serving so it wasn't squeezed out; say what gave.
+        warnings.push(
+          `Trimmed the rest of the meal to fit ${food.name} in at ${g} g.`,
+        );
+        portions.push({ food, grams: g });
         return;
       }
       // A tiny portion of anything but a fat source usually means the pick
