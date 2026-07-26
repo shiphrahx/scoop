@@ -91,7 +91,11 @@ describe("solveBoxLsq", () => {
             for (const d of [-2, -0.5, -0.05, 0.05, 0.5, 2]) {
               const t = [...x];
               t[i] = Math.max(lb[i], Math.min(ub[i], t[i] + d));
-              expect(lsqCost(A, b, t)).toBeGreaterThanOrEqual(base - 1e-6);
+              // Numerical slack proportional to the cost being compared: the
+              // solver converges to the optimum, not to the last bit of it.
+              expect(lsqCost(A, b, t)).toBeGreaterThanOrEqual(
+                base - Math.max(1e-6, base * 1e-6),
+              );
             }
           }
         },

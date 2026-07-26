@@ -47,8 +47,11 @@ export function solveBoxLsq(
   opts: BoxLsqOptions = {},
 ): number[] {
   const n = lb.length;
-  const tol = opts.tol ?? 1e-7;
-  const maxSweeps = opts.maxSweeps ?? 500;
+  const tol = opts.tol ?? 1e-9;
+  // Correlated columns (two foods with near-identical macros) make coordinate
+  // descent crawl, so allow plenty of sweeps: it stops on the movement test long
+  // before this on any ordinary problem.
+  const maxSweeps = opts.maxSweeps ?? 4000;
 
   // Normal-equation pieces: AᵀA and Aᵀb. n is small (a day of picks), so the
   // n² matrix is cheap and lets each coordinate step be a couple of dot
