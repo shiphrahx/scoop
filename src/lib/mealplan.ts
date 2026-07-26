@@ -8,11 +8,15 @@
 //    that the pantry can cover gets a portion, between its smallest sensible
 //    serving and the most anyone would eat of it (whole units where the food is
 //    countable, never more than the pack holds).
-//  - Inside those windows the solve chases the day's totals in priority order:
-//    ENERGY first, then protein, then the carb/fat split, with each meal's share
-//    of the day as a soft preference that bends before any of them.
-//  - When the picks cannot reach the target the plan SAYS so, in kcal, instead of
-//    quietly dropping a food or reporting success it didn't have.
+//  - The day's numbers are CEILINGS. Energy and every macro are pressed back
+//    under their limit rather than traded against each other: a plan that eats
+//    the deficit is a failed plan, however neatly the rest of it fits.
+//  - Under those ceilings the solve fills the day as fully as it can — energy
+//    first, then protein, then the carb/fat split, with each meal's share of the
+//    day as a soft preference that bends before any of them.
+//  - When the picks cannot reach the target without breaking a limit, the plan
+//    SAYS so — how far under, which macro is at its limit, and where the gap is —
+//    instead of quietly dropping a food or reporting success it didn't have.
 //
 // planPickedDay portions a whole day of picked meals. suggestPantryMeals builds
 // dish ideas for ONE meal around a chosen carb + protein and portions each of
@@ -271,6 +275,25 @@ const ROW_SCALE_FLOOR: Record<RowKey, number> = {
 const MACRO_KEYS: MacroKey[] = ["protein_g", "carbs_g", "fat_g"];
 const ROW_KEYS: RowKey[] = ["kcal", ...MACRO_KEYS];
 
+// A day's numbers are CEILINGS, not two-sided goals. Landing under is a gap the
+// user can fill by eating more; landing over is the deficit gone, and no amount
+// of "the picks couldn't reach it" makes that acceptable. So energy, carbs and
+// fat are re-solved with their weight multiplied whenever the plan exceeds them,
+// until nothing is over its limit or the picks make that impossible. (Protein is
+// not in the list: eating over your protein target isn't a failure, and its
+// calories are already answered for by the energy row.)
+//
+// Weights escalate rather than being high from the start: a heavy overshoot
+// penalty applied always would distort every ordinary day, where the fit lands
+// inside its limits anyway.
+const LIMIT_KEYS: RowKey[] = ["kcal", "protein_g", "carbs_g", "fat_g"];
+const OVER_FACTOR = 8;
+const OVER_PASSES = 4;
+// How far past a limit still counts as landing on it: whole grams and rounded
+// label energy can't hit a number exactly.
+const overBy = (total: number, limit: number, key: RowKey) =>
+  total - limit - (key === "kcal" ? Math.max(20, limit * 0.01) : Math.max(2, limit * 0.01));
+
 // One vegetable serving, in grams. Vegetables are meal FILLERS, not a macro
 // source: each picked veg gets a fixed serving per meal (capped by stock) instead
 // of being grown by the solve to hit a carb/protein target — that's what keeps
@@ -412,6 +435,8 @@ function dayModel(
   fractions: number[],
   slotCount: number,
   budget: Macros,
+  // Per-row multipliers, raised on a row the plan has gone OVER (see LIMIT_KEYS).
+  press: Record<RowKey, number>,
 ): { A: number[][]; b: number[] } {
   const free = new Set(freeIdx);
   const scaleOf = (key: RowKey) =>
@@ -429,7 +454,7 @@ function dayModel(
   const b: number[] = [];
   // The day's totals: what the plan is really judged on.
   for (const key of ROW_KEYS) {
-    const w = ROW_WEIGHT[key] / scaleOf(key);
+    const w = (ROW_WEIGHT[key] * press[key]) / scaleOf(key);
     A.push(freeIdx.map((i) => perGram(vars[i].food, key) * w));
     b.push((Math.max(0, budget[key] ?? 0) - fixedTotal(key)) * w);
   }
@@ -437,7 +462,10 @@ function dayModel(
   // sizes that bends before any day total does.
   for (let slotIdx = 0; slotIdx < slotCount; slotIdx++) {
     for (const key of ROW_KEYS) {
-      const w = SHARE_WEIGHT / scaleOf(key);
+      // Pressed alongside the day row it belongs to, so that holding a limit
+      // doesn't quietly stop meal sizes mattering — two meals with the same picks
+      // should still come out the same size.
+      const w = (SHARE_WEIGHT * Math.sqrt(press[key])) / scaleOf(key);
       A.push(
         freeIdx.map((i) =>
           vars[i].slotIdx === slotIdx ? perGram(vars[i].food, key) * w : 0,
@@ -461,6 +489,7 @@ function modelCost(
   fractions: number[],
   slotCount: number,
   budget: Macros,
+  press: Record<RowKey, number>,
 ): number {
   const scaleOf = (key: RowKey) =>
     Math.max(ROW_SCALE_FLOOR[key], Math.max(0, budget[key] ?? 0));
@@ -475,13 +504,15 @@ function modelCost(
   let cost = 0;
   for (const key of ROW_KEYS) {
     const target = Math.max(0, budget[key] ?? 0);
-    const r = ((total(key) - target) * ROW_WEIGHT[key]) / scaleOf(key);
+    const r = ((total(key) - target) * ROW_WEIGHT[key] * press[key]) / scaleOf(key);
     cost += r * r;
   }
   for (let slotIdx = 0; slotIdx < slotCount; slotIdx++) {
     for (const key of ROW_KEYS) {
       const target = Math.max(0, budget[key] ?? 0) * fractions[slotIdx];
-      const r = ((total(key, slotIdx) - target) * SHARE_WEIGHT) / scaleOf(key);
+      const r =
+        ((total(key, slotIdx) - target) * SHARE_WEIGHT * Math.sqrt(press[key])) /
+        scaleOf(key);
       cost += r * r;
     }
   }
@@ -556,107 +587,154 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
     };
   });
 
-  // Held foods start at their fixed amount; sources are what the solve moves.
-  const grams = vars.map((v) => (v.kind === "source" ? v.lo : v.lo));
+  // Held foods (pinned, veg) sit at their fixed amount; sources are what moves.
   const freeIdx = vars
     .map((v, i) => (v.kind === "source" && v.lo > 0 ? i : -1))
     .filter((i) => i >= 0);
 
-  if (freeIdx.length > 0) {
-    const { A, b } = dayModel(
-      vars,
-      freeIdx,
-      grams,
-      fractions,
-      slots.length,
-      input.budget,
-    );
-    const x = solveBoxLsq(
-      A,
-      b,
-      freeIdx.map((i) => vars[i].lo),
-      freeIdx.map((i) => vars[i].hi),
-      { start: freeIdx.map((i) => vars[i].lo) },
-    );
-    freeIdx.forEach((i, k) => {
-      grams[i] = x[k];
-    });
+  // Solve the day at a given per-row pressure. Called again with a heavier hand on
+  // any row the plan has gone OVER, because a day's numbers are ceilings.
+  const solveAt = (press: Record<RowKey, number>): number[] => {
+    const grams = vars.map((v) => v.lo);
+    if (freeIdx.length > 0) {
+      const { A, b } = dayModel(
+        vars,
+        freeIdx,
+        grams,
+        fractions,
+        slots.length,
+        input.budget,
+        press,
+      );
+      const x = solveBoxLsq(
+        A,
+        b,
+        freeIdx.map((i) => vars[i].lo),
+        freeIdx.map((i) => vars[i].hi),
+        { start: freeIdx.map((i) => vars[i].lo) },
+      );
+      freeIdx.forEach((i, k) => {
+        grams[i] = x[k];
+      });
 
-    // Countable foods are served in whole units, so their grams come from a unit
-    // COUNT. Start at the count nearest the continuous solve, then move one unit
-    // at a time while that lowers the model cost, re-solving the weighable foods
-    // around each candidate. Scored on the same cost as everything else, so an
-    // extra whole portion has to earn its place on the whole day — it can't be
-    // added to close one macro while energy runs away.
-    const unitIdx = freeIdx.filter((i) => isCountable(vars[i].food));
-    const looseIdx = freeIdx.filter((i) => !isCountable(vars[i].food));
-    if (unitIdx.length > 0) {
-      const unitG = (i: number) => vars[i].food.unit_g!;
-      const bounds = (i: number) => {
-        const min = Math.max(1, Math.round(vars[i].lo / unitG(i)));
-        return { min, max: Math.max(min, Math.floor(vars[i].hi / unitG(i))) };
-      };
-      const solveWith = (counts: Map<number, number>) => {
-        const trial = [...grams];
-        for (const [i, n] of counts) trial[i] = n * unitG(i);
-        if (looseIdx.length > 0) {
-          const m = dayModel(
-            vars,
-            looseIdx,
-            trial,
-            fractions,
-            slots.length,
-            input.budget,
-          );
-          const sol = solveBoxLsq(
-            m.A,
-            m.b,
-            looseIdx.map((i) => vars[i].lo),
-            looseIdx.map((i) => vars[i].hi),
-            { start: looseIdx.map((i) => trial[i]) },
-          );
-          looseIdx.forEach((i, k) => {
-            trial[i] = sol[k];
-          });
-        }
-        return {
-          grams: trial,
-          cost: modelCost(vars, trial, fractions, slots.length, input.budget),
+      // Countable foods are served in whole units, so their grams come from a unit
+      // COUNT. Start at the count nearest the continuous solve, then move one unit
+      // at a time while that lowers the model cost, re-solving the weighable foods
+      // around each candidate. Scored on the same cost as everything else, so an
+      // extra whole portion has to earn its place on the whole day — it can't be
+      // added to close one macro while energy runs away.
+      const unitIdx = freeIdx.filter((i) => isCountable(vars[i].food));
+      const looseIdx = freeIdx.filter((i) => !isCountable(vars[i].food));
+      if (unitIdx.length > 0) {
+        const unitG = (i: number) => vars[i].food.unit_g!;
+        const bounds = (i: number) => {
+          const min = Math.max(1, Math.round(vars[i].lo / unitG(i)));
+          return { min, max: Math.max(min, Math.floor(vars[i].hi / unitG(i))) };
         };
-      };
+        const solveWith = (counts: Map<number, number>) => {
+          const trial = [...grams];
+          for (const [i, n] of counts) trial[i] = n * unitG(i);
+          if (looseIdx.length > 0) {
+            const m = dayModel(
+              vars,
+              looseIdx,
+              trial,
+              fractions,
+              slots.length,
+              input.budget,
+              press,
+            );
+            const sol = solveBoxLsq(
+              m.A,
+              m.b,
+              looseIdx.map((i) => vars[i].lo),
+              looseIdx.map((i) => vars[i].hi),
+              { start: looseIdx.map((i) => trial[i]) },
+            );
+            looseIdx.forEach((i, k) => {
+              trial[i] = sol[k];
+            });
+          }
+          return {
+            grams: trial,
+            cost: modelCost(vars, trial, fractions, slots.length, input.budget, press),
+          };
+        };
 
-      // Start at ONE serving each: the user picked the food, so it gets a
-      // portion, and the weighable foods grow to carry whatever is left. A second
-      // whole portion is a lumpy commitment, so it is only added when it makes
-      // the whole day MEANINGFULLY better — otherwise a picked protein powder
-      // gets squeezed out so another whole portion of mince can fit (issue #26).
-      const counts = new Map<number, number>(unitIdx.map((i) => [i, bounds(i).min]));
-      let best = solveWith(counts);
-      for (let sweep = 0; sweep < 6; sweep++) {
-        let moved = false;
-        for (const i of unitIdx) {
-          const { min, max } = bounds(i);
-          for (const d of [1, -1]) {
-            const n = (counts.get(i) as number) + d;
-            if (n < min || n > max) continue;
-            const trial = new Map(counts).set(i, n);
-            const r = solveWith(trial);
-            // Adding a portion has to clear the margin; dropping one only has to
-            // not be worse, so the count never drifts up on numeric noise.
-            const better =
-              d > 0
-                ? r.cost < best.cost - EXTRA_UNIT_MARGIN
-                : r.cost <= best.cost + 1e-9;
-            if (better) {
-              counts.set(i, n);
-              best = r;
-              moved = true;
+        // Start at ONE serving each: the user picked the food, so it gets a
+        // portion, and the weighable foods grow to carry whatever is left. A second
+        // whole portion is a lumpy commitment, so it is only added when it makes
+        // the whole day MEANINGFULLY better — otherwise a picked protein powder
+        // gets squeezed out so another whole portion of mince can fit (issue #26).
+        const counts = new Map<number, number>(unitIdx.map((i) => [i, bounds(i).min]));
+        let best = solveWith(counts);
+        for (let sweep = 0; sweep < 6; sweep++) {
+          let moved = false;
+          for (const i of unitIdx) {
+            const { min, max } = bounds(i);
+            for (const d of [1, -1]) {
+              const n = (counts.get(i) as number) + d;
+              if (n < min || n > max) continue;
+              const trial = new Map(counts).set(i, n);
+              const r = solveWith(trial);
+              // Adding a portion has to clear the margin; dropping one only has to
+              // not be worse, so the count never drifts up on numeric noise.
+              const better =
+                d > 0
+                  ? r.cost < best.cost - EXTRA_UNIT_MARGIN
+                  : r.cost <= best.cost + 1e-9;
+              if (better) {
+                counts.set(i, n);
+                best = r;
+                moved = true;
+              }
             }
           }
+          if (!moved) break;
         }
-        if (!moved) break;
+        for (let i = 0; i < grams.length; i++) grams[i] = best.grams[i];
       }
-      for (let i = 0; i < grams.length; i++) grams[i] = best.grams[i];
+    }
+    return grams;
+  };
+
+  // Totals a set of portions comes to, on one row.
+  const totalOn = (g: number[], key: RowKey) =>
+    vars.reduce((s, v, i) => s + perGram(v.food, key) * g[i], 0);
+
+  // First pass at the ordinary weights, then press down on whatever exceeded its
+  // limit and solve again. Each pass keeps the best answer seen: the one that
+  // exceeds its limits least, and among equals the one that fits the day best.
+  const press: Record<RowKey, number> = { kcal: 1, protein_g: 1, carbs_g: 1, fat_g: 1 };
+  const excessOf = (g: number[]) =>
+    LIMIT_KEYS.reduce((s, key) => {
+      const over = overBy(totalOn(g, key), Math.max(0, input.budget[key] ?? 0), key);
+      return s + (over > 0 ? (over * ROW_WEIGHT[key]) / Math.max(1, input.budget[key] ?? 1) : 0);
+    }, 0);
+
+  let grams: number[] = solveAt(press);
+  let bestExcess = excessOf(grams);
+  for (let pass = 0; pass < OVER_PASSES && bestExcess > 0; pass++) {
+    let pressed = false;
+    for (const key of LIMIT_KEYS) {
+      if (overBy(totalOn(grams, key), Math.max(0, input.budget[key] ?? 0), key) > 0) {
+        press[key] *= OVER_FACTOR;
+        pressed = true;
+      }
+    }
+    if (!pressed) break;
+    const next = solveAt(press);
+    const nextExcess = excessOf(next);
+    if (nextExcess < bestExcess - 1e-9) {
+      grams = next;
+      bestExcess = nextExcess;
+    } else if (nextExcess <= bestExcess + 1e-9) {
+      // No worse on the limits: take it, since it was solved under more pressure.
+      grams = next;
+      bestExcess = nextExcess;
+      break;
+    } else {
+      break;
     }
   }
 
@@ -674,6 +752,40 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
   // Are the sources already as small as they go? Then the day being over is the
   // picks' doing, not the portioning's, and the note says so.
   const atSmallest = vars.every((v, i) => v.kind !== "source" || served[i] <= v.lo);
+
+  // Which macros are sitting AT their limit. When the day lands short, this is
+  // the reason: nothing can grow without breaking one of them, and the user is
+  // better told which than left to wonder why the plan under-feeds them.
+  const MACRO_LABEL: Record<MacroKey, string> = {
+    protein_g: "protein",
+    carbs_g: "carbs",
+    fat_g: "fat",
+  };
+  const atLimit = MACRO_KEYS.filter((key) => {
+    const limit = Math.max(0, input.budget[key] ?? 0);
+    return limit > 0 && dayTotals[key] >= limit - Math.max(2, limit * 0.02);
+  });
+  const listed = atLimit.map((k) => MACRO_LABEL[k]);
+  const blocking =
+    listed.length === 0
+      ? ""
+      : listed.length === 1
+        ? ` Your ${listed[0]} is already at its limit for the day, so nothing else can grow.`
+        : ` Your ${listed.slice(0, -1).join(", ")} and ${listed[listed.length - 1]} are already at their limits for the day, so nothing else can grow.`;
+
+  // Which macro the missing calories actually are. "You're 300 under" is not much
+  // use on its own; "the gap is fat" tells the user what to go and pick.
+  const KCAL_PER_G: Record<MacroKey, number> = { protein_g: 4, carbs_g: 4, fat_g: 9 };
+  const gaps = MACRO_KEYS.map((key) => ({
+    key,
+    short: Math.max(0, Math.max(0, input.budget[key] ?? 0) - dayTotals[key]),
+  })).sort((a, b) => b.short * KCAL_PER_G[b.key] - a.short * KCAL_PER_G[a.key]);
+  const biggest = gaps[0];
+  const gapNote =
+    biggest && biggest.short * KCAL_PER_G[biggest.key] >= 100
+      ? ` Most of the gap is ${MACRO_LABEL[biggest.key]} — ${biggest.short} g short.`
+      : "";
+
   const energyNote =
     Math.abs(kcalMiss) <= ON_TARGET_KCAL
       ? null
@@ -681,21 +793,28 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
         ? atSmallest
           ? `Even at their smallest sensible servings these picks come to ${dayTotals.kcal} kcal — ${kcalMiss} over today's target. Take something out to bring the day back.`
           : `This day comes to ${dayTotals.kcal} kcal — ${kcalMiss} over today's target, the closest these picks get.`
-        : `This day comes to ${dayTotals.kcal} kcal — ${-kcalMiss} under today's target. Add to your picks to fill the gap.`;
+        : `This day comes to ${dayTotals.kcal} kcal — ${-kcalMiss} under today's target.${blocking || " Add to your picks to fill the gap."}${gapNote}`;
 
-  // Protein gets its own line when it misses: on a cut it's the macro that keeps
-  // muscle, and "the day lands on target" must never paper over a plan 20 g short
-  // of it. Judged in proportion, so a big target isn't held to the same grams as
-  // a small one.
+  // Any macro that still ends up OVER its limit gets named. With the limits
+  // pressed hard this only happens when the picks' smallest servings already
+  // exceed the day, which is a fact the user needs rather than a silent overshoot.
+  const overNotes = MACRO_KEYS.filter((key) => {
+    const limit = Math.max(0, input.budget[key] ?? 0);
+    return limit > 0 && overBy(dayTotals[key], limit, key) > 0;
+  }).map(
+    (key) =>
+      `${MACRO_LABEL[key][0].toUpperCase()}${MACRO_LABEL[key].slice(1)} lands ${dayTotals[key] - Math.max(0, input.budget[key] ?? 0)} g over — these picks don't go any smaller.`,
+  );
+
+  // Protein SHORT is worth saying too: on a cut it's the macro that keeps muscle.
   const proteinTarget = Math.max(0, input.budget.protein_g ?? 0);
-  const proteinMiss = dayTotals.protein_g - proteinTarget;
+  const proteinShort = proteinTarget - dayTotals.protein_g;
   const proteinNote =
-    Math.abs(proteinMiss) <= Math.max(10, proteinTarget * 0.1)
-      ? null
-      : proteinMiss < 0
-        ? `Protein lands ${-proteinMiss} g under — these picks can't carry more of it.`
-        : `Protein lands ${proteinMiss} g over, which is what filling the day on these picks costs.`;
-  const dayNote = [energyNote, proteinNote].filter(Boolean).join(" ") || null;
+    proteinShort > Math.max(10, proteinTarget * 0.1)
+      ? `Protein lands ${proteinShort} g under — these picks can't carry more of it.`
+      : null;
+  const dayNote =
+    [energyNote, ...overNotes, proteinNote].filter(Boolean).join(" ") || null;
 
   const out: PlannedSlot[] = [];
   slots.forEach((s, slotIdx) => {

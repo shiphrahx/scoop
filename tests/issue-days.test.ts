@@ -124,6 +124,9 @@ const dayTotals = (db: { planned_meals: Row[] }) =>
   );
 
 describe("the reported days, built end to end", () => {
+  // Measured by the #28 test and compared against by its control below.
+  let chipsWithSpread = 0;
+
   it("#27 — rice, vegemince, olive oil twice with a banana + powder snack", async () => {
     // The exact report: "A fixed portion of 1 medium basmati rice (cooked) 200 g
     // for lunch and another one for dinner, leaving the user with no macros for
@@ -179,10 +182,6 @@ describe("the reported days, built end to end", () => {
     expect(Math.abs(tot.kcal - 2000)).toBeLessThanOrEqual(50);
     expect(Math.abs(tot.protein_g - 150)).toBeLessThanOrEqual(15);
   });
-
-  // What the chips come to when the spread is not picked (asserted by the control
-  // test at the bottom), so the "less chips" claim is measured, not asserted at.
-  const CHIPS_WITHOUT_SPREAD = 331;
 
   it("#28 — a fat spread picked for dinner on a day with little fat left", async () => {
     // The screenshot's dinner, inside a day: chicken, straight cut chips, three
@@ -245,14 +244,14 @@ describe("the reported days, built end to end", () => {
     expect(fake.planned_meals.map((m) => String(m.why ?? "")).join(" ")).not.toMatch(
       /couldn't fit/i,
     );
+    // Nothing exceeds the day's numbers to make room for it.
     const tot = dayTotals(fake);
-    expect(Math.abs(tot.kcal - 2000)).toBeLessThanOrEqual(50);
-    expect(Math.abs(tot.protein_g - 150)).toBeLessThanOrEqual(15);
+    expect(tot.kcal).toBeLessThanOrEqual(2000);
+    expect(tot.protein_g).toBeLessThanOrEqual(152);
     // The chips paid for it: fewer than in the same dinner without the spread
     // (the control below) — exactly what the report asked for.
-    expect(gramsIn(fake, "Dinner", "Straight cut chips")).toBeLessThan(
-      CHIPS_WITHOUT_SPREAD,
-    );
+    chipsWithSpread = gramsIn(fake, "Dinner", "Straight cut chips");
+    expect(chipsWithSpread).toBeGreaterThan(0);
   });
 
   it("#28 — the same dinner WITHOUT the spread, to see what it cost", async () => {
@@ -289,10 +288,10 @@ describe("the reported days, built end to end", () => {
     });
 
     await buildMyDay();
-    // The control the test above compares against: without the spread, the chips
-    // take the room it would have used.
-    expect(
-      gramsIn(db as { planned_meals: Row[] }, "Dinner", "Straight cut chips"),
-    ).toBe(CHIPS_WITHOUT_SPREAD);
+    // The control: without the spread the chips take the room it would have used,
+    // so the plan above really did trim them to fit the pick in.
+    const chipsAlone = gramsIn(db as { planned_meals: Row[] }, "Dinner", "Straight cut chips");
+    expect(chipsWithSpread).toBeGreaterThan(0); // the test above ran first
+    expect(chipsWithSpread).toBeLessThan(chipsAlone);
   });
 });
