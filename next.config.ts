@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Cache Components (Next 16 PPR): the static parts of a route prerender into an
+  // instant shell and only the dynamic, per-user parts stream behind <Suspense>.
+  // Every uncached data read (cookies, auth, DB) must sit inside a Suspense
+  // boundary — enforced at build time. Enables `unstable_instant` validation.
+  cacheComponents: true,
   experimental: {
     // Keep a recently-visited screen in the client cache instead of re-fetching
     // it from the server on every tab tap. Next's default for dynamic routes is
