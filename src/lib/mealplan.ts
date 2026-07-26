@@ -1,14 +1,22 @@
 // Local, deterministic meal planner. Every food already carries its per-100g
 // macros, so portioning meals is just arithmetic — no AI, no network.
 //
-// Two solvers live here:
-//  - planPickedDay: the user names the foods for EACH meal and one global
-//    weighted least-squares portions everything together so the DAY lands on
-//    its macro budget (within ±5 when the picks can reach it). Meal sizes
-//    follow the user's slot weights, softly — they bend before the day total.
-//  - suggestPantryMeals: dish ideas for ONE meal built around a chosen carb +
-//    protein, each solved as a small linear system against the remaining
-//    macros.
+// ONE solve does the portioning, and it is set up as the app's requirements
+// really are:
+//
+//  - Which foods appear is NOT the solve's decision. Every food the user picked
+//    that the pantry can cover gets a portion, between its smallest sensible
+//    serving and the most anyone would eat of it (whole units where the food is
+//    countable, never more than the pack holds).
+//  - Inside those windows the solve chases the day's totals in priority order:
+//    ENERGY first, then protein, then the carb/fat split, with each meal's share
+//    of the day as a soft preference that bends before any of them.
+//  - When the picks cannot reach the target the plan SAYS so, in kcal, instead of
+//    quietly dropping a food or reporting success it didn't have.
+//
+// planPickedDay portions a whole day of picked meals. suggestPantryMeals builds
+// dish ideas for ONE meal around a chosen carb + protein and portions each of
+// them through the same solve.
 
 import { solveBoxLsq } from "@/lib/boxqp";
 import { macroRole, isVegetable, isProtein } from "@/lib/foodgroups";
@@ -88,20 +96,6 @@ export function portionGrams(raw: number, food: PantryFood, cap: number): number
   return clamp(Math.round(raw), 0, cap);
 }
 
-// Per-portion ceilings (grams) — the most of any one food a single meal may use,
-// so the solver can't serve a plausible-but-absurd amount (half a kilo of vegan
-// chicken) to chase a macro. Protein's is the tightest: dense mains are where a
-// runaway solve does the most damage. High enough not to bind on normal reachable
-// budgets; it only kicks in when the picks can't hit a macro any sane way.
-const CAP: Record<MacroKey, number> = {
-  protein_g: 350,
-  carbs_g: 600,
-  fat_g: 150,
-};
-// Keep any portion of at least this many grams (finer than before, so the solve
-// can hit the target closely). Below this a food isn't worth listing.
-const MIN_PORTION = 2;
-
 type MacroKey = "protein_g" | "carbs_g" | "fat_g";
 // A row of the day solve: the three macros plus total energy. Energy is not an
 // extra macro, it's the sum of them — but giving it its own row makes the solve
@@ -116,11 +110,6 @@ const KEY_TO_100: Record<RowKey, keyof PantryFood> = {
 
 const clamp = (n: number, lo: number, hi: number) =>
   Math.max(lo, Math.min(hi, n));
-
-// The most grams of a food a single portion may use: the generous per-macro
-// ceiling, but never more than what's in stock.
-const capFor = (food: PantryFood, key: MacroKey) =>
-  Math.min(CAP[key], food.available_g ?? Infinity);
 
 // Per-gram amount of one macro (or of energy) in a food.
 const perGram = (food: PantryFood, key: RowKey) =>
@@ -168,97 +157,7 @@ function addMacros(a: Required<Macros>, b: Required<Macros>): Required<Macros> {
   };
 }
 
-// Solve a small (n≤3) linear system A·x = b by Gauss–Jordan with partial
-// pivoting. Returns null when singular (e.g. two sources of the same macro).
-function solveLinear(A: number[][], b: number[]): number[] | null {
-  const n = A.length;
-  const M = A.map((row, i) => [...row, b[i]]);
-  for (let col = 0; col < n; col++) {
-    let piv = col;
-    for (let r = col + 1; r < n; r++) {
-      if (Math.abs(M[r][col]) > Math.abs(M[piv][col])) piv = r;
-    }
-    if (Math.abs(M[piv][col]) < 1e-9) return null;
-    [M[col], M[piv]] = [M[piv], M[col]];
-    const d = M[col][col];
-    for (let j = col; j <= n; j++) M[col][j] /= d;
-    for (let r = 0; r < n; r++) {
-      if (r === col) continue;
-      const f = M[r][col];
-      for (let j = col; j <= n; j++) M[r][j] -= f * M[col][j];
-    }
-  }
-  return M.map((row) => row[n]);
-}
-
 type Portion = { food: PantryFood; grams: number };
-
-// Size a protein + carb + fat source so the meal hits its macro target. Each
-// present source anchors one macro (protein→protein_g …); solving that square
-// system hits every anchored macro exactly (three sources → all three macros).
-// Falls back to a greedy fill if the system is singular. Grams are rounded to
-// whole numbers and clamped; a negative solve (a macro already overshot by the
-// other sources) drops to zero.
-function buildMeal(
-  target: Macros,
-  protein: PantryFood | null,
-  carb: PantryFood | null,
-  fat: PantryFood | null,
-): { portions: Portion[]; totals: Required<Macros> } {
-  const srcs: { food: PantryFood; key: MacroKey }[] = [];
-  if (protein && protein.protein_100g > 0)
-    srcs.push({ food: protein, key: "protein_g" });
-  if (carb && carb.carbs_100g > 0) srcs.push({ food: carb, key: "carbs_g" });
-  if (fat && fat.fat_100g > 0) srcs.push({ food: fat, key: "fat_g" });
-
-  let grams: number[] | null = null;
-  if (srcs.length) {
-    const A = srcs.map((si) => srcs.map((sj) => perGram(sj.food, si.key)));
-    const b = srcs.map((si) => target[si.key]);
-    grams = solveLinear(A, b);
-  }
-  if (!grams || grams.some((g) => !Number.isFinite(g))) {
-    return greedyMeal(target, protein, carb, fat);
-  }
-
-  const portions: Portion[] = [];
-  srcs.forEach((s, i) => {
-    const g = portionGrams(grams![i], s.food, capFor(s.food, s.key));
-    if (g >= MIN_PORTION) portions.push({ food: s.food, grams: g });
-  });
-  return { portions, totals: sumPortions(portions) };
-}
-
-// Fallback when the linear solve can't run: fill protein, then carbs, then fat
-// in sequence. Less exact, but only reached for degenerate pantries.
-function greedyMeal(
-  target: Macros,
-  protein: PantryFood | null,
-  carb: PantryFood | null,
-  fat: PantryFood | null,
-): { portions: Portion[]; totals: Required<Macros> } {
-  const portions: Portion[] = [];
-  let needCarb = target.carbs_g;
-  let needFat = target.fat_g;
-  const push = (food: PantryFood, grams: number, key: MacroKey) => {
-    const g = portionGrams(grams, food, capFor(food, key));
-    if (g >= MIN_PORTION) portions.push({ food, grams: g });
-    return g;
-  };
-  if (protein && protein.protein_100g > 0) {
-    const g = push(protein, target.protein_g / perGram(protein, "protein_g"), "protein_g");
-    needCarb -= g * perGram(protein, "carbs_g");
-    needFat -= g * perGram(protein, "fat_g");
-  }
-  if (carb && carb.carbs_100g > 0) {
-    const g = push(carb, needCarb / perGram(carb, "carbs_g"), "carbs_g");
-    needFat -= g * perGram(carb, "fat_g");
-  }
-  if (fat && fat.fat_100g > 0) {
-    push(fat, needFat / perGram(fat, "fat_g"), "fat_g");
-  }
-  return { portions, totals: sumPortions(portions) };
-}
 
 function sumPortions(portions: Portion[]): Required<Macros> {
   return portions.reduce<Required<Macros>>(
@@ -858,9 +757,20 @@ export function suggestPantryMeals(input: SuggestInput): MealSuggestion[] {
   const out: MealSuggestion[] = [];
   for (const fat of fatChoices) {
     if (out.length >= count) break;
-    const { portions, totals } = buildMeal(input.remaining, protein, carb, fat);
-    if (portions.length === 0) continue;
-    const key = portions.map((p) => `${p.food.name}:${p.grams}`).join("|");
+    const foods = [protein, carb, fat].filter((f): f is PantryFood => f != null);
+    const uniq = foods.filter(
+      (f, i) => foods.findIndex((x) => x.name === f.name) === i,
+    );
+    // Portioned by the same solve the day plan uses, as a single meal against
+    // what's left of the day: every ingredient in the idea gets a real serving,
+    // none of them an amount nobody would eat, and the note says where the meal
+    // lands rather than claiming it fits.
+    const [meal] = planPickedDay({
+      slots: [{ slot: "Meal", foods: uniq }],
+      budget: input.remaining,
+    });
+    if (!meal || meal.portions.length === 0) continue;
+    const key = meal.portions.map((p) => `${p.name}:${p.grams}`).join("|");
     if (seen.has(key)) continue;
     seen.add(key);
     const swaps = [
@@ -868,12 +778,15 @@ export function suggestPantryMeals(input: SuggestInput): MealSuggestion[] {
       ...pPool.filter((f) => f !== protein).slice(0, 1),
     ].map((f) => f.name);
     out.push({
-      name: mealName(portions),
-      uses: portions.map((p) => p.food.name),
-      portions: toPortions(portions),
+      name: meal.name,
+      uses: meal.portions.map((p) => p.name),
+      portions: meal.portions,
       swaps,
-      why: "Built from your pantry to fit the macros you have left.",
-      ...totals,
+      why: meal.why ?? "Built from your pantry to fit the macros you have left.",
+      kcal: meal.kcal,
+      protein_g: meal.protein_g,
+      carbs_g: meal.carbs_g,
+      fat_g: meal.fat_g,
     });
   }
   return out;
