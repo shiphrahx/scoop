@@ -214,6 +214,16 @@ export async function matchCandidates(name: string) {
   return searchProducts(name);
 }
 
+// A deliberate, user-typed product search from the import matcher: when the
+// automatic suggestions aren't what they wanted, they type their own query and
+// hunt through a WIDER list. Same ranking, bigger cap so more of the pool shows
+// than the tight 5 offered for an auto-matched name.
+export async function searchProductOptions(query: string) {
+  await requireUser();
+  const { searchProducts } = await import("@/lib/off");
+  return searchProducts(query, 12);
+}
+
 // Bump quantity up or down. Hitting zero removes the item from the pantry.
 export async function setPantryQuantity(id: string, quantity: number) {
   const { supabase } = await requireUser();
