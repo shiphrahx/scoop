@@ -271,6 +271,20 @@ describe("planPickedDay", () => {
     expect(Math.abs(tot.protein_g - 150)).toBeLessThanOrEqual(15);
   });
 
+  it("says when a food is being held at an amount the user set", () => {
+    // A pin holds a hand-set amount through one rebalance. Without a word about
+    // it the plan just looks stuck: the day reads short and the food that could
+    // close the gap sits still.
+    const held: PantryFood = { ...pasta(), pinned_g: 60 };
+    const plan = planPickedDay({
+      slots: [{ slot: "Dinner", foods: [held, chicken()] }],
+      budget: { kcal: 900, protein_g: 60, carbs_g: 90, fat_g: 30 },
+    });
+    expect(gramsOf(plan, "Pasta")).toBe(60);
+    expect(plan[0].why).toMatch(/held at the 60 g you set/i);
+    expect(plan[0].why).toMatch(/rebalance again/i);
+  });
+
   it("sizes meals by the slot weights", () => {
     // Same picks in both meals so size differences come only from the weights.
     const budget = { kcal: 1600, protein_g: 120, carbs_g: 150, fat_g: 50 };

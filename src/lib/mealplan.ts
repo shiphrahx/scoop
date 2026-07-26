@@ -947,6 +947,13 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
         );
         return;
       }
+      if (vars[i].kind === "pinned") {
+        // A hand-set amount is HELD through this one rebalance, so it can't move
+        // to close a gap. Invisible otherwise: the plan just looks stuck.
+        notes.push(
+          `${food.name} is held at the ${served[i]} g you set — rebalance again to let it move with the rest of the day.`,
+        );
+      }
       portions.push({ food, grams: served[i] });
     });
     if (portions.length === 0) return;
