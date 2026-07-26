@@ -103,8 +103,8 @@ const MIN_PORTION = 2;
 
 type MacroKey = "protein_g" | "carbs_g" | "fat_g";
 // A row of the day solve: the three macros plus total energy. Energy is not an
-// extra macro, it's the sum of them — but giving it its own row lets a solve keep
-// the day's CALORIES honest even where a single macro has to bend.
+// extra macro, it's the sum of them — but giving it its own row makes the solve
+// keep the day's CALORIES honest even where a single macro has to bend.
 type RowKey = MacroKey | "kcal";
 const KEY_TO_100: Record<RowKey, keyof PantryFood> = {
   protein_g: "protein_100g",
@@ -347,10 +347,14 @@ export interface PlanPickedDayInput {
 // just to close a few grams of fat. A softer fat goal keeps portions realistic
 // and lets fat land a little under when the picks can't reach it cleanly.
 //
-// ENERGY has a weight too, per kcal rather than per gram, for the solves that hold
-// total calories as well. Per kcal it sits just above carbs' per-gram weight for a
-// typical carb food (~5 kcal a gram), so energy accuracy beats a few grams of
-// carbs, but stays under protein's — protein is the anchor nothing trades away.
+// ENERGY has a weight too, per kcal rather than per gram, used only by the rebalance
+// that squeezes a dropped pick back in (stage 3). There it's what makes the sauce's
+// calories come OUT of the chips instead of on top of a full plate (issue #28): per
+// kcal it sits just above carbs' per-gram weight for a typical carb food (~5 kcal a
+// gram), so energy beats a few grams of carbs, but under protein's — protein is the
+// anchor nothing trades away. The ordinary solve leaves the row out: with a budget
+// whose kcal already equals its macros, energy is not new information, just a
+// reweighting, and it drags portions off the macro targets they're built to hit.
 const DAY_WEIGHT: Record<RowKey, number> = {
   protein_g: 30,
   carbs_g: 30,
@@ -362,9 +366,8 @@ const DAY_WEIGHT: Record<RowKey, number> = {
 const RIDGE = 1e-6;
 // Below this a solved portion reads as "didn't really fit" and earns a warning.
 const SMALL_PORTION = 10;
-
 const MACRO_KEYS: MacroKey[] = ["protein_g", "carbs_g", "fat_g"];
-// The rows of the day solve when total energy has to be held as well.
+// The rows of the day solve when total energy has to be held as well (stage 3).
 const ENERGY_ROWS: RowKey[] = [...MACRO_KEYS, "kcal"];
 // The macros a countable's whole-unit count is chosen to fit: the anchored ones.
 // Fat is left out on purpose — it's the soft "rest" macro, so a fat shortfall
@@ -488,7 +491,7 @@ function boundedLeastSquares(
 // committed by foods held OUTSIDE this solve (snapped countable portions), so
 // the active foods aim at what's LEFT of the day and of each meal's share.
 // `rows` picks which totals are held: the three macros normally, macros plus
-// total energy when the day's calories have to be held too.
+// total energy when a forced pick's calories have to come out of the others.
 function solvePicks(
   active: PickVar[],
   activeCaps: number[],
@@ -566,7 +569,6 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
   //     (see vegServingG), which keeps veg split evenly across meals and stops
   //     the solver growing 400 g of onion to cover a carb the real sources fill.
   // A pinned veg is held at the pinned amount, not the standard filler serving.
-  const grams = new Array<number>(vars.length).fill(0);
   const isPinned = (food: PantryFood) => food.pinned_g != null && food.pinned_g >= 0;
   const pinnedIdx = vars.map((v, i) => (isPinned(v.food) ? i : -1)).filter((i) => i >= 0);
   const fillerIdx = vars
@@ -575,160 +577,178 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
   const sourceIdx = vars
     .map((v, i) => (!isPinned(v.food) && !isFiller(v.food) ? i : -1))
     .filter((i) => i >= 0);
-  for (const i of pinnedIdx) {
-    grams[i] = portionGrams(vars[i].food.pinned_g!, vars[i].food, caps[i]);
-  }
-  for (const i of fillerIdx) {
-    grams[i] = portionGrams(vegServingG(vars[i].food), vars[i].food, caps[i]);
-  }
 
-  // What the held foods (pinned + fillers) already put on the day, and on each
-  // meal's share, so the sources aim at what's LEFT. Same shape as the
-  // countable-pin below; they all combine when present.
-  const heldIdx = [...pinnedIdx, ...fillerIdx];
-  const heldDay = (key: RowKey) =>
-    heldIdx.reduce((s, i) => s + perGram(vars[i].food, key) * grams[i], 0);
-  const heldMeal = (slotIdx: number, key: RowKey) =>
-    heldIdx.reduce(
-      (s, i) => (vars[i].slotIdx === slotIdx ? s + perGram(vars[i].food, key) * grams[i] : s),
-      0,
-    );
+  // The whole staged solve, run for a given set of FORCED sources — foods held at
+  // a fixed amount alongside the pinned foods and fillers, so the free sources
+  // portion around them. With no forced foods it is the plain solve.
+  const solveDay = (
+    forced: Map<number, number>,
+    rows: RowKey[] = MACRO_KEYS,
+  ): number[] => {
+    const grams = new Array<number>(vars.length).fill(0);
+    for (const i of pinnedIdx) {
+      grams[i] = portionGrams(vars[i].food.pinned_g!, vars[i].food, caps[i]);
+    }
+    for (const i of fillerIdx) {
+      grams[i] = portionGrams(vegServingG(vars[i].food), vars[i].food, caps[i]);
+    }
+    for (const [i, g] of forced) grams[i] = g;
 
-  const sourceVars = sourceIdx.map((i) => vars[i]);
-  const sourceCaps = sourceIdx.map((i) => caps[i]);
-
-  // Stage 1: portion every SOURCE food continuously so the day lands on its
-  // budget (net of the held foods). With no sources at all (a meal of only veg
-  // or only pinned foods) the held foods already stand on their own.
-  if (sourceVars.length > 0) {
-    const sol = solvePicks(
-      sourceVars,
-      sourceCaps,
-      slots,
-      fractions,
-      input.budget,
-      heldDay,
-      heldMeal,
-    );
-    sourceIdx.forEach((i, k) => {
-      grams[i] = sol[k];
-    });
-  }
-
-  // Stage 2: countable SOURCES can only be served whole, so they can't fine-tune
-  // the day the way a weighable source can. Instead of scaling a countable up to
-  // chase a macro (a second, third whole portion of vegan mince), give each
-  // picked countable ONE serving and let the WEIGHABLE sources grow to carry the
-  // rest — a picked protein powder gets increased to cover leftover protein
-  // rather than dropped so another whole portion of mince can be added (issue
-  // #26). Extra whole units are added back only when they genuinely bring the day
-  // closer than the weighable sources can on their own (e.g. the countable is the
-  // only protein there). Only worth it when both kinds of source are present.
-  const countableIdx = sourceIdx.filter((i) => isCountable(vars[i].food));
-  const looseIdx = sourceIdx.filter((i) => !isCountable(vars[i].food));
-  if (countableIdx.length > 0 && looseIdx.length > 0) {
-    const unitG = (i: number) => vars[i].food.unit_g as number;
-    // Whole units this food could serve given its stock cap, and its FLOOR — the
-    // fewest units a picked food should carry: one serving (the user picked it),
-    // or zero when there isn't stock for even one unit.
-    const maxUnits = new Map<number, number>(
-      countableIdx.map((i) => [i, Math.floor(Math.max(0, caps[i]) / unitG(i))]),
-    );
-    const floorUnits = (i: number) => (maxUnits.get(i)! > 0 ? 1 : 0);
-
-    // Grams a set of unit counts puts on one macro across the day (or within one
-    // slot when `inSlot` is given).
-    const unitContribution = (
-      units: Map<number, number>,
-      key: RowKey,
-      inSlot?: number,
-    ) =>
-      countableIdx.reduce(
-        (s, i) =>
-          inSlot === undefined || vars[i].slotIdx === inSlot
-            ? s + perGram(vars[i].food, key) * (units.get(i)! * unitG(i))
-            : s,
+    // What the held foods (pinned + fillers + forced) already put on the day, and on
+    // each meal's share, so the free sources aim at what's LEFT. Same shape as the
+    // countable-pin below; they all combine when present.
+    const heldIdx = [...pinnedIdx, ...fillerIdx, ...forced.keys()];
+    const heldDay = (key: RowKey) =>
+      heldIdx.reduce((s, i) => s + perGram(vars[i].food, key) * grams[i], 0);
+    const heldMeal = (slotIdx: number, key: RowKey) =>
+      heldIdx.reduce(
+        (s, i) => (vars[i].slotIdx === slotIdx ? s + perGram(vars[i].food, key) * grams[i] : s),
         0,
       );
 
-    // Solve the weighable sources against what's left after the held foods and
-    // these countable units, then score how far the whole day lands from budget
-    // (the same per-macro weighting the solve itself minimises).
-    const evalUnits = (units: Map<number, number>) => {
-      const looseGrams = solvePicks(
-        looseIdx.map((i) => vars[i]),
-        looseIdx.map((i) => caps[i]),
+    const freeIdx = sourceIdx.filter((i) => !forced.has(i));
+    const sourceVars = freeIdx.map((i) => vars[i]);
+    const sourceCaps = freeIdx.map((i) => caps[i]);
+
+    // Stage 1: portion every free SOURCE food continuously so the day lands on its
+    // budget (net of the held foods). With no sources at all (a meal of only veg
+    // or only pinned foods) the held foods already stand on their own.
+    if (sourceVars.length > 0) {
+      const sol = solvePicks(
+        sourceVars,
+        sourceCaps,
         slots,
         fractions,
         input.budget,
-        (key) => heldDay(key) + unitContribution(units, key),
-        (slotIdx, key) => heldMeal(slotIdx, key) + unitContribution(units, key, slotIdx),
+        heldDay,
+        heldMeal,
+        rows,
       );
-      // Score the unit count on the ANCHORED macros only (protein, carbs). Fat is
-      // "the rest" — deliberately allowed to land under when the picks are lean
-      // (see DAY_WEIGHT) — so a fat shortfall must never justify plating another
-      // whole portion of a dense protein food to chase it.
-      let residual = 0;
-      for (const key of UNIT_KEYS) {
-        let achieved = heldDay(key) + unitContribution(units, key);
-        looseIdx.forEach((i, k) => {
-          achieved += perGram(vars[i].food, key) * looseGrams[k];
-        });
-        const miss = Math.max(0, input.budget[key]) - achieved;
-        residual += (DAY_WEIGHT[key] * miss) ** 2;
-      }
-      return { looseGrams, residual };
-    };
-
-    // Start every picked countable at one serving, then hill-climb: ADD a unit
-    // only when it strictly tightens the day (never merely to match what the
-    // weighable sources could absorb), and DROP one whenever that doesn't loosen
-    // the day — so surplus is carried by the weighable sources, not by extra
-    // whole portions. A picked food never drops below its floor of one serving:
-    // the user chose it, so it always gets at least a single portion.
-    const units = new Map<number, number>(
-      countableIdx.map((i) => [i, floorUnits(i)]),
-    );
-    const EPS = 1e-6;
-    // A whole portion is a big, lumpy commitment, so only add one when it pulls
-    // the day MEANINGFULLY closer — at least ~1 g on an anchored macro. Without a
-    // real margin, sub-gram numeric noise between unit counts (the weighable solve
-    // re-balancing) would keep nudging the count up when the floor already fits.
-    const ADD_MARGIN = Math.min(...UNIT_KEYS.map((k) => DAY_WEIGHT[k])) ** 2;
-    let best = evalUnits(units);
-    const steps = countableIdx.reduce((s, i) => s + maxUnits.get(i)! + 1, 0) * 2 + 4;
-    for (let step = 0; step < steps; step++) {
-      let moved = false;
-      for (const i of countableIdx) {
-        const cur = units.get(i)!;
-        if (cur < maxUnits.get(i)!) {
-          const trial = new Map(units).set(i, cur + 1);
-          const r = evalUnits(trial);
-          if (r.residual < best.residual - ADD_MARGIN) {
-            units.set(i, cur + 1);
-            best = r;
-            moved = true;
-            continue; // took the add — don't also weigh a drop this pass
-          }
-        }
-        if (cur > floorUnits(i)) {
-          const trial = new Map(units).set(i, cur - 1);
-          const r = evalUnits(trial);
-          if (r.residual <= best.residual + EPS) {
-            units.set(i, cur - 1);
-            best = r;
-            moved = true;
-          }
-        }
-      }
-      if (!moved) break;
+      freeIdx.forEach((i, k) => {
+        grams[i] = sol[k];
+      });
     }
 
-    looseIdx.forEach((i, k) => {
-      grams[i] = best.looseGrams[k];
-    });
-    for (const i of countableIdx) grams[i] = units.get(i)! * unitG(i);
-  }
+    // Stage 2: countable SOURCES can only be served whole, so they can't fine-tune
+    // the day the way a weighable source can. Instead of scaling a countable up to
+    // chase a macro (a second, third whole portion of vegan mince), give each
+    // picked countable ONE serving and let the WEIGHABLE sources grow to carry the
+    // rest — a picked protein powder gets increased to cover leftover protein
+    // rather than dropped so another whole portion of mince can be added (issue
+    // #26). Extra whole units are added back only when they genuinely bring the day
+    // closer than the weighable sources can on their own (e.g. the countable is the
+    // only protein there). Only worth it when both kinds of source are present.
+    const countableIdx = freeIdx.filter((i) => isCountable(vars[i].food));
+    const looseIdx = freeIdx.filter((i) => !isCountable(vars[i].food));
+    if (countableIdx.length > 0 && looseIdx.length > 0) {
+      const unitG = (i: number) => vars[i].food.unit_g as number;
+      // Whole units this food could serve given its stock cap, and its FLOOR — the
+      // fewest units a picked food should carry: one serving (the user picked it),
+      // or zero when there isn't stock for even one unit.
+      const maxUnits = new Map<number, number>(
+        countableIdx.map((i) => [i, Math.floor(Math.max(0, caps[i]) / unitG(i))]),
+      );
+      const floorUnits = (i: number) => (maxUnits.get(i)! > 0 ? 1 : 0);
+
+      // Grams a set of unit counts puts on one macro across the day (or within one
+      // slot when `inSlot` is given).
+      const unitContribution = (
+        units: Map<number, number>,
+        key: RowKey,
+        inSlot?: number,
+      ) =>
+        countableIdx.reduce(
+          (s, i) =>
+            inSlot === undefined || vars[i].slotIdx === inSlot
+              ? s + perGram(vars[i].food, key) * (units.get(i)! * unitG(i))
+              : s,
+          0,
+        );
+
+      // Solve the weighable sources against what's left after the held foods and
+      // these countable units, then score how far the whole day lands from budget
+      // (the same per-macro weighting the solve itself minimises).
+      const evalUnits = (units: Map<number, number>) => {
+        const looseGrams = solvePicks(
+          looseIdx.map((i) => vars[i]),
+          looseIdx.map((i) => caps[i]),
+          slots,
+          fractions,
+          input.budget,
+          (key) => heldDay(key) + unitContribution(units, key),
+          (slotIdx, key) => heldMeal(slotIdx, key) + unitContribution(units, key, slotIdx),
+          rows,
+        );
+        // Score the unit count on the ANCHORED macros only (protein, carbs). Fat is
+        // "the rest" — deliberately allowed to land under when the picks are lean
+        // (see DAY_WEIGHT) — so a fat shortfall must never justify plating another
+        // whole portion of a dense protein food to chase it.
+        let residual = 0;
+        for (const key of UNIT_KEYS) {
+          let achieved = heldDay(key) + unitContribution(units, key);
+          looseIdx.forEach((i, k) => {
+            achieved += perGram(vars[i].food, key) * looseGrams[k];
+          });
+          const miss = Math.max(0, input.budget[key]) - achieved;
+          residual += (DAY_WEIGHT[key] * miss) ** 2;
+        }
+        return { looseGrams, residual };
+      };
+
+      // Start every picked countable at one serving, then hill-climb: ADD a unit
+      // only when it strictly tightens the day (never merely to match what the
+      // weighable sources could absorb), and DROP one whenever that doesn't loosen
+      // the day — so surplus is carried by the weighable sources, not by extra
+      // whole portions. A picked food never drops below its floor of one serving:
+      // the user chose it, so it always gets at least a single portion.
+      const units = new Map<number, number>(
+        countableIdx.map((i) => [i, floorUnits(i)]),
+      );
+      const EPS = 1e-6;
+      // A whole portion is a big, lumpy commitment, so only add one when it pulls
+      // the day MEANINGFULLY closer — at least ~1 g on an anchored macro. Without a
+      // real margin, sub-gram numeric noise between unit counts (the weighable solve
+      // re-balancing) would keep nudging the count up when the floor already fits.
+      const ADD_MARGIN = Math.min(...UNIT_KEYS.map((k) => DAY_WEIGHT[k])) ** 2;
+      let best = evalUnits(units);
+      const steps = countableIdx.reduce((s, i) => s + maxUnits.get(i)! + 1, 0) * 2 + 4;
+      for (let step = 0; step < steps; step++) {
+        let moved = false;
+        for (const i of countableIdx) {
+          const cur = units.get(i)!;
+          if (cur < maxUnits.get(i)!) {
+            const trial = new Map(units).set(i, cur + 1);
+            const r = evalUnits(trial);
+            if (r.residual < best.residual - ADD_MARGIN) {
+              units.set(i, cur + 1);
+              best = r;
+              moved = true;
+              continue; // took the add — don't also weigh a drop this pass
+            }
+          }
+          if (cur > floorUnits(i)) {
+            const trial = new Map(units).set(i, cur - 1);
+            const r = evalUnits(trial);
+            if (r.residual <= best.residual + EPS) {
+              units.set(i, cur - 1);
+              best = r;
+              moved = true;
+            }
+          }
+        }
+        if (!moved) break;
+      }
+
+      looseIdx.forEach((i, k) => {
+        grams[i] = best.looseGrams[k];
+      });
+      for (const i of countableIdx) grams[i] = units.get(i)! * unitG(i);
+    }
+
+    return grams;
+  };
+
+  const grams = solveDay(new Map());
 
   const out: PlannedSlot[] = [];
   slots.forEach((s, slotIdx) => {
