@@ -20,6 +20,7 @@ import {
 import { NutrientStats, FIT_TEXT } from "@/components/NutrientBreakdown";
 import {
   searchFoods,
+  searchWeb,
   setMealItems,
   setMealPortions,
   clearSlot,
@@ -365,6 +366,20 @@ function FitVerdict({
 // screen, not here. Typing an
 // amount with the item ("50g shreddies") sets the grams; otherwise the pack
 // size (or 100 g) seeds it.
+// Seed a sensible starting amount for a chosen food: the amount the user typed
+// ("50g shreddies"), else one unit for a countable food (one bagel), else the
+// pack size when it's a single serving, otherwise 100 g.
+function seedGrams(c: FoodChoice, typed: number | null): number {
+  return (
+    typed ??
+    (c.unit_g && c.unit_g > 0
+      ? c.unit_g
+      : c.pack_size_g && c.pack_size_g <= 500
+        ? c.pack_size_g
+        : 100)
+  );
+}
+
 function FoodSearchBox({
   onPick,
 }: {
@@ -373,28 +388,37 @@ function FoodSearchBox({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FoodChoice[]>([]);
   const [searching, setSearching] = useState(false);
+  // Web (Open Food Facts) results, kept apart from the pantry so the pantry
+  // always shows first and the web search — which is slower — fills in behind it.
+  const [webResults, setWebResults] = useState<FoodChoice[]>([]);
+  const [webSearching, setWebSearching] = useState(false);
 
   const parsed = useMemo(() => parseFoodQuery(query), [query]);
 
   // Debounced search on the food name only. All state updates happen inside the
-  // timer (never synchronously in the effect).
+  // timer (never synchronously in the effect). Pantry and web run in parallel;
+  // each writes its own state so a slow web reply never holds up the pantry list.
   useEffect(() => {
     const term = parsed.term;
     const t = setTimeout(
       async () => {
         if (term.length < 2) {
           setResults([]);
+          setWebResults([]);
           setSearching(false);
+          setWebSearching(false);
           return;
         }
         setSearching(true);
-        try {
-          setResults(await searchFoods(term));
-        } catch {
-          setResults([]);
-        } finally {
-          setSearching(false);
-        }
+        setWebSearching(true);
+        searchFoods(term)
+          .then(setResults)
+          .catch(() => setResults([]))
+          .finally(() => setSearching(false));
+        searchWeb(term)
+          .then(setWebResults)
+          .catch(() => setWebResults([]))
+          .finally(() => setWebSearching(false));
       },
       term.length < 2 ? 0 : 300,
     );
@@ -402,18 +426,46 @@ function FoodSearchBox({
   }, [parsed.term]);
 
   function add(c: FoodChoice) {
-    // Honour the amount the user typed; else seed one unit for a countable food
-    // (one bagel), otherwise the pack size, otherwise 100 g.
-    const grams =
-      parsed.grams ??
-      (c.unit_g && c.unit_g > 0
-        ? c.unit_g
-        : c.pack_size_g && c.pack_size_g <= 500
-          ? c.pack_size_g
-          : 100);
-    onPick(c, grams);
+    onPick(c, seedGrams(c, parsed.grams));
     setQuery("");
     setResults([]);
+    setWebResults([]);
+  }
+
+  const searchingAny = searching || webSearching;
+  const nothingYet =
+    !searchingAny && results.length === 0 && webResults.length === 0;
+
+  function ResultRow({ c, i }: { c: FoodChoice; i: number }) {
+    return (
+      <li key={`${c.source}-${c.off_barcode ?? c.name}-${i}`}>
+        <button
+          onClick={() => add(c)}
+          className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[var(--fill-soft)]"
+        >
+          {c.source === "pantry" ? (
+            <Package size={15} className="shrink-0 text-[var(--ink-teal)]" />
+          ) : (
+            <Globe size={15} className="shrink-0 text-[var(--muted)]" />
+          )}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium">
+              {c.name}
+              {c.brand ? (
+                <span className="text-[var(--muted)]"> · {c.brand}</span>
+              ) : null}
+            </span>
+            <span className="block text-xs text-[var(--muted)]">
+              {c.source === "pantry" ? "In your pantry" : "Web"} ·{" "}
+              {parsed.grams != null
+                ? `add ${parsed.grams} g`
+                : `${Math.round(c.kcal_100g)} kcal/100g`}
+            </span>
+          </span>
+          <Plus size={16} className="shrink-0 text-[var(--muted)]" />
+        </button>
+      </li>
+    );
   }
 
   return (
@@ -431,60 +483,48 @@ function FoodSearchBox({
           style={{ paddingLeft: "2.5rem" }}
         />
 
-        {(searching || results.length > 0) && parsed.term.length >= 2 && (
-          <ul className="absolute z-10 mt-1 flex w-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg">
-            {searching && results.length === 0 && (
-              <li className="px-4 py-3 text-sm text-[var(--muted)]">Searching…</li>
-            )}
-            {results.map((c, i) => (
-              <li key={`${c.source}-${c.off_barcode ?? c.name}-${i}`}>
-                <button
-                  onClick={() => add(c)}
-                  className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[var(--fill-soft)]"
-                >
-                  {c.source === "pantry" ? (
-                    <Package size={15} className="shrink-0 text-[var(--ink-teal)]" />
-                  ) : (
-                    <Globe size={15} className="shrink-0 text-[var(--muted)]" />
-                  )}
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">
-                      {c.name}
-                      {c.brand ? (
-                        <span className="text-[var(--muted)]"> · {c.brand}</span>
-                      ) : null}
+        {(searchingAny || results.length > 0 || webResults.length > 0) &&
+          parsed.term.length >= 2 && (
+            <ul className="absolute z-10 mt-1 flex w-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg">
+              {results.map((c, i) => (
+                <ResultRow key={`p-${i}`} c={c} i={i} />
+              ))}
+
+              {/* Web results sit under the pantry, behind a small divider so it's
+                  clear these come from Open Food Facts, not the user's shelves. */}
+              {webResults.length > 0 && (
+                <li className="border-t border-[var(--border)] bg-[var(--fill-soft)] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+                  From the web
+                </li>
+              )}
+              {webResults.map((c, i) => (
+                <ResultRow key={`w-${i}`} c={c} i={i} />
+              ))}
+
+              {searchingAny && results.length === 0 && webResults.length === 0 && (
+                <li className="px-4 py-3 text-sm text-[var(--muted)]">Searching…</li>
+              )}
+
+              {nothingYet && (
+                <li>
+                  <Link
+                    href={`/pantry/add?name=${encodeURIComponent(parsed.term)}`}
+                    className="flex w-full items-center gap-2 px-4 py-3 text-left transition hover:bg-[var(--fill-soft)]"
+                  >
+                    <PackagePlus size={15} className="shrink-0 text-[var(--ink-teal)]" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium">
+                        No match found
+                      </span>
+                      <span className="block text-xs text-[var(--muted)]">
+                        Add &ldquo;{parsed.term}&rdquo; to the pantry?
+                      </span>
                     </span>
-                    <span className="block text-xs text-[var(--muted)]">
-                      {c.source === "pantry" ? "In your pantry" : "Web"} ·{" "}
-                      {parsed.grams != null
-                        ? `add ${parsed.grams} g`
-                        : `${Math.round(c.kcal_100g)} kcal/100g`}
-                    </span>
-                  </span>
-                  <Plus size={16} className="shrink-0 text-[var(--muted)]" />
-                </button>
-              </li>
-            ))}
-            {!searching && results.length === 0 && (
-              <li>
-                <Link
-                  href={`/pantry/add?name=${encodeURIComponent(parsed.term)}`}
-                  className="flex w-full items-center gap-2 px-4 py-3 text-left transition hover:bg-[var(--fill-soft)]"
-                >
-                  <PackagePlus size={15} className="shrink-0 text-[var(--ink-teal)]" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium">
-                      Not in your pantry
-                    </span>
-                    <span className="block text-xs text-[var(--muted)]">
-                      Add &ldquo;{parsed.term}&rdquo; to the pantry?
-                    </span>
-                  </span>
-                </Link>
-              </li>
-            )}
-          </ul>
-        )}
+                  </Link>
+                </li>
+              )}
+            </ul>
+          )}
       </div>
     </>
   );
