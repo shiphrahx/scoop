@@ -767,6 +767,24 @@ describe("weeklyReview", () => {
     expect(r.changeKg).toBeNull();
   });
 
+  it("holds the calibration target fixed even when the maintenance estimate rises", () => {
+    // The whole point of calibration is a CONSTANT intake to measure against.
+    // A higher live maintenance estimate must not raise the target mid-window.
+    const r = weeklyReview({
+      sex: "male",
+      trend: tr(90, 89.9),
+      waistDeltaCm: null,
+      current,
+      phase: "calibration",
+      maintenanceKcal: 2600, // well above current 2000 — must be ignored
+      weightKg: 89.9,
+      heightCm: 180,
+      calibrationDaysRemaining: 5,
+    });
+    expect(r.changed).toBe(false);
+    expect(r.macros).toEqual(current);
+  });
+
   it("keeps macros on a healthy 0.5-1% weekly loss", () => {
     // 90 -> 89.4 kg = 0.6667% loss (inside the band)
     const r = weeklyReview({
