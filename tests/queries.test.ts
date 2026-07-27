@@ -222,6 +222,22 @@ describe("getCurrentTargets", () => {
     });
     expect((await getCurrentTargets())!.kcal).toBe(2000);
   });
+
+  it("pins a calibration target to the onboarding anchor, ignoring later drift", async () => {
+    atUkMidnight();
+    // A later calibration row crept the number up; the earliest calibration row
+    // is the fixed onboarding anchor and must win.
+    installFakeSupabase({
+      db: {
+        users: [profile("UTC")],
+        daily_targets: [
+          { ...target("2026-06-29", 2000), phase: "calibration" },
+          { ...target("2026-07-06", 2300), phase: "calibration" },
+        ],
+      },
+    });
+    expect((await getCurrentTargets())!.kcal).toBe(2000);
+  });
 });
 
 describe("hasApiKey", () => {
