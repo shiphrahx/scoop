@@ -68,17 +68,14 @@ import type {
 // Cached per request: almost every read below draws a day boundary, and each
 // one used to re-fetch this. It cannot change while a request is in flight.
 export const getTimezone = cache(async function getTimezone(): Promise<string> {
-  const supabase = await createClient();
-  const user = await getSessionUser();
-  if (!user) return DEFAULT_TIMEZONE;
+  // Reuse the cached profile instead of a second round trip to the same users
+  // row. Almost every request that draws a day boundary also reads the profile
+  // (the layout's onboarding gate alone does), so this is free there; where it
+  // isn't, it's the same single-row lookup by primary key.
+  const profile = await getProfile();
+  if (!profile) return DEFAULT_TIMEZONE;
 
-  const { data } = await supabase
-    .from("users")
-    .select("timezone")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  return safeTimezone((data as { timezone: string | null } | null)?.timezone);
+  return safeTimezone(profile.timezone);
 });
 
 // Today's date where the user is, as YYYY-MM-DD. Used for the planned_meals.date
