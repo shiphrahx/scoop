@@ -151,7 +151,7 @@ export interface HighDayStatus {
 // The user's best maintenance estimate, calibrated by their own results. This is
 // the ceiling a refeed day is raised to; null when we can't estimate it (missing
 // stats), which keeps refeeds switched off until we can.
-function maintenanceKcalFor(
+export function maintenanceKcalFor(
   profile: Profile | null,
   weightKg: number | null,
 ): number | null {

@@ -3,35 +3,29 @@
 import { useState, useTransition } from "react";
 import { Check, Minus, Plus } from "lucide-react";
 import { saveCycling } from "./actions";
-import {
-  HIGH_DAYS_SAFE_MAX,
-  HIGH_DAYS_SAFE_MIN,
-  computeSurplusCarbs,
-  lowDayCarbDrop,
-} from "@/lib/highday";
+import { HIGH_DAYS_SAFE_MAX, HIGH_DAYS_SAFE_MIN } from "@/lib/highday";
 
-// Calorie/carb cycling ("high days"). The user sets only two things: a master
-// toggle and — within a safe range — how many high days a week (defaulting to
-// the goal-based recommendation). The carb amount is CALCULATED, never typed:
-// the live preview shows how many carbs a high day adds and what each low day
-// gives back, and warns when a guardrail has trimmed the surplus. The weekly
-// total never changes.
+// Refeed days. The user sets only two things: a master toggle and — within a
+// safe range — how many refeed days a week (defaulting to the evidence-based 2).
+// The carbs are CALCULATED, never typed: a refeed raises that day up to
+// maintenance with extra carbs, and it's FREE (no other day is cut). The live
+// preview shows the uplift and is honest that refeed weeks lose a little less.
 export default function CyclingSettings({
   initial,
   recommended,
   base,
-  carbFloorG,
+  maintenanceKcal,
   locked = false,
 }: {
   initial: { enabled: boolean; highDaysPerWeek: number | null };
   recommended: number;
-  // The flat daily target this week — what the app cycles around. Null before
-  // onboarding sets one, in which case there's nothing to preview yet.
-  base: { kcal: number; carbs_g: number } | null;
-  // The user's carb floor, so the preview matches what the server enforces.
-  carbFloorG?: number;
-  // Cycling is locked during the calibration hold — no deficit yet, nothing to
-  // cycle around. Show why rather than hiding it.
+  // The flat deficit target this week. Null before onboarding sets one.
+  base: { kcal: number } | null;
+  // The user's maintenance estimate — the ceiling a refeed reaches. Null until
+  // it's confidently known, in which case refeeds can't be sized yet.
+  maintenanceKcal?: number | null;
+  // Refeeds are locked during the calibration hold — no deficit yet. Show why
+  // rather than hiding it.
   locked?: boolean;
 }) {
   const [enabled, setEnabled] = useState(initial.enabled);
@@ -42,14 +36,14 @@ export default function CyclingSettings({
   const [pending, startTransition] = useTransition();
 
   const effectiveCount = useRecommended ? recommended : count;
-  const lowDays = 7 - effectiveCount;
 
-  // The calculated surplus for the currently-chosen count, and whether a floor
-  // trimmed it. Mirrors the server maths so the preview is exact.
-  const { surplusCarbsG, capped } = base
-    ? computeSurplusCarbs(base, effectiveCount, carbFloorG)
-    : { surplusCarbsG: 0, capped: false };
-  const lowDrop = Math.round(lowDayCarbDrop(surplusCarbsG, effectiveCount));
+  // The extra carbs a refeed day carries: the whole gap up to maintenance, since
+  // only carbs move. Mirrors the server maths (refeedCarbUpliftG) so the preview
+  // is exact. Null maintenance → we can't size a refeed yet.
+  const upliftCarbsG =
+    base && maintenanceKcal != null
+      ? Math.max(0, Math.round((maintenanceKcal - base.kcal) / 4))
+      : null;
 
   const dirty =
     enabled !== initial.enabled ||
@@ -80,11 +74,11 @@ export default function CyclingSettings({
   if (locked) {
     return (
       <section className="flex w-full flex-col gap-2 sc-card p-5 text-left">
-        <h2 className="text-lg font-semibold">High days</h2>
+        <h2 className="text-lg font-semibold">Refeed days</h2>
         <p className="text-sm text-[var(--muted)]">
-          Spread your week into a few higher-carb days and the rest lower. This
-          unlocks once you finish calibrating and start your deficit — cycling an
-          uncalibrated plan just pushes your carbs too low.
+          Eat up to maintenance on a couple of chosen days to fuel workouts and
+          refill glycogen. This unlocks once you finish calibrating and start your
+          deficit — until then there&apos;s no deficit to take a break from.
         </p>
       </section>
     );
@@ -93,10 +87,12 @@ export default function CyclingSettings({
   return (
     <section className="flex w-full flex-col gap-4 sc-card p-5 text-left">
       <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold">High days</h2>
+        <h2 className="text-lg font-semibold">Refeed days</h2>
         <p className="text-sm text-[var(--muted)]">
-          Spread your week into a few higher-carb days and the rest lower. Your
-          weekly total stays exactly the same — it just moves around.
+          Eat up to maintenance on a few chosen days — extra carbs only, protein
+          and fat unchanged. They&apos;re free: no other day is cut, so a refeed
+          week loses a little less. They&apos;re for adherence and muscle, not
+          faster fat loss.
         </p>
       </div>
 
@@ -124,10 +120,10 @@ export default function CyclingSettings({
 
       {enabled && (
         <>
-          {/* High days per week — the only number the user sets. */}
+          {/* Refeed days per week — the only number the user sets. */}
           <div className="flex items-center gap-3">
             <div className="min-w-0 flex-1">
-              <p className="font-medium">High days per week</p>
+              <p className="font-medium">Refeed days per week</p>
               <p className="text-xs text-[var(--muted)]">
                 Recommended for your goal: {recommended}
                 {!useRecommended && count !== recommended && (
@@ -150,7 +146,7 @@ export default function CyclingSettings({
               onClick={() => bumpCount(-1)}
               disabled={pending || effectiveCount <= HIGH_DAYS_SAFE_MIN}
               className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90 disabled:opacity-40"
-              aria-label="Fewer high days"
+              aria-label="Fewer refeed days"
             >
               <Minus size={16} />
             </button>
@@ -161,7 +157,7 @@ export default function CyclingSettings({
               onClick={() => bumpCount(1)}
               disabled={pending || effectiveCount >= HIGH_DAYS_SAFE_MAX}
               className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] transition active:scale-90 disabled:opacity-40"
-              aria-label="More high days"
+              aria-label="More refeed days"
             >
               <Plus size={16} />
             </button>
@@ -171,25 +167,20 @@ export default function CyclingSettings({
               never types them. */}
           <div className="rounded-2xl bg-[var(--fill-soft)] p-4">
             <p className="font-medium">We&apos;ll do the carbs for you</p>
-            {base ? (
+            {upliftCarbsG != null && maintenanceKcal != null ? (
               <p className="mt-1 text-xs text-[var(--muted)]">
-                Each high day adds about{" "}
+                Each refeed day adds about{" "}
                 <span className="font-semibold text-[var(--ink)]">
-                  {surplusCarbsG} g carbs
+                  {upliftCarbsG} g carbs
                 </span>{" "}
-                (~{surplusCarbsG * 4} kcal). Your {lowDays} low day
-                {lowDays === 1 ? "" : "s"} give back ~{lowDrop} g each, so the
-                week is unchanged. Protein and fat stay the same every day.
+                (~{upliftCarbsG * 4} kcal) to reach your ~{maintenanceKcal} kcal
+                maintenance. It&apos;s free — no other day is cut — so a week with
+                refeeds loses a little less. Protein and fat stay the same.
               </p>
             ) : (
               <p className="mt-1 text-xs text-[var(--muted)]">
-                Finish setting up your targets and we&apos;ll size your high days
-                automatically.
-              </p>
-            )}
-            {capped && (
-              <p className="mt-2 text-xs font-medium text-[var(--ink-teal)]">
-                Kept a little smaller so your low days stay above a safe level.
+                We&apos;ll size your refeed days once we&apos;ve learned your
+                maintenance from your results.
               </p>
             )}
           </div>
@@ -208,7 +199,7 @@ export default function CyclingSettings({
             <Check size={18} /> Saved
           </>
         ) : (
-          "Save high days"
+          "Save refeed days"
         )}
       </button>
     </section>
