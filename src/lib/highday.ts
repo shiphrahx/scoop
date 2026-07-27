@@ -31,40 +31,42 @@ export const MIN_LOW_DAY_CARBS_G = 50;
 // day past the floor.
 export const SURPLUS_STEP_G = 5;
 
-// The count the user may dial to, around the goal-based recommendation. Kept
-// tight: a refeed is a few days at most, and every extra high day makes each low
-// day give more back — which is exactly what the floor protects.
+// The count the user may dial to, around the evidence-based default. A refeed is
+// a couple of days a week; more than that and it stops being a deficit.
 export const HIGH_DAYS_SAFE_MIN = 1;
-export const HIGH_DAYS_SAFE_MAX = 4;
+export const HIGH_DAYS_SAFE_MAX = 3;
 
-// Clamp a user's chosen high-days count to the safe adjustable range.
+// Clamp a user's chosen refeed-day count to the safe adjustable range.
 export function clampHighDaysChoice(n: number): number {
   if (!Number.isFinite(n)) return HIGH_DAYS_SAFE_MIN;
   return Math.max(HIGH_DAYS_SAFE_MIN, Math.min(HIGH_DAYS_SAFE_MAX, Math.round(n)));
 }
 
-// Recommended high days per week by loss pace. Faster loss leaves less room in
-// the week to move calories around, so it earns fewer high days; a gentle pace
-// (or maintenance) can carry more. Exposed so the mapping is easy to tune.
+// Two refeed days a week is the evidence-based default (Campbell/ICECAP): enough
+// to help adherence and refill glycogen without eroding the week's deficit. The
+// pace no longer changes this — because refeeds are now FREE (a refeed day eats
+// at maintenance and no other day pays it back), a faster pace doesn't need
+// fewer of them to stay balanced; it just means each refeed costs a little of
+// that week's deficit, which the projection shows honestly.
+export const REFEED_DAYS_DEFAULT = 2;
+
+// Kept for callers/tests that still read a per-pace map; every pace now defaults
+// to the same evidence-based count.
 export const HIGH_DAYS_BY_PACE: Record<GoalPace, number> = {
-  aggressive: 1,
-  steady: 2,
-  gentle: 3,
+  aggressive: REFEED_DAYS_DEFAULT,
+  steady: REFEED_DAYS_DEFAULT,
+  gentle: REFEED_DAYS_DEFAULT,
 };
 
-// Someone holding at maintenance (goal reached, or a diet break) has the most
-// freedom to cycle, so they get the top of the range.
+// At maintenance there's no deficit to protect, so a third refeed day is fine.
 export const MAINTENANCE_HIGH_DAYS = 3;
 
-// The high-days count to recommend for a user's goal. Maintenance overrides the
-// pace, since at maintenance the pace no longer describes what they're doing.
+// The refeed-day count to recommend. Refeeds are only offered once the deficit is
+// real and maintenance is calibrated, so calibration recommends none.
 export function recommendedHighDays(pace: GoalPace, phase: Phase = "deficit"): number {
-  // Cycling is locked during calibration: high days only make sense once the
-  // deficit is real and calibrated. Recommending them on an uncalibrated user is
-  // exactly where carbs get pushed far too low.
   if (phase === "calibration") return 0;
   if (phase === "maintenance") return MAINTENANCE_HIGH_DAYS;
-  return HIGH_DAYS_BY_PACE[pace];
+  return REFEED_DAYS_DEFAULT;
 }
 
 // A user's cycling settings, as the app holds them.
