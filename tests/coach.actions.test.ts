@@ -7,7 +7,7 @@ vi.mock("@/lib/supabase/server", async () => {
 });
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
-const { ensureReviewApplied } = await import("@/app/(app)/coach/actions");
+const { ensureReviewApplied, applyReview } = await import("@/app/(app)/coach/actions");
 
 const DAY = 86_400_000;
 const iso = (daysAgo: number) =>
@@ -60,12 +60,34 @@ function stalledUser() {
   };
 }
 
+// A user with no weigh-ins yet, so there's no trend for the review to act on: it
+// HOLDS with no macro change — the safe-to-auto-advance case. Same target
+// history as the stall.
+function heldReviewUser() {
+  return {
+    ...stalledUser(),
+    weights: [],
+  };
+}
+
 describe("ensureReviewApplied", () => {
-  it("is a no-op the second time, so it can run on every app open", async () => {
-    // This is the property that makes auto-running safe. Without it, mounting
-    // the review on a page the user reloads would rewrite next week's target
-    // over and over.
+  it("does NOT auto-apply a target change — a change is only a proposal", async () => {
+    // The app must never move the user's macros without them choosing to. A
+    // stall would cut calories; that cut waits for the user to apply it.
     const { db } = installFakeSupabase({ db: stalledUser() });
+    const before = db.daily_targets.length;
+
+    const applied = await ensureReviewApplied();
+
+    expect(applied).toBe(false);
+    expect(db.daily_targets).toHaveLength(before); // nothing written
+  });
+
+  it("auto-advances a HELD week (no change) so the chain stays unbroken, idempotently", async () => {
+    // Holding weeks carry no macro change, so writing them silently is fine — and
+    // necessary, or the run of weekly rows the adaptation gate counts breaks.
+    const { db } = installFakeSupabase({ db: heldReviewUser() });
+    const before = db.daily_targets.length;
 
     const first = await ensureReviewApplied();
     const afterFirst = db.daily_targets.length;
@@ -73,13 +95,12 @@ describe("ensureReviewApplied", () => {
 
     expect(first).toBe(true);
     expect(second).toBe(false);
+    expect(afterFirst).toBe(before + 1);
     expect(db.daily_targets).toHaveLength(afterFirst);
   });
 
-  it("writes next week's target rather than overwriting this week's", async () => {
-    // Changing the target the user is living under mid-week would move the goal
-    // posts on a day they've already half-eaten.
-    const { db } = installFakeSupabase({ db: stalledUser() });
+  it("writes next week's row, never overwriting this week's", async () => {
+    const { db } = installFakeSupabase({ db: heldReviewUser() });
     const thisWeekBefore = db.daily_targets.map((t) => Number(t.kcal));
 
     await ensureReviewApplied();
@@ -87,7 +108,7 @@ describe("ensureReviewApplied", () => {
     for (let i = 0; i < thisWeekBefore.length; i++) {
       expect(Number(db.daily_targets[i].kcal)).toBe(thisWeekBefore[i]);
     }
-    expect(db.daily_targets.length).toBeGreaterThan(thisWeekBefore.length);
+    expect(db.daily_targets.length).toBe(thisWeekBefore.length + 1);
   });
 
   it("does nothing at all when there is no target to review", async () => {
@@ -96,5 +117,19 @@ describe("ensureReviewApplied", () => {
     });
     expect(await ensureReviewApplied()).toBe(false);
     expect(db.daily_targets).toHaveLength(0);
+  });
+});
+
+describe("applyReview", () => {
+  it("writes the changed target when the user chooses to apply it", async () => {
+    // The manual path: the stall's cut only lands once the user opts in.
+    const { db } = installFakeSupabase({ db: stalledUser() });
+    const before = db.daily_targets.length;
+
+    await applyReview();
+
+    expect(db.daily_targets.length).toBe(before + 1);
+    const written = db.daily_targets[db.daily_targets.length - 1];
+    expect(Number(written.kcal)).toBeLessThan(2000); // a stall cuts calories
   });
 });
