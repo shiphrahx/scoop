@@ -1,28 +1,24 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_SURPLUS_CARBS_G,
   HIGH_DAYS_BY_PACE,
   HIGH_DAYS_SAFE_MAX,
   HIGH_DAYS_SAFE_MIN,
   MAINTENANCE_HIGH_DAYS,
-  MIN_LOW_DAY_CARBS_G,
-  SAFE_KCAL_FLOOR,
+  REFEED_DAYS_DEFAULT,
   WEEK_DAYS,
   clampHighDaysChoice,
-  computeSurplusCarbs,
-  dayCarbDelta,
+  cycleConfigFrom,
   dayTarget,
   effectiveHighDays,
   highDaysRemaining,
-  lowDayCarbDrop,
   recommendedHighDays,
+  refeedCarbUpliftG,
   resolveHighDaysAllowance,
-  cycleConfigFrom,
   type CycleConfig,
 } from "@/lib/highday";
 import type { Macros } from "@/lib/types";
 
-// A flat base daily target to redistribute.
+// A flat deficit daily target. Maintenance sits 500 kcal above it.
 const base: Required<Macros> = {
   kcal: 2000,
   protein_g: 150,
@@ -33,271 +29,172 @@ const base: Required<Macros> = {
   satfat_g: 22,
   sodium_mg: 2300,
 };
+const MAINTENANCE = 2500;
 
 const cfg = (over: Partial<CycleConfig> = {}): CycleConfig => ({
   enabled: true,
-  highDaysPerWeek: 2,
-  surplusCarbsG: DEFAULT_SURPLUS_CARBS_G,
+  refeedDaysPerWeek: 2,
+  maintenanceKcal: MAINTENANCE,
   ...over,
 });
 
 describe("recommendedHighDays", () => {
-  it("maps loss pace to a high-day count", () => {
-    expect(recommendedHighDays("aggressive")).toBe(1);
-    expect(recommendedHighDays("steady")).toBe(2);
-    expect(recommendedHighDays("gentle")).toBe(3);
-    expect(HIGH_DAYS_BY_PACE.aggressive).toBe(1);
+  it("defaults every deficit pace to the evidence-based two", () => {
+    expect(recommendedHighDays("aggressive")).toBe(REFEED_DAYS_DEFAULT);
+    expect(recommendedHighDays("steady")).toBe(REFEED_DAYS_DEFAULT);
+    expect(recommendedHighDays("gentle")).toBe(REFEED_DAYS_DEFAULT);
+    expect(REFEED_DAYS_DEFAULT).toBe(2);
   });
 
-  it("gives maintenance the top of the range regardless of pace", () => {
-    expect(recommendedHighDays("aggressive", "maintenance")).toBe(MAINTENANCE_HIGH_DAYS);
-    expect(recommendedHighDays("steady", "maintenance")).toBe(3);
+  it("gives maintenance the top of the range", () => {
+    expect(recommendedHighDays("steady", "maintenance")).toBe(MAINTENANCE_HIGH_DAYS);
   });
 
-  it("uses the pace on a deficit or diet break", () => {
-    expect(recommendedHighDays("aggressive", "deficit")).toBe(1);
-    expect(recommendedHighDays("gentle", "diet_break")).toBe(3);
-  });
-
-  it("offers no high days during calibration", () => {
+  it("offers no refeed days during calibration", () => {
+    expect(recommendedHighDays("steady", "calibration")).toBe(0);
     expect(recommendedHighDays("gentle", "calibration")).toBe(0);
   });
 });
 
-describe("cycling respects the carb floor", () => {
-  it("shrinks the high-day surplus so a low day never breaches the floor", () => {
-    const carbFloorG = 180;
-    const base = { kcal: 2000, carbs_g: 200 };
-    const { surplusCarbsG, capped } = computeSurplusCarbs(base, 2, carbFloorG);
-    // The ideal 50% refeed (100 g) can't fit — it's pulled back.
-    expect(capped).toBe(true);
-    // Each low day gives back at most what keeps it at/above the floor.
-    const lowDrop = lowDayCarbDrop(surplusCarbsG, 2);
-    expect(base.carbs_g - lowDrop).toBeGreaterThanOrEqual(carbFloorG);
+describe("calibration blocks refeeds (macros fixed)", () => {
+  const profile = { cycling_enabled: true, high_days_per_week: 3, goal_pace: "steady" as const };
+
+  it("disables cycling and offers no ceiling during calibration", () => {
+    const c = cycleConfigFrom(profile, "calibration", MAINTENANCE);
+    expect(c.enabled).toBe(false);
+    expect(c.refeedDaysPerWeek).toBe(0);
+    expect(c.maintenanceKcal).toBeNull();
   });
 
-  it("adds nothing when the base already sits at the floor", () => {
-    const carbFloorG = 200;
-    const { surplusCarbsG } = computeSurplusCarbs({ kcal: 2000, carbs_g: 200 }, 2, carbFloorG);
-    expect(surplusCarbsG).toBe(0);
+  it("leaves every day at the fixed target even if a day is flagged high", () => {
+    const c = cycleConfigFrom(profile, "calibration", MAINTENANCE);
+    expect(dayTarget(base, true, c)).toEqual(base);
+    expect(dayTarget(base, false, c)).toEqual(base);
   });
 });
 
-describe("cycling is locked during calibration", () => {
-  const profile = {
-    cycling_enabled: true,
-    high_days_per_week: 3, // even with a user override
-    goal_pace: "gentle" as const,
-  };
+describe("refeeds need a confident maintenance estimate", () => {
+  const profile = { cycling_enabled: true, high_days_per_week: 2, goal_pace: "steady" as const };
 
-  it("zeroes the allowance even when the user set a count", () => {
-    expect(resolveHighDaysAllowance(profile, "calibration")).toBe(0);
-    // Still honoured outside calibration.
-    expect(resolveHighDaysAllowance(profile, "deficit")).toBe(3);
+  it("stays off until maintenance is known", () => {
+    expect(cycleConfigFrom(profile, "deficit", null).enabled).toBe(false);
+    expect(cycleConfigFrom(profile, "deficit", 0).enabled).toBe(false);
+    expect(cycleConfigFrom(profile, "deficit", MAINTENANCE).enabled).toBe(true);
   });
 
-  it("forces the master switch off with no surplus", () => {
-    const c = cycleConfigFrom(profile, { kcal: 2000, carbs_g: 200 }, "calibration");
-    expect(c.enabled).toBe(false);
-    expect(c.highDaysPerWeek).toBe(0);
-    expect(c.surplusCarbsG).toBe(0);
+  it("applies no uplift with no maintenance, even on a flagged day", () => {
+    const c = cycleConfigFrom(profile, "deficit", null);
+    expect(dayTarget(base, true, c)).toEqual(base);
+  });
+});
+
+describe("dayTarget — free refeed at maintenance", () => {
+  it("raises a refeed day up to maintenance with carbs only", () => {
+    const day = dayTarget(base, true, cfg());
+    // The whole 500 kcal gap becomes carbs: 500 / 4 = 125 g.
+    expect(day.kcal).toBe(MAINTENANCE);
+    expect(day.carbs_g).toBe(base.carbs_g + 125);
+  });
+
+  it("never exceeds maintenance", () => {
+    const day = dayTarget(base, true, cfg());
+    expect(day.kcal).toBeLessThanOrEqual(MAINTENANCE);
+  });
+
+  it("holds protein and fat constant on a refeed day", () => {
+    const day = dayTarget(base, true, cfg());
+    expect(day.protein_g).toBe(base.protein_g);
+    expect(day.fat_g).toBe(base.fat_g);
+  });
+
+  it("leaves a deficit day exactly unchanged", () => {
+    expect(dayTarget(base, false, cfg())).toEqual(base);
+  });
+
+  it("does not borrow: a deficit day is identical whatever the refeed count", () => {
+    expect(dayTarget(base, false, cfg({ refeedDaysPerWeek: 1 }))).toEqual(base);
+    expect(dayTarget(base, false, cfg({ refeedDaysPerWeek: 3 }))).toEqual(base);
+  });
+
+  it("returns the flat target when cycling is off", () => {
+    expect(dayTarget(base, true, cfg({ enabled: false }))).toEqual(base);
+  });
+
+  it("adds nothing when the base already meets maintenance", () => {
+    const atMaintenance = { ...base, kcal: MAINTENANCE };
+    expect(dayTarget(atMaintenance, true, cfg())).toEqual(atMaintenance);
+  });
+});
+
+describe("refeedCarbUpliftG", () => {
+  it("is the whole gap up to maintenance, in grams of carbs", () => {
+    expect(refeedCarbUpliftG(base, cfg())).toBe(125);
+  });
+
+  it("is zero when cycling is off, maintenance is unknown, or base is already at it", () => {
+    expect(refeedCarbUpliftG(base, cfg({ enabled: false }))).toBe(0);
+    expect(refeedCarbUpliftG(base, cfg({ maintenanceKcal: null }))).toBe(0);
+    expect(refeedCarbUpliftG({ ...base, kcal: MAINTENANCE }, cfg())).toBe(0);
   });
 });
 
 describe("effectiveHighDays", () => {
   it("clamps to a range that always leaves one low day", () => {
-    expect(effectiveHighDays(-2)).toBe(0);
+    expect(effectiveHighDays(-1)).toBe(0);
+    expect(effectiveHighDays(WEEK_DAYS)).toBe(WEEK_DAYS - 1);
     expect(effectiveHighDays(2)).toBe(2);
-    expect(effectiveHighDays(7)).toBe(WEEK_DAYS - 1); // never all seven
-    expect(effectiveHighDays(99)).toBe(6);
-    expect(effectiveHighDays(1.9)).toBe(1); // floors fractions
-  });
-});
-
-describe("lowDayCarbDrop", () => {
-  it("balances the surplus across the low days", () => {
-    // 2 high days × 75 g must be given back by 5 low days → 30 g each.
-    expect(lowDayCarbDrop(75, 2)).toBeCloseTo(30, 6);
-    // 1 high day × 75 g over 6 low days → 12.5 g each.
-    expect(lowDayCarbDrop(75, 1)).toBeCloseTo(12.5, 6);
-  });
-
-  it("is zero when there's nothing to redistribute", () => {
-    expect(lowDayCarbDrop(75, 0)).toBe(0);
-    expect(lowDayCarbDrop(0, 2)).toBe(0);
   });
 });
 
 describe("clampHighDaysChoice", () => {
   it("holds the user's count inside the safe adjustable range", () => {
     expect(clampHighDaysChoice(0)).toBe(HIGH_DAYS_SAFE_MIN);
-    expect(clampHighDaysChoice(2)).toBe(2);
     expect(clampHighDaysChoice(99)).toBe(HIGH_DAYS_SAFE_MAX);
-    expect(clampHighDaysChoice(2.6)).toBe(3); // rounds
-    expect(clampHighDaysChoice(NaN)).toBe(HIGH_DAYS_SAFE_MIN);
+    expect(clampHighDaysChoice(2)).toBe(2);
+    expect(HIGH_DAYS_SAFE_MAX).toBe(3);
   });
 });
 
-describe("computeSurplusCarbs", () => {
-  it("calculates a surplus from the day's carbs, in clean steps", () => {
-    // Ideal = 50% of 200 g = 100 g, and the low days can give it back here.
-    const { surplusCarbsG, capped } = computeSurplusCarbs(base, 2);
-    expect(surplusCarbsG).toBe(100);
-    expect(capped).toBe(false);
-    expect(surplusCarbsG % 5).toBe(0);
+describe("resolveHighDaysAllowance", () => {
+  it("uses the user's chosen count when set", () => {
+    const p = { cycling_enabled: true, high_days_per_week: 3, goal_pace: "steady" as const };
+    expect(resolveHighDaysAllowance(p, "deficit")).toBe(3);
   });
 
-  it("caps the surplus so low days keep a safe minimum of carbs", () => {
-    // Small carb base: half of 70 g = 35 g ideal, but with 3 high days each of
-    // the 4 low days must keep >= MIN_LOW_DAY_CARBS_G, capping the surplus below.
-    const small = { ...base, carbs_g: 70, kcal: 2000 };
-    const { surplusCarbsG, capped } = computeSurplusCarbs(small, 3);
-    expect(capped).toBe(true);
-    const low = dayTarget(small, false, cfg({ highDaysPerWeek: 3, surplusCarbsG }));
-    expect(low.carbs_g).toBeGreaterThanOrEqual(MIN_LOW_DAY_CARBS_G);
+  it("falls back to the recommendation when the user hasn't chosen", () => {
+    const p = { cycling_enabled: true, high_days_per_week: null, goal_pace: "steady" as const };
+    expect(resolveHighDaysAllowance(p, "deficit")).toBe(REFEED_DAYS_DEFAULT);
   });
 
-  it("caps the surplus so no low day drops below the calorie floor", () => {
-    // A day already near the floor has almost no room to cut.
-    const lean = { ...base, kcal: SAFE_KCAL_FLOOR + 100, carbs_g: 150 };
-    const { surplusCarbsG } = computeSurplusCarbs(lean, 3);
-    const low = dayTarget(lean, false, cfg({ highDaysPerWeek: 3, surplusCarbsG }));
-    expect(low.kcal).toBeGreaterThanOrEqual(SAFE_KCAL_FLOOR);
+  it("is zero during calibration", () => {
+    const p = { cycling_enabled: true, high_days_per_week: 3, goal_pace: "steady" as const };
+    expect(resolveHighDaysAllowance(p, "calibration")).toBe(0);
   });
 
-  it("is zero when there's nothing to cycle", () => {
-    expect(computeSurplusCarbs(base, 0).surplusCarbsG).toBe(0);
-    expect(computeSurplusCarbs({ ...base, carbs_g: 0 }, 2).surplusCarbsG).toBe(0);
+  it("still maps a pace to the evidence-based default", () => {
+    expect(HIGH_DAYS_BY_PACE.aggressive).toBe(REFEED_DAYS_DEFAULT);
   });
-});
-
-describe("dayCarbDelta", () => {
-  it("adds the full surplus on a high day, a share back on a low day", () => {
-    expect(dayCarbDelta(true, cfg())).toBe(75);
-    expect(dayCarbDelta(false, cfg())).toBeCloseTo(-30, 6);
-  });
-
-  it("is flat when cycling is off or there are no high days", () => {
-    expect(dayCarbDelta(true, cfg({ enabled: false }))).toBe(0);
-    expect(dayCarbDelta(true, cfg({ highDaysPerWeek: 0 }))).toBe(0);
-  });
-});
-
-describe("dayTarget", () => {
-  it("moves carbs (and energy) but holds protein and fat", () => {
-    const high = dayTarget(base, true, cfg());
-    expect(high.carbs_g).toBe(275); // +75 g
-    expect(high.kcal).toBe(2000 + 75 * 4); // energy follows carbs
-    expect(high.protein_g).toBe(base.protein_g);
-    expect(high.fat_g).toBe(base.fat_g);
-
-    const low = dayTarget(base, false, cfg());
-    expect(low.carbs_g).toBeCloseTo(170, 6); // −30 g
-    expect(low.kcal).toBeCloseTo(2000 - 30 * 4, 6);
-    expect(low.protein_g).toBe(base.protein_g);
-  });
-
-  it("returns the flat target when cycling is off", () => {
-    expect(dayTarget(base, true, cfg({ enabled: false }))).toEqual(base);
-    expect(dayTarget(base, false, cfg({ enabled: false }))).toEqual(base);
-  });
-
-  it("never drives carbs negative", () => {
-    const tiny: Required<Macros> = { ...base, carbs_g: 10, kcal: 500 };
-    const low = dayTarget(tiny, false, cfg({ highDaysPerWeek: 6, surplusCarbsG: 100 }));
-    expect(low.carbs_g).toBeGreaterThanOrEqual(0);
-  });
-});
-
-describe("weekly-total invariant", () => {
-  // The whole point: a week of high + low days sums to the same total as seven
-  // flat days. Checked across every allowed high-day count and a couple of
-  // surpluses, on the raw (unrounded) values.
-  const flatWeek = (m: Required<Macros>) => ({
-    kcal: m.kcal * WEEK_DAYS,
-    carbs_g: m.carbs_g * WEEK_DAYS,
-    protein_g: m.protein_g * WEEK_DAYS,
-    fat_g: m.fat_g * WEEK_DAYS,
-  });
-
-  for (let highDays = 1; highDays <= WEEK_DAYS - 1; highDays++) {
-    for (const surplusCarbsG of [50, 75, 120]) {
-      // Only meaningful where the low day can actually give the surplus back —
-      // i.e. its carb drop doesn't run into the zero floor. Outside that range
-      // the config is degenerate (e.g. 6 high days + a huge surplus) and no
-      // redistribution could preserve the total.
-      if (lowDayCarbDrop(surplusCarbsG, highDays) > base.carbs_g) continue;
-      it(`holds for ${highDays} high day(s), +${surplusCarbsG} g carbs`, () => {
-        const c = cfg({ highDaysPerWeek: highDays, surplusCarbsG });
-        let kcal = 0;
-        let carbs = 0;
-        let protein = 0;
-        let fat = 0;
-        for (let d = 0; d < WEEK_DAYS; d++) {
-          const isHigh = d < highDays;
-          const t = dayTarget(base, isHigh, c);
-          kcal += t.kcal;
-          carbs += t.carbs_g;
-          protein += t.protein_g;
-          fat += t.fat_g;
-        }
-        const flat = flatWeek(base);
-        expect(kcal).toBeCloseTo(flat.kcal, 6);
-        expect(carbs).toBeCloseTo(flat.carbs_g, 6);
-        expect(protein).toBeCloseTo(flat.protein_g, 6);
-        expect(fat).toBeCloseTo(flat.fat_g, 6);
-      });
-    }
-  }
-});
-
-describe("weekly-total invariant with the CALCULATED surplus", () => {
-  // The real feature: with the app-calculated surplus (no user input), a week of
-  // high + low days still sums to seven flat days for kcal AND every macro,
-  // across the whole safe count range.
-  for (let highDays = HIGH_DAYS_SAFE_MIN; highDays <= HIGH_DAYS_SAFE_MAX; highDays++) {
-    it(`holds for ${highDays} calculated high day(s)`, () => {
-      const { surplusCarbsG } = computeSurplusCarbs(base, highDays);
-      const c = cfg({ highDaysPerWeek: highDays, surplusCarbsG });
-      let kcal = 0;
-      let carbs = 0;
-      let protein = 0;
-      let fat = 0;
-      for (let d = 0; d < WEEK_DAYS; d++) {
-        const t = dayTarget(base, d < highDays, c);
-        kcal += t.kcal;
-        carbs += t.carbs_g;
-        protein += t.protein_g;
-        fat += t.fat_g;
-      }
-      expect(kcal).toBeCloseTo(base.kcal * WEEK_DAYS, 6);
-      expect(carbs).toBeCloseTo(base.carbs_g * WEEK_DAYS, 6);
-      expect(protein).toBeCloseTo(base.protein_g * WEEK_DAYS, 6);
-      expect(fat).toBeCloseTo(base.fat_g * WEEK_DAYS, 6);
-    });
-
-    it(`makes high days bigger and low days smaller for ${highDays} high day(s)`, () => {
-      const { surplusCarbsG } = computeSurplusCarbs(base, highDays);
-      const c = cfg({ highDaysPerWeek: highDays, surplusCarbsG });
-      const high = dayTarget(base, true, c);
-      const low = dayTarget(base, false, c);
-      // True refeed: energy up on a high day, down on a low day.
-      expect(high.kcal).toBeGreaterThan(base.kcal);
-      expect(low.kcal).toBeLessThan(base.kcal);
-      // Only carbs move; protein and fat are identical every day.
-      expect(high.protein_g).toBe(base.protein_g);
-      expect(low.protein_g).toBe(base.protein_g);
-      expect(high.fat_g).toBe(base.fat_g);
-      expect(low.fat_g).toBe(base.fat_g);
-    });
-  }
 });
 
 describe("highDaysRemaining", () => {
-  it("counts down the weekly allowance and never goes negative", () => {
+  it("counts down the weekly count and never goes negative", () => {
     expect(highDaysRemaining(2, 0)).toBe(2);
     expect(highDaysRemaining(2, 1)).toBe(1);
     expect(highDaysRemaining(2, 2)).toBe(0);
-    expect(highDaysRemaining(2, 5)).toBe(0); // over-taken still floors at 0
+    expect(highDaysRemaining(2, 5)).toBe(0);
+  });
+});
+
+describe("weekly effect is honestly smaller on refeed weeks", () => {
+  it("a refeed week eats more than seven deficit days (deficit shrinks)", () => {
+    const refeeds = 2;
+    const week =
+      refeeds * dayTarget(base, true, cfg()).kcal +
+      (WEEK_DAYS - refeeds) * dayTarget(base, false, cfg()).kcal;
+    const flatWeek = WEEK_DAYS * base.kcal;
+    // Free refeeds add calories back — the week is NOT calorie-neutral.
+    expect(week).toBeGreaterThan(flatWeek);
+    // And the extra is exactly the uplift on each refeed day (nothing borrowed).
+    expect(week - flatWeek).toBe(refeeds * refeedCarbUpliftG(base, cfg()) * 4);
   });
 });
