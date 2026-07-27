@@ -10,7 +10,6 @@ import {
   adherence as computeAdherence,
   calibrationComplete,
   calibrationDaysRemaining,
-  carbFloorTargetG,
   deficitPerDay,
   inCalibration as computeInCalibration,
   nextPhase,
@@ -41,6 +40,7 @@ import {
   cycleConfigFrom,
   dayTarget as dayTargetMacros,
   highDaysRemaining,
+  refeedCarbUpliftG,
   resolveHighDaysAllowance,
   roundMacros,
 } from "@/lib/highday";
@@ -127,11 +127,11 @@ export const getCurrentTargets = cache(async function getCurrentTargets(): Promi
   return (data as DailyTargets) ?? null;
 });
 
-// The high-day picture for one calendar day: whether cycling is on, whether this
-// day is a high day, the weekly allowance and how much of it is left, and the
-// day's actual macro target (high, low, or — cycling off — the flat base). One
-// read the planner and the home ring both build on. `target` is null only when
-// there's no base target yet (onboarding unfinished).
+// The refeed picture for one calendar day: whether refeeds are available, whether
+// this day is a refeed, the weekly count and how much is left, the extra carbs a
+// refeed carries, and the day's actual macro target. One read the planner and the
+// home ring both build on. `target` is null only when there's no base target yet
+// (onboarding unfinished).
 export interface HighDayStatus {
   weekStart: string;
   enabled: boolean;
@@ -139,9 +139,46 @@ export interface HighDayStatus {
   allowance: number;
   taken: number;
   remaining: number;
-  surplusCarbsG: number;
+  // The carbs a refeed day adds on top of the deficit target (the whole gap up to
+  // maintenance). 0 when refeeds aren't available.
+  upliftCarbsG: number;
+  // The maintenance ceiling a refeed is raised to, for the UI to explain the cap.
+  maintenanceKcal: number | null;
   base: DailyTargets | null;
   target: Required<Macros> | null;
+}
+
+// The user's best maintenance estimate, calibrated by their own results. This is
+// the ceiling a refeed day is raised to; null when we can't estimate it (missing
+// stats), which keeps refeeds switched off until we can.
+function maintenanceKcalFor(
+  profile: Profile | null,
+  weightKg: number | null,
+): number | null {
+  if (
+    profile?.height_cm &&
+    profile.sex &&
+    profile.birth_year &&
+    weightKg != null &&
+    weightKg > 0
+  ) {
+    return Math.round(
+      tdee({
+        sex: profile.sex,
+        diet: profile.diet_type ?? "regular",
+        weightKg,
+        heightCm: Number(profile.height_cm),
+        age: ageFromBirthYear(profile.birth_year),
+        activity: profile.activity_level ?? "sedentary",
+        bodyFatPct: profile.body_fat_pct,
+        goalWeightKg: profile.goal_weight_kg,
+        tdeeCalibration: profile.tdee_calibration,
+      }),
+    );
+  }
+  return profile?.estimated_maintenance_kcal != null
+    ? Number(profile.estimated_maintenance_kcal)
+    : null;
 }
 
 export async function getHighDayStatus(date: string): Promise<HighDayStatus> {
@@ -152,10 +189,8 @@ export async function getHighDayStatus(date: string): Promise<HighDayStatus> {
     getLatestWeight(),
   ]);
   const weekStart = weekStartOf(date);
-  // The user's real carb floor, so a low day's carb give-back never breaches it.
-  const carbFloorG = weightKg != null ? carbFloorTargetG(weightKg) : undefined;
 
-  // Every high day the user has taken this week (RLS scopes it to them).
+  // Every refeed day the user has taken this week (RLS scopes it to them).
   const { data: rows } = await supabase
     .from("high_days")
     .select("date")
@@ -163,27 +198,26 @@ export async function getHighDayStatus(date: string): Promise<HighDayStatus> {
   const highDates = ((rows as { date: string }[]) ?? []).map((r) => r.date);
   const isHigh = highDates.includes(date);
 
-  // Cycling is locked during the calibration hold. The phase rides on the
-  // in-force target row, so reading it here needs no recompute.
+  // Phase rides on the in-force target row, so reading it here needs no recompute.
   const phase: Phase = (base?.phase as Phase | undefined) ?? "deficit";
-  const enabled = phase !== "calibration" && (profile?.cycling_enabled ?? false);
-  const allowance = profile
-    ? resolveHighDaysAllowance(profile, phase)
-    : 0;
-  // The surplus is derived from the day's base target now, not stored.
+  const maintenanceKcal = maintenanceKcalFor(profile, weightKg);
+  // cycleConfigFrom gates on calibration and on having a maintenance estimate, so
+  // refeeds stay off until the deficit is real and maintenance is known.
   const cfg = profile
-    ? cycleConfigFrom(profile, base, phase, carbFloorG)
-    : { enabled: false, highDaysPerWeek: 0, surplusCarbsG: 0 };
-  const surplusCarbsG = cfg.surplusCarbsG;
+    ? cycleConfigFrom(profile, phase, maintenanceKcal)
+    : { enabled: false, refeedDaysPerWeek: 0, maintenanceKcal: null };
+  const allowance = cfg.refeedDaysPerWeek;
+  const upliftCarbsG = base ? Math.round(refeedCarbUpliftG(base, cfg)) : 0;
 
   return {
     weekStart,
-    enabled,
+    enabled: cfg.enabled,
     isHigh,
     allowance,
     taken: highDates.length,
     remaining: highDaysRemaining(allowance, highDates.length),
-    surplusCarbsG,
+    upliftCarbsG,
+    maintenanceKcal: cfg.maintenanceKcal,
     base,
     target: base ? roundMacros(dayTargetMacros(base, isHigh, cfg)) : null,
   };
