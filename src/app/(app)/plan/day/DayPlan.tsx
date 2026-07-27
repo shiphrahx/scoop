@@ -392,6 +392,9 @@ function FoodSearchBox({
   // always shows first and the web search — which is slower — fills in behind it.
   const [webResults, setWebResults] = useState<FoodChoice[]>([]);
   const [webSearching, setWebSearching] = useState(false);
+  // Type-in-the-macros fallback, for a food that's in neither the pantry nor OFF
+  // (a coffee-shop treat, a homemade thing). Seeded with whatever's been typed.
+  const [manualOpen, setManualOpen] = useState(false);
 
   const parsed = useMemo(() => parseFoodQuery(query), [query]);
 
@@ -526,7 +529,128 @@ function FoodSearchBox({
             </ul>
           )}
       </div>
+
+      {manualOpen ? (
+        <ManualMacros
+          defaultName={parsed.term}
+          onCancel={() => setManualOpen(false)}
+          onAdd={(c) => {
+            onPick(c, c.unit_g ?? 100);
+            setManualOpen(false);
+            setQuery("");
+            setResults([]);
+            setWebResults([]);
+          }}
+        />
+      ) : (
+        <button
+          onClick={() => setManualOpen(true)}
+          className="self-start text-sm font-medium text-[var(--ink-teal)]"
+        >
+          Can&apos;t find it? Enter the macros
+        </button>
+      )}
     </>
+  );
+}
+
+// Type in a food's macros by hand — for a treat that's in neither the pantry nor
+// Open Food Facts. The numbers entered are the macros of ONE portion of it, so
+// they're stored as the per-100g values on a 100 g unit: adding one "portion"
+// contributes exactly what was typed, and the stepper counts whole portions.
+function ManualMacros({
+  defaultName,
+  onAdd,
+  onCancel,
+}: {
+  defaultName: string;
+  onAdd: (c: FoodChoice) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(defaultName);
+  const [kcal, setKcal] = useState("");
+  const [protein, setProtein] = useState("");
+  const [carbs, setCarbs] = useState("");
+  const [fat, setFat] = useState("");
+
+  const num = (s: string) => {
+    const n = Number(s);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  };
+  const valid = name.trim().length > 0 && num(kcal) > 0;
+
+  function add() {
+    onAdd({
+      name: name.trim(),
+      source: "off",
+      off_barcode: null,
+      brand: null,
+      // The portion's macros live on a 100 g unit, so one unit == what was typed.
+      kcal_100g: num(kcal),
+      protein_100g: num(protein),
+      carbs_100g: num(carbs),
+      fat_100g: num(fat),
+      fiber_100g: 0,
+      sugar_100g: 0,
+      satfat_100g: 0,
+      sodium_mg_100g: 0,
+      pack_size_g: null,
+      unit_g: 100,
+      unit_label: "portion",
+      unit_options: null,
+    });
+  }
+
+  const fields: [string, string, (v: string) => void][] = [
+    ["Calories (kcal)", kcal, setKcal],
+    ["Protein (g)", protein, setProtein],
+    ["Carbs (g)", carbs, setCarbs],
+    ["Fat (g)", fat, setFat],
+  ];
+
+  return (
+    <div className="flex flex-col gap-2 rounded-2xl bg-[var(--fill-soft)] p-3">
+      <label className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+        Enter the macros for one portion
+      </label>
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="What is it? e.g. Blueberry muffin"
+        className="sc-input w-full"
+        autoFocus
+      />
+      <div className="grid grid-cols-2 gap-2">
+        {fields.map(([label, value, set]) => (
+          <label key={label} className="flex flex-col gap-1">
+            <span className="text-xs text-[var(--muted)]">{label}</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              value={value}
+              onChange={(e) => set(e.target.value)}
+              placeholder="0"
+              className="sc-input w-full tabular-nums"
+            />
+          </label>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={onCancel}
+          className="sc-btn sc-btn-neutral flex-1"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={add}
+          disabled={!valid}
+          className="sc-btn sc-btn-soft flex-1"
+        >
+          Add
+        </button>
+      </div>
+    </div>
   );
 }
 
