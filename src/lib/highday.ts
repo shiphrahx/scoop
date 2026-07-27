@@ -76,6 +76,23 @@ export function effectiveHighDays(highDaysPerWeek: number): number {
   return Math.max(0, Math.min(WEEK_DAYS - 1, Math.floor(highDaysPerWeek)));
 }
 
+// Energy per kg of body mass, for turning a weekly calorie deficit into a rate.
+const KCAL_PER_KG = 7700;
+
+// The week's calorie deficit once refeed days are counted. Each refeed day sits
+// AT maintenance (zero deficit that day); the rest keep the full daily deficit.
+// Because refeeds are free, this is genuinely smaller than seven deficit days —
+// the honest number to project a rate from, not the flat 7-day figure.
+export function weeklyDeficitKcal(dailyDeficitKcal: number, refeedDays: number): number {
+  const refeeds = Math.max(0, Math.min(WEEK_DAYS, Math.round(refeedDays)));
+  return Math.max(0, dailyDeficitKcal) * (WEEK_DAYS - refeeds);
+}
+
+// Expected weekly weight loss (kg) implied by a weekly calorie deficit.
+export function expectedWeeklyLossKg(weekDeficitKcal: number): number {
+  return Math.max(0, weekDeficitKcal) / KCAL_PER_KG;
+}
+
 // The extra carbs a refeed day carries: the whole gap between the deficit target
 // and maintenance, since carbs are the only macro that moves. Zero when cycling
 // is off, maintenance isn't known, or the base already meets maintenance.

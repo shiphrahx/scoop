@@ -10,10 +10,12 @@ import {
   cycleConfigFrom,
   dayTarget,
   effectiveHighDays,
+  expectedWeeklyLossKg,
   highDaysRemaining,
   recommendedHighDays,
   refeedCarbUpliftG,
   resolveHighDaysAllowance,
+  weeklyDeficitKcal,
   type CycleConfig,
 } from "@/lib/highday";
 import type { Macros } from "@/lib/types";
@@ -196,5 +198,20 @@ describe("weekly effect is honestly smaller on refeed weeks", () => {
     expect(week).toBeGreaterThan(flatWeek);
     // And the extra is exactly the uplift on each refeed day (nothing borrowed).
     expect(week - flatWeek).toBe(refeeds * refeedCarbUpliftG(base, cfg()) * 4);
+  });
+
+  it("weeklyDeficitKcal drops one daily deficit per refeed day", () => {
+    const daily = MAINTENANCE - base.kcal; // 500
+    expect(weeklyDeficitKcal(daily, 0)).toBe(daily * 7);
+    expect(weeklyDeficitKcal(daily, 2)).toBe(daily * 5);
+    expect(weeklyDeficitKcal(daily, 2)).toBeLessThan(weeklyDeficitKcal(daily, 0));
+  });
+
+  it("projects a correspondingly smaller weekly loss on refeed weeks", () => {
+    const daily = MAINTENANCE - base.kcal;
+    const flat = expectedWeeklyLossKg(weeklyDeficitKcal(daily, 0));
+    const withRefeeds = expectedWeeklyLossKg(weeklyDeficitKcal(daily, 2));
+    expect(withRefeeds).toBeLessThan(flat);
+    expect(withRefeeds).toBeCloseTo((daily * 5) / 7700, 5);
   });
 });
