@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, Pencil, AlertTriangle, AlertCircle, CopyPlus, UtensilsCrossed, Info, Star } from "lucide-react";
-import type { FavouriteMeal, FoodChoice, Macros, MealPortion, PlannedMeal, PlanItem, UnitOption } from "@/lib/types";
+import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, Pencil, AlertTriangle, AlertCircle, CopyPlus, UtensilsCrossed, Info, Star, ScanBarcode } from "lucide-react";
+import BarcodeScanner from "@/components/BarcodeScannerLazy";
+import type { FavouriteMeal, FoodChoice, Macros, MealPortion, OffProduct, PlannedMeal, PlanItem, UnitOption } from "@/lib/types";
 import { sumItems, sumMacros } from "@/lib/types";
 import { mealToItems } from "@/lib/favourites";
 import { pantryUnitLabel } from "@/lib/freshfoods";
@@ -395,8 +396,50 @@ function FoodSearchBox({
   // Type-in-the-macros fallback, for a food that's in neither the pantry nor OFF
   // (a coffee-shop treat, a homemade thing). Seeded with whatever's been typed.
   const [manualOpen, setManualOpen] = useState(false);
+  // Barcode scan for a packaged item that isn't in the pantry — looked up on OFF
+  // and added like any other food, so a scanned treat needs no typing.
+  const [scanning, setScanning] = useState(false);
+  const [scanNote, setScanNote] = useState<string | null>(null);
 
   const parsed = useMemo(() => parseFoodQuery(query), [query]);
+
+  // Look a scanned barcode up on Open Food Facts and add it as a food. The same
+  // endpoint the pantry and meal-picker scanners use; a miss tells the user to
+  // search or type the macros instead.
+  async function handleScan(barcode: string) {
+    setScanning(false);
+    setScanNote("Looking up…");
+    try {
+      const res = await fetch(`/api/off/${encodeURIComponent(barcode)}`);
+      if (!res.ok) {
+        setScanNote(`No match for ${barcode}. Search or enter the macros instead.`);
+        return;
+      }
+      const p = (await res.json()) as OffProduct;
+      const c: FoodChoice = {
+        name: p.name,
+        source: "off",
+        off_barcode: p.barcode,
+        brand: null,
+        kcal_100g: p.kcal_100g,
+        protein_100g: p.protein_100g,
+        carbs_100g: p.carbs_100g,
+        fat_100g: p.fat_100g,
+        fiber_100g: p.fiber_100g,
+        sugar_100g: p.sugar_100g,
+        satfat_100g: p.satfat_100g,
+        sodium_mg_100g: p.sodium_mg_100g,
+        pack_size_g: p.pack_size_g,
+        unit_g: p.unit_g,
+        unit_label: p.unit_label,
+        unit_options: null,
+      };
+      onPick(c, seedGrams(c, null));
+      setScanNote(`Added ${p.name}.`);
+    } catch {
+      setScanNote("Lookup failed. Search or enter the macros instead.");
+    }
+  }
 
   // Debounced search on the food name only. All state updates happen inside the
   // timer (never synchronously in the effect). Pantry and web run in parallel;
@@ -543,12 +586,34 @@ function FoodSearchBox({
           }}
         />
       ) : (
-        <button
-          onClick={() => setManualOpen(true)}
-          className="self-start text-sm font-medium text-[var(--ink-teal)]"
-        >
-          Can&apos;t find it? Enter the macros
-        </button>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <button
+            onClick={() => {
+              setScanNote(null);
+              setScanning(true);
+            }}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--ink-teal)]"
+          >
+            <ScanBarcode size={16} /> Scan a barcode
+          </button>
+          <button
+            onClick={() => setManualOpen(true)}
+            className="text-sm font-medium text-[var(--ink-teal)]"
+          >
+            Enter the macros
+          </button>
+        </div>
+      )}
+
+      {scanNote && (
+        <p className="text-xs font-medium text-[var(--muted)]">{scanNote}</p>
+      )}
+
+      {scanning && (
+        <BarcodeScanner
+          onDetected={handleScan}
+          onClose={() => setScanning(false)}
+        />
       )}
     </>
   );
