@@ -66,7 +66,7 @@ export default async function DayBody({
           isHigh={highDay.isHigh}
           remaining={highDay.remaining}
           allowance={highDay.allowance}
-          surplusCarbsG={highDay.surplusCarbsG}
+          upliftCarbsG={highDay.upliftCarbsG}
         />
       )}
 

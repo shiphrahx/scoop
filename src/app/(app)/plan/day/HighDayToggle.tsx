@@ -4,21 +4,21 @@ import { useState, useTransition } from "react";
 import { Flame } from "lucide-react";
 import { setHighDay } from "./actions";
 
-// "Make this a high day" for the day being planned. Shows how many high days are
-// left this week and blocks taking one when the allowance is spent. Only rendered
-// when cycling is on (the page decides that); here we assume it's on.
+// "Make this a refeed day" for the day being planned. Shows how many refeeds are
+// left this week and blocks taking one when the count is spent. Only rendered
+// when refeeds are available (the page decides that); here we assume they are.
 export default function HighDayToggle({
   date,
   isHigh,
   remaining,
   allowance,
-  surplusCarbsG,
+  upliftCarbsG,
 }: {
   date?: string;
   isHigh: boolean;
   remaining: number;
   allowance: number;
-  surplusCarbsG: number;
+  upliftCarbsG: number;
 }) {
   const [pending, startTransition] = useTransition();
   const [err, setErr] = useState<string | null>(null);
@@ -46,14 +46,14 @@ export default function HighDayToggle({
       <div className="flex items-center gap-2">
         <Flame size={18} className="shrink-0 text-[var(--ink-teal)]" />
         <span className="font-semibold">
-          {isHigh ? "This is a high day" : "High day"}
+          {isHigh ? "This is a refeed day" : "Refeed day"}
         </span>
       </div>
 
       <p className="text-sm text-[var(--muted)]">
         {isHigh
-          ? `Today carries an extra ${surplusCarbsG} g of carbs — your low days cover it, so the week is unchanged.`
-          : "A high day adds extra carbs to fuel a workout or a heavier day. Your other days give it back, so your weekly total doesn't move."}
+          ? `Today eats up to maintenance — about ${upliftCarbsG} g more carbs. It's free: no other day is cut for it, so this week's deficit is a little smaller.`
+          : "A refeed day raises today up to your maintenance calories (extra carbs only) to fuel a workout and refill glycogen. It's free — no other day is cut — so it's for adherence and muscle, not faster fat loss."}
       </p>
 
       <button
@@ -66,13 +66,13 @@ export default function HighDayToggle({
           : isHigh
             ? "Make it a normal day"
             : noneLeft
-              ? "No high days left this week"
-              : "Make this a high day"}
+              ? "No refeed days left this week"
+              : "Make this a refeed day"}
       </button>
 
       {!isHigh && !noneLeft && (
         <p className="text-center text-xs text-[var(--muted)]">
-          You still have {remaining} high day{remaining === 1 ? "" : "s"} left this week.
+          You still have {remaining} refeed day{remaining === 1 ? "" : "s"} left this week.
         </p>
       )}
       {noneLeft && (
