@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, Pencil, AlertTriangle, AlertCircle, CopyPlus, UtensilsCrossed, Info, Star } from "lucide-react";
-import type { FavouriteMeal, FoodChoice, Macros, MealPortion, PlannedMeal, PlanItem, UnitOption } from "@/lib/types";
+import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, Pencil, AlertTriangle, AlertCircle, CopyPlus, UtensilsCrossed, Info, Star, ScanBarcode } from "lucide-react";
+import BarcodeScanner from "@/components/BarcodeScannerLazy";
+import type { FavouriteMeal, FoodChoice, Macros, MealPortion, OffProduct, PlannedMeal, PlanItem, UnitOption } from "@/lib/types";
 import { sumItems, sumMacros } from "@/lib/types";
 import { mealToItems } from "@/lib/favourites";
 import { pantryUnitLabel } from "@/lib/freshfoods";
@@ -20,6 +21,7 @@ import {
 import { NutrientStats, FIT_TEXT } from "@/components/NutrientBreakdown";
 import {
   searchFoods,
+  searchWeb,
   setMealItems,
   setMealPortions,
   clearSlot,
@@ -365,6 +367,20 @@ function FitVerdict({
 // screen, not here. Typing an
 // amount with the item ("50g shreddies") sets the grams; otherwise the pack
 // size (or 100 g) seeds it.
+// Seed a sensible starting amount for a chosen food: the amount the user typed
+// ("50g shreddies"), else one unit for a countable food (one bagel), else the
+// pack size when it's a single serving, otherwise 100 g.
+function seedGrams(c: FoodChoice, typed: number | null): number {
+  return (
+    typed ??
+    (c.unit_g && c.unit_g > 0
+      ? c.unit_g
+      : c.pack_size_g && c.pack_size_g <= 500
+        ? c.pack_size_g
+        : 100)
+  );
+}
+
 function FoodSearchBox({
   onPick,
 }: {
@@ -373,28 +389,82 @@ function FoodSearchBox({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FoodChoice[]>([]);
   const [searching, setSearching] = useState(false);
+  // Web (Open Food Facts) results, kept apart from the pantry so the pantry
+  // always shows first and the web search — which is slower — fills in behind it.
+  const [webResults, setWebResults] = useState<FoodChoice[]>([]);
+  const [webSearching, setWebSearching] = useState(false);
+  // Type-in-the-macros fallback, for a food that's in neither the pantry nor OFF
+  // (a coffee-shop treat, a homemade thing). Seeded with whatever's been typed.
+  const [manualOpen, setManualOpen] = useState(false);
+  // Barcode scan for a packaged item that isn't in the pantry — looked up on OFF
+  // and added like any other food, so a scanned treat needs no typing.
+  const [scanning, setScanning] = useState(false);
+  const [scanNote, setScanNote] = useState<string | null>(null);
 
   const parsed = useMemo(() => parseFoodQuery(query), [query]);
 
+  // Look a scanned barcode up on Open Food Facts and add it as a food. The same
+  // endpoint the pantry and meal-picker scanners use; a miss tells the user to
+  // search or type the macros instead.
+  async function handleScan(barcode: string) {
+    setScanning(false);
+    setScanNote("Looking up…");
+    try {
+      const res = await fetch(`/api/off/${encodeURIComponent(barcode)}`);
+      if (!res.ok) {
+        setScanNote(`No match for ${barcode}. Search or enter the macros instead.`);
+        return;
+      }
+      const p = (await res.json()) as OffProduct;
+      const c: FoodChoice = {
+        name: p.name,
+        source: "off",
+        off_barcode: p.barcode,
+        brand: null,
+        kcal_100g: p.kcal_100g,
+        protein_100g: p.protein_100g,
+        carbs_100g: p.carbs_100g,
+        fat_100g: p.fat_100g,
+        fiber_100g: p.fiber_100g,
+        sugar_100g: p.sugar_100g,
+        satfat_100g: p.satfat_100g,
+        sodium_mg_100g: p.sodium_mg_100g,
+        pack_size_g: p.pack_size_g,
+        unit_g: p.unit_g,
+        unit_label: p.unit_label,
+        unit_options: null,
+      };
+      onPick(c, seedGrams(c, null));
+      setScanNote(`Added ${p.name}.`);
+    } catch {
+      setScanNote("Lookup failed. Search or enter the macros instead.");
+    }
+  }
+
   // Debounced search on the food name only. All state updates happen inside the
-  // timer (never synchronously in the effect).
+  // timer (never synchronously in the effect). Pantry and web run in parallel;
+  // each writes its own state so a slow web reply never holds up the pantry list.
   useEffect(() => {
     const term = parsed.term;
     const t = setTimeout(
       async () => {
         if (term.length < 2) {
           setResults([]);
+          setWebResults([]);
           setSearching(false);
+          setWebSearching(false);
           return;
         }
         setSearching(true);
-        try {
-          setResults(await searchFoods(term));
-        } catch {
-          setResults([]);
-        } finally {
-          setSearching(false);
-        }
+        setWebSearching(true);
+        searchFoods(term)
+          .then(setResults)
+          .catch(() => setResults([]))
+          .finally(() => setSearching(false));
+        searchWeb(term)
+          .then(setWebResults)
+          .catch(() => setWebResults([]))
+          .finally(() => setWebSearching(false));
       },
       term.length < 2 ? 0 : 300,
     );
@@ -402,18 +472,46 @@ function FoodSearchBox({
   }, [parsed.term]);
 
   function add(c: FoodChoice) {
-    // Honour the amount the user typed; else seed one unit for a countable food
-    // (one bagel), otherwise the pack size, otherwise 100 g.
-    const grams =
-      parsed.grams ??
-      (c.unit_g && c.unit_g > 0
-        ? c.unit_g
-        : c.pack_size_g && c.pack_size_g <= 500
-          ? c.pack_size_g
-          : 100);
-    onPick(c, grams);
+    onPick(c, seedGrams(c, parsed.grams));
     setQuery("");
     setResults([]);
+    setWebResults([]);
+  }
+
+  const searchingAny = searching || webSearching;
+  const nothingYet =
+    !searchingAny && results.length === 0 && webResults.length === 0;
+
+  function ResultRow({ c, i }: { c: FoodChoice; i: number }) {
+    return (
+      <li key={`${c.source}-${c.off_barcode ?? c.name}-${i}`}>
+        <button
+          onClick={() => add(c)}
+          className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[var(--fill-soft)]"
+        >
+          {c.source === "pantry" ? (
+            <Package size={15} className="shrink-0 text-[var(--ink-teal)]" />
+          ) : (
+            <Globe size={15} className="shrink-0 text-[var(--muted)]" />
+          )}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium">
+              {c.name}
+              {c.brand ? (
+                <span className="text-[var(--muted)]"> · {c.brand}</span>
+              ) : null}
+            </span>
+            <span className="block text-xs text-[var(--muted)]">
+              {c.source === "pantry" ? "In your pantry" : "Web"} ·{" "}
+              {parsed.grams != null
+                ? `add ${parsed.grams} g`
+                : `${Math.round(c.kcal_100g)} kcal/100g`}
+            </span>
+          </span>
+          <Plus size={16} className="shrink-0 text-[var(--muted)]" />
+        </button>
+      </li>
+    );
   }
 
   return (
@@ -431,62 +529,193 @@ function FoodSearchBox({
           style={{ paddingLeft: "2.5rem" }}
         />
 
-        {(searching || results.length > 0) && parsed.term.length >= 2 && (
-          <ul className="absolute z-10 mt-1 flex w-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg">
-            {searching && results.length === 0 && (
-              <li className="px-4 py-3 text-sm text-[var(--muted)]">Searching…</li>
-            )}
-            {results.map((c, i) => (
-              <li key={`${c.source}-${c.off_barcode ?? c.name}-${i}`}>
-                <button
-                  onClick={() => add(c)}
-                  className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[var(--fill-soft)]"
-                >
-                  {c.source === "pantry" ? (
-                    <Package size={15} className="shrink-0 text-[var(--ink-teal)]" />
-                  ) : (
-                    <Globe size={15} className="shrink-0 text-[var(--muted)]" />
-                  )}
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">
-                      {c.name}
-                      {c.brand ? (
-                        <span className="text-[var(--muted)]"> · {c.brand}</span>
-                      ) : null}
+        {(searchingAny || results.length > 0 || webResults.length > 0) &&
+          parsed.term.length >= 2 && (
+            <ul className="absolute z-10 mt-1 flex w-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg">
+              {results.map((c, i) => (
+                <ResultRow key={`p-${i}`} c={c} i={i} />
+              ))}
+
+              {/* Web results sit under the pantry, behind a small divider so it's
+                  clear these come from Open Food Facts, not the user's shelves. */}
+              {webResults.length > 0 && (
+                <li className="border-t border-[var(--border)] bg-[var(--fill-soft)] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+                  From the web
+                </li>
+              )}
+              {webResults.map((c, i) => (
+                <ResultRow key={`w-${i}`} c={c} i={i} />
+              ))}
+
+              {searchingAny && results.length === 0 && webResults.length === 0 && (
+                <li className="px-4 py-3 text-sm text-[var(--muted)]">Searching…</li>
+              )}
+
+              {nothingYet && (
+                <li>
+                  <Link
+                    href={`/pantry/add?name=${encodeURIComponent(parsed.term)}`}
+                    className="flex w-full items-center gap-2 px-4 py-3 text-left transition hover:bg-[var(--fill-soft)]"
+                  >
+                    <PackagePlus size={15} className="shrink-0 text-[var(--ink-teal)]" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium">
+                        No match found
+                      </span>
+                      <span className="block text-xs text-[var(--muted)]">
+                        Add &ldquo;{parsed.term}&rdquo; to the pantry?
+                      </span>
                     </span>
-                    <span className="block text-xs text-[var(--muted)]">
-                      {c.source === "pantry" ? "In your pantry" : "Web"} ·{" "}
-                      {parsed.grams != null
-                        ? `add ${parsed.grams} g`
-                        : `${Math.round(c.kcal_100g)} kcal/100g`}
-                    </span>
-                  </span>
-                  <Plus size={16} className="shrink-0 text-[var(--muted)]" />
-                </button>
-              </li>
-            ))}
-            {!searching && results.length === 0 && (
-              <li>
-                <Link
-                  href={`/pantry/add?name=${encodeURIComponent(parsed.term)}`}
-                  className="flex w-full items-center gap-2 px-4 py-3 text-left transition hover:bg-[var(--fill-soft)]"
-                >
-                  <PackagePlus size={15} className="shrink-0 text-[var(--ink-teal)]" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium">
-                      Not in your pantry
-                    </span>
-                    <span className="block text-xs text-[var(--muted)]">
-                      Add &ldquo;{parsed.term}&rdquo; to the pantry?
-                    </span>
-                  </span>
-                </Link>
-              </li>
-            )}
-          </ul>
-        )}
+                  </Link>
+                </li>
+              )}
+            </ul>
+          )}
       </div>
+
+      {manualOpen ? (
+        <ManualMacros
+          defaultName={parsed.term}
+          onCancel={() => setManualOpen(false)}
+          onAdd={(c) => {
+            onPick(c, c.unit_g ?? 100);
+            setManualOpen(false);
+            setQuery("");
+            setResults([]);
+            setWebResults([]);
+          }}
+        />
+      ) : (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <button
+            onClick={() => {
+              setScanNote(null);
+              setScanning(true);
+            }}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--ink-teal)]"
+          >
+            <ScanBarcode size={16} /> Scan a barcode
+          </button>
+          <button
+            onClick={() => setManualOpen(true)}
+            className="text-sm font-medium text-[var(--ink-teal)]"
+          >
+            Enter the macros
+          </button>
+        </div>
+      )}
+
+      {scanNote && (
+        <p className="text-xs font-medium text-[var(--muted)]">{scanNote}</p>
+      )}
+
+      {scanning && (
+        <BarcodeScanner
+          onDetected={handleScan}
+          onClose={() => setScanning(false)}
+        />
+      )}
     </>
+  );
+}
+
+// Type in a food's macros by hand — for a treat that's in neither the pantry nor
+// Open Food Facts. The numbers entered are the macros of ONE portion of it, so
+// they're stored as the per-100g values on a 100 g unit: adding one "portion"
+// contributes exactly what was typed, and the stepper counts whole portions.
+function ManualMacros({
+  defaultName,
+  onAdd,
+  onCancel,
+}: {
+  defaultName: string;
+  onAdd: (c: FoodChoice) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(defaultName);
+  const [kcal, setKcal] = useState("");
+  const [protein, setProtein] = useState("");
+  const [carbs, setCarbs] = useState("");
+  const [fat, setFat] = useState("");
+
+  const num = (s: string) => {
+    const n = Number(s);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  };
+  const valid = name.trim().length > 0 && num(kcal) > 0;
+
+  function add() {
+    onAdd({
+      name: name.trim(),
+      source: "off",
+      off_barcode: null,
+      brand: null,
+      // The portion's macros live on a 100 g unit, so one unit == what was typed.
+      kcal_100g: num(kcal),
+      protein_100g: num(protein),
+      carbs_100g: num(carbs),
+      fat_100g: num(fat),
+      fiber_100g: 0,
+      sugar_100g: 0,
+      satfat_100g: 0,
+      sodium_mg_100g: 0,
+      pack_size_g: null,
+      unit_g: 100,
+      unit_label: "portion",
+      unit_options: null,
+    });
+  }
+
+  const fields: [string, string, (v: string) => void][] = [
+    ["Calories (kcal)", kcal, setKcal],
+    ["Protein (g)", protein, setProtein],
+    ["Carbs (g)", carbs, setCarbs],
+    ["Fat (g)", fat, setFat],
+  ];
+
+  return (
+    <div className="flex flex-col gap-2 rounded-2xl bg-[var(--fill-soft)] p-3">
+      <label className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+        Enter the macros for one portion
+      </label>
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="What is it? e.g. Blueberry muffin"
+        className="sc-input w-full"
+        autoFocus
+      />
+      <div className="grid grid-cols-2 gap-2">
+        {fields.map(([label, value, set]) => (
+          <label key={label} className="flex flex-col gap-1">
+            <span className="text-xs text-[var(--muted)]">{label}</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              value={value}
+              onChange={(e) => set(e.target.value)}
+              placeholder="0"
+              className="sc-input w-full tabular-nums"
+            />
+          </label>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={onCancel}
+          className="sc-btn sc-btn-neutral flex-1"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={add}
+          disabled={!valid}
+          className="sc-btn sc-btn-soft flex-1"
+        >
+          Add
+        </button>
+      </div>
+    </div>
   );
 }
 

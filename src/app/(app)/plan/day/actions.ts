@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { isFoodAllowed } from "@/lib/ai";
 import { mealToItems } from "@/lib/favourites";
 import { planPickedDay, portionGrams, type PantryFood } from "@/lib/mealplan";
+import { searchProducts } from "@/lib/off";
 import { macrosPer100gSchema, parseOrThrow, portionGramsSchema } from "@/lib/validate";
 import {
   getConsumedForDate,
@@ -149,6 +150,40 @@ export async function searchFoods(query: string): Promise<FoodChoice[]> {
     unit_label: p.unit_label,
     unit_options: p.unit_options ?? null,
   }));
+}
+
+// Search Open Food Facts by name — for a food the user is eating that isn't in
+// their pantry (an impromptu treat bought out, a one-off item). Returns the same
+// FoodChoice shape as the pantry search, tagged source "off", so the meal
+// builder adds it exactly like a pantry food. Ranking lives in searchProducts;
+// this just maps the candidates and drops any with no calories (an empty shell
+// can't be portioned). Empty on a blank query or an OFF outage — never blocks.
+export async function searchWeb(query: string): Promise<FoodChoice[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+  await requireUser();
+
+  const candidates = await searchProducts(q, 8);
+  return candidates
+    .filter((c) => c.kcal_100g > 0)
+    .map((c) => ({
+      name: c.name,
+      source: "off" as const,
+      off_barcode: c.code,
+      brand: c.brand,
+      kcal_100g: c.kcal_100g,
+      protein_100g: c.protein_100g,
+      carbs_100g: c.carbs_100g,
+      fat_100g: c.fat_100g,
+      fiber_100g: c.fiber_100g,
+      sugar_100g: c.sugar_100g,
+      satfat_100g: c.satfat_100g,
+      sodium_mg_100g: c.sodium_mg_100g,
+      pack_size_g: c.pack_size_g,
+      unit_g: c.unit_g,
+      unit_label: c.unit_label,
+      unit_options: null,
+    }));
 }
 
 // Save the list of foods the user picked for a slot. Empty list clears the
