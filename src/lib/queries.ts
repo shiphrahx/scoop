@@ -111,6 +111,9 @@ export const getProfile = cache(async function getProfile(): Promise<Profile | n
 // (getHighDayStatus) and the coach underneath it in the same render, and nothing
 // writes a target then re-reads it inside one request. One daily_targets round
 // trip instead of one per caller.
+const TARGET_COLS =
+  "week_start, phase, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg";
+
 export const getCurrentTargets = cache(async function getCurrentTargets(): Promise<DailyTargets | null> {
   const supabase = await createClient();
   const tz = await getTimezone();
@@ -118,13 +121,31 @@ export const getCurrentTargets = cache(async function getCurrentTargets(): Promi
   // over on the user's Monday, not the server's.
   const { data } = await supabase
     .from("daily_targets")
-    .select("week_start, phase, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg")
+    .select(TARGET_COLS)
     .lte("week_start", localWeekStart(tz))
     .order("week_start", { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  return (data as DailyTargets) ?? null;
+  const latest = (data as DailyTargets) ?? null;
+
+  // During calibration the target is FIXED at the one set when calibration began.
+  // If any later row drifted the number up (an older build recomputed it from a
+  // moving maintenance estimate), ignore it and return the earliest
+  // calibration-phase row — the true onboarding anchor — so the number can't
+  // creep and any past creep is undone.
+  if (latest?.phase === "calibration") {
+    const { data: anchor } = await supabase
+      .from("daily_targets")
+      .select(TARGET_COLS)
+      .eq("phase", "calibration")
+      .order("week_start", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    return (anchor as DailyTargets) ?? latest;
+  }
+
+  return latest;
 });
 
 // The refeed picture for one calendar day: whether refeeds are available, whether
