@@ -3,7 +3,12 @@
 import { useState, useTransition } from "react";
 import { Check, Minus, Plus } from "lucide-react";
 import { saveCycling } from "./actions";
-import { HIGH_DAYS_SAFE_MAX, HIGH_DAYS_SAFE_MIN } from "@/lib/highday";
+import {
+  HIGH_DAYS_SAFE_MAX,
+  HIGH_DAYS_SAFE_MIN,
+  expectedWeeklyLossKg,
+  weeklyDeficitKcal,
+} from "@/lib/highday";
 
 // Refeed days. The user sets only two things: a master toggle and — within a
 // safe range — how many refeed days a week (defaulting to the evidence-based 2).
@@ -44,6 +49,18 @@ export default function CyclingSettings({
     base && maintenanceKcal != null
       ? Math.max(0, Math.round((maintenanceKcal - base.kcal) / 4))
       : null;
+
+  // The honest weekly effect: free refeeds shrink the week's deficit, so the
+  // projected loss is smaller with them than without. Shown so the trade is
+  // never hidden. Null when we can't size it yet.
+  const dailyDeficit =
+    base && maintenanceKcal != null ? Math.max(0, maintenanceKcal - base.kcal) : null;
+  const lossWithRefeeds =
+    dailyDeficit != null
+      ? expectedWeeklyLossKg(weeklyDeficitKcal(dailyDeficit, effectiveCount))
+      : null;
+  const lossFlat =
+    dailyDeficit != null ? expectedWeeklyLossKg(weeklyDeficitKcal(dailyDeficit, 0)) : null;
 
   const dirty =
     enabled !== initial.enabled ||
@@ -174,8 +191,19 @@ export default function CyclingSettings({
                   {upliftCarbsG} g carbs
                 </span>{" "}
                 (~{upliftCarbsG * 4} kcal) to reach your ~{maintenanceKcal} kcal
-                maintenance. It&apos;s free — no other day is cut — so a week with
-                refeeds loses a little less. Protein and fat stay the same.
+                maintenance. It&apos;s free — no other day is cut. Protein and fat
+                stay the same.
+                {lossWithRefeeds != null && lossFlat != null && lossFlat > 0 && (
+                  <>
+                    {" "}
+                    Expect to lose about{" "}
+                    <span className="font-semibold text-[var(--ink)]">
+                      {lossWithRefeeds.toFixed(2)} kg
+                    </span>{" "}
+                    this week, versus {lossFlat.toFixed(2)} kg with no refeeds —
+                    the trade for easier days.
+                  </>
+                )}
               </p>
             ) : (
               <p className="mt-1 text-xs text-[var(--muted)]">
