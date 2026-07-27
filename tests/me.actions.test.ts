@@ -102,7 +102,7 @@ describe("saveCycling", () => {
     await saveCycling({ enabled: true, highDaysPerWeek: 9 });
 
     expect(db.users[0].cycling_enabled).toBe(true);
-    expect(db.users[0].high_days_per_week).toBe(4); // HIGH_DAYS_SAFE_MAX
+    expect(db.users[0].high_days_per_week).toBe(3); // HIGH_DAYS_SAFE_MAX
     // The carb amount is calculated, not stored, so nothing is written for it.
     expect(db.users[0].high_day_surplus_g_carbs).toBeUndefined();
   });

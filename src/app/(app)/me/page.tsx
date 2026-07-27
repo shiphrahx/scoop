@@ -7,7 +7,6 @@ import NutrientSettings from "./NutrientSettings";
 import SlotWeightsSettings from "./SlotWeightsSettings";
 import { DEFAULT_MEAL_SLOTS } from "@/lib/types";
 import { recommendedHighDays } from "@/lib/highday";
-import { carbFloorTargetG } from "@/lib/coach";
 import SignOutButton from "@/components/SignOutButton";
 import {
   AppleIngest,
@@ -17,7 +16,13 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth";
 import { decryptSecret } from "@/lib/crypto";
-import { getCurrentTargets, getLatestWeight, getProfile, hasApiKey } from "@/lib/queries";
+import {
+  getCurrentTargets,
+  getLatestWeight,
+  getProfile,
+  hasApiKey,
+  maintenanceKcalFor,
+} from "@/lib/queries";
 
 // Turn the ?fitbit= result of the OAuth round-trip into a one-line banner.
 const FITBIT_NOTES: Record<string, string> = {
@@ -111,8 +116,8 @@ export default async function MePage({
               highDaysPerWeek: profile.high_days_per_week,
             }}
             recommended={recommendedHighDays(profile.goal_pace)}
-            base={targets ? { kcal: targets.kcal, carbs_g: targets.carbs_g } : null}
-            carbFloorG={weightKg != null ? carbFloorTargetG(weightKg) : undefined}
+            base={targets ? { kcal: targets.kcal } : null}
+            maintenanceKcal={maintenanceKcalFor(profile, weightKg)}
             locked={targets?.phase === "calibration"}
           />
         </>

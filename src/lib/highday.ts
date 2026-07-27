@@ -1,80 +1,70 @@
-// Calorie/carb cycling ("high days") — pure maths, no AI, no DB.
+// Refeed days ("high days") — pure maths, no AI, no DB.
 //
-// The one rule that must never break: the WEEKLY total is fixed. Fat loss is
-// driven by the week's calorie total, not its day-to-day shape; cycling only
-// redistributes that fixed total into a few higher-intake days (mostly extra
-// carbs) and the rest a little lower, to help adherence and fuel workouts.
+// The model the successful studies use (Campbell/ICECAP refeeds, MATADOR diet
+// breaks): a refeed day eats UP TO maintenance and is FREE — nothing is
+// subtracted from any other day to pay for it. Deficit days stay exactly at
+// their normal deficit macros. This deliberately makes the week's deficit a
+// little smaller on weeks with refeeds; that cost is shown honestly rather than
+// hidden by borrowing carbs back from other days (which pushed low days too low).
 //
-// So a high day ADDS a carb surplus and each low day SUBTRACTS a share of it,
-// sized precisely so the seven days sum back to seven flat days. Carbs are the
-// only lever: protein holds steady all week (it protects muscle in a deficit),
-// and fat holds too. Energy moves only as far as the carbs do (4 kcal/g).
+// Carbs are the only lever: protein holds identical every day (it protects
+// muscle in a deficit), fat holds steady, and the gap between the deficit target
+// and maintenance is filled with carbs — capped so a refeed never exceeds
+// maintenance.
 
 import type { Phase } from "@/lib/coach";
 import type { GoalPace, Macros, Profile } from "@/lib/types";
 
 export const WEEK_DAYS = 7;
 
-// A typical high-day carb surplus, ~75 g ≈ 300 kcal. The app no longer stores a
-// user-entered surplus — computeSurplusCarbs derives one from the day's carb
-// target — but this stays as a sensible reference value for tests and copy.
-export const DEFAULT_SURPLUS_CARBS_G = 75;
-
-// --- Guardrails for the CALCULATED carb surplus ---------------------------
-// A high day aims to add this fraction of the day's base carbs...
-export const REFEED_CARB_FRACTION = 0.5;
-// ...but never so much that a low day drops below a safe calorie floor...
-export const SAFE_KCAL_FLOOR = 1200;
-// ...or is stripped below this many carbs.
-export const MIN_LOW_DAY_CARBS_G = 50;
-// The surplus is rounded DOWN to a clean step, so rounding can never push a low
-// day past the floor.
-export const SURPLUS_STEP_G = 5;
-
-// The count the user may dial to, around the goal-based recommendation. Kept
-// tight: a refeed is a few days at most, and every extra high day makes each low
-// day give more back — which is exactly what the floor protects.
+// The count the user may dial to, around the evidence-based default. A refeed is
+// a couple of days a week; more than that and it stops being a deficit.
 export const HIGH_DAYS_SAFE_MIN = 1;
-export const HIGH_DAYS_SAFE_MAX = 4;
+export const HIGH_DAYS_SAFE_MAX = 3;
 
-// Clamp a user's chosen high-days count to the safe adjustable range.
+// Clamp a user's chosen refeed-day count to the safe adjustable range.
 export function clampHighDaysChoice(n: number): number {
   if (!Number.isFinite(n)) return HIGH_DAYS_SAFE_MIN;
   return Math.max(HIGH_DAYS_SAFE_MIN, Math.min(HIGH_DAYS_SAFE_MAX, Math.round(n)));
 }
 
-// Recommended high days per week by loss pace. Faster loss leaves less room in
-// the week to move calories around, so it earns fewer high days; a gentle pace
-// (or maintenance) can carry more. Exposed so the mapping is easy to tune.
+// Two refeed days a week is the evidence-based default (Campbell/ICECAP): enough
+// to help adherence and refill glycogen without eroding the week's deficit. The
+// pace no longer changes this — because refeeds are now FREE (a refeed day eats
+// at maintenance and no other day pays it back), a faster pace doesn't need
+// fewer of them to stay balanced; it just means each refeed costs a little of
+// that week's deficit, which the projection shows honestly.
+export const REFEED_DAYS_DEFAULT = 2;
+
+// Kept for callers/tests that still read a per-pace map; every pace now defaults
+// to the same evidence-based count.
 export const HIGH_DAYS_BY_PACE: Record<GoalPace, number> = {
-  aggressive: 1,
-  steady: 2,
-  gentle: 3,
+  aggressive: REFEED_DAYS_DEFAULT,
+  steady: REFEED_DAYS_DEFAULT,
+  gentle: REFEED_DAYS_DEFAULT,
 };
 
-// Someone holding at maintenance (goal reached, or a diet break) has the most
-// freedom to cycle, so they get the top of the range.
+// At maintenance there's no deficit to protect, so a third refeed day is fine.
 export const MAINTENANCE_HIGH_DAYS = 3;
 
-// The high-days count to recommend for a user's goal. Maintenance overrides the
-// pace, since at maintenance the pace no longer describes what they're doing.
+// The refeed-day count to recommend. Refeeds are only offered once the deficit is
+// real and maintenance is calibrated, so calibration recommends none.
 export function recommendedHighDays(pace: GoalPace, phase: Phase = "deficit"): number {
-  // Cycling is locked during calibration: high days only make sense once the
-  // deficit is real and calibrated. Recommending them on an uncalibrated user is
-  // exactly where carbs get pushed far too low.
   if (phase === "calibration") return 0;
   if (phase === "maintenance") return MAINTENANCE_HIGH_DAYS;
-  return HIGH_DAYS_BY_PACE[pace];
+  return REFEED_DAYS_DEFAULT;
 }
 
-// A user's cycling settings, as the app holds them.
+// A user's refeed settings, as the app holds them.
 export interface CycleConfig {
   enabled: boolean;
-  // How many high days a week. Kept in the allowed range [0, WEEK_DAYS - 1] by
-  // effectiveHighDays; there must be at least one low day to give the surplus
-  // back to, so it can never reach WEEK_DAYS.
-  highDaysPerWeek: number;
-  surplusCarbsG: number;
+  // How many refeed days a week the user is allowed. Only the count is set here;
+  // the user still picks WHICH days.
+  refeedDaysPerWeek: number;
+  // The calorie ceiling a refeed day is raised to. Null when maintenance isn't
+  // confidently estimated yet (still calibrating) — in which case no refeed
+  // uplift is applied and every day stays at its deficit target.
+  maintenanceKcal: number | null;
 }
 
 // The high-days count actually used: the user's own, clamped to a sane range.
@@ -86,84 +76,40 @@ export function effectiveHighDays(highDaysPerWeek: number): number {
   return Math.max(0, Math.min(WEEK_DAYS - 1, Math.floor(highDaysPerWeek)));
 }
 
-// Grams of carbs each LOW day gives up, so the week nets to zero:
-//   lowDrop × lowDays = surplus × highDays
-// With highDays high days and (WEEK_DAYS − highDays) low days, this is exactly
-// what keeps the seven-day carb (and therefore calorie) total unchanged.
-// Returns 0 when there are no high days, or no low days to draw from.
-export function lowDayCarbDrop(
-  surplusCarbsG: number,
-  highDaysPerWeek: number,
-  weekDays: number = WEEK_DAYS,
-): number {
-  const high = effectiveHighDays(highDaysPerWeek);
-  const low = weekDays - high;
-  if (high <= 0 || low <= 0 || !(surplusCarbsG > 0)) return 0;
-  return (surplusCarbsG * high) / low;
+// Energy per kg of body mass, for turning a weekly calorie deficit into a rate.
+const KCAL_PER_KG = 7700;
+
+// The week's calorie deficit once refeed days are counted. Each refeed day sits
+// AT maintenance (zero deficit that day); the rest keep the full daily deficit.
+// Because refeeds are free, this is genuinely smaller than seven deficit days —
+// the honest number to project a rate from, not the flat 7-day figure.
+export function weeklyDeficitKcal(dailyDeficitKcal: number, refeedDays: number): number {
+  const refeeds = Math.max(0, Math.min(WEEK_DAYS, Math.round(refeedDays)));
+  return Math.max(0, dailyDeficitKcal) * (WEEK_DAYS - refeeds);
 }
 
-// The carb surplus a high day should carry — CALCULATED, never entered. A high
-// day aims to add REFEED_CARB_FRACTION of the day's base carbs, but the surplus
-// is capped so the low days that pay it back never fall below a safe calorie
-// floor (SAFE_KCAL_FLOOR) or lose too many carbs (MIN_LOW_DAY_CARBS_G). Surplus
-// and each low day's give-back stay tied through lowDayCarbDrop, so the weekly
-// total is preserved for any value this returns. `capped` is true when a
-// guardrail pulled the surplus below the ideal refeed — the UI says so when it
-// does, so the user knows why their high day is smaller than they might expect.
-export function computeSurplusCarbs(
-  base: Pick<Macros, "kcal" | "carbs_g">,
-  highDaysPerWeek: number,
-  // The user's real carb floor (per bodyweight, from the Coach maths). A low day
-  // may never fall below it. Omitted → the flat MIN_LOW_DAY_CARBS_G fallback,
-  // kept so callers without a weight still get a safe (if looser) guardrail.
-  carbFloorG: number = MIN_LOW_DAY_CARBS_G,
-): { surplusCarbsG: number; capped: boolean } {
-  const high = effectiveHighDays(highDaysPerWeek);
-  const low = WEEK_DAYS - high;
-  if (high <= 0 || low <= 0 || !(base.carbs_g > 0)) {
-    return { surplusCarbsG: 0, capped: false };
-  }
-
-  // What we'd add with no limits: a set fraction of the day's carbs.
-  const ideal = base.carbs_g * REFEED_CARB_FRACTION;
-
-  // The most a single low day may give back before it hits a floor: its carbs
-  // can't fall below the carb floor, and its energy (carbs at 4 kcal/g) can't
-  // fall below SAFE_KCAL_FLOOR. The tighter of the two wins. Protein and fat
-  // don't move, so a carb-only cut can't touch them.
-  const floor = Math.max(MIN_LOW_DAY_CARBS_G, carbFloorG);
-  const maxCutByCarbs = Math.max(0, base.carbs_g - floor);
-  const maxCutByKcal = Math.max(0, (base.kcal - SAFE_KCAL_FLOOR) / 4);
-  const maxCut = Math.min(maxCutByCarbs, maxCutByKcal);
-  // lowCut = surplus × high / low, so the cut ceiling caps the surplus.
-  const maxSurplus = (maxCut * low) / high;
-
-  const raw = Math.min(ideal, maxSurplus);
-  // Round DOWN to a clean step so rounding never breaches the floor.
-  const surplusCarbsG = Math.max(0, Math.floor(raw / SURPLUS_STEP_G) * SURPLUS_STEP_G);
-  return { surplusCarbsG, capped: maxSurplus < ideal };
+// Expected weekly weight loss (kg) implied by a weekly calorie deficit.
+export function expectedWeeklyLossKg(weekDeficitKcal: number): number {
+  return Math.max(0, weekDeficitKcal) / KCAL_PER_KG;
 }
 
-// The carb delta applied to a single day: up by the full surplus on a high day,
-// down by each low day's share otherwise. High days that don't exist (allowance
-// 0) leave every day flat.
-export function dayCarbDelta(isHigh: boolean, cfg: CycleConfig): number {
-  const high = effectiveHighDays(cfg.highDaysPerWeek);
-  if (!cfg.enabled || high <= 0) return 0;
-  return isHigh
-    ? cfg.surplusCarbsG
-    : -lowDayCarbDrop(cfg.surplusCarbsG, high);
+// The extra carbs a refeed day carries: the whole gap between the deficit target
+// and maintenance, since carbs are the only macro that moves. Zero when cycling
+// is off, maintenance isn't known, or the base already meets maintenance.
+export function refeedCarbUpliftG(base: Pick<Macros, "kcal">, cfg: CycleConfig): number {
+  if (!cfg.enabled || cfg.maintenanceKcal == null) return 0;
+  const gapKcal = cfg.maintenanceKcal - base.kcal;
+  return gapKcal > 0 ? gapKcal / 4 : 0;
 }
 
-// One day's macro target, high or low, derived from the flat base target by
-// moving CARBS only. Protein, fat and the micro targets are the base's — carbs
-// are the lever, and energy follows the carbs at 4 kcal/g. Carbs never go
-// negative (a huge surplus on a tiny base just floors the low day at zero;
-// that edge can't preserve the exact weekly total, but normal settings do).
+// One day's macro target. A deficit day is the base target, untouched. A refeed
+// day is raised UP TO maintenance (never above) by adding carbs only — protein
+// and fat are the base's, and the micro targets carry through. No other day is
+// altered to pay for it: refeeds are free, so the week's deficit is genuinely
+// smaller, and the projection reflects that (see coach maths).
 //
-// The numbers are intentionally NOT rounded here: the weekly invariant is exact
-// on the raw values. Round at the display boundary (see roundMacros).
-export function dayTarget(base: Macros, isHigh: boolean, cfg: CycleConfig): Required<Macros> {
+// Not rounded here — round at the display boundary (see roundMacros).
+export function dayTarget(base: Macros, isRefeed: boolean, cfg: CycleConfig): Required<Macros> {
   const full: Required<Macros> = {
     kcal: base.kcal,
     protein_g: base.protein_g,
@@ -174,12 +120,11 @@ export function dayTarget(base: Macros, isHigh: boolean, cfg: CycleConfig): Requ
     satfat_g: base.satfat_g ?? 0,
     sodium_mg: base.sodium_mg ?? 0,
   };
-  const delta = dayCarbDelta(isHigh, cfg);
-  if (delta === 0) return full;
+  if (!isRefeed) return full;
 
-  const carbs_g = Math.max(0, full.carbs_g + delta);
-  const appliedDelta = carbs_g - full.carbs_g; // 0-floor may shrink a low drop
-  return { ...full, carbs_g, kcal: full.kcal + appliedDelta * 4 };
+  const upliftG = refeedCarbUpliftG(full, cfg);
+  if (upliftG <= 0) return full;
+  return { ...full, carbs_g: full.carbs_g + upliftG, kcal: full.kcal + upliftG * 4 };
 }
 
 // Whole-number macros for showing on a ring or a plan line.
@@ -213,29 +158,28 @@ export function resolveHighDaysAllowance(
   );
 }
 
-// A user's whole cycling config, ready for dayTarget — the master switch, the
-// resolved allowance, and the CALCULATED carb surplus. The surplus is derived
-// from the day's base target (computeSurplusCarbs), not stored, so it always
-// tracks the current plan and stays inside the safety guardrails. Without a base
-// target (onboarding unfinished) there's nothing to cycle, so the surplus is 0.
+// A user's whole refeed config, ready for dayTarget — the master switch, the
+// resolved count, and the maintenance ceiling a refeed is raised to. Refeeds are
+// only offered once the deficit is real AND maintenance is confidently estimated:
+// during calibration (the learning window) there's nothing to refeed from, and
+// without a maintenance figure a refeed has no ceiling to aim at, so both cases
+// disable cycling and leave every day at its deficit target.
 export function cycleConfigFrom(
   profile: Pick<Profile, "cycling_enabled" | "high_days_per_week" | "goal_pace">,
-  base: Pick<Macros, "kcal" | "carbs_g"> | null,
   phase: Phase = "deficit",
-  // The user's carb floor, so a low day's give-back never breaches it.
-  carbFloorG?: number,
+  // The user's best maintenance estimate. Null/absent when it isn't well
+  // estimated yet — refeeds are not pushed until it is.
+  maintenanceKcal?: number | null,
 ): CycleConfig {
-  // Calibration locks cycling entirely: master switch forced off, no allowance.
   if (phase === "calibration") {
-    return { enabled: false, highDaysPerWeek: 0, surplusCarbsG: 0 };
+    return { enabled: false, refeedDaysPerWeek: 0, maintenanceKcal: null };
   }
-  const highDaysPerWeek = resolveHighDaysAllowance(profile, phase);
+  const confidentMaintenance =
+    maintenanceKcal != null && maintenanceKcal > 0 ? maintenanceKcal : null;
   return {
-    enabled: profile.cycling_enabled,
-    highDaysPerWeek,
-    surplusCarbsG: base
-      ? computeSurplusCarbs(base, highDaysPerWeek, carbFloorG).surplusCarbsG
-      : 0,
+    enabled: profile.cycling_enabled && confidentMaintenance != null,
+    refeedDaysPerWeek: resolveHighDaysAllowance(profile, phase),
+    maintenanceKcal: confidentMaintenance,
   };
 }
 
