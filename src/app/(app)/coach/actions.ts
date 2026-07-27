@@ -29,6 +29,13 @@ export async function ensureReviewApplied(): Promise<boolean> {
   const { review, phase } = await getCoachData();
   if (review.macros.kcal <= 0) return false;
 
+  // Never change the user's macros without them choosing to. A review that would
+  // CHANGE the target is only ever a proposal now — surfaced on the Coach screen
+  // with its reason and an Apply button (applyReview). We still auto-write a HELD
+  // week (no macro change) below, so the unbroken run of weekly rows the
+  // adaptation gate counts back through stays intact without moving anyone's food.
+  if (review.changed) return false;
+
   const nextWeek = localWeekStart(await getTimezone(), new Date(Date.now() + 7 * DAY_MS));
   const { data: existing } = await supabase
     .from("daily_targets")
