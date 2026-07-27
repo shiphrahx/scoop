@@ -1096,20 +1096,20 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       : null;
 
   // Calibration: the user's first ~2 weeks eating at estimated maintenance so
-  // the app can learn their real burn from the scale before ever cutting. Hold
-  // the maintenance target and frame it honestly — we're measuring, not judging
-  // a loss that isn't meant to happen yet. This runs before every other gate:
-  // there's nothing to review, because nothing is being adjusted.
+  // the app can learn their real burn from the scale before ever cutting.
+  //
+  // The target is FIXED for the whole window — the one set when calibration began
+  // (onboarding). We deliberately do NOT recompute it from a live maintenance
+  // estimate: that estimate drifts as weight, steps and the calibration factor
+  // move, so recomputing would raise the target mid-calibration (silently, at the
+  // week boundary) — and a moving intake corrupts the very measurement
+  // calibration exists to make. Hold `current` and only measure against it.
   if (phase === "calibration") {
-    const target = maint ?? current.kcal;
-    const atMaintenance = current.kcal >= target - 20;
+    const target = Math.round(current.kcal);
     const daysLeft = calibrationDaysRemaining ?? 0;
     return {
-      macros:
-        atMaintenance || macroWeightKg == null
-          ? current
-          : macrosForKcal(target, macroWeightKg, diet, heightCm, goalWeightKg),
-      changed: !atMaintenance && macroWeightKg != null,
+      macros: current,
+      changed: false,
       changeKg: trend?.changeKg ?? null,
       changePct: trend?.changePct ?? null,
       headline: "Learning your body",

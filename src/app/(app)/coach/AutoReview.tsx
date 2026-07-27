@@ -3,16 +3,16 @@
 import { useEffect, useRef } from "react";
 import { ensureReviewApplied } from "./actions";
 
-// Advances the weekly review on app open.
+// Advances the weekly review on app open — but only for weeks the review would
+// HOLD (no macro change). A review that would CHANGE the target is left as a
+// proposal for the user to apply from the Coach screen: the app never moves
+// someone's macros without them choosing to.
 //
-// The adaptive loop used to depend on the user finding the Coach page and
-// pressing "use these new targets". Miss a week and the target for that week
-// was never written, which broke the run of weekly rows the review counts back
-// through to decide how long a target has been in force — so the coach would
-// sit at "settling in" indefinitely.
-//
-// The server action is idempotent, so mounting this anywhere the user lands is
-// enough to keep the chain unbroken. Renders nothing.
+// Auto-writing the held weeks still matters: it keeps the run of weekly rows the
+// review counts back through unbroken (miss them and the coach sits at "settling
+// in" forever), and it does so without changing anyone's food. The server action
+// is idempotent, so mounting this anywhere the user lands is enough. Renders
+// nothing.
 export default function AutoReview() {
   const ran = useRef(false);
 

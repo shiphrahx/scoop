@@ -29,6 +29,13 @@ export async function ensureReviewApplied(): Promise<boolean> {
   const { review, phase } = await getCoachData();
   if (review.macros.kcal <= 0) return false;
 
+  // Never change the user's macros without them choosing to. A review that would
+  // CHANGE the target is only ever a proposal now — surfaced on the Coach screen
+  // with its reason and an Apply button (applyReview). We still auto-write a HELD
+  // week (no macro change) below, so the unbroken run of weekly rows the
+  // adaptation gate counts back through stays intact without moving anyone's food.
+  if (review.changed) return false;
+
   const nextWeek = localWeekStart(await getTimezone(), new Date(Date.now() + 7 * DAY_MS));
   const { data: existing } = await supabase
     .from("daily_targets")
@@ -56,10 +63,26 @@ export async function applyReview() {
   if (review.macros.kcal <= 0) throw new Error("No target to apply yet.");
 
   const nextWeek = localWeekStart(await getTimezone(), new Date(Date.now() + 7 * DAY_MS));
-  // The phase rides along with the target: next week's review counts back
-  // through these rows to know how long the user has been in a deficit.
+  // Only the macro numbers come from review.macros — pick them out explicitly.
+  // On a HELD review, review.macros IS the current target row, which carries its
+  // own week_start and phase; spreading it would overwrite nextWeek (and drag the
+  // old phase along), silently updating THIS week instead of writing next — so
+  // the held-week chain never advanced. The phase we write is this review's.
+  const m = review.macros;
   const { error } = await supabase.from("daily_targets").upsert(
-    { user_id: user.id, week_start: nextWeek, phase, ...review.macros },
+    {
+      user_id: user.id,
+      week_start: nextWeek,
+      phase,
+      kcal: m.kcal,
+      protein_g: m.protein_g,
+      carbs_g: m.carbs_g,
+      fat_g: m.fat_g,
+      fiber_g: m.fiber_g,
+      sugar_g: m.sugar_g,
+      satfat_g: m.satfat_g,
+      sodium_mg: m.sodium_mg,
+    },
     { onConflict: "user_id,week_start" },
   );
   if (error) throw new Error(error.message);
