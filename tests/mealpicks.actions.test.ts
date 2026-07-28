@@ -528,6 +528,54 @@ describe("buildMyDay", () => {
     expect(picks.find((p) => p.name === "Chicken Breast")!.pinned_g).toBeNull();
   });
 
+  it("sizes a free pick while holding a hand-set one in the same meal", async () => {
+    // The user's flow: a snack already holds a cereal bar at the amount they set
+    // (pinned), and they add protein powder for the app to portion (free). The
+    // build must keep the bar at its amount and work out a real serving of powder.
+    const { db } = installFakeSupabase({
+      db: {
+        users: [profile()],
+        daily_targets: targets(),
+        food_logs: [],
+        pantry_items: [
+          pantryRow("Cereal Bar", 400, 6, 65, 12),
+          pantryRow("Protein Powder", 380, 80, 8, 6),
+        ],
+        planned_meals: [
+          {
+            id: "meal-1",
+            user_id: "user-1",
+            date: today(),
+            slot: "Breakfast",
+            origin: "ai",
+            name: "",
+            items: [],
+            picks: [
+              { ...pick("Cereal Bar", 400, 6, 65, 12), pinned_g: 40 },
+              pick("Protein Powder", 380, 80, 8, 6),
+            ],
+            portions: [],
+            swaps: [],
+            why: null,
+            kcal: 0,
+            protein_g: 0,
+            carbs_g: 0,
+            fat_g: 0,
+            logged_food_id: null,
+          },
+        ],
+      },
+    });
+
+    await buildMyDay();
+
+    const portions = db.planned_meals[0].portions as { name: string; grams: number }[];
+    const bar = portions.find((p) => p.name === "Cereal Bar")!;
+    const powder = portions.find((p) => p.name === "Protein Powder")!;
+    expect(bar.grams).toBe(40); // held where the user set it
+    expect(powder.grams).toBeGreaterThan(0); // the app worked out a serving
+  });
+
   it("reports what it moved, and what held it back", async () => {
     // A rebalance that changes nothing is a real answer, but silence reads as a
     // broken button — so the action says what moved, or which held food stopped
