@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, Pencil, AlertTriangle, AlertCircle, CopyPlus, UtensilsCrossed, Info, Star, ScanBarcode } from "lucide-react";
+import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, Pencil, AlertTriangle, AlertCircle, CopyPlus, UtensilsCrossed, Info, Star, ScanBarcode, Sparkles } from "lucide-react";
 import BarcodeScanner from "@/components/BarcodeScannerLazy";
-import type { FavouriteMeal, FoodChoice, Macros, MealPortion, OffProduct, PlannedMeal, PlanItem, UnitOption } from "@/lib/types";
+import type { FavouriteMeal, FoodChoice, Macros, MealPick, MealPortion, OffProduct, PlannedMeal, PlanItem, UnitOption } from "@/lib/types";
 import { sumItems, sumMacros } from "@/lib/types";
 import { mealToItems } from "@/lib/favourites";
 import { pantryUnitLabel } from "@/lib/freshfoods";
@@ -23,6 +23,7 @@ import {
   searchFoods,
   searchWeb,
   setMealItems,
+  setMealPicks,
   setMealPortions,
   clearSlot,
   clearAppPlan,
@@ -766,6 +767,57 @@ function ItemPicker({
     });
   }
 
+  // Hand this hand-built meal to the app to portion, adding a food the app will
+  // size. The foods already in the meal are kept at the amounts the user set
+  // (pinned), and the new food is added free, for the day solve to work out — so
+  // "cereal bar plus however much protein powder fits" is one tap, then "Build my
+  // day". This turns the slot from a manual meal into a picked one.
+  function handToPlanner(food: FoodChoice) {
+    const kept: MealPick[] = items.map((it) => ({
+      name: it.name,
+      source: it.source,
+      off_barcode: it.off_barcode,
+      kcal_100g: it.kcal_100g,
+      protein_100g: it.protein_100g,
+      carbs_100g: it.carbs_100g,
+      fat_100g: it.fat_100g,
+      fiber_100g: it.fiber_100g,
+      sugar_100g: it.sugar_100g,
+      satfat_100g: it.satfat_100g,
+      sodium_mg_100g: it.sodium_mg_100g,
+      pack_size_g: null,
+      unit_g: it.unit_g ?? null,
+      unit_label: it.unit_label ?? null,
+      unit_options: it.unit_options ?? null,
+      pinned_g: it.grams,
+    }));
+    const free: MealPick = {
+      name: food.name,
+      source: food.source,
+      off_barcode: food.off_barcode,
+      kcal_100g: food.kcal_100g,
+      protein_100g: food.protein_100g,
+      carbs_100g: food.carbs_100g,
+      fat_100g: food.fat_100g,
+      fiber_100g: food.fiber_100g,
+      sugar_100g: food.sugar_100g,
+      satfat_100g: food.satfat_100g,
+      sodium_mg_100g: food.sodium_mg_100g,
+      pack_size_g: food.pack_size_g,
+      unit_g: food.unit_g ?? null,
+      unit_label: food.unit_label ?? null,
+      unit_options: food.unit_options ?? null,
+      pinned_g: null,
+    };
+    startTransition(async () => {
+      try {
+        await setMealPicks(slot, [...kept, free], date);
+      } catch (e) {
+        onError(e instanceof Error ? e.message : "Couldn't hand the meal to the app.");
+      }
+    });
+  }
+
   // Append a picked food at the grams the search box resolved.
   function add(c: FoodChoice, grams: number) {
     save([
@@ -945,6 +997,10 @@ function ItemPicker({
       <FoodSearchBox onPick={add} />
 
       {items.length > 0 && (
+        <AppPortionAdd busy={busy} onAdd={handToPlanner} />
+      )}
+
+      {items.length > 0 && (
         <>
           <p className="text-xs font-medium text-[var(--muted)]">
             Meal total: {macroLine(prefs, total)}
@@ -957,6 +1013,52 @@ function ItemPicker({
           <SaveFavourite defaultName={items.map((i) => i.name).join(", ")} items={items} />
         </>
       )}
+    </div>
+  );
+}
+
+// On a hand-built meal: add a food for the app to portion. Reveals a search
+// box; picking a food hands the whole meal to the day solve, keeping the foods
+// already there at the amounts the user set and letting the app work out how
+// much of the new one to eat. That's the bridge from "I chose these" to "and the
+// app sizes this last one" — e.g. a cereal bar you know, plus the right scoop of
+// protein powder to fill the rest.
+function AppPortionAdd({
+  busy,
+  onAdd,
+}: {
+  busy: boolean;
+  onAdd: (c: FoodChoice) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        disabled={busy}
+        className="sc-btn sc-btn-neutral"
+      >
+        <Sparkles size={16} /> Add a food for the app to portion
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-2xl bg-[var(--fill-soft)] p-3">
+      <p className="text-xs font-medium text-[var(--muted)]">
+        Pick a food and the app works out how much of it to eat when you build
+        your day. The foods above stay at the amounts you set.
+      </p>
+      <FoodSearchBox
+        onPick={(c) => {
+          onAdd(c);
+          setOpen(false);
+        }}
+      />
+      <button onClick={() => setOpen(false)} className="sc-btn sc-btn-neutral">
+        Cancel
+      </button>
     </div>
   );
 }
