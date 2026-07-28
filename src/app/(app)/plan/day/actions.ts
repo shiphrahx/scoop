@@ -848,6 +848,34 @@ export async function copyMealFromSlot(
   await writeCopiedMeal(supabase, user.id, src as CopyableMeal, day, toSlot);
 }
 
+// Build a fresh pick from a portion the user ADDED by hand while editing a dish.
+// Per-100g macros come from the portion's own totals (so the day solver can
+// re-portion it), the unit rides along, and it's pinned to the grams the user
+// chose. No barcode or pack size — a searched or typed-in food may have neither;
+// the build reads the pantry for those if it matches this by name.
+function portionToPick(p: MealPortion, pinned_g: number | null): MealPick {
+  const per100 = (v: number | undefined) =>
+    p.grams > 0 ? ((v ?? 0) / p.grams) * 100 : 0;
+  return {
+    name: p.name,
+    source: "off",
+    off_barcode: null,
+    kcal_100g: per100(p.kcal),
+    protein_100g: per100(p.protein_g),
+    carbs_100g: per100(p.carbs_g),
+    fat_100g: per100(p.fat_g),
+    fiber_100g: per100(p.fiber_g),
+    sugar_100g: per100(p.sugar_g),
+    satfat_100g: per100(p.satfat_g),
+    sodium_mg_100g: per100(p.sodium_mg),
+    pack_size_g: null,
+    unit_g: p.unit_g ?? null,
+    unit_label: p.unit_label ?? null,
+    unit_options: null,
+    pinned_g,
+  };
+}
+
 // A short dish name from its portions: "Chicken with Rice", or the single food.
 function portionsName(portions: MealPortion[]): string {
   const names = portions.map((p) => p.name);
@@ -891,10 +919,17 @@ export async function setMealPortions(
     return;
   }
 
-  // Set (or clear) each pick's pin from this edit: a touched food is pinned to
-  // the grams the user left it at; an untouched one is freed. Matched by name —
-  // the picks and the portions share it. A meal with no picks (an old plan)
-  // just skips this and behaves as before.
+  // Keep the picks in step with the edited portions, so the next rebalance
+  // re-solves exactly the foods that are in the meal now:
+  //  - a food the user ADDED by hand gets a fresh pick, so the build keeps it
+  //    instead of dropping it as an unknown;
+  //  - a food they REMOVED drops out of the picks, so the build can't bring it
+  //    back;
+  //  - a touched food is pinned to the grams the user left it at; an untouched
+  //    one is freed.
+  // Matched to its pick by name, case- and spacing-insensitive, so a portion the
+  // build renamed off its pantry row still lines up (and stays pinned). A meal
+  // with no picks (hand-built, or an older plan) isn't solved, so it's left be.
   const pinSet = new Set(pinnedNames);
   const gramsByName = new Map(portions.map((p) => [p.name, p.grams]));
   const { data: current } = await supabase
@@ -903,10 +938,17 @@ export async function setMealPortions(
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle();
-  const picks = ((current as { picks: MealPick[] } | null)?.picks ?? []).map((pick) => ({
-    ...pick,
-    pinned_g: pinSet.has(pick.name) ? gramsByName.get(pick.name) ?? null : null,
-  }));
+  const existingPicks = (current as { picks: MealPick[] } | null)?.picks ?? [];
+  const picks =
+    existingPicks.length === 0
+      ? existingPicks
+      : portions.map((p) => {
+          const pinned_g = pinSet.has(p.name) ? gramsByName.get(p.name) ?? null : null;
+          const match = existingPicks.find(
+            (pk) => normName(pk.name) === normName(p.name),
+          );
+          return match ? { ...match, pinned_g } : portionToPick(p, pinned_g);
+        });
 
   // Re-sum every nutrient the portions carry, extras included — dropping them
   // here would zero a meal's fibre and sodium the moment the user edited it.
