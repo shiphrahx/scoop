@@ -1,19 +1,19 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+
+function readAuthError(): string | null {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("error") !== "auth") return null;
+  return params.get("reason") ?? "Sign-in failed. Please try again.";
+}
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("error") === "auth") {
-      setAuthError(params.get("reason") ?? "Sign-in failed. Please try again.");
-    }
-  }, []);
+  const [authError] = useState<string | null>(readAuthError);
 
   async function signInWithGoogle() {
     setLoading(true);
