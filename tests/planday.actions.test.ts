@@ -130,6 +130,88 @@ describe("setMealPortions", () => {
     expect(picks.find((p) => p.name === "Brown Rice")!.pinned_g).toBeNull();
   });
 
+  it("keeps a hand-added ingredient by giving it its own pick", async () => {
+    // Editing an app-planned dish, the user searches in a new food. It must
+    // become a pick (pinned to the amount they added), so the next rebalance
+    // keeps it instead of re-solving only the original picks and dropping it.
+    const { db } = installFakeSupabase({
+      db: {
+        planned_meals: [
+          {
+            ...plannedMeal(),
+            picks: [{ name: "Chicken Breast" }, { name: "Brown Rice" }],
+          },
+        ],
+      },
+    });
+
+    await setMealPortions(
+      "pm-1",
+      [
+        { name: "Chicken Breast", grams: 200, kcal: 330, protein_g: 62, carbs_g: 0, fat_g: 7, fiber_g: 0, sugar_g: 0, satfat_g: 2, sodium_mg: 148 },
+        { name: "Brown Rice", grams: 300, kcal: 390, protein_g: 8, carbs_g: 84, fat_g: 1, fiber_g: 6, sugar_g: 1, satfat_g: 0, sodium_mg: 15 },
+        { name: "Avocado", grams: 100, kcal: 160, protein_g: 2, carbs_g: 9, fat_g: 15, fiber_g: 7, sugar_g: 1, satfat_g: 2, sodium_mg: 7 },
+      ],
+      ["Avocado"],
+    );
+
+    const picks = db.planned_meals[0].picks as Array<{ name: string; pinned_g: number | null; kcal_100g?: number }>;
+    expect(picks.map((p) => p.name)).toEqual(["Chicken Breast", "Brown Rice", "Avocado"]);
+    const avo = picks.find((p) => p.name === "Avocado")!;
+    expect(avo.pinned_g).toBe(100); // held at the amount the user added
+    expect(avo.kcal_100g).toBe(160); // per-100g derived from the portion (100 g)
+  });
+
+  it("drops an ingredient's pick when the user removes it from the dish", async () => {
+    // Removing rice in the editor must remove it from the picks too, or the next
+    // rebalance re-solves it back onto the plate.
+    const { db } = installFakeSupabase({
+      db: {
+        planned_meals: [
+          {
+            ...plannedMeal(),
+            picks: [{ name: "Chicken Breast" }, { name: "Brown Rice" }],
+          },
+        ],
+      },
+    });
+
+    await setMealPortions("pm-1", [
+      { name: "Chicken Breast", grams: 200, kcal: 330, protein_g: 62, carbs_g: 0, fat_g: 7, fiber_g: 0, sugar_g: 0, satfat_g: 2, sodium_mg: 148 },
+    ]);
+
+    const picks = db.planned_meals[0].picks as Array<{ name: string }>;
+    expect(picks.map((p) => p.name)).toEqual(["Chicken Breast"]);
+  });
+
+  it("pins a hand-set value even when the portion was renamed off its pick", async () => {
+    // The build renames a portion onto its pantry row ("tofu" pick → "Tofu"
+    // portion). A pin matched by exact name would miss; matched case/spacing-
+    // insensitively it holds, so a rebalance can't overwrite the hand-set value.
+    const { db } = installFakeSupabase({
+      db: {
+        planned_meals: [
+          {
+            ...plannedMeal(),
+            picks: [{ name: "chicken breast" }, { name: "Brown Rice" }],
+          },
+        ],
+      },
+    });
+
+    await setMealPortions(
+      "pm-1",
+      [
+        { name: "Chicken Breast", grams: 250, kcal: 412, protein_g: 78, carbs_g: 0, fat_g: 9, fiber_g: 0, sugar_g: 0, satfat_g: 3, sodium_mg: 185 },
+        { name: "Brown Rice", grams: 300, kcal: 390, protein_g: 8, carbs_g: 84, fat_g: 1, fiber_g: 6, sugar_g: 1, satfat_g: 0, sodium_mg: 15 },
+      ],
+      ["Chicken Breast"],
+    );
+
+    const picks = db.planned_meals[0].picks as Array<{ name: string; pinned_g: number | null }>;
+    expect(picks.find((p) => /chicken/i.test(p.name))!.pinned_g).toBe(250);
+  });
+
   it("clears the slot when every portion is removed", async () => {
     const { db } = installFakeSupabase({ db: { planned_meals: [plannedMeal()] } });
     await setMealPortions("pm-1", []);
