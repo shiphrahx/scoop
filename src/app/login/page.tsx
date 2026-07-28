@@ -1,11 +1,19 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("error") === "auth") {
+      setAuthError(params.get("reason") ?? "Sign-in failed. Please try again.");
+    }
+  }, []);
 
   async function signInWithGoogle() {
     setLoading(true);
@@ -40,6 +48,12 @@ export default function LoginPage() {
           Your portion coach. We tell you what to eat to hit your macros.
         </p>
       </div>
+
+      {authError && (
+        <p className="max-w-xs rounded-2xl bg-[var(--danger-bg,#fee)] px-4 py-3 text-sm text-[var(--danger,#b00)]">
+          {authError}
+        </p>
+      )}
 
       <button
         onClick={signInWithGoogle}

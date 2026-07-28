@@ -7,6 +7,11 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/dashboard";
 
+  // The provider bounces back here with an error when the OAuth request itself
+  // failed (e.g. redirect URL not whitelisted). Surface it instead of hiding it.
+  const providerError =
+    searchParams.get("error_description") ?? searchParams.get("error");
+
   if (code) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
@@ -21,7 +26,13 @@ export async function GET(request: Request) {
         return NextResponse.redirect(`${origin}${next}`);
       }
     }
+    return NextResponse.redirect(
+      `${origin}/login?error=auth&reason=${encodeURIComponent(error.message)}`,
+    );
   }
 
-  return NextResponse.redirect(`${origin}/login?error=auth`);
+  const reason = providerError ?? "no_code";
+  return NextResponse.redirect(
+    `${origin}/login?error=auth&reason=${encodeURIComponent(reason)}`,
+  );
 }
