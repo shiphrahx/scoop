@@ -8,7 +8,7 @@ vi.mock("@/lib/supabase/server", async () => {
 });
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
-const { setMealPicks, buildMyDay, setMealPortions } = await import(
+const { setMealPicks, buildMyDay, setMealPortions, applyDayFix } = await import(
   "@/app/(app)/plan/day/actions"
 );
 
@@ -623,6 +623,110 @@ describe("buildMyDay", () => {
     // Second press: the pin is spent, so nothing is held any more.
     const second = await buildMyDay();
     expect(second.held).toEqual([]);
+  });
+
+  it("offers to drop an over-fat pick, and applies the fix on request", async () => {
+    // The whole fat budget is already eaten, but the user picked olive oil for
+    // dinner. The oil can't be portioned below its floor, so the day is stuck
+    // over fat: buildMyDay must hand back a fix (drop the oil), and applyDayFix
+    // must carry it out and re-portion the day around what's left.
+    const { db } = installFakeSupabase({
+      db: {
+        users: [profile()],
+        daily_targets: targets(),
+        // 63 g of fat already eaten (of 65) — only the calories, so protein and
+        // carbs still have all their room.
+        food_logs: [
+          {
+            user_id: "user-1",
+            logged_at: new Date().toISOString(),
+            kcal: 567,
+            protein_g: 0,
+            carbs_g: 0,
+            fat_g: 63,
+          },
+        ],
+        pantry_items: [
+          pantryRow("Olive Oil", 900, 0, 0, 100),
+          pantryRow("Pasta", 371, 13, 71, 1.5),
+          pantryRow("Chicken Breast", 165, 31, 0, 3.6),
+        ],
+        planned_meals: [
+          {
+            id: "meal-1",
+            user_id: "user-1",
+            date: today(),
+            slot: "Dinner",
+            origin: "ai",
+            name: "",
+            items: [],
+            picks: [oilPick(), pastaPick(), chickenPick()],
+            portions: [],
+            swaps: [],
+            why: null,
+            kcal: 0,
+            protein_g: 0,
+            carbs_g: 0,
+            fat_g: 0,
+            logged_food_id: null,
+          },
+        ],
+      },
+    });
+
+    const first = await buildMyDay();
+    expect(first.fix).toBeTruthy();
+    expect(first.fix!.drops.some((d) => /oil/i.test(d.name))).toBe(true);
+    // Oil is on the plate before the fix.
+    const built = db.planned_meals[0].portions as { name: string }[];
+    expect(built.some((p) => /oil/i.test(p.name))).toBe(true);
+
+    const second = await applyDayFix(first.fix!.drops);
+    // Oil gone, day re-portioned; no fat-dominant food left to drop, so no
+    // further fix is offered.
+    const portions = db.planned_meals[0].portions as { name: string }[];
+    expect(portions.some((p) => /oil/i.test(p.name))).toBe(false);
+    expect(portions.length).toBeGreaterThan(0);
+    expect(second.fix).toBeNull();
+  });
+
+  it("offers no fix when the day lands within its ceilings", async () => {
+    const { db } = installFakeSupabase({
+      db: {
+        users: [profile()],
+        daily_targets: targets(),
+        food_logs: [],
+        pantry_items: [
+          pantryRow("Chicken Breast", 165, 31, 0, 3.6),
+          pantryRow("Pasta", 371, 13, 71, 1.5),
+          pantryRow("Olive Oil", 900, 0, 0, 100),
+        ],
+        planned_meals: [
+          {
+            id: "meal-1",
+            user_id: "user-1",
+            date: today(),
+            slot: "Dinner",
+            origin: "ai",
+            name: "",
+            items: [],
+            picks: [pastaPick(), chickenPick(), oilPick()],
+            portions: [],
+            swaps: [],
+            why: null,
+            kcal: 0,
+            protein_g: 0,
+            carbs_g: 0,
+            fat_g: 0,
+            logged_food_id: null,
+          },
+        ],
+      },
+    });
+
+    const r = await buildMyDay();
+    expect(r.fix).toBeNull();
+    void db;
   });
 
   it("sizes meals by the profile's slot weights", async () => {
