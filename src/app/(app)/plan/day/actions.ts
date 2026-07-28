@@ -481,6 +481,104 @@ function pickToFood(pick: MealPick, pantry: PantryFood[]): PantryFood {
   };
 }
 
+// A concrete way out when a rebalance can't land the day: the macro that's stuck
+// over its ceiling, and the picked foods to drop that would free it up. The UI
+// shows this as a prompt — the app never drops a food the user picked without
+// asking (see the "never silently drop a pick" rule in lib/mealplan).
+export type DayFix = {
+  // Plain-words statement of what's wrong ("Fat lands 13 g over…").
+  reason: string;
+  // The foods to remove, by slot and name, if the user says yes.
+  drops: { slot: string; name: string }[];
+  // The question to put to the user ("Remove olive oil from Dinner and rebalance?").
+  summary: string;
+};
+
+// Which macro a portion is mostly made of, by its share of the portion's energy.
+// Used to pick a food whose removal actually relieves the macro that's over — an
+// oil for a fat overshoot, a rice for a carb one — rather than something that
+// carries the day's protein.
+function dominantRole(p: MealPortion): "protein" | "carb" | "fat" {
+  const fat = (p.fat_g ?? 0) * 9;
+  const carb = (p.carbs_g ?? 0) * 4;
+  const protein = (p.protein_g ?? 0) * 4;
+  if (fat >= carb && fat >= protein) return "fat";
+  if (carb >= protein) return "carb";
+  return "protein";
+}
+
+// When the solved day is stuck OVER one of its ceilings — the picks can't be
+// portioned any smaller, so a plain rebalance changes nothing — work out the
+// smallest set of picked foods to drop that would relieve it. Only foods the
+// solve actually portioned (app-sized picks) are candidates: eaten and
+// hand-pinned foods are the user's own and never proposed. Returns null when the
+// day is within its limits, or when nothing droppable would help (then the plan
+// just reports where it lands, as before).
+function computeDayFix(
+  meals: Array<{ slot: string; portions: MealPortion[] } & Macros>,
+  budget: Macros,
+): DayFix | null {
+  const solved = meals.reduce<Macros>(
+    (s, m) => ({
+      kcal: s.kcal + m.kcal,
+      protein_g: s.protein_g + m.protein_g,
+      carbs_g: s.carbs_g + m.carbs_g,
+      fat_g: s.fat_g + m.fat_g,
+    }),
+    { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
+  );
+
+  // The macros a day can overshoot in a way the user can act on: fat and carbs.
+  // (Protein over isn't a failure; energy over is always one of these two.)
+  const over = (
+    [
+      { key: "fat_g", role: "fat", label: "Fat", kcalPerG: 9 },
+      { key: "carbs_g", role: "carb", label: "Carbs", kcalPerG: 4 },
+    ] as const
+  )
+    .map((o) => ({ ...o, amount: solved[o.key] - Math.max(0, budget[o.key]) }))
+    .filter((o) => o.amount > 2)
+    // Worst by calories, so a big fat overshoot is fixed before a small carb one.
+    .sort((a, b) => b.amount * b.kcalPerG - a.amount * a.kcalPerG);
+  const worst = over[0];
+  if (!worst) return null;
+
+  // Foods the solve portioned that are mostly this macro, biggest contributor
+  // first — the ones whose removal frees the most of what's over.
+  const cands = meals
+    .flatMap((m) =>
+      m.portions.map((p) => ({
+        slot: m.slot,
+        name: p.name,
+        amount: worst.key === "fat_g" ? p.fat_g ?? 0 : p.carbs_g ?? 0,
+        role: dominantRole(p),
+      })),
+    )
+    .filter((c) => c.role === worst.role && c.amount > 0)
+    .sort((a, b) => b.amount - a.amount);
+  if (cands.length === 0) return null;
+
+  // Drop just enough to clear the overshoot; if no single food covers it, drop
+  // the biggest offenders we have (dropping any of them still helps).
+  const drops: { slot: string; name: string }[] = [];
+  let relief = 0;
+  for (const c of cands) {
+    if (relief >= worst.amount) break;
+    drops.push({ slot: c.slot, name: c.name });
+    relief += c.amount;
+  }
+
+  const list = drops
+    .map((d) => `${d.name} from ${d.slot.toLowerCase()}`)
+    .join(" and ")
+    .replace(/, ([^,]*)$/, " and $1");
+  return {
+    reason: `${worst.label} lands ${Math.round(worst.amount)} g over today's target, and these picks can't be portioned any smaller.`,
+    drops,
+    summary: `Remove ${list} and rebalance?`,
+  };
+}
+
 // Portion every meal the user picked foods for, together, so the day lands on
 // target. Meals the user built by hand and meals already eaten are budgeted
 // around, never touched. Picked meals split what's left of the day between
@@ -689,11 +787,49 @@ export async function buildMyDay(date?: string) {
   const held = picked.flatMap((row) =>
     row.picks.filter((p) => p.pinned_g != null).map((p) => p.name),
   );
+  // If the day is stuck over a ceiling, hand the UI a concrete fix to offer the
+  // user — the app won't drop a picked food on its own, but it can ask.
+  const fix = computeDayFix(meals, budget);
+
   return {
     changed: moves.length > 0,
     moves: moves.slice(0, 4),
     held: [...new Set(held)],
+    fix,
   };
+}
+
+// Apply the fix a rebalance offered: drop the named foods from their meals (the
+// user said yes), then rebalance again. Removing a food from a meal's picks lets
+// the solve free up the room it was taking — the fat an over-fat day couldn't
+// afford, say — and re-portion everything else around what's left.
+export async function applyDayFix(
+  drops: { slot: string; name: string }[],
+  date?: string,
+) {
+  const day = await resolveDate(date);
+
+  // The names to drop, per slot, matched case- and spacing-insensitively so a
+  // food the build renamed off its pantry row still lines up with its pick.
+  const bySlot = new Map<string, Set<string>>();
+  for (const d of drops) {
+    const set = bySlot.get(d.slot) ?? new Set<string>();
+    set.add(normName(d.name));
+    bySlot.set(d.slot, set);
+  }
+
+  const plan = await getPlanForDate(day);
+  for (const [slot, names] of bySlot) {
+    const meal = plan.find((m) => m.slot === slot && !m.logged_food_id);
+    if (!meal) continue;
+    const remaining = meal.picks.filter((p) => !names.has(normName(p.name)));
+    if (remaining.length === meal.picks.length) continue; // nothing matched
+    // setMealPicks clears the slot when no picks are left, and resets the solved
+    // portions either way — the rebalance below re-portions from what remains.
+    await setMealPicks(slot, remaining, day);
+  }
+
+  return buildMyDay(day);
 }
 
 // Mark (or unmark) a day as a "high day" — an intake day that carries the extra
