@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 
 function readAuthError(): string | null {
   if (typeof window === "undefined") return null;
@@ -14,22 +13,6 @@ function readAuthError(): string | null {
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [authError] = useState<string | null>(readAuthError);
-
-  async function signInWithGoogle() {
-    setLoading(true);
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-    if (error) {
-      setLoading(false);
-      alert(error.message);
-    }
-    // On success the browser is redirected to Google, so no further work here.
-  }
 
   return (
     <main className="flex flex-1 flex-col items-center justify-center gap-10 px-6 text-center">
@@ -55,13 +38,17 @@ export default function LoginPage() {
         </p>
       )}
 
-      <button
-        onClick={signInWithGoogle}
-        disabled={loading}
+      {/* A plain link, not a client-side call: the server starts the OAuth
+          flow so the PKCE verifier is a cookie on this host rather than
+          browser storage that the trip through Google can leave behind. */}
+      <a
+        href="/auth/signin"
+        onClick={() => setLoading(true)}
+        aria-disabled={loading}
         className="sc-btn sc-btn-primary w-full max-w-xs py-4 text-lg"
       >
         {loading ? "Opening Google…" : "Continue with Google"}
-      </button>
+      </a>
     </main>
   );
 }
