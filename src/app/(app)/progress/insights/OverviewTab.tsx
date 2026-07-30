@@ -142,7 +142,7 @@ export default function OverviewTab({
   }
   if (progress == null) {
     locked.push({
-      title: "The journey",
+      title: "Progress to goal",
       why: "How far you've come from your start weight towards your goal. Set a goal weight on your profile.",
     });
   }
@@ -183,7 +183,7 @@ export default function OverviewTab({
             value={`${progress.pctComplete}`}
             unit="%"
             tone={progress.reached ? "good" : "cool"}
-            detailTitle="The journey"
+            detailTitle="Progress to goal"
             detail={<JourneyDetail progress={progress} />}
           />
         ) : null}
@@ -209,8 +209,8 @@ export default function OverviewTab({
           <p className="text-sm">
             Over the last {fatLoss.windowDays} days the scale moved{" "}
             {signed(fatLoss.weightDeltaKg)} kg, but your waist is down{" "}
-            {fmt(Math.abs(fatLoss.waistDeltaCm))} cm. That&apos;s fat leaving while water
-            and muscle hold the number up. Keep going.
+            {fmt(Math.abs(fatLoss.waistDeltaCm))} cm. That indicates fat loss while
+            water and muscle keep the scale figure steady.
           </p>
         </div>
       ) : null}
@@ -223,9 +223,9 @@ export default function OverviewTab({
           </div>
           <p className="text-sm text-[var(--muted)]">
             Your trend weight has moved {fmt(Math.abs(plateau.changeKg), 2)} kg in{" "}
-            {plateau.weeks} weeks. That&apos;s usually not a reason to cut further — a long
-            deficit lowers what you burn, and the fix is a diet break or a fresh
-            maintenance measurement.
+            {plateau.weeks} weeks. This is usually not a reason to cut further — a long
+            deficit lowers what you burn, and the appropriate response is a diet break
+            or a fresh maintenance measurement.
           </p>
           <Link href="/coach" className="sc-btn sc-btn-soft self-start">
             Ask the Coach
