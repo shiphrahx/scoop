@@ -10,11 +10,22 @@
 //
 // Desktop pays a frame of skeleton for it, which is the right way round for a
 // mobile-first app.
+//
+// This is also where the server learns the viewport. The width is written to a
+// cookie so the NEXT request can skip fetching the chart data on a phone
+// entirely (see src/lib/viewport.ts) — the client is the only side that knows.
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import type { ComponentProps } from "react";
 import type DesktopDashboardType from "./DesktopDashboard";
+import {
+  DESKTOP_MIN_WIDTH_PX,
+  NARROW,
+  VIEWPORT_COOKIE,
+  WIDE,
+} from "@/lib/viewport";
 
 const DesktopDashboard = dynamic(() => import("./DesktopDashboard"), {
   ssr: false,
@@ -26,7 +37,8 @@ const DesktopDashboard = dynamic(() => import("./DesktopDashboard"), {
   ),
 });
 
-const QUERY = "(min-width: 1024px)";
+const QUERY = `(min-width: ${DESKTOP_MIN_WIDTH_PX}px)`;
+const COOKIE_MAX_AGE_S = 60 * 60 * 24 * 30;
 
 function subscribe(onChange: () => void) {
   const mql = window.matchMedia(QUERY);
@@ -44,10 +56,28 @@ function useIsDesktop() {
   );
 }
 
-export default function DesktopDashboardMount(
-  props: ComponentProps<typeof DesktopDashboardType>,
-) {
+export default function DesktopDashboardMount({
+  dataDeferred,
+  ...props
+}: ComponentProps<typeof DesktopDashboardType> & {
+  // True when the server trusted the cookie, decided this was a phone, and did
+  // not fetch the chart series. The data props are empty in that case.
+  dataDeferred?: boolean;
+}) {
   const isDesktop = useIsDesktop();
+  const router = useRouter();
+
+  useEffect(() => {
+    const value = isDesktop ? WIDE : NARROW;
+    document.cookie = `${VIEWPORT_COOKIE}=${value}; path=/; max-age=${COOKIE_MAX_AGE_S}; SameSite=Lax`;
+
+    // The hint said phone but this is a desktop — a resized window, a rotated
+    // tablet, or a shared cookie jar. The series props are empty, so re-fetch
+    // the route rather than draw blank charts. The cookie is already corrected
+    // above, so the refresh comes back with the data.
+    if (isDesktop && dataDeferred) router.refresh();
+  }, [isDesktop, dataDeferred, router]);
+
   if (!isDesktop) return null;
   return <DesktopDashboard {...props} />;
 }
