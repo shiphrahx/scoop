@@ -262,9 +262,17 @@ export async function getTodayConsumed(): Promise<Macros> {
   return getConsumedForDate(await localToday());
 }
 
-// Food logged on one calendar day where the user lives, summed. Bounded on both
-// ends so a past day stops at its own midnight instead of running to now.
-export async function getConsumedForDate(date: string): Promise<Macros> {
+// Every food log on one calendar day where the user lives, as raw macro rows.
+// Bounded on both ends so a past day stops at its own midnight instead of
+// running to now.
+//
+// Cached per request, and deliberately the one place these rows are read: Home
+// both sums them (the calorie ring) and asks whether there are any at all (the
+// "plan your day" nudge), which used to be two round trips hitting the same
+// rows with the same filter.
+const getFoodLogsForDate = cache(async function getFoodLogsForDate(
+  date: string,
+): Promise<Macros[]> {
   const supabase = await createClient();
   const { start, end } = dayRangeFor(await getTimezone(), date);
 
@@ -274,7 +282,12 @@ export async function getConsumedForDate(date: string): Promise<Macros> {
     .gte("logged_at", start.toISOString())
     .lt("logged_at", end.toISOString());
 
-  const rows = (data as Macros[]) ?? [];
+  return (data as Macros[]) ?? [];
+});
+
+// Food logged on one calendar day where the user lives, summed.
+export async function getConsumedForDate(date: string): Promise<Macros> {
+  const rows = await getFoodLogsForDate(date);
   return rows.reduce<Required<Macros>>(
     (sum, r) => ({
       kcal: sum.kcal + Number(r.kcal),
@@ -321,15 +334,10 @@ export async function getPlanForDate(date: string): Promise<PlannedMeal[]> {
 }
 
 // True once the user has logged any food today — used to decide whether to
-// nudge them to plan the day.
+// nudge them to plan the day. Reads the same cached rows the calorie ring sums,
+// so on Home this is free rather than its own count query.
 export async function hasTrackedToday(): Promise<boolean> {
-  const supabase = await createClient();
-  const start = startOfLocalDay(await getTimezone());
-  const { count } = await supabase
-    .from("food_logs")
-    .select("id", { count: "exact", head: true })
-    .gte("logged_at", start.toISOString());
-  return (count ?? 0) > 0;
+  return (await getFoodLogsForDate(await localToday())).length > 0;
 }
 
 // True when the user has saved an Anthropic key (the key itself never leaves
