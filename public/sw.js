@@ -1,7 +1,15 @@
 // Scoop service worker. Keeps the app openable offline: static assets are
 // cached on first use, page navigations try the network first and fall back to
 // the last-seen page (or Home) when offline. API/auth traffic is never cached.
-const CACHE = "scoop-v3";
+const CACHE = "scoop-v4";
+
+// How long a page navigation waits for the network before the last-seen copy of
+// that same page is shown instead. Tapping the home-screen icon on mobile data
+// used to sit on a blank screen for as long as the request took — long enough
+// that the tap read as ignored and people tapped again. Past this point a
+// slightly stale screen beats no screen; the network answer still lands, gets
+// cached, and the page is told to refresh itself in place (see below).
+const NAV_TIMEOUT_MS = 2000;
 
 self.addEventListener("install", () => self.skipWaiting());
 
@@ -33,6 +41,18 @@ self.addEventListener("message", (event) => {
   }
 });
 
+// Only a clean 200 from our own origin is worth keeping — never a redirect (the
+// auth bounce to /login) or an error (a 404 during a deploy), or we would serve
+// that bad page back later and the route would look broken.
+const cacheable = (res) => res && res.ok && res.type === "basic";
+
+// Tell every open page that what it is looking at came from cache and fresher
+// HTML has since arrived, so it can pull the new data in without a reload.
+async function announceStale() {
+  const clients = await self.clients.matchAll({ type: "window" });
+  for (const client of clients) client.postMessage("scoop:stale-served");
+}
+
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
@@ -58,29 +78,53 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Page navigations: network-first, fall back to cache when offline. Only a
-  // clean 200 is cached — never a redirect (auth bounce to /login) or an error
-  // (a 404 during a dev recompile), or the SW would serve that stale bad page
-  // back on the next offline/failed fetch and the route would look broken.
+  // Page navigations: network-first, but never open-ended. The network race is
+  // given NAV_TIMEOUT_MS; past that, a cached copy of this page is shown at once
+  // and the in-flight request keeps going in the background to refresh it.
   if (req.mode === "navigate") {
     event.respondWith(
       (async () => {
-        try {
-          // Prefer the preloaded response if navigation preload gave us one.
+        const cache = await caches.open(CACHE);
+
+        // One shared promise for the network attempt: whether it wins the race
+        // or lands after the timeout, the same response updates the cache.
+        let servedFromCache = false;
+        const network = (async () => {
           const res = (await event.preloadResponse) || (await fetch(req));
-          if (res.ok && res.type === "basic") {
-            const cache = await caches.open(CACHE);
-            cache.put(req, res.clone());
-          }
+          if (cacheable(res)) await cache.put(req, res.clone());
+          // If the user is already looking at the stale copy, nudge the page to
+          // pull the fresh data rather than leaving them on old numbers.
+          if (servedFromCache) await announceStale();
           return res;
-        } catch {
-          const cache = await caches.open(CACHE);
-          return (
-            (await cache.match(req)) ||
-            (await cache.match("/")) ||
-            Response.error()
-          );
+        })();
+        // The background path must outlive this fetch handler, and an unhandled
+        // rejection here would surface as an SW error.
+        event.waitUntil(network.catch(() => {}));
+
+        const cached = await cache.match(req);
+
+        // Nothing cached for this page: the network is the only answer there is,
+        // so wait it out and fall back to any shell we have if it fails.
+        if (!cached) {
+          try {
+            return await network;
+          } catch {
+            return (await cache.match("/")) || Response.error();
+          }
         }
+
+        // Cached copy in hand — give the network a bounded head start.
+        const timeout = new Promise((resolve) =>
+          setTimeout(() => resolve(null), NAV_TIMEOUT_MS),
+        );
+        const winner = await Promise.race([
+          network.catch(() => null),
+          timeout,
+        ]);
+        if (winner) return winner;
+
+        servedFromCache = true;
+        return cached;
       })(),
     );
   }
