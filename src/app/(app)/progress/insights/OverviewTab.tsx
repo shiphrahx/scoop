@@ -479,7 +479,7 @@ function MilestonesDetail({ board }: { board: MilestoneBoard }) {
   return (
     <>
       {board.reached.length === 0 && board.next == null ? (
-        <NeedsMoreData what="weigh in a few times and the first kilo marker appears." />
+        <NeedsMoreData what="weigh in a few times to see the first kilo marker." />
       ) : (
         <>
           {board.next ? (
