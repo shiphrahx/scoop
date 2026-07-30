@@ -69,27 +69,27 @@ const shortDate = (iso: string) =>
 
 const VERDICT: Record<LossRate["verdict"], { text: string; tone: "good" | "warn" }> = {
   "on-track": {
-    text: "Right in the healthy band for you. Keep going.",
+    text: "Within the healthy band for your body.",
     tone: "good",
   },
   slow: {
-    text: "Under your healthy band. Fine if it's deliberate — the Coach will nudge the target if it stays here.",
+    text: "Below your healthy band. Acceptable if intended — the Coach will adjust the target if it stays here.",
     tone: "warn",
   },
   fast: {
-    text: "Faster than your healthy band. Losing this quickly costs muscle, not just fat.",
+    text: "Above your healthy band. Losing at this rate costs muscle as well as fat.",
     tone: "warn",
   },
   gaining: {
-    text: "The trend is going up over the last week.",
+    text: "The trend has risen over the last week.",
     tone: "warn",
   },
 };
 
 const CONFIDENCE: Record<GoalProjection["confidence"], string> = {
-  high: "The trend has been steady, so this window is a fair bet.",
-  medium: "The trend wobbles a bit — treat this as a rough window.",
-  low: "The trend is noisy, so this is a wide guess. It'll tighten as you log more.",
+  high: "The trend has been steady, so this window is a reliable estimate.",
+  medium: "The trend varies somewhat — treat this as an approximate window.",
+  low: "The trend is noisy, so this window is wide. It will narrow as you log more.",
 };
 
 export default function OverviewTab({
@@ -143,7 +143,7 @@ export default function OverviewTab({
   if (progress == null) {
     locked.push({
       title: "The journey",
-      why: "How far through the journey you are, start to goal. Set a goal weight on your profile.",
+      why: "How far you've come from your start weight towards your goal. Set a goal weight on your profile.",
     });
   }
   if (!hasTarget) {
