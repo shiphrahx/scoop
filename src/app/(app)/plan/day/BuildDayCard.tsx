@@ -67,7 +67,7 @@ export default function BuildDayCard({
         const r = await applyDayFix(drops, date);
         show(r);
         if (r.changed && !r.fix) {
-          setResult("Sorted — dropped what didn't fit and re-portioned your day.");
+          setResult("Dropped what didn't fit and re-portioned your day.");
         }
       } catch (e) {
         setErr(e instanceof Error ? e.message : "Couldn't fix your day.");

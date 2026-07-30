@@ -69,27 +69,27 @@ const shortDate = (iso: string) =>
 
 const VERDICT: Record<LossRate["verdict"], { text: string; tone: "good" | "warn" }> = {
   "on-track": {
-    text: "Right in the healthy band for you. Keep going.",
+    text: "Within the healthy band for your body.",
     tone: "good",
   },
   slow: {
-    text: "Under your healthy band. Fine if it's deliberate — the Coach will nudge the target if it stays here.",
+    text: "Below your healthy band. Acceptable if intended — the Coach will adjust the target if it stays here.",
     tone: "warn",
   },
   fast: {
-    text: "Faster than your healthy band. Losing this quickly costs muscle, not just fat.",
+    text: "Above your healthy band. Losing at this rate costs muscle as well as fat.",
     tone: "warn",
   },
   gaining: {
-    text: "The trend is going up over the last week.",
+    text: "The trend has risen over the last week.",
     tone: "warn",
   },
 };
 
 const CONFIDENCE: Record<GoalProjection["confidence"], string> = {
-  high: "The trend has been steady, so this window is a fair bet.",
-  medium: "The trend wobbles a bit — treat this as a rough window.",
-  low: "The trend is noisy, so this is a wide guess. It'll tighten as you log more.",
+  high: "The trend has been steady, so this window is a reliable estimate.",
+  medium: "The trend varies somewhat — treat this as an approximate window.",
+  low: "The trend is noisy, so this window is wide. It will narrow as you log more.",
 };
 
 export default function OverviewTab({
@@ -142,8 +142,8 @@ export default function OverviewTab({
   }
   if (progress == null) {
     locked.push({
-      title: "The journey",
-      why: "How far through the journey you are, start to goal. Set a goal weight on your profile.",
+      title: "Progress to goal",
+      why: "How far you've come from your start weight towards your goal. Set a goal weight on your profile.",
     });
   }
   if (!hasTarget) {
@@ -183,7 +183,7 @@ export default function OverviewTab({
             value={`${progress.pctComplete}`}
             unit="%"
             tone={progress.reached ? "good" : "cool"}
-            detailTitle="The journey"
+            detailTitle="Progress to goal"
             detail={<JourneyDetail progress={progress} />}
           />
         ) : null}
@@ -209,8 +209,8 @@ export default function OverviewTab({
           <p className="text-sm">
             Over the last {fatLoss.windowDays} days the scale moved{" "}
             {signed(fatLoss.weightDeltaKg)} kg, but your waist is down{" "}
-            {fmt(Math.abs(fatLoss.waistDeltaCm))} cm. That&apos;s fat leaving while water
-            and muscle hold the number up. Keep going.
+            {fmt(Math.abs(fatLoss.waistDeltaCm))} cm. That indicates fat loss while
+            water and muscle keep the scale figure steady.
           </p>
         </div>
       ) : null}
@@ -223,9 +223,9 @@ export default function OverviewTab({
           </div>
           <p className="text-sm text-[var(--muted)]">
             Your trend weight has moved {fmt(Math.abs(plateau.changeKg), 2)} kg in{" "}
-            {plateau.weeks} weeks. That&apos;s usually not a reason to cut further — a long
-            deficit lowers what you burn, and the fix is a diet break or a fresh
-            maintenance measurement.
+            {plateau.weeks} weeks. This is usually not a reason to cut further — a long
+            deficit lowers what you burn, and the appropriate response is a diet break
+            or a fresh maintenance measurement.
           </p>
           <Link href="/coach" className="sc-btn sc-btn-soft self-start">
             Ask the Coach
@@ -479,7 +479,7 @@ function MilestonesDetail({ board }: { board: MilestoneBoard }) {
   return (
     <>
       {board.reached.length === 0 && board.next == null ? (
-        <NeedsMoreData what="weigh in a few times and the first kilo marker appears." />
+        <NeedsMoreData what="weigh in a few times to see the first kilo marker." />
       ) : (
         <>
           {board.next ? (

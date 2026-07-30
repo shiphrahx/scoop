@@ -51,22 +51,22 @@ const shortDate = (iso: string) =>
 const BAND: Record<WaistToHeight["band"], { label: string; note: string; tone: "good" | "warn" }> = {
   low: {
     label: "Below the usual range",
-    note: "Your waist is under 40% of your height. Worth a word with a doctor if you're still cutting.",
+    note: "Your waist is under 40% of your height. Consider speaking to a doctor if you are still in a deficit.",
     tone: "warn",
   },
   healthy: {
     label: "Healthy range",
-    note: "Keeping your waist under half your height is the target — you're there.",
+    note: "Your waist is under half your height, which is the recommended range.",
     tone: "good",
   },
   increased: {
     label: "Increased risk",
-    note: "Your waist is over half your height. Bringing it under that line is the single best thing to aim at.",
+    note: "Your waist is over half your height. Bringing it below that ratio is the main target.",
     tone: "warn",
   },
   high: {
     label: "High risk",
-    note: "Your waist is 60% or more of your height. This is the number worth chasing, ahead of the scale.",
+    note: "Your waist is 60% or more of your height. This ratio matters more than the number on the scale.",
     tone: "warn",
   },
 };
@@ -91,13 +91,13 @@ export default function BodyTab({
   if (whtr == null) {
     locked.push({
       title: "Waist to height",
-      why: "The health number that beats the scale. Add a waist at a check-in and a height on your profile.",
+      why: "A stronger health indicator than weight alone. Add a waist at a check-in and a height on your profile.",
     });
   }
   if (!anyMeasurement) {
     locked.push({
       title: "Measurements",
-      why: "Watch your waist, chest, arms, thighs and hips move on the weeks the scale won't. Take them at a check-in.",
+      why: "Track waist, chest, arms, thighs and hips, which can change on weeks the scale doesn't. Take them at a check-in.",
     });
   }
   if (pair == null) {
@@ -109,7 +109,7 @@ export default function BodyTab({
   if (checkIns.length === 0) {
     locked.push({
       title: "Past check-ins",
-      why: "Every check-in with its measurements, notes and photos. Your first one starts the record.",
+      why: "Every check-in with its measurements, notes and photos. Add your first to start the record.",
     });
   }
 

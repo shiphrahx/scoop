@@ -68,7 +68,7 @@ export default function MobileHome({
             <p className="truncate text-sm text-white/80">
               {planPrompt.hasPlan
                 ? "Pick up where you left off"
-                : "Nothing logged yet — sort your meals"}
+                : "Nothing logged yet — plan your meals"}
             </p>
           </div>
           <ChevronRight size={22} className="ml-auto shrink-0 text-white/80" />
@@ -168,8 +168,8 @@ export function CalibrationBanner({ daysRemaining }: { daysRemaining: number }) 
             : " — almost done"}
         </p>
         <p className="text-sm text-white/80">
-          Eating at maintenance while I learn your body. Log food and weight
-          daily — no deficit yet.
+          Eating at maintenance while your targets are calibrated. Log food and
+          weight daily — no deficit yet.
         </p>
       </div>
     </section>

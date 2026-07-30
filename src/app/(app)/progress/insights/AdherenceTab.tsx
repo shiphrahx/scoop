@@ -45,13 +45,13 @@ export default function AdherenceTab({
   if (weeks.length === 0) {
     locked.push({
       title: "Eaten vs target",
-      why: "What you actually ate each week against what you were aiming at. Log food for a week that has a target.",
+      why: "What you ate each week against your target. Log food for a week that has a target.",
     });
   }
   if (pattern == null) {
     locked.push({
       title: "Weekdays vs weekends",
-      why: "Whether weekends quietly cost you the week's deficit. Six weekdays and three weekend days logged.",
+      why: "Whether weekend intake is eroding the week's deficit. Six weekdays and three weekend days logged.",
     });
   }
 
@@ -147,7 +147,7 @@ export default function AdherenceTab({
               />
               <p className="text-sm text-[var(--muted)]">
                 {pattern.pattern === "even"
-                  ? "Your weekends look like your weekdays. That consistency is doing a lot of the work."
+                  ? "Your weekend intake matches your weekday intake."
                   : pattern.pattern === "bigger-weekends"
                     ? `Weekends run ${fmt(pattern.differenceKcal, 0)} kcal a day higher — about ${fmt(pattern.weeklyCostKcal, 0)} kcal a week, which is most of a day's deficit.`
                     : `Weekdays run ${fmt(Math.abs(pattern.differenceKcal), 0)} kcal a day higher than your weekends.`}

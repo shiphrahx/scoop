@@ -90,16 +90,14 @@ export default async function LandingPage() {
             id="hero-title"
             className="max-w-3xl text-5xl font-semibold leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl"
           >
-            Stop counting.
-            <br />
-            We tell you the{" "}
+            Scoop tells you the{" "}
             <span className="sc-grad-text">portion to eat.</span>
           </h1>
 
           <p className="mt-6 max-w-xl text-lg text-[var(--muted)] sm:text-xl">
-            Scoop flips food tracking around. Instead of hunting for what you
-            ate, it reads your body data and hands you the exact scoop to hit
-            today&rsquo;s macros. Mostly tapping, almost no typing.
+            Instead of searching for what you ate, Scoop reads your body data
+            and gives you the portion that hits today&rsquo;s macros. Mostly
+            tapping, almost no typing.
           </p>
 
           <div className="mt-9 flex flex-col items-center gap-4 sm:flex-row sm:items-start">
@@ -133,7 +131,7 @@ export default async function LandingPage() {
             id="how-title"
             className="text-center text-3xl font-semibold tracking-tight sm:text-4xl"
           >
-            Three taps, not a food diary
+            How it works
           </h2>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
             {[
@@ -184,7 +182,7 @@ export default async function LandingPage() {
           <div className="text-center">
             <span className="sc-chip mb-5" data-active="true">
               <Calculator size={16} strokeWidth={2.5} />
-              No black box
+              Open formulas
             </span>
             <h2
               id="maths-title"
@@ -207,12 +205,12 @@ export default async function LandingPage() {
                 body: "We start with the energy your body burns just staying alive, then account for how active you are — or your real burn from Fitbit or Apple Watch.",
                 formula:
                   "10 × kg + 6.25 × cm − 5 × age ± sex,  then × activity",
-                note: "Tell us your body-fat % and we switch to a lean-mass formula for an even sharper number.",
+                note: "Tell us your body-fat % and we switch to a lean-mass formula for a more accurate figure.",
               },
               {
                 icon: Gauge,
                 title: "Your daily target",
-                body: "We take a gentle bite out of that burn — sized to the pace you chose. Never so big that it costs you muscle or energy.",
+                body: "We subtract a deficit from that burn, sized to the pace you chose. Never large enough to cost you muscle or energy.",
                 formula: "burn − (your kg per week × 7700 ÷ 7)",
                 note: "Capped at 1% of your bodyweight a week, and never below 1,500 kcal (men) or 1,200 (women).",
               },
@@ -277,12 +275,13 @@ export default async function LandingPage() {
               id="coach-title"
               className="text-3xl font-semibold tracking-tight sm:text-4xl"
             >
-              A coach that changes its mind{" "}
+              A coach that changes your targets{" "}
               <span className="sc-grad-text">slowly</span>
             </h2>
             <p className="mt-4 max-w-2xl text-lg text-[var(--muted)]">
-              Scoop watches your progress, but it only moves your targets when
-              the numbers are real — so your plan never yo-yos on a bad day.
+              Scoop tracks your progress, but only moves your targets when the
+              data supports it, so your plan doesn&rsquo;t swing on a single bad
+              day.
             </p>
             <div className="mt-8 grid gap-5 md:grid-cols-2">
               {[
@@ -299,8 +298,8 @@ export default async function LandingPage() {
                   body: "If you've barely weighed in, it waits for real data instead of guessing at a change.",
                 },
                 {
-                  title: "Small, honest nudges",
-                  body: "Stalled? A small trim. Losing too fast? A little back. Scale stuck but waist shrinking? It holds — and tells you that's fat loss the scale can't see.",
+                  title: "Small, measured adjustments",
+                  body: "Stalled: a small trim. Losing too fast: a little added back. Scale flat but waist down: targets hold, because that's fat loss the scale doesn't show.",
                 },
               ].map((c) => (
                 <div key={c.title} className="flex gap-3">
@@ -327,7 +326,7 @@ export default async function LandingPage() {
             id="features-title"
             className="text-center text-3xl font-semibold tracking-tight sm:text-4xl"
           >
-            What it does while you get on with your day
+            What it does in the background
           </h2>
           <div className="mt-12 grid gap-6 md:grid-cols-2">
             {[
@@ -344,7 +343,7 @@ export default async function LandingPage() {
               {
                 icon: LineChart,
                 title: "A coach that adjusts",
-                body: "Weekly review of weight, measurements and activity nudges your macros on real results, not guesses.",
+                body: "A weekly review of weight, measurements and activity adjusts your macros from your real results.",
               },
               {
                 icon: Check,
@@ -374,14 +373,14 @@ export default async function LandingPage() {
             </span>
             <div>
               <h3 className="text-lg font-semibold">
-                The AI bits need your own key
+                The AI features need your own key
               </h3>
               <p className="mt-1 text-[var(--muted)]">
                 Reading a grocery screenshot, importing a recipe and suggesting
-                dishes run on Anthropic, using an API key you paste in yourself
-                — so you pay Anthropic pennies directly and we never sit between
-                you and your data. Everything else, including targets, logging,
-                barcodes and the weekly coach review, works without a key.
+                dishes run on Anthropic, using an API key you paste in yourself,
+                so you pay Anthropic directly and we never sit between you and
+                your data. Everything else, including targets, logging, barcodes
+                and the weekly coach review, works without a key.
               </p>
             </div>
           </div>

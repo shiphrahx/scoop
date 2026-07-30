@@ -456,7 +456,7 @@ function Welcome({ onStart }: { onStart: () => void }) {
         </span>
         <h1 className="text-3xl font-semibold">Welcome to Scoop</h1>
         <p className="max-w-xs text-[var(--muted)]">
-          Let&apos;s set up your plan. Takes about a minute — mostly tapping.
+          Setting up your plan takes about a minute — mostly tapping.
         </p>
         <ul className="mt-2 flex w-full flex-col gap-3 text-left">
           {points.map((p) => {
@@ -479,7 +479,7 @@ function Welcome({ onStart }: { onStart: () => void }) {
         </ul>
       </div>
       <div className="mt-auto pt-8">
-        <NextButton onClick={onStart} label="Let's go" />
+        <NextButton onClick={onStart} label="Get started" />
       </div>
     </section>
   );
@@ -949,14 +949,12 @@ function CalibrationStep({
           <Telescope size={28} />
         </span>
       </div>
-      <h1 className="text-2xl font-semibold">
-        Let&apos;s learn about your body first
-      </h1>
+      <h1 className="text-2xl font-semibold">Calibrate first</h1>
       <p className="mb-6 mt-2 text-[var(--muted)]">
-        For your first couple of weeks you&apos;ll eat at maintenance while we
-        watch the scale and work out what you actually burn. Then we set a
-        deficit from real data — not from a formula&apos;s guess. It&apos;s the
-        difference between a target that fits you and one that doesn&apos;t.
+        For your first two weeks you&apos;ll eat at maintenance while your
+        weight is tracked, which measures what you actually burn. Your deficit
+        is then set from that measurement rather than from a formula, so the
+        target matches your body.
       </p>
 
       <div className="mt-auto flex flex-col gap-3 pt-8">

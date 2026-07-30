@@ -52,8 +52,8 @@ export default function HighDayToggle({
 
       <p className="text-sm text-[var(--muted)]">
         {isHigh
-          ? `Today eats up to maintenance — about ${upliftCarbsG} g more carbs. It's free: no other day is cut for it, so this week's deficit is a little smaller.`
-          : "A refeed day raises today up to your maintenance calories (extra carbs only) to fuel a workout and refill glycogen. It's free — no other day is cut — so it's for adherence and muscle, not faster fat loss."}
+          ? `Today is raised to maintenance — about ${upliftCarbsG} g more carbs. No other day is reduced to pay for it, so this week's deficit is slightly smaller.`
+          : "A refeed day raises today to your maintenance calories, as extra carbohydrate only, to fuel a workout and refill glycogen. No other day is reduced to pay for it, so it supports adherence and training rather than faster fat loss."}
       </p>
 
       <button

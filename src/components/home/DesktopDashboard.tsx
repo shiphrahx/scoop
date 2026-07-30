@@ -138,7 +138,7 @@ export default function DesktopDashboard({
             <p className="truncate text-sm text-white/80">
               {planPrompt.hasPlan
                 ? "Pick up where you left off"
-                : "Nothing logged yet — line up your meals for the day"}
+                : "Nothing logged yet — plan your meals for the day"}
             </p>
           </div>
           <ChevronRight size={22} className="ml-auto shrink-0 text-white/80" />

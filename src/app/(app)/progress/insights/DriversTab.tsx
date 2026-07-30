@@ -21,7 +21,7 @@ import {
   type LockedInsight,
 } from "./ui";
 
-const NEED_WEEKS = "Four weeks of weigh-ins and this habit unlocks it.";
+const NEED_WEEKS = "Needs four weeks of weigh-ins alongside this data.";
 
 function Finding({
   c,
@@ -102,25 +102,25 @@ export default function DriversTab({
   if (!deviceConnected) {
     locked.push({
       title: "Sleep and weight loss",
-      why: "See whether the weeks you sleep more are the weeks you lose more. Needs a wearable.",
+      why: "Whether weeks with more sleep are weeks with more loss. Needs a wearable.",
       connect: true,
     });
     locked.push({
       title: "Movement and weight loss",
-      why: "See whether your busiest weeks are your best ones. Needs a wearable.",
+      why: "Whether weeks with more movement are weeks with more loss. Needs a wearable.",
       connect: true,
     });
   } else {
     if (sleep == null) {
       locked.push({
         title: "Sleep and weight loss",
-        why: `Sleep is the driver people never suspect. ${NEED_WEEKS}`,
+        why: `Whether your sleep affects your rate of loss. ${NEED_WEEKS}`,
       });
     }
     if (movement == null) {
       locked.push({
         title: "Movement and weight loss",
-        why: `Find out if moving more really moves your scale. ${NEED_WEEKS}`,
+        why: `Whether your daily movement affects your rate of loss. ${NEED_WEEKS}`,
       });
     }
   }
@@ -236,10 +236,10 @@ export default function DriversTab({
               />
               <p className="text-sm text-[var(--muted)]">
                 {highDay.verdict === "no-difference"
-                  ? "Much the same either way — which is what should happen, since high days don't change your weekly calorie total. Keep them if they make the week easier."
+                  ? "No meaningful difference, which is expected — high days don't change your weekly calorie total. Keep them if they make the week easier to follow."
                   : highDay.verdict === "better"
                     ? `You lost ${fmt(highDay.differenceKg, 2)} kg/week more in weeks with high days.`
-                    : `You lost ${fmt(Math.abs(highDay.differenceKg), 2)} kg/week less in weeks with high days. Worth checking a high day hasn't quietly become an extra day.`}
+                    : `You lost ${fmt(Math.abs(highDay.differenceKg), 2)} kg/week less in weeks with high days. Check that a high day hasn't turned into an extra day above target.`}
               </p>
               <StatRow
                 stats={[
