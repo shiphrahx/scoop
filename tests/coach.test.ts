@@ -1303,7 +1303,7 @@ describe("weeklyReview calibration phase", () => {
     });
     expect(r.changed).toBe(false);
     expect(r.macros.kcal).toBe(2500);
-    expect(r.headline).toMatch(/learning your body/i);
+    expect(r.headline).toMatch(/calibration/i);
     expect(r.detail).toMatch(/6 days/);
     expect(r.detail).not.toMatch(/failing|failure/i);
   });
@@ -1321,7 +1321,7 @@ describe("weeklyReview calibration phase", () => {
       weightKg: 90,
     });
     expect(r.changed).toBe(true);
-    expect(r.headline).toMatch(/calibration done/i);
+    expect(r.headline).toMatch(/calibration complete/i);
     const cut = 2500 - r.macros.kcal;
     expect(cut).toBeGreaterThanOrEqual(OPENING_DEFICIT_MIN_KCAL);
     expect(cut).toBeLessThanOrEqual(OPENING_DEFICIT_MAX_KCAL);
