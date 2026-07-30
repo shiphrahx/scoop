@@ -82,7 +82,7 @@ export default function AppPreview() {
           <div className="min-w-0">
             <p className="text-sm font-semibold">Down 0.4 kg this week</p>
             <p className="truncate text-xs text-[var(--muted)]">
-              Right on pace — keeping your targets
+              Within the healthy range — targets unchanged
             </p>
           </div>
         </section>

@@ -49,13 +49,14 @@ export default function VictoriesCard({
   return (
     <CompactCard
       icon={<PartyPopper size={16} />}
-      title="Wins the scale missed"
+      title="Progress the scale doesn't show"
       detail={
         <>
           {victories.length === 0 ? (
             <p className="text-sm text-[var(--muted)]">
-              Stairs without stopping, a shirt that fits, sleeping better. Write them
-              down — on the weeks the scale sulks, this list is the evidence.
+              Stairs without stopping, a shirt that fits, sleeping better.
+              Record them here as a record of progress on weeks the scale
+              doesn&apos;t move.
             </p>
           ) : (
             <ul className="flex flex-col gap-1.5">
@@ -66,7 +67,7 @@ export default function VictoriesCard({
           )}
 
           {victories.length > 5 ? (
-            <Expandable label={`All ${victories.length} wins`}>
+            <Expandable label={`All ${victories.length} entries`}>
               <ul className="flex flex-col gap-1.5">
                 {victories.slice(5).map((v) => (
                   <VictoryRow key={v.id} victory={v} />
@@ -89,7 +90,7 @@ export default function VictoriesCard({
               disabled={busy || text.trim() === ""}
               className="sc-btn sc-btn-soft self-start"
             >
-              <Plus size={16} /> {busy ? "Saving…" : "Add a win"}
+              <Plus size={16} /> {busy ? "Saving…" : "Add an entry"}
             </button>
           </div>
         </>
@@ -100,7 +101,7 @@ export default function VictoriesCard({
         value={`${victories.length}`}
         label={
           victories.length === 0
-            ? "none yet — write one down"
+            ? "none recorded yet"
             : // The list holds a sentence; the tile holds a line of one.
               victories[0].text.length > 42
               ? `${victories[0].text.slice(0, 40)}…`
