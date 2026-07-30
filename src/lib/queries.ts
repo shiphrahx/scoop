@@ -340,20 +340,26 @@ export async function hasTrackedToday(): Promise<boolean> {
   return (await getFoodLogsForDate(await localToday())).length > 0;
 }
 
+// The two secrets stored on the users row. getProfile selects the whole row, so
+// they are already in hand — but they are deliberately absent from the Profile
+// type, so nothing can pass them to a client component by accident. This reads
+// them back through a local cast at the one or two places that legitimately
+// need them, on the server.
+type UserSecrets = {
+  anthropic_api_key?: string | null;
+  apple_ingest_token?: string | null;
+};
+const secretsOf = (profile: Profile | null): UserSecrets =>
+  (profile as (Profile & UserSecrets) | null) ?? {};
+
 // True when the user has saved an Anthropic key (the key itself never leaves
 // the server — we only report whether one exists).
+//
+// Read off the cached profile rather than its own query: every screen that asks
+// this (/plan, /plan/recipe, /pantry/add, /me) already has the profile loaded
+// for the same request, so this used to be a second round trip to the same row.
 export async function hasApiKey(): Promise<boolean> {
-  const supabase = await createClient();
-  const user = await getSessionUser();
-  if (!user) return false;
-
-  const { data } = await supabase
-    .from("users")
-    .select("anthropic_api_key")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  return Boolean((data as { anthropic_api_key: string | null } | null)?.anthropic_api_key);
+  return Boolean(secretsOf(await getProfile()).anthropic_api_key);
 }
 
 // Everything the Coach page needs: the weekly review plus the raw numbers and
@@ -880,14 +886,14 @@ export async function getDeviceConnected(): Promise<boolean> {
   const user = await getSessionUser();
   if (!user) return false;
 
-  const [fitbitRes, appleRes] = await Promise.all([
+  // The Apple side comes off the cached profile — the same users row, already
+  // fetched for this request — so only the Fitbit token needs asking for.
+  const [fitbitRes, profile] = await Promise.all([
     supabase.from("fitbit_tokens").select("user_id").eq("user_id", user.id).maybeSingle(),
-    supabase.from("users").select("apple_ingest_token").eq("id", user.id).maybeSingle(),
+    getProfile(),
   ]);
   const hasFitbit = Boolean((fitbitRes.data as { user_id: string } | null)?.user_id);
-  const hasApple = Boolean(
-    (appleRes.data as { apple_ingest_token: string | null } | null)?.apple_ingest_token,
-  );
+  const hasApple = Boolean(secretsOf(profile).apple_ingest_token);
   return hasFitbit || hasApple;
 }
 
