@@ -316,6 +316,19 @@ export function createFakeSupabase(opts: FakeSupabaseOptions = {}) {
         async createSignedUrl(path: string) {
           return { data: { signedUrl: `signed:${bucket}/${path}` }, error: null };
         },
+        // The batch form: one call signs many paths. Mirrors the real API's
+        // shape — a row per path, in the order asked for, each carrying its own
+        // error slot.
+        async createSignedUrls(paths: string[]) {
+          return {
+            data: paths.map((path) => ({
+              path,
+              signedUrl: `signed:${bucket}/${path}`,
+              error: null,
+            })),
+            error: null,
+          };
+        },
       };
     },
   };

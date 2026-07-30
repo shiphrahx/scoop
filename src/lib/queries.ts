@@ -770,17 +770,31 @@ function toCheckIn(r: Record<string, unknown>): CheckIn {
   };
 }
 
-// A short-lived signed URL for a private photo, or undefined if signing fails.
-// The bucket is private, so this is the only way the browser can fetch a file.
+// Short-lived signed URLs for private photos, keyed by storage path. The bucket
+// is private, so this is the only way the browser can fetch a file.
+//
+// One request for the whole set. Signing them one at a time meant a separate
+// HTTP call to Storage per photo — a year of weekly check-ins with three angles
+// each is 150-odd sequential-ish calls before the Progress page can render, and
+// they all serialise behind the same connection pool.
 const PHOTO_URL_TTL_SECONDS = 60 * 60;
-async function signPhotoUrl(
+async function signPhotoUrls(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  path: string,
-): Promise<string | undefined> {
+  paths: string[],
+): Promise<Map<string, string>> {
+  const signed = new Map<string, string>();
+  if (paths.length === 0) return signed;
+
   const { data } = await supabase.storage
     .from("check-in-photos")
-    .createSignedUrl(path, PHOTO_URL_TTL_SECONDS);
-  return data?.signedUrl;
+    .createSignedUrls(paths, PHOTO_URL_TTL_SECONDS);
+
+  for (const row of data ?? []) {
+    // A path that failed to sign comes back with a null url; leave it out so the
+    // caller sees the same "no url" it saw before rather than an empty string.
+    if (row.signedUrl) signed.set(row.path ?? "", row.signedUrl);
+  }
+  return signed;
 }
 
 // This week's check-in, or null when it hasn't been done yet. Drives whether the
@@ -840,12 +854,14 @@ export async function getCheckInHistory(
     .order("created_at", { ascending: true });
   const photoRows = (photoData as CheckInPhoto[]) ?? [];
 
-  const signed = await Promise.all(
-    photoRows.map(async (p) => ({
-      ...p,
-      signed_url: await signPhotoUrl(supabase, p.storage_path),
-    })),
+  const urls = await signPhotoUrls(
+    supabase,
+    photoRows.map((p) => p.storage_path),
   );
+  const signed = photoRows.map((p) => ({
+    ...p,
+    signed_url: urls.get(p.storage_path),
+  }));
   const byCheckIn = new Map<string, CheckInPhoto[]>();
   for (const p of signed) {
     const list = byCheckIn.get(p.check_in_id) ?? [];
