@@ -201,19 +201,22 @@ export function maintenanceKcalFor(
 
 export async function getHighDayStatus(date: string): Promise<HighDayStatus> {
   const supabase = await createClient();
-  const [profile, base, weightKg] = await Promise.all([
+  // weekStartOf is pure arithmetic on the date we were handed, so the refeed
+  // rows can be fetched alongside the profile/target/weight batch instead of
+  // waiting behind it. It used to run after, which put a whole extra round trip
+  // on the home screen's critical path for a read that depends on none of them.
+  const weekStart = weekStartOf(date);
+  const [profile, base, weightKg, highDaysRes] = await Promise.all([
     getProfile(),
     getCurrentTargets(),
     getLatestWeight(),
+    // Every refeed day the user has taken this week (RLS scopes it to them).
+    supabase.from("high_days").select("date").eq("week_start", weekStart),
   ]);
-  const weekStart = weekStartOf(date);
 
-  // Every refeed day the user has taken this week (RLS scopes it to them).
-  const { data: rows } = await supabase
-    .from("high_days")
-    .select("date")
-    .eq("week_start", weekStart);
-  const highDates = ((rows as { date: string }[]) ?? []).map((r) => r.date);
+  const highDates = ((highDaysRes.data as { date: string }[]) ?? []).map(
+    (r) => r.date,
+  );
   const isHigh = highDates.includes(date);
 
   // Phase rides on the in-force target row, so reading it here needs no recompute.
