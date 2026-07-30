@@ -114,32 +114,40 @@ const TARGET_COLS =
 export const getCurrentTargets = cache(async function getCurrentTargets(): Promise<DailyTargets | null> {
   const supabase = await createClient();
   const tz = await getTimezone();
-  // Prefer this week's target; fall back to the most recent one. The week turns
-  // over on the user's Monday, not the server's.
-  const { data } = await supabase
-    .from("daily_targets")
-    .select(TARGET_COLS)
-    .lte("week_start", localWeekStart(tz))
-    .order("week_start", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const latest = (data as DailyTargets) ?? null;
-
-  // During calibration the target is FIXED at the one set when calibration began.
-  // If any later row drifted the number up (an older build recomputed it from a
-  // moving maintenance estimate), ignore it and return the earliest
-  // calibration-phase row — the true onboarding anchor — so the number can't
-  // creep and any past creep is undone.
-  if (latest?.phase === "calibration") {
-    const { data: anchor } = await supabase
+  // Two reads, one round trip. The second is only USED while the user is
+  // calibrating, but which case applies isn't known until the first comes back —
+  // and issuing it afterwards put a second sequential round trip on the home
+  // screen for exactly the new users who have the least patience for it. Both
+  // are single-row lookups on the (user_id, week_start) index, so speculatively
+  // asking for the anchor costs far less than waiting to find out we need it.
+  const [latestRes, anchorRes] = await Promise.all([
+    // Prefer this week's target; fall back to the most recent one. The week turns
+    // over on the user's Monday, not the server's.
+    supabase
+      .from("daily_targets")
+      .select(TARGET_COLS)
+      .lte("week_start", localWeekStart(tz))
+      .order("week_start", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    // The earliest calibration-phase row: the true onboarding anchor.
+    supabase
       .from("daily_targets")
       .select(TARGET_COLS)
       .eq("phase", "calibration")
       .order("week_start", { ascending: true })
       .limit(1)
-      .maybeSingle();
-    return (anchor as DailyTargets) ?? latest;
+      .maybeSingle(),
+  ]);
+
+  const latest = (latestRes.data as DailyTargets) ?? null;
+
+  // During calibration the target is FIXED at the one set when calibration began.
+  // If any later row drifted the number up (an older build recomputed it from a
+  // moving maintenance estimate), ignore it and return the anchor so the number
+  // can't creep and any past creep is undone.
+  if (latest?.phase === "calibration") {
+    return (anchorRes.data as DailyTargets) ?? latest;
   }
 
   return latest;
