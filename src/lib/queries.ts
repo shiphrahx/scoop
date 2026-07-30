@@ -362,6 +362,14 @@ export async function hasApiKey(): Promise<boolean> {
   return Boolean(secretsOf(await getProfile()).anthropic_api_key);
 }
 
+// The user's Apple ingest token in the clear, for showing them the URL Health
+// Auto Export should post to. Null when they've never generated one. Same story
+// as hasApiKey: it rides on the profile row the request already holds.
+export async function getAppleIngestToken(): Promise<string | null> {
+  const stored = secretsOf(await getProfile()).apple_ingest_token;
+  return stored ? decryptSecret(stored) : null;
+}
+
 // Everything the Coach page needs: the weekly review plus the raw numbers and
 // connection state behind it. Also used by the "apply" action so the target it
 // writes is computed from the same rules the page showed.
@@ -476,7 +484,6 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
     measRes,
     activityRes,
     fitbitRes,
-    tokenRes,
     intake,
     histRes,
   ] = await Promise.all([
@@ -503,9 +510,8 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
       user
         ? supabase.from("fitbit_tokens").select("user_id").eq("user_id", user.id).maybeSingle()
         : Promise.resolve({ data: null }),
-      user
-        ? supabase.from("users").select("apple_ingest_token").eq("id", user.id).maybeSingle()
-        : Promise.resolve({ data: null }),
+      // No separate read for the Apple token: it lives on the users row that
+      // `profile` above already carries.
       getDailyIntake(tz, TREND_WINDOW_DAYS, now),
       supabase
         .from("daily_targets")
@@ -719,8 +725,7 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
     activity: activityRows,
     fitbitConnected: Boolean((fitbitRes.data as { user_id: string } | null)?.user_id),
     appleIngestToken: (() => {
-      const stored = (tokenRes.data as { apple_ingest_token: string | null } | null)
-        ?.apple_ingest_token;
+      const stored = secretsOf(profile).apple_ingest_token;
       return stored ? decryptSecret(stored) : null;
     })(),
   };
