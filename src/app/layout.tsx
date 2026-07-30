@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import { Suspense } from "react";
 import "./globals.css";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
@@ -17,10 +17,11 @@ const jakarta = Plus_Jakarta_Sans({
   weight: ["400", "600", "700"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+// No mono font here on purpose. The only monospaced text in the whole product
+// is the worked example on the marketing page, and loading it from the root
+// layout put a second `<link rel=preload as=font>` on the critical path of every
+// signed-in screen for a face those screens never render. It now loads from the
+// landing page alone (see src/app/page.tsx).
 
 export const metadata: Metadata = {
   metadataBase: siteUrl(),
@@ -75,7 +76,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${jakarta.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${jakarta.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <div className="sc-bg" aria-hidden />

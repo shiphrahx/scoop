@@ -76,7 +76,11 @@
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --font-sans: var(--font-jakarta);
-  --font-mono: var(--font-geist-mono);
+  /* Geist Mono is loaded by the landing page only (the sole place we draw
+     monospaced text). The fallback stack means `font-mono` used anywhere else
+     still renders as mono instead of collapsing to the body face. */
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo,
+    monospace;
 }
 
 body {

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { Geist_Mono } from "next/font/google";
 import {
   ArrowRight,
   Watch,
@@ -24,6 +25,15 @@ import AppPreview from "@/components/AppPreview";
 export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
+
+// The worked example below is the only monospaced text in the product, so the
+// face loads here rather than in the root layout — the signed-in screens should
+// not preload a font they never draw with. Applied per element (the two spots
+// that use `font-mono`) so nothing has to wrap the page in an extra div.
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
 
 // Public front door. Everyone lands here; signing in sends them to /dashboard.
 export default async function LandingPage() {
@@ -230,7 +240,9 @@ export default async function LandingPage() {
                   </span>
                   <h3 className="mt-4 text-xl font-semibold">{s.title}</h3>
                   <p className="mt-2 text-[var(--muted)]">{s.body}</p>
-                  <code className="mt-4 block rounded-[var(--radius-sm)] bg-[var(--fill-soft)] px-3 py-2 font-mono text-xs text-[var(--ink-teal)]">
+                  <code
+                    className={`${geistMono.variable} mt-4 block rounded-[var(--radius-sm)] bg-[var(--fill-soft)] px-3 py-2 font-mono text-xs text-[var(--ink-teal)]`}
+                  >
                     {s.formula}
                   </code>
                   <p className="mt-3 text-sm text-[var(--muted)]">{s.note}</p>
@@ -248,7 +260,9 @@ export default async function LandingPage() {
               Someone 80 kg · 180 cm · 30 · lightly active, aiming for about ½
               kg a week:
             </p>
-            <div className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-3 font-mono text-sm">
+            <div
+              className={`${geistMono.variable} mt-5 flex flex-wrap items-center gap-x-2 gap-y-3 font-mono text-sm`}
+            >
               <ExampleChip top="rests at" value="1,780" unit="kcal" />
               <Flow />
               <ExampleChip top="burns" value="2,448" unit="kcal/day" />
