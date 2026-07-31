@@ -17,7 +17,6 @@ import {
   KeyRound,
 } from "lucide-react";
 import type { Metadata } from "next";
-import { getSessionUser } from "@/lib/auth";
 import InstallAppButton from "@/components/InstallAppButton";
 import SiteFooter from "@/components/SiteFooter";
 import AppPreview from "@/components/AppPreview";
@@ -35,13 +34,16 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Public front door. Everyone lands here; signing in sends them to /dashboard.
+// Public front door — for people who are not signed in yet.
+//
+// Anyone with a session is sent to /dashboard before this ever renders; the proxy
+// does it (see lib/supabase/middleware.ts), because only there can an expired
+// token be refreshed. So this page has no user to branch on, reads no cookies,
+// and stays fully static.
 export default async function LandingPage() {
-  const user = await getSessionUser();
-
-  // Signed-in visitors get a shortcut straight into the app.
-  const primaryHref = user ? "/dashboard" : "/login";
-  const primaryLabel = user ? "Go to dashboard" : "Get started free";
+  // Signed-out visitors only, so the call to action is always the same.
+  const primaryHref = "/login";
+  const primaryLabel = "Get started free";
 
   return (
     <>
@@ -80,7 +82,7 @@ export default async function LandingPage() {
           </nav>
 
           <Link href={primaryHref} className="sc-btn sc-btn-primary text-sm">
-            {user ? "Dashboard" : "Get started"}
+            Get started
           </Link>
         </div>
       </header>

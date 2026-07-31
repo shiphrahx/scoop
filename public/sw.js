@@ -1,7 +1,11 @@
 // Scoop service worker. Keeps the app openable offline: static assets are
 // cached on first use, page navigations try the network first and fall back to
 // the last-seen page (or Home) when offline. API/auth traffic is never cached.
-const CACHE = "scoop-v4";
+// Bumped to v5: "/" now redirects signed-in visitors to their dashboard, and the
+// activate handler drops every older cache — so a landing page stored before
+// that, which would still be served to someone who has since signed in, goes
+// with it.
+const CACHE = "scoop-v5";
 
 // How long a page navigation waits for the network before the last-seen copy of
 // that same page is shown instead. Tapping the home-screen icon on mobile data
@@ -42,9 +46,17 @@ self.addEventListener("message", (event) => {
 });
 
 // Only a clean 200 from our own origin is worth keeping — never a redirect (the
-// auth bounce to /login) or an error (a 404 during a deploy), or we would serve
-// that bad page back later and the route would look broken.
-const cacheable = (res) => res && res.ok && res.type === "basic";
+// auth bounce to /login, or "/" sending a signed-in visitor to their dashboard)
+// or an error (a 404 during a deploy), or we would serve that bad page back
+// later and the route would look broken.
+//
+// `redirected` is the part that matters for a followed redirect: it arrives as a
+// perfectly ordinary ok/basic response for the URL it ended up at, so the status
+// alone does not tell it apart. Storing one under the requested URL would pin a
+// user's auth state into the cache — the dashboard served for "/" long after
+// they signed out — and a redirected response may not be returned to a
+// navigation at all.
+const cacheable = (res) => res && res.ok && res.type === "basic" && !res.redirected;
 
 // Tell every open page that what it is looking at came from cache and fresher
 // HTML has since arrived, so it can pull the new data in without a reload.
