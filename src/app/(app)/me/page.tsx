@@ -30,6 +30,10 @@ const FITBIT_NOTES: Record<string, string> = {
   connected: "Fitbit connected. Tap sync to pull your data.",
   denied: "Fitbit connection was cancelled.",
   error: "Something went wrong connecting Fitbit. Try again.",
+  // Distinct from `error`: the grant itself worked, it just came back without
+  // permission to refresh in the background, which would have stopped syncing
+  // within the hour. Saying so beats storing it and failing later.
+  offline: "That connection did not include background access, so it would stop working within the hour. Connect again and approve every permission.",
 };
 
 export default async function MePage({

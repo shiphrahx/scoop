@@ -33,6 +33,22 @@ export async function GET(request: NextRequest) {
     return fail("error");
   }
 
+  // No refresh token means no offline access. The connection would work for as
+  // long as the access token lasts — about an hour — and then be impossible to
+  // renew, so it dies quietly long after the user connected and surfaces as
+  // "that connection has expired" with no obvious cause. Google only issues one
+  // with access_type=offline + prompt=consent (both set in authorizeUrl), and
+  // withholds it if the grant was approved without them; Fitbit omits it on a
+  // partial grant. Refuse the connection now, while the cause is still visible,
+  // rather than storing one that is already doomed.
+  if (!tokens.refresh_token) {
+    logError(
+      `fitbit connect for user ${user.id}`,
+      new Error("provider returned no refresh token — offline access not granted"),
+    );
+    return fail("offline");
+  }
+
   const { error } = await supabase.from("fitbit_tokens").upsert(
     {
       user_id: user.id,

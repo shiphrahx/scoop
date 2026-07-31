@@ -120,6 +120,12 @@ export async function applyReview() {
 export interface FitbitSyncResult {
   ok: boolean;
   message: string;
+  // The stored connection cannot be repaired from here — only the user granting
+  // access again will fix it. Telling them so is useless unless they are also
+  // given the button, so this drives one (see FitbitButton). Without it the
+  // advice was a dead end: the Connect link only ever showed when no token row
+  // existed at all, which is exactly not the case when a token has gone bad.
+  reconnect?: boolean;
 }
 
 // Pull the last 7 days of steps, workout calories and sleep from Fitbit into
@@ -138,12 +144,27 @@ export async function syncFitbit(): Promise<FitbitSyncResult> {
   > | null;
   if (!tokens) return { ok: false, message: "Connect Fitbit first." };
 
+  // Decrypting is a separate failure from refreshing, and lumping them together
+  // reported a server-side key problem as "your connection expired", which is
+  // not the user's doing and reads as if they had done something wrong.
   let accessToken: string;
+  let refreshToken: string;
   try {
     accessToken = decryptSecret(tokens.access_token);
-    // Refresh a minute early to avoid racing the clock.
-    if (new Date(tokens.expires_at).getTime() <= Date.now() + 60_000) {
-      const fresh = await refreshTokens(decryptSecret(tokens.refresh_token));
+    refreshToken = decryptSecret(tokens.refresh_token);
+  } catch (err) {
+    logError(`fitbit token decrypt for user ${user.id}`, err);
+    return {
+      ok: false,
+      reconnect: true,
+      message: "Your saved connection could not be read. Connect again to replace it.",
+    };
+  }
+
+  // Refresh a minute early to avoid racing the clock.
+  if (new Date(tokens.expires_at).getTime() <= Date.now() + 60_000) {
+    try {
+      const fresh = await refreshTokens(refreshToken);
       accessToken = fresh.access_token;
       await supabase
         .from("fitbit_tokens")
@@ -155,15 +176,18 @@ export async function syncFitbit(): Promise<FitbitSyncResult> {
           updated_at: new Date().toISOString(),
         })
         .eq("user_id", user.id);
+    } catch (err) {
+      // Sync renews the token by itself while the refresh token is still good.
+      // Once the provider rejects THAT — revoked access, a refresh token already
+      // spent, or one issued by the provider we no longer use — there is nothing
+      // left here to retry with, and only a fresh grant will do.
+      logError(`fitbit token refresh for user ${user.id}`, err);
+      return {
+        ok: false,
+        reconnect: true,
+        message: "That connection has expired. Connect again to resume syncing.",
+      };
     }
-  } catch (err) {
-    // A refresh that fails is nearly always a token the user revoked on the
-    // provider's side, which no retry here can fix — reconnecting is the fix.
-    logError(`fitbit token refresh for user ${user.id}`, err);
-    return {
-      ok: false,
-      message: "That connection has expired. Connect again to resume syncing.",
-    };
   }
 
   let result;
