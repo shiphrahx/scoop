@@ -22,7 +22,7 @@ guess. Every meal. Annoying. Most people quit tracking because of it.
 
 Scoop flips it. You don't tell the app what you ate — the app tells you what to
 eat. It knows your body, your goal, your pantry, and what you ate today, then
-hands you the portion: *"180g rice with the chicken."* You just eat it.
+hands you the portion: *"180g rice with tofu."* You just eat it.
 
 Phone-first. Big buttons. Almost no typing.
 
