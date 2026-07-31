@@ -1,0 +1,6 @@
+{
+  "worktree": {
+    "symlinkDirectories": ["node_modules"],
+    "baseRef": "head"
+  }
+}
