@@ -7,7 +7,12 @@ import { updateCalibration } from "@/lib/coach";
 import { getCoachData } from "@/lib/queries";
 import { getTimezone } from "@/lib/queries";
 import { localWeekStart } from "@/lib/time";
-import { refreshTokens, type FitbitTokens } from "@/lib/fitbit";
+import {
+  activeProvider,
+  providerConfigured,
+  refreshTokens,
+  type FitbitTokens,
+} from "@/lib/fitbit";
 import { syncActivityDays } from "@/lib/activity-sync";
 import { logError } from "@/lib/log";
 
@@ -132,6 +137,21 @@ export interface FitbitSyncResult {
 // the activity table, refreshing the access token first if it's near expiry.
 export async function syncFitbit(): Promise<FitbitSyncResult> {
   const { supabase, user } = await requireUser();
+
+  // Missing credentials threw from inside refreshTokens and were caught below as
+  // an expired connection — so a deployment that was never configured told the
+  // user to reconnect, over and over, for something reconnecting cannot fix.
+  // No `reconnect` flag here: the grant is not the problem.
+  if (!providerConfigured()) {
+    logError(
+      `fitbit sync for user ${user.id}`,
+      new Error(`${activeProvider()} provider has no client credentials configured`),
+    );
+    return {
+      ok: false,
+      message: "Device syncing is not set up on this deployment yet.",
+    };
+  }
 
   const { data } = await supabase
     .from("fitbit_tokens")
