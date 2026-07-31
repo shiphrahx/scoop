@@ -8,6 +8,7 @@ import SlotWeightsSettings from "./SlotWeightsSettings";
 import { DEFAULT_MEAL_SLOTS } from "@/lib/types";
 import { recommendedHighDays } from "@/lib/highday";
 import SignOutButton from "@/components/SignOutButton";
+import InstallAppButton from "@/components/InstallAppButton";
 import {
   AppleIngest,
   DevSeed,
@@ -138,6 +139,17 @@ export default async function MePage({
         </div>
 
         {process.env.NODE_ENV !== "production" && <DevSeed />}
+
+        {/* The only way in for someone already signed in: the landing page holds
+            the other copy of this, and signed-in visitors are redirected off it
+            straight to their dashboard. Renders nothing once installed, or on a
+            browser that can't install. */}
+        <div className="flex flex-col gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+            This phone
+          </span>
+          <InstallAppButton className="sc-btn sc-btn-soft w-full py-4 text-lg" />
+        </div>
       </section>
 
       <ApiKeySettings connected={connected} />
