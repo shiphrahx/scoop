@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { providerConfigured, activeProvider } from "@/lib/fitbit";
+import { providerConfigured, activeProvider, missingProviderConfig } from "@/lib/fitbit";
 
 // Missing provider credentials used to throw from deep inside the OAuth and
 // refresh calls: /api/fitbit/authorize answered with a bare 500, and a sync
@@ -68,6 +68,47 @@ describe("providerConfigured", () => {
     process.env.GOOGLE_HEALTH_CLIENT_SECRET = "secret";
 
     expect(providerConfigured()).toBe(true);
+  });
+});
+
+describe("missingProviderConfig", () => {
+  // The exact production trap: HEALTH_PROVIDER never set on the deployment, so
+  // the code falls back to legacy and looks for FITBIT_*, while the Google
+  // credentials that ARE set go unread. Naming the pair it wants is the whole
+  // point — "not configured" alone sends you to check the wrong two variables.
+  it("names the legacy pair when HEALTH_PROVIDER is unset, even with google credentials present", () => {
+    process.env.GOOGLE_HEALTH_CLIENT_ID = "id";
+    process.env.GOOGLE_HEALTH_CLIENT_SECRET = "secret";
+
+    expect(activeProvider()).toBe("legacy");
+    expect(missingProviderConfig()).toEqual([
+      "FITBIT_CLIENT_ID",
+      "FITBIT_CLIENT_SECRET",
+    ]);
+  });
+
+  it("names only the half that is actually absent", () => {
+    process.env.HEALTH_PROVIDER = "google";
+    process.env.GOOGLE_HEALTH_CLIENT_ID = "id";
+
+    expect(missingProviderConfig()).toEqual(["GOOGLE_HEALTH_CLIENT_SECRET"]);
+  });
+
+  it("is empty once the live provider is satisfied", () => {
+    process.env.HEALTH_PROVIDER = "google";
+    process.env.GOOGLE_HEALTH_CLIENT_ID = "id";
+    process.env.GOOGLE_HEALTH_CLIENT_SECRET = "secret";
+
+    expect(missingProviderConfig()).toEqual([]);
+    expect(providerConfigured()).toBe(true);
+  });
+
+  // Names are safe to surface to the signed-in owner; values never are.
+  it("reports names, never values", () => {
+    process.env.HEALTH_PROVIDER = "google";
+    process.env.GOOGLE_HEALTH_CLIENT_ID = "super-secret-id";
+
+    expect(missingProviderConfig().join()).not.toMatch(/super-secret-id/);
   });
 });
 

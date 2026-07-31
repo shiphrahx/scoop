@@ -251,10 +251,21 @@ export function activeProvider(): "google" | "legacy" {
 // reconnect for something no amount of reconnecting can fix. Check up front so
 // missing configuration reports itself as missing configuration.
 export function providerConfigured(): boolean {
-  const has = (name: string) => Boolean(process.env[name]);
-  return isGoogle()
-    ? has("GOOGLE_HEALTH_CLIENT_ID") && has("GOOGLE_HEALTH_CLIENT_SECRET")
-    : has("FITBIT_CLIENT_ID") && has("FITBIT_CLIENT_SECRET");
+  return missingProviderConfig().length === 0;
+}
+
+// Which env vars the live provider still needs — NAMES ONLY, never values.
+//
+// Worth reporting rather than a bare true/false because the usual mistake is not
+// a forgotten variable but the wrong pair: with HEALTH_PROVIDER unset the code
+// falls back to legacy Fitbit and looks for FITBIT_*, so a deployment carrying a
+// perfectly good set of GOOGLE_HEALTH_* credentials still reports itself
+// unconfigured, and nothing on screen says which pair it was looking for.
+export function missingProviderConfig(): string[] {
+  const names = isGoogle()
+    ? ["GOOGLE_HEALTH_CLIENT_ID", "GOOGLE_HEALTH_CLIENT_SECRET"]
+    : ["FITBIT_CLIENT_ID", "FITBIT_CLIENT_SECRET"];
+  return names.filter((n) => !process.env[n]);
 }
 
 // Raw per-endpoint responses for one day — diagnostics only.
