@@ -15,8 +15,8 @@ import {
 } from "@/app/(app)/coach/Controls";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth";
-import { decryptSecret } from "@/lib/crypto";
 import {
+  getAppleIngestToken,
   getCurrentTargets,
   getLatestWeight,
   getProfile,
@@ -39,30 +39,26 @@ export default async function MePage({
   const supabase = await createClient();
   const user = await getSessionUser();
 
-  // One batch, not two: the fitbit/apple token reads don't depend on the profile
-  // batch, so splitting them cost a second sequential round trip for nothing.
-  const [{ fitbit }, profile, connected, targets, weightKg, fitbitRes, tokenRes] =
+  // One batch, not two: the fitbit read doesn't depend on the profile batch, so
+  // splitting them cost a second sequential round trip for nothing. The Apple
+  // token isn't in here at all any more — it lives on the users row getProfile
+  // already fetched.
+  const [{ fitbit }, profile, connected, targets, weightKg, appleToken, fitbitRes] =
     await Promise.all([
       searchParams,
       getProfile(),
       hasApiKey(),
       getCurrentTargets(),
       getLatestWeight(),
+      getAppleIngestToken(),
       user
         ? supabase.from("fitbit_tokens").select("user_id").eq("user_id", user.id).maybeSingle()
-        : Promise.resolve({ data: null }),
-      user
-        ? supabase.from("users").select("apple_ingest_token").eq("id", user.id).maybeSingle()
         : Promise.resolve({ data: null }),
     ]);
 
   const fitbitConnected = Boolean(
     (fitbitRes.data as { user_id: string } | null)?.user_id,
   );
-  const storedAppleToken =
-    (tokenRes.data as { apple_ingest_token: string | null } | null)
-      ?.apple_ingest_token ?? null;
-  const appleToken = storedAppleToken ? decryptSecret(storedAppleToken) : null;
   const note = fitbit ? FITBIT_NOTES[fitbit] : null;
 
   return (

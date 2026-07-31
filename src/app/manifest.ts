@@ -13,10 +13,25 @@ export default function manifest(): MetadataRoute.Manifest {
     // sent to /login by the proxy, so nothing is exposed.
     start_url: "/dashboard",
     scope: "/",
+    // Pinned so changing start_url later can't make the browser treat this as a
+    // different app and orphan everyone's installed icon.
+    id: "/",
     display: "standalone",
+    display_override: ["standalone", "minimal-ui"],
+    // Tapping the icon when Scoop is already running focuses that window and
+    // navigates it, instead of tearing down and cold-starting a second one.
+    // A cold start is the slowest way into the app; this skips it entirely for
+    // the common case of coming back to an app still in memory.
+    launch_handler: { client_mode: "navigate-existing" },
     orientation: "portrait",
-    background_color: "#ffffff",
-    theme_color: "#22c55e",
+    // The splash screen the OS paints before the first frame arrives. White
+    // flashed against the app's own near-white-teal background on every launch;
+    // matching them makes the hand-off invisible, so the launch reads as the app
+    // opening rather than a blank page loading. theme_color follows the same
+    // value the app sets for the status bar (see viewport in app/layout.tsx),
+    // which was green and did not match anything on screen.
+    background_color: "#eef4f3",
+    theme_color: "#eef4f3",
     categories: ["health", "fitness", "food"],
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },

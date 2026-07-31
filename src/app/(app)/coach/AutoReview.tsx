@@ -34,13 +34,29 @@ export default function AutoReview() {
     }
 
     // Best effort: a failure here should never break the page the user came for.
-    void ensureReviewApplied()
-      .then(() => {
-        try {
-          localStorage.setItem(STAMP_KEY, today);
-        } catch {}
-      })
-      .catch(() => {});
+    const run = () =>
+      void ensureReviewApplied()
+        .then(() => {
+          try {
+            localStorage.setItem(STAMP_KEY, today);
+          } catch {}
+        })
+        .catch(() => {});
+
+    // Wait for the browser to go quiet first. This fires on app open, and the
+    // server action behind it is a multi-week scan — kicking it off during
+    // hydration put it in the queue alongside the streaming page and the tab
+    // bar's prefetches, on the request the user is actually waiting for. It is
+    // a once-a-day background chore; a second or two later costs nothing.
+    // requestIdleCallback is missing on older Safari, hence the timer fallback.
+    const canIdle = typeof window.requestIdleCallback === "function";
+    const handle = canIdle
+      ? window.requestIdleCallback(run, { timeout: 5000 })
+      : window.setTimeout(run, 1500);
+    return () => {
+      if (canIdle) window.cancelIdleCallback(handle);
+      else window.clearTimeout(handle);
+    };
   }, []);
 
   return null;

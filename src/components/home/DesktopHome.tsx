@@ -5,6 +5,7 @@ import {
   getActivityHistory,
   getLatestWeight,
 } from "@/lib/queries";
+import { isProbablyWide } from "@/lib/viewport.server";
 import type { Macros } from "@/lib/types";
 import type { NutrientKey } from "@/lib/nutrients";
 
@@ -34,14 +35,26 @@ export default async function DesktopHome({
   prefs: NutrientKey[];
   calibration: ReactNode;
 }) {
-  const [weightHistory, activity, latestWeight] = await Promise.all([
-    getWeightHistory(30),
-    getActivityHistory(14),
-    getLatestWeight(),
-  ]);
+  // On a phone these three reads are pure waste: DesktopDashboardMount renders
+  // nothing below 1024px, so the series are fetched, serialised into the RSC
+  // payload, sent over mobile data and dropped. Skipping them when the browser
+  // has told us it is narrow takes three queries and their payload off every
+  // mobile home load. When the hint is absent (a first visit) they are fetched
+  // as before — and if the hint turns out to be wrong, the client asks for a
+  // refresh rather than showing empty charts.
+  const wide = await isProbablyWide();
+
+  const [weightHistory, activity, latestWeight] = wide
+    ? await Promise.all([
+        getWeightHistory(30),
+        getActivityHistory(14),
+        getLatestWeight(),
+      ])
+    : [[], [], null];
 
   return (
     <DesktopDashboardMount
+      dataDeferred={!wide}
       name={name}
       targets={targets}
       consumed={consumed}

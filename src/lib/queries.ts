@@ -114,32 +114,40 @@ const TARGET_COLS =
 export const getCurrentTargets = cache(async function getCurrentTargets(): Promise<DailyTargets | null> {
   const supabase = await createClient();
   const tz = await getTimezone();
-  // Prefer this week's target; fall back to the most recent one. The week turns
-  // over on the user's Monday, not the server's.
-  const { data } = await supabase
-    .from("daily_targets")
-    .select(TARGET_COLS)
-    .lte("week_start", localWeekStart(tz))
-    .order("week_start", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const latest = (data as DailyTargets) ?? null;
-
-  // During calibration the target is FIXED at the one set when calibration began.
-  // If any later row drifted the number up (an older build recomputed it from a
-  // moving maintenance estimate), ignore it and return the earliest
-  // calibration-phase row — the true onboarding anchor — so the number can't
-  // creep and any past creep is undone.
-  if (latest?.phase === "calibration") {
-    const { data: anchor } = await supabase
+  // Two reads, one round trip. The second is only USED while the user is
+  // calibrating, but which case applies isn't known until the first comes back —
+  // and issuing it afterwards put a second sequential round trip on the home
+  // screen for exactly the new users who have the least patience for it. Both
+  // are single-row lookups on the (user_id, week_start) index, so speculatively
+  // asking for the anchor costs far less than waiting to find out we need it.
+  const [latestRes, anchorRes] = await Promise.all([
+    // Prefer this week's target; fall back to the most recent one. The week turns
+    // over on the user's Monday, not the server's.
+    supabase
+      .from("daily_targets")
+      .select(TARGET_COLS)
+      .lte("week_start", localWeekStart(tz))
+      .order("week_start", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    // The earliest calibration-phase row: the true onboarding anchor.
+    supabase
       .from("daily_targets")
       .select(TARGET_COLS)
       .eq("phase", "calibration")
       .order("week_start", { ascending: true })
       .limit(1)
-      .maybeSingle();
-    return (anchor as DailyTargets) ?? latest;
+      .maybeSingle(),
+  ]);
+
+  const latest = (latestRes.data as DailyTargets) ?? null;
+
+  // During calibration the target is FIXED at the one set when calibration began.
+  // If any later row drifted the number up (an older build recomputed it from a
+  // moving maintenance estimate), ignore it and return the anchor so the number
+  // can't creep and any past creep is undone.
+  if (latest?.phase === "calibration") {
+    return (anchorRes.data as DailyTargets) ?? latest;
   }
 
   return latest;
@@ -201,19 +209,22 @@ export function maintenanceKcalFor(
 
 export async function getHighDayStatus(date: string): Promise<HighDayStatus> {
   const supabase = await createClient();
-  const [profile, base, weightKg] = await Promise.all([
+  // weekStartOf is pure arithmetic on the date we were handed, so the refeed
+  // rows can be fetched alongside the profile/target/weight batch instead of
+  // waiting behind it. It used to run after, which put a whole extra round trip
+  // on the home screen's critical path for a read that depends on none of them.
+  const weekStart = weekStartOf(date);
+  const [profile, base, weightKg, highDaysRes] = await Promise.all([
     getProfile(),
     getCurrentTargets(),
     getLatestWeight(),
+    // Every refeed day the user has taken this week (RLS scopes it to them).
+    supabase.from("high_days").select("date").eq("week_start", weekStart),
   ]);
-  const weekStart = weekStartOf(date);
 
-  // Every refeed day the user has taken this week (RLS scopes it to them).
-  const { data: rows } = await supabase
-    .from("high_days")
-    .select("date")
-    .eq("week_start", weekStart);
-  const highDates = ((rows as { date: string }[]) ?? []).map((r) => r.date);
+  const highDates = ((highDaysRes.data as { date: string }[]) ?? []).map(
+    (r) => r.date,
+  );
   const isHigh = highDates.includes(date);
 
   // Phase rides on the in-force target row, so reading it here needs no recompute.
@@ -251,9 +262,17 @@ export async function getTodayConsumed(): Promise<Macros> {
   return getConsumedForDate(await localToday());
 }
 
-// Food logged on one calendar day where the user lives, summed. Bounded on both
-// ends so a past day stops at its own midnight instead of running to now.
-export async function getConsumedForDate(date: string): Promise<Macros> {
+// Every food log on one calendar day where the user lives, as raw macro rows.
+// Bounded on both ends so a past day stops at its own midnight instead of
+// running to now.
+//
+// Cached per request, and deliberately the one place these rows are read: Home
+// both sums them (the calorie ring) and asks whether there are any at all (the
+// "plan your day" nudge), which used to be two round trips hitting the same
+// rows with the same filter.
+const getFoodLogsForDate = cache(async function getFoodLogsForDate(
+  date: string,
+): Promise<Macros[]> {
   const supabase = await createClient();
   const { start, end } = dayRangeFor(await getTimezone(), date);
 
@@ -263,7 +282,12 @@ export async function getConsumedForDate(date: string): Promise<Macros> {
     .gte("logged_at", start.toISOString())
     .lt("logged_at", end.toISOString());
 
-  const rows = (data as Macros[]) ?? [];
+  return (data as Macros[]) ?? [];
+});
+
+// Food logged on one calendar day where the user lives, summed.
+export async function getConsumedForDate(date: string): Promise<Macros> {
+  const rows = await getFoodLogsForDate(date);
   return rows.reduce<Required<Macros>>(
     (sum, r) => ({
       kcal: sum.kcal + Number(r.kcal),
@@ -310,31 +334,40 @@ export async function getPlanForDate(date: string): Promise<PlannedMeal[]> {
 }
 
 // True once the user has logged any food today — used to decide whether to
-// nudge them to plan the day.
+// nudge them to plan the day. Reads the same cached rows the calorie ring sums,
+// so on Home this is free rather than its own count query.
 export async function hasTrackedToday(): Promise<boolean> {
-  const supabase = await createClient();
-  const start = startOfLocalDay(await getTimezone());
-  const { count } = await supabase
-    .from("food_logs")
-    .select("id", { count: "exact", head: true })
-    .gte("logged_at", start.toISOString());
-  return (count ?? 0) > 0;
+  return (await getFoodLogsForDate(await localToday())).length > 0;
 }
+
+// The two secrets stored on the users row. getProfile selects the whole row, so
+// they are already in hand — but they are deliberately absent from the Profile
+// type, so nothing can pass them to a client component by accident. This reads
+// them back through a local cast at the one or two places that legitimately
+// need them, on the server.
+type UserSecrets = {
+  anthropic_api_key?: string | null;
+  apple_ingest_token?: string | null;
+};
+const secretsOf = (profile: Profile | null): UserSecrets =>
+  (profile as (Profile & UserSecrets) | null) ?? {};
 
 // True when the user has saved an Anthropic key (the key itself never leaves
 // the server — we only report whether one exists).
+//
+// Read off the cached profile rather than its own query: every screen that asks
+// this (/plan, /plan/recipe, /pantry/add, /me) already has the profile loaded
+// for the same request, so this used to be a second round trip to the same row.
 export async function hasApiKey(): Promise<boolean> {
-  const supabase = await createClient();
-  const user = await getSessionUser();
-  if (!user) return false;
+  return Boolean(secretsOf(await getProfile()).anthropic_api_key);
+}
 
-  const { data } = await supabase
-    .from("users")
-    .select("anthropic_api_key")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  return Boolean((data as { anthropic_api_key: string | null } | null)?.anthropic_api_key);
+// The user's Apple ingest token in the clear, for showing them the URL Health
+// Auto Export should post to. Null when they've never generated one. Same story
+// as hasApiKey: it rides on the profile row the request already holds.
+export async function getAppleIngestToken(): Promise<string | null> {
+  const stored = secretsOf(await getProfile()).apple_ingest_token;
+  return stored ? decryptSecret(stored) : null;
 }
 
 // Everything the Coach page needs: the weekly review plus the raw numbers and
@@ -451,7 +484,6 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
     measRes,
     activityRes,
     fitbitRes,
-    tokenRes,
     intake,
     histRes,
   ] = await Promise.all([
@@ -478,9 +510,8 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
       user
         ? supabase.from("fitbit_tokens").select("user_id").eq("user_id", user.id).maybeSingle()
         : Promise.resolve({ data: null }),
-      user
-        ? supabase.from("users").select("apple_ingest_token").eq("id", user.id).maybeSingle()
-        : Promise.resolve({ data: null }),
+      // No separate read for the Apple token: it lives on the users row that
+      // `profile` above already carries.
       getDailyIntake(tz, TREND_WINDOW_DAYS, now),
       supabase
         .from("daily_targets")
@@ -694,8 +725,7 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
     activity: activityRows,
     fitbitConnected: Boolean((fitbitRes.data as { user_id: string } | null)?.user_id),
     appleIngestToken: (() => {
-      const stored = (tokenRes.data as { apple_ingest_token: string | null } | null)
-        ?.apple_ingest_token;
+      const stored = secretsOf(profile).apple_ingest_token;
       return stored ? decryptSecret(stored) : null;
     })(),
   };
@@ -751,17 +781,31 @@ function toCheckIn(r: Record<string, unknown>): CheckIn {
   };
 }
 
-// A short-lived signed URL for a private photo, or undefined if signing fails.
-// The bucket is private, so this is the only way the browser can fetch a file.
+// Short-lived signed URLs for private photos, keyed by storage path. The bucket
+// is private, so this is the only way the browser can fetch a file.
+//
+// One request for the whole set. Signing them one at a time meant a separate
+// HTTP call to Storage per photo — a year of weekly check-ins with three angles
+// each is 150-odd sequential-ish calls before the Progress page can render, and
+// they all serialise behind the same connection pool.
 const PHOTO_URL_TTL_SECONDS = 60 * 60;
-async function signPhotoUrl(
+async function signPhotoUrls(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  path: string,
-): Promise<string | undefined> {
+  paths: string[],
+): Promise<Map<string, string>> {
+  const signed = new Map<string, string>();
+  if (paths.length === 0) return signed;
+
   const { data } = await supabase.storage
     .from("check-in-photos")
-    .createSignedUrl(path, PHOTO_URL_TTL_SECONDS);
-  return data?.signedUrl;
+    .createSignedUrls(paths, PHOTO_URL_TTL_SECONDS);
+
+  for (const row of data ?? []) {
+    // A path that failed to sign comes back with a null url; leave it out so the
+    // caller sees the same "no url" it saw before rather than an empty string.
+    if (row.signedUrl) signed.set(row.path ?? "", row.signedUrl);
+  }
+  return signed;
 }
 
 // This week's check-in, or null when it hasn't been done yet. Drives whether the
@@ -821,12 +865,14 @@ export async function getCheckInHistory(
     .order("created_at", { ascending: true });
   const photoRows = (photoData as CheckInPhoto[]) ?? [];
 
-  const signed = await Promise.all(
-    photoRows.map(async (p) => ({
-      ...p,
-      signed_url: await signPhotoUrl(supabase, p.storage_path),
-    })),
+  const urls = await signPhotoUrls(
+    supabase,
+    photoRows.map((p) => p.storage_path),
   );
+  const signed = photoRows.map((p) => ({
+    ...p,
+    signed_url: urls.get(p.storage_path),
+  }));
   const byCheckIn = new Map<string, CheckInPhoto[]>();
   for (const p of signed) {
     const list = byCheckIn.get(p.check_in_id) ?? [];
@@ -845,14 +891,14 @@ export async function getDeviceConnected(): Promise<boolean> {
   const user = await getSessionUser();
   if (!user) return false;
 
-  const [fitbitRes, appleRes] = await Promise.all([
+  // The Apple side comes off the cached profile — the same users row, already
+  // fetched for this request — so only the Fitbit token needs asking for.
+  const [fitbitRes, profile] = await Promise.all([
     supabase.from("fitbit_tokens").select("user_id").eq("user_id", user.id).maybeSingle(),
-    supabase.from("users").select("apple_ingest_token").eq("id", user.id).maybeSingle(),
+    getProfile(),
   ]);
   const hasFitbit = Boolean((fitbitRes.data as { user_id: string } | null)?.user_id);
-  const hasApple = Boolean(
-    (appleRes.data as { apple_ingest_token: string | null } | null)?.apple_ingest_token,
-  );
+  const hasApple = Boolean(secretsOf(profile).apple_ingest_token);
   return hasFitbit || hasApple;
 }
 

@@ -196,17 +196,29 @@ describe("progress dashboard — tabs", () => {
       />,
     );
 
-    // Both panels are in the DOM — the second is hidden, not unmounted, so
-    // nothing is lost if the tab state never changes.
+    // Both panel elements are in the DOM from the start, so the tabs'
+    // aria-controls always point at something real.
     // `hidden: true` because a hidden panel is out of the accessibility tree —
     // which is the point of hiding it. Panels come back in DOM order.
     const panels = () => screen.getAllByRole("tabpanel", { hidden: true });
 
-    expect(screen.getByText("body content")).toBeTruthy();
     expect(panels().map((p) => p.hidden)).toEqual([false, true]);
+    // A tab nobody has opened yet holds no content: on the real dashboard each
+    // one is a screenful of charts, and mounting all four up front made
+    // arriving on Progress pay for three the user isn't looking at.
+    expect(screen.getByText("overview content")).toBeTruthy();
+    expect(screen.queryByText("body content")).toBeNull();
 
     await user.click(screen.getByRole("tab", { name: "Body" }));
 
     expect(panels().map((p) => p.hidden)).toEqual([true, false]);
+    expect(screen.getByText("body content")).toBeTruthy();
+
+    // Once opened it stays mounted, so switching back and forth doesn't rebuild
+    // a chart or lose a selection made inside it.
+    await user.click(screen.getByRole("tab", { name: "Overview" }));
+
+    expect(panels().map((p) => p.hidden)).toEqual([false, true]);
+    expect(screen.getByText("body content")).toBeTruthy();
   });
 });
