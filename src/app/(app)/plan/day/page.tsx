@@ -39,13 +39,9 @@ export default async function PlanDayPage({
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-5 pt-8 pb-6 lg:px-8">
+      {/* No back link: this is a top-level destination now, sitting on the
+          centre of the bottom bar, so there is nothing above it to go back to. */}
       <div className="flex flex-col gap-1">
-        <Link
-          href="/plan"
-          className="inline-flex items-center gap-1 text-sm text-[var(--muted)]"
-        >
-          <ChevronLeft size={16} /> Plan
-        </Link>
         <h1 className="text-3xl font-semibold">Plan my day</h1>
         <p className="text-sm text-[var(--muted)]">
           Pick what you fancy for each meal — we work out how much of each so

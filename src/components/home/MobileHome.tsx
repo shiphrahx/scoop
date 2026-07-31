@@ -1,15 +1,19 @@
 import Link from "next/link";
-import { UtensilsCrossed, Scale, CookingPot, Package, Sparkles, ChevronRight, CalendarCheck, Telescope } from "lucide-react";
+import { UtensilsCrossed, Scale, Package, Sparkles, ChevronRight, CalendarCheck, Telescope, Star, BookOpen } from "lucide-react";
 import ProgressRing from "@/components/ProgressRing";
 import { NutrientBars } from "@/components/NutrientBreakdown";
 import SignOutButton from "@/components/SignOutButton";
 import { sumMacros, type Macros } from "@/lib/types";
 import type { NutrientKey } from "@/lib/nutrients";
 
+// The phone's route to everything the bottom bar has no room for. Favourites and
+// Recipes are here because the /plan hub that used to hold them is gone, and
+// Batches is not because the feature isn't in use yet — its route still works.
 const quickActions = [
   { href: "/plan/day", label: "Log food", icon: UtensilsCrossed },
   { href: "/progress", label: "Log weight", icon: Scale },
-  { href: "/batches", label: "Batches", icon: CookingPot },
+  { href: "/plan/favourites", label: "Favourites", icon: Star },
+  { href: "/plan/recipe", label: "Recipes", icon: BookOpen },
   { href: "/pantry", label: "Pantry", icon: Package },
 ];
 
@@ -133,7 +137,9 @@ export default function MobileHome({
           <Link
             key={href}
             href={href}
-            className="sc-card flex flex-col items-center gap-2 py-6 font-medium transition active:scale-95"
+            // With an odd number of tiles the last one would sit alone in a
+            // half-width cell next to a hole; let it take the whole row instead.
+            className="sc-card flex flex-col items-center gap-2 py-6 font-medium transition active:scale-95 odd:last:col-span-2"
           >
             <span
               className="grid h-11 w-11 place-items-center rounded-2xl"

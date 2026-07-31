@@ -1,7 +1,7 @@
 import {
   UtensilsCrossed,
   Scale,
-  CookingPot,
+  Star,
   Package,
   Telescope,
 } from "lucide-react";
@@ -22,10 +22,13 @@ const COMMITTED: Macros = {
 };
 const PREFS: NutrientKey[] = ["protein", "carbs", "fat"];
 
+// A subset of the real Home tiles, kept to four so the mock phone stays square.
+// It has to show tiles that actually exist — Batches used to be here and is no
+// longer on Home at all.
 const quickActions = [
   { label: "Log food", icon: UtensilsCrossed },
   { label: "Log weight", icon: Scale },
-  { label: "Batches", icon: CookingPot },
+  { label: "Favourites", icon: Star },
   { label: "Pantry", icon: Package },
 ];
 

@@ -16,15 +16,22 @@ export default function BottomNav() {
           const active = pathname === item.href;
           const Icon = item.icon;
 
+          // The raised centre tab. Its label is rendered, not just announced —
+          // an unlabelled icon here is a guess, and the whole point of the tab
+          // is that you can tell where it goes without tapping it. The circle
+          // keeps the lift; the caption sits under it in line with its siblings.
           if (item.center) {
             return (
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  aria-label={item.label}
-                  className="sc-btn-primary relative flex h-16 w-16 -translate-y-4 items-center justify-center rounded-full"
+                  className="relative flex w-16 -translate-y-4 flex-col items-center gap-1 text-xs font-medium"
+                  style={{ color: active ? "var(--ink-teal)" : "var(--muted)" }}
                 >
-                  <Icon size={28} strokeWidth={2.5} />
+                  <span className="sc-btn-primary flex h-16 w-16 items-center justify-center rounded-full">
+                    <Icon size={28} strokeWidth={2.5} />
+                  </span>
+                  <span className="whitespace-nowrap">{item.label}</span>
                   <LinkHint />
                 </Link>
               </li>

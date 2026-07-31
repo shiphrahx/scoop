@@ -7,7 +7,9 @@ import { updateCalibration } from "@/lib/coach";
 import { getCoachData } from "@/lib/queries";
 import { getTimezone } from "@/lib/queries";
 import { localWeekStart } from "@/lib/time";
-import { getDay, refreshTokens, type FitbitTokens } from "@/lib/fitbit";
+import { refreshTokens, type FitbitTokens } from "@/lib/fitbit";
+import { syncActivityDays } from "@/lib/activity-sync";
+import { logError } from "@/lib/log";
 
 const DAY_MS = 86_400_000;
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
@@ -107,9 +109,22 @@ export async function applyReview() {
   revalidatePath("/");
 }
 
+// The outcome of a sync, in words the user can act on.
+//
+// This deliberately RETURNS rather than throws. Next redacts the message of an
+// uncaught server-action error in production ("An error occurred in the Server
+// Components render…"), so every real cause — a revoked token, a provider
+// outage, a missing env var — reached the user as the same unreadable sentence.
+// The causes below are ordinary operating conditions, not crashes, so each one
+// gets its own message here and the underlying error is logged for us.
+export interface FitbitSyncResult {
+  ok: boolean;
+  message: string;
+}
+
 // Pull the last 7 days of steps, workout calories and sleep from Fitbit into
 // the activity table, refreshing the access token first if it's near expiry.
-export async function syncFitbit() {
+export async function syncFitbit(): Promise<FitbitSyncResult> {
   const { supabase, user } = await requireUser();
 
   const { data } = await supabase
@@ -121,49 +136,55 @@ export async function syncFitbit() {
     FitbitTokens,
     "access_token" | "refresh_token" | "expires_at"
   > | null;
-  if (!tokens) throw new Error("Connect Fitbit first.");
+  if (!tokens) return { ok: false, message: "Connect Fitbit first." };
 
-  let accessToken = decryptSecret(tokens.access_token);
-  // Refresh a minute early to avoid racing the clock.
-  if (new Date(tokens.expires_at).getTime() <= Date.now() + 60_000) {
-    const fresh = await refreshTokens(decryptSecret(tokens.refresh_token));
-    accessToken = fresh.access_token;
-    await supabase
-      .from("fitbit_tokens")
-      .update({
-        access_token: encryptSecret(fresh.access_token),
-        refresh_token: encryptSecret(fresh.refresh_token),
-        expires_at: fresh.expires_at,
-        scope: fresh.scope,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", user.id);
+  let accessToken: string;
+  try {
+    accessToken = decryptSecret(tokens.access_token);
+    // Refresh a minute early to avoid racing the clock.
+    if (new Date(tokens.expires_at).getTime() <= Date.now() + 60_000) {
+      const fresh = await refreshTokens(decryptSecret(tokens.refresh_token));
+      accessToken = fresh.access_token;
+      await supabase
+        .from("fitbit_tokens")
+        .update({
+          access_token: encryptSecret(fresh.access_token),
+          refresh_token: encryptSecret(fresh.refresh_token),
+          expires_at: fresh.expires_at,
+          scope: fresh.scope,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", user.id);
+    }
+  } catch (err) {
+    // A refresh that fails is nearly always a token the user revoked on the
+    // provider's side, which no retry here can fix — reconnecting is the fix.
+    logError(`fitbit token refresh for user ${user.id}`, err);
+    return {
+      ok: false,
+      message: "That connection has expired. Connect again to resume syncing.",
+    };
   }
 
-  const now = Date.now();
-  const days = await Promise.all(
-    Array.from({ length: 7 }, (_, i) =>
-      getDay(accessToken, isoDay(new Date(now - i * DAY_MS))),
-    ),
-  );
+  let result;
+  try {
+    result = await syncActivityDays(supabase, user.id, accessToken, 7);
+  } catch (err) {
+    logError(`fitbit sync for user ${user.id}`, err);
+    return { ok: false, message: "Could not reach your activity data. Try again shortly." };
+  }
 
-  const rows = days.map((d) => ({
-    user_id: user.id,
-    date: d.date,
-    steps: d.steps,
-    workout_kcal: d.workout_kcal,
-    sleep_hours: d.sleep_hours,
-    source: "fitbit",
-    updated_at: new Date().toISOString(),
-  }));
-
-  const { error } = await supabase
-    .from("activity")
-    .upsert(rows, { onConflict: "user_id,date" });
-  if (error) throw new Error(error.message);
+  if (result.written === 0) {
+    return {
+      ok: false,
+      message: "No activity came back for the last 7 days. Check the app is syncing on your phone.",
+    };
+  }
 
   revalidatePath("/coach");
   revalidatePath("/");
+  const d = result.written;
+  return { ok: true, message: `Synced ${d} ${d === 1 ? "day" : "days"}.` };
 }
 
 // --- Sample data (stand-in until Fitbit/Apple are wired up) -----------------

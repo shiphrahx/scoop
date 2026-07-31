@@ -17,6 +17,10 @@ import type { MealSuggestion } from "@/lib/types";
 // Ask the AI for dishes the user can make from their pantry that fit their
 // diet and the macros they have left today, optionally built around a chosen
 // carb + protein.
+//
+// This and logSuggestion below serve PlanMeal, which is parked — see the note at
+// the top of ../PlanMeal.tsx. Kept whole so the feature can be switched back on
+// by giving it a route, not rebuilt.
 export async function getSuggestions(
   carb?: string | null,
   protein?: string | null,

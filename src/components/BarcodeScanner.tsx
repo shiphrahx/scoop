@@ -5,6 +5,45 @@ import { X } from "lucide-react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import type { IScannerControls } from "@zxing/browser";
 
+// What we ask the camera for.
+//
+// Asking only for `facingMode` lets the browser pick the default capture size,
+// which on phones is around 640x480 — a heavy downscale of the sensor. A barcode
+// is a set of thin parallel lines, and at that size the narrow bars blur into
+// their neighbours, so the picture looks soft and zxing has nothing crisp enough
+// to decode. Ask for 1080p instead. All three are `ideal`, not exact, so a
+// camera that can't manage it degrades rather than failing to open at all.
+const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
+  video: {
+    facingMode: { ideal: "environment" },
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+  },
+};
+
+// `focusMode` is supported on Android Chrome but isn't in lib.dom's typings yet.
+type FocusCapabilities = MediaTrackCapabilities & { focusMode?: string[] };
+
+// Ask the camera to keep refocusing while the overlay is open.
+//
+// Left alone, a phone focuses once when the stream starts — on whatever was in
+// front of it then, usually not the barcode the user hasn't raised yet — and
+// never corrects. Applied after the stream exists, and only when the device says
+// it can, because an unsupported constraint in the initial getUserMedia set
+// would reject the whole request and the camera would not open.
+function preferContinuousFocus(video: HTMLVideoElement | null): void {
+  const track = (video?.srcObject as MediaStream | null)?.getVideoTracks()[0];
+  const modes = (track?.getCapabilities?.() as FocusCapabilities | undefined)?.focusMode;
+  if (!track || !modes?.includes("continuous")) return;
+  track
+    .applyConstraints({
+      advanced: [{ focusMode: "continuous" }],
+    } as unknown as MediaTrackConstraints)
+    .catch(() => {
+      // Best effort: a refused focus hint still leaves a usable stream.
+    });
+}
+
 // Full-screen camera overlay. Streams the back camera, decodes barcodes with
 // zxing, and fires onDetected with the first code it reads. The caller closes
 // the overlay (usually inside onDetected).
@@ -18,26 +57,34 @@ export default function BarcodeScanner({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Every caller passes a plain function declared in its own render, so
+  // `onDetected` has a new identity each time the parent re-renders. With it in
+  // the effect's dependencies the camera was torn down and re-acquired on any
+  // parent state change, and each restart began autofocus again from scratch —
+  // the stream never got the still moment it needs to settle. Hold it in a ref
+  // so the effect below runs once per open.
+  const onDetectedRef = useRef(onDetected);
+  useEffect(() => {
+    onDetectedRef.current = onDetected;
+  });
+
   useEffect(() => {
     let controls: IScannerControls | null = null;
     let cancelled = false;
     const reader = new BrowserMultiFormatReader();
 
     reader
-      .decodeFromConstraints(
-        { video: { facingMode: "environment" } },
-        videoRef.current!,
-        (result, _err, ctrl) => {
-          if (cancelled) return;
-          controls = ctrl;
-          if (result) {
-            ctrl.stop();
-            onDetected(result.getText());
-          }
-        },
-      )
+      .decodeFromConstraints(CAMERA_CONSTRAINTS, videoRef.current!, (result, _err, ctrl) => {
+        if (cancelled) return;
+        controls = ctrl;
+        if (result) {
+          ctrl.stop();
+          onDetectedRef.current(result.getText());
+        }
+      })
       .then((ctrl) => {
         controls = ctrl;
+        if (!cancelled) preferContinuousFocus(videoRef.current);
       })
       .catch(() => {
         if (!cancelled) setError("Can't open the camera. Check permissions.");
@@ -47,7 +94,7 @@ export default function BarcodeScanner({
       cancelled = true;
       controls?.stop();
     };
-  }, [onDetected]);
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black">

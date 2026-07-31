@@ -63,17 +63,66 @@ describe("syncActivityDays", () => {
   });
 
   it("defaults to a seven-day window", async () => {
-    getDay.mockResolvedValue({
-      date: "2026-07-24",
-      steps: null,
+    getDay.mockImplementation(async (_token: string, date: string) => ({
+      date,
+      steps: 100,
       workout_kcal: null,
       sleep_hours: null,
-    });
+    }));
 
     const client = fakeClient();
     await syncActivityDays(client, "user-1", "tok");
 
     expect(getDay).toHaveBeenCalledTimes(7);
     expect(client.upsert.mock.calls[0][0]).toHaveLength(7);
+  });
+
+  // A provider error is indistinguishable from an empty day here — both arrive
+  // as nulls — so writing them would blank rows an Apple push already filled.
+  it("does not write days the provider returned nothing for", async () => {
+    getDay.mockImplementation(async (_token: string, date: string) =>
+      date === "2026-07-24"
+        ? { date, steps: 8000, workout_kcal: null, sleep_hours: null }
+        : { date, steps: null, workout_kcal: null, sleep_hours: null },
+    );
+
+    const client = fakeClient();
+    const result = await syncActivityDays(client, "user-1", "tok", 3);
+
+    expect(client.upsert.mock.calls[0][0]).toEqual([
+      expect.objectContaining({ date: "2026-07-24", steps: 8000 }),
+    ]);
+    expect(result).toEqual({ fetched: 3, written: 1 });
+  });
+
+  it("skips the upsert entirely when no day carried data", async () => {
+    getDay.mockImplementation(async (_token: string, date: string) => ({
+      date,
+      steps: null,
+      workout_kcal: null,
+      sleep_hours: null,
+    }));
+
+    const client = fakeClient();
+    const result = await syncActivityDays(client, "user-1", "tok", 3);
+
+    expect(client.upsert).not.toHaveBeenCalled();
+    expect(result).toEqual({ fetched: 3, written: 0 });
+  });
+
+  // sleep_hours alone is still a real reading — 0 steps on a rest day must not
+  // be mistaken for "the provider told us nothing".
+  it("treats a zero reading as data", async () => {
+    getDay.mockImplementation(async (_token: string, date: string) => ({
+      date,
+      steps: 0,
+      workout_kcal: null,
+      sleep_hours: null,
+    }));
+
+    const client = fakeClient();
+    const result = await syncActivityDays(client, "user-1", "tok", 1);
+
+    expect(result.written).toBe(1);
   });
 });
