@@ -63,10 +63,12 @@ export function FitbitButton({ connected }: { connected: boolean }) {
     setSyncing(true);
     setMsg(null);
     try {
-      await syncFitbit();
-      setMsg("Synced");
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Sync failed");
+      // syncFitbit reports its own failures; a throw here is a genuine crash
+      // (network dropped mid-action), which production redacts anyway.
+      const res = await syncFitbit();
+      setMsg(res.message);
+    } catch {
+      setMsg("Sync failed. Try again shortly.");
     } finally {
       setSyncing(false);
     }
