@@ -4,9 +4,9 @@ import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import {
   activeProvider,
   getDay,
-  missingProviderConfig,
   probeDay,
   providerConfigured,
+  providerDiagnostics,
   refreshTokens,
   type FitbitTokens,
 } from "@/lib/fitbit";
@@ -28,9 +28,8 @@ export async function GET(request: Request) {
   // worth knowing. `missing` lists variable names, never values.
   const config = {
     provider: activeProvider(),
-    healthProviderEnvSet: Boolean(process.env.HEALTH_PROVIDER),
     configured: providerConfigured(),
-    missing: missingProviderConfig(),
+    ...providerDiagnostics(),
     secretKeySet: Boolean(process.env.SECRET_ENCRYPTION_KEY),
   };
 
