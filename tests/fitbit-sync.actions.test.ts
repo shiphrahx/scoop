@@ -11,9 +11,14 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 // calls, so the two functions syncFitbit reaches for are mocked here.
 const getDay = vi.fn();
 const refreshTokens = vi.fn();
+// Configured by default: these tests are about a connection that exists, not a
+// deployment missing its credentials (that path has its own test below).
+const providerConfigured = vi.fn(() => true);
 vi.mock("@/lib/fitbit", () => ({
   getDay: (...a: unknown[]) => getDay(...a),
   refreshTokens: (...a: unknown[]) => refreshTokens(...a),
+  providerConfigured: () => providerConfigured(),
+  activeProvider: () => "google",
 }));
 
 const { syncFitbit } = await import("@/app/(app)/coach/actions");
@@ -35,6 +40,7 @@ afterAll(() => {
 beforeEach(() => {
   getDay.mockReset();
   refreshTokens.mockReset();
+  providerConfigured.mockReturnValue(true);
   // Quiet the deliberate logError writes on the failure paths.
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -172,6 +178,24 @@ describe("syncFitbit", () => {
     expect(res.ok).toBe(false);
     expect(res.message).toMatch(/no activity/i);
     expect(db.activity).toHaveLength(0);
+  });
+
+  // The failure that wasted the most time: missing credentials threw from inside
+  // refreshTokens and were caught as an expired connection, so an unconfigured
+  // deployment told the user to reconnect — repeatedly, for something no
+  // reconnect could fix. It must name itself, and must not offer the button.
+  it("names an unconfigured deployment rather than blaming the connection", async () => {
+    connected();
+    providerConfigured.mockReturnValue(false);
+
+    const res = await syncFitbit();
+
+    expect(res.ok).toBe(false);
+    expect(res.message).toMatch(/not set up/i);
+    expect(res.message).not.toMatch(/expired/i);
+    expect(res.reconnect).toBeFalsy();
+    expect(refreshTokens).not.toHaveBeenCalled();
+    expect(getDay).not.toHaveBeenCalled();
   });
 
   it("does not throw when the provider call blows up", async () => {

@@ -242,6 +242,21 @@ export function activeProvider(): "google" | "legacy" {
   return isGoogle() ? "google" : "legacy";
 }
 
+// Whether the live provider has the credentials it needs, asked WITHOUT throwing.
+//
+// clientId() and its friends throw when their env var is missing, and they sit
+// deep inside the OAuth and refresh calls — so a deployment that never had these
+// set answered /api/fitbit/authorize with a 500, and answered a sync with "that
+// connection has expired", which is not what went wrong and sends the user off to
+// reconnect for something no amount of reconnecting can fix. Check up front so
+// missing configuration reports itself as missing configuration.
+export function providerConfigured(): boolean {
+  const has = (name: string) => Boolean(process.env[name]);
+  return isGoogle()
+    ? has("GOOGLE_HEALTH_CLIENT_ID") && has("GOOGLE_HEALTH_CLIENT_SECRET")
+    : has("FITBIT_CLIENT_ID") && has("FITBIT_CLIENT_SECRET");
+}
+
 // Raw per-endpoint responses for one day — diagnostics only.
 export async function probeDay(
   accessToken: string,

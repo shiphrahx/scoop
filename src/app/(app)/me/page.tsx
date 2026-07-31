@@ -34,6 +34,9 @@ const FITBIT_NOTES: Record<string, string> = {
   // permission to refresh in the background, which would have stopped syncing
   // within the hour. Saying so beats storing it and failing later.
   offline: "That connection did not include background access, so it would stop working within the hour. Connect again and approve every permission.",
+  // Nothing the user can act on — it names the real problem so it isn't mistaken
+  // for a connection of theirs that went wrong.
+  config: "Device syncing is not set up on this deployment yet.",
 };
 
 export default async function MePage({
