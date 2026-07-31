@@ -107,6 +107,38 @@ describe("syncFitbit", () => {
     // The provider's own wording never reaches the user.
     expect(res.message).not.toMatch(/400/);
     expect(getDay).not.toHaveBeenCalled();
+    // Telling someone to reconnect is useless unless the UI can offer the
+    // button. Without this flag the message was a dead end: the Connect link
+    // only showed when no token row existed, which is never true here.
+    expect(res.reconnect).toBe(true);
+  });
+
+  // A key that can no longer decrypt what we stored is our problem, not a
+  // connection the user let lapse — it shouldn't be reported as one, though
+  // reconnecting does replace the unreadable token.
+  it("separates an unreadable stored token from an expired connection", async () => {
+    const { db } = connected();
+    db.fitbit_tokens[0].access_token = "enc.v1.this-is-not-decryptable";
+
+    const res = await syncFitbit();
+
+    expect(res.ok).toBe(false);
+    expect(res.reconnect).toBe(true);
+    expect(res.message).toMatch(/could not be read/i);
+    expect(res.message).not.toMatch(/expired/i);
+    expect(refreshTokens).not.toHaveBeenCalled();
+  });
+
+  // Only a dead connection gets the button — a transient provider wobble or a
+  // quiet week must not push the user through a fresh grant for nothing.
+  it("does not ask for a reconnect on a recoverable failure", async () => {
+    connected();
+    getDay.mockImplementation(emptyDay);
+
+    const res = await syncFitbit();
+
+    expect(res.ok).toBe(false);
+    expect(res.reconnect).toBeFalsy();
   });
 
   it("refreshes an expiring token and stores the new one", async () => {

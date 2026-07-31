@@ -47,17 +47,16 @@ export function ApplyTargetsButton({ changed }: { changed: boolean }) {
 }
 
 // Connect (link out to Fitbit) or pull the latest data.
+//
+// `connected` only says a token row exists, which is not the same as it working.
+// A stored token the provider has since rejected cannot be renewed by syncing —
+// only a fresh grant replaces it — so when a sync reports that, the button turns
+// into the way to do it. Otherwise the advice to "connect again" pointed at a
+// link that, by definition, was not on screen.
 export function FitbitButton({ connected }: { connected: boolean }) {
   const [syncing, setSyncing] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-
-  if (!connected) {
-    return (
-      <a href="/api/fitbit/authorize" className="sc-btn sc-btn-soft w-full py-4 text-lg">
-        Connect Fitbit
-      </a>
-    );
-  }
+  const [reconnect, setReconnect] = useState(false);
 
   async function sync() {
     setSyncing(true);
@@ -67,11 +66,24 @@ export function FitbitButton({ connected }: { connected: boolean }) {
       // (network dropped mid-action), which production redacts anyway.
       const res = await syncFitbit();
       setMsg(res.message);
+      setReconnect(Boolean(res.reconnect));
     } catch {
       setMsg("Sync failed. Try again shortly.");
     } finally {
       setSyncing(false);
     }
+  }
+
+  // Never connected, or connected and now broken: both need the same grant.
+  if (!connected || reconnect) {
+    return (
+      <div className="flex flex-col gap-2">
+        <a href="/api/fitbit/authorize" className="sc-btn sc-btn-soft w-full py-4 text-lg">
+          {connected ? "Connect Fitbit again" : "Connect Fitbit"}
+        </a>
+        {msg && <p className="text-center text-sm text-[var(--muted)]">{msg}</p>}
+      </div>
+    );
   }
 
   return (
