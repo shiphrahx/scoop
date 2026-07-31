@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { bottomNav } from "@/components/nav-items";
+import { bottomNav, sidebarNav } from "@/components/nav-items";
 
 // next/link and the router hooks, reduced to what the bar actually needs.
 vi.mock("next/link", () => ({
@@ -39,5 +39,36 @@ describe("BottomNav", () => {
     expect(centre!.href).toBe("/plan/day");
     // Whatever the wording, it has to name the destination rather than an action.
     expect(centre!.label.toLowerCase()).toContain("day");
+  });
+
+  // Five is what fits a thumb across a phone, and exactly one of them is the
+  // raised centre — the layout puts two either side of it.
+  it("keeps the bar to five tabs with a single centre", () => {
+    expect(bottomNav).toHaveLength(5);
+    expect(bottomNav.filter((i) => i.center)).toHaveLength(1);
+    expect(bottomNav[2].center).toBe(true);
+  });
+});
+
+describe("sidebarNav", () => {
+  // The /plan hub existed only to link to these two, which put a screen between
+  // the user and what they were after. They are destinations in their own right.
+  it("reaches favourites and recipes directly", () => {
+    const hrefs = sidebarNav.map((i) => i.href);
+    expect(hrefs).toContain("/plan/favourites");
+    expect(hrefs).toContain("/plan/recipe");
+  });
+
+  // Built, routable, but not in use yet — so it doesn't hold a permanent line in
+  // the menu. Delete this test when batches goes back in.
+  it("leaves batches out of the menu", () => {
+    expect(sidebarNav.map((i) => i.href)).not.toContain("/batches");
+  });
+
+  // The hub is gone; nothing may link to it.
+  it("has no link to the removed plan hub", () => {
+    for (const nav of [bottomNav, sidebarNav]) {
+      expect(nav.map((i) => i.href)).not.toContain("/plan");
+    }
   });
 });
