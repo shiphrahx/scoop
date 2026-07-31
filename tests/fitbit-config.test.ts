@@ -91,22 +91,58 @@ describe("selecting the provider from HEALTH_PROVIDER", () => {
   });
 });
 
-describe("missingProviderConfig", () => {
-  // The exact production trap: HEALTH_PROVIDER never set on the deployment, so
-  // the code falls back to legacy and looks for FITBIT_*, while the Google
-  // credentials that ARE set go unread. Naming the pair it wants is the whole
-  // point — "not configured" alone sends you to check the wrong two variables.
-  it("names the legacy pair when HEALTH_PROVIDER is unset, even with google credentials present", () => {
+// The production failure this whole thread came down to: HEALTH_PROVIDER never
+// reached the deployment, so a perfectly good set of Google credentials was
+// ignored in favour of hunting for FITBIT_* that no migrated deployment holds.
+describe("falling back to whichever credentials exist", () => {
+  it("uses google when only google credentials are present", () => {
+    process.env.GOOGLE_HEALTH_CLIENT_ID = "id";
+    process.env.GOOGLE_HEALTH_CLIENT_SECRET = "secret";
+
+    expect(activeProvider()).toBe("google");
+    expect(providerConfigured()).toBe(true);
+    expect(missingProviderConfig()).toEqual([]);
+  });
+
+  it("uses legacy when only fitbit credentials are present", () => {
+    process.env.FITBIT_CLIENT_ID = "id";
+    process.env.FITBIT_CLIENT_SECRET = "secret";
+
+    expect(activeProvider()).toBe("legacy");
+    expect(providerConfigured()).toBe(true);
+  });
+
+  // Inference is a safety net for an unambiguous deployment, never a way to
+  // overrule someone who said what they wanted.
+  it("never overrides an explicit setting", () => {
+    process.env.HEALTH_PROVIDER = "legacy";
     process.env.GOOGLE_HEALTH_CLIENT_ID = "id";
     process.env.GOOGLE_HEALTH_CLIENT_SECRET = "secret";
 
     expect(activeProvider()).toBe("legacy");
-    expect(missingProviderConfig()).toEqual([
-      "FITBIT_CLIENT_ID",
-      "FITBIT_CLIENT_SECRET",
-    ]);
   });
 
+  it("stays on the old default when both pairs are present", () => {
+    for (const k of [
+      "GOOGLE_HEALTH_CLIENT_ID",
+      "GOOGLE_HEALTH_CLIENT_SECRET",
+      "FITBIT_CLIENT_ID",
+      "FITBIT_CLIENT_SECRET",
+    ]) {
+      process.env[k] = "x";
+    }
+
+    expect(activeProvider()).toBe("legacy");
+  });
+
+  it("stays on the old default when a pair is only half present", () => {
+    process.env.GOOGLE_HEALTH_CLIENT_ID = "id"; // no secret
+
+    expect(activeProvider()).toBe("legacy");
+  });
+});
+
+describe("missingProviderConfig", () => {
   it("names only the half that is actually absent", () => {
     process.env.HEALTH_PROVIDER = "google";
     process.env.GOOGLE_HEALTH_CLIENT_ID = "id";
