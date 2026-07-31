@@ -71,6 +71,26 @@ describe("providerConfigured", () => {
   });
 });
 
+describe("selecting the provider from HEALTH_PROVIDER", () => {
+  // A near miss used to fall through to legacy in silence, and the app then
+  // looked for FITBIT_* credentials a migrated deployment has no reason to hold.
+  it.each(["Google", "GOOGLE", " google", "google ", "\tgoogle\n"])(
+    "reads %j as google",
+    (value) => {
+      process.env.HEALTH_PROVIDER = value;
+
+      expect(activeProvider()).toBe("google");
+    },
+  );
+
+  it("still treats an absent or unrelated value as legacy", () => {
+    expect(activeProvider()).toBe("legacy");
+
+    process.env.HEALTH_PROVIDER = "fitbit";
+    expect(activeProvider()).toBe("legacy");
+  });
+});
+
 describe("missingProviderConfig", () => {
   // The exact production trap: HEALTH_PROVIDER never set on the deployment, so
   // the code falls back to legacy and looks for FITBIT_*, while the Google

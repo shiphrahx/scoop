@@ -13,8 +13,14 @@ import * as google from "@/lib/googlehealth";
 
 // Which provider the five public functions use. Defaults to legacy so anything
 // without the env var set (tests, an un-migrated deploy) keeps its old behaviour.
+//
+// Trimmed and lowercased before comparing. An exact match meant "Google", or a
+// value with a space picked up from a dashboard field, fell through to legacy in
+// total silence — the app then looked for FITBIT_* credentials that a migrated
+// deployment has no reason to hold, and reported itself unconfigured with no
+// hint that the provider setting was what missed.
 function isGoogle(): boolean {
-  return process.env.HEALTH_PROVIDER === "google";
+  return (process.env.HEALTH_PROVIDER ?? "").trim().toLowerCase() === "google";
 }
 
 const AUTH_URL = "https://www.fitbit.com/oauth2/authorize";
