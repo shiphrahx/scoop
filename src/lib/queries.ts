@@ -43,6 +43,7 @@ import {
   refeedCarbUpliftG,
   resolveHighDaysAllowance,
   roundMacros,
+  type CycleConfig,
 } from "@/lib/highday";
 import type {
   CustomMilestone,
@@ -1102,6 +1103,16 @@ export interface InsightsData {
   checkIns: (CheckIn & { photos: CheckInPhoto[] })[];
   intake: DayIntake[];
   targets: WeekTarget[];
+  // The target actually IN FORCE, resolved the way the rest of the app resolves
+  // it — most recent row on or before this week, pinned to the onboarding anchor
+  // while calibrating. `targets` is the raw history, for judging a past week
+  // against the row that was live then; scoring THIS week against a row picked
+  // out of that history by date instead of through here is how the scorecard
+  // came to grade the user against a number the app was never showing them.
+  currentTarget: DailyTargets | null;
+  // The refeed settings behind this week, so a day the app planned at
+  // maintenance is scored against maintenance.
+  cycle: CycleConfig;
   activity: Activity[];
   highDayDates: string[];
   victories: NonScaleVictory[];
@@ -1128,6 +1139,8 @@ export async function getInsightsData(): Promise<InsightsData> {
     victories,
     customMilestones,
     deviceConnected,
+    currentTarget,
+    latestWeight,
   ] = await Promise.all([
     getProfile(),
     localToday(),
@@ -1140,7 +1153,17 @@ export async function getInsightsData(): Promise<InsightsData> {
     getNonScaleVictories(),
     getCustomMilestones(),
     getDeviceConnected(),
+    getCurrentTargets(),
+    getLatestWeight(),
   ]);
+
+  // The same recipe the home ring and the day planner use (see
+  // getHighDayStatus), so the dashboard scores days against the very targets the
+  // app planned them at.
+  const phase: Phase = (currentTarget?.phase as Phase | undefined) ?? "deficit";
+  const cycle = profile
+    ? cycleConfigFrom(profile, phase, maintenanceKcalFor(profile, latestWeight))
+    : { enabled: false, refeedDaysPerWeek: 0, maintenanceKcal: null };
 
   return {
     profile,
@@ -1149,6 +1172,8 @@ export async function getInsightsData(): Promise<InsightsData> {
     checkIns,
     intake,
     targets,
+    currentTarget,
+    cycle,
     activity,
     highDayDates,
     victories,

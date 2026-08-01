@@ -26,8 +26,9 @@ import {
   type TrendChange,
   type WeighIn,
 } from "@/lib/coach";
+import { dayTarget, type CycleConfig } from "@/lib/highday";
 import { addDaysISO, weekStartOf } from "@/lib/time";
-import type { PhotoAngle, Sex } from "@/lib/types";
+import type { Macros, PhotoAngle, Sex } from "@/lib/types";
 
 const DAY_MS = 86_400_000;
 
@@ -867,6 +868,13 @@ const KCAL_HIT_TOLERANCE = 0.15;
 // day counts once intake reaches this share of the target.
 const PROTEIN_HIT_SHARE = 0.9;
 
+// Cycling switched off: every day is the flat base target.
+const NO_CYCLING: CycleConfig = {
+  enabled: false,
+  refeedDaysPerWeek: 0,
+  maintenanceKcal: null,
+};
+
 // Consecutive days with any food logged, counted back from today.
 //
 // Yesterday is allowed to be the last logged day: at 9am today nobody has
@@ -886,28 +894,51 @@ export function loggingStreak(intake: DayIntake[], today: string): number {
   return streak;
 }
 
+// The refeed picture for the week being scored: which days the user took as
+// refeeds, and the settings that say how much a refeed adds. Omitted when
+// cycling is off, in which case every day is judged against the flat target.
+export interface WeekCycling {
+  highDayDates: readonly string[];
+  config: CycleConfig;
+}
+
 // How this week is going: days logged, days the calorie target was hit, days
 // the protein target was reached, and the streak.
+//
+// Each day is scored against the target that was actually in force ON THAT DAY,
+// which on a refeed day is the base raised to maintenance. Scored against the
+// flat weekly figure instead, a refeed the app itself planned reads as a day
+// hundreds of calories over — so a user who followed the plan every day saw a
+// zero. `target` must be the in-force target as the app resolves it (see
+// getCurrentTargets), not whatever row happens to carry this week's date.
 export function weekScorecard(
   intake: DayIntake[],
   target: WeekTarget | null,
   today: string,
+  cycling?: WeekCycling,
 ): WeekScorecard {
   const weekStart = weekStartOf(today);
   const days = intake.filter((d) => weekStartOf(d.date) === weekStart && d.kcal > 0);
   const daysSoFar =
     Math.round((dayMs(today) - dayMs(weekStart)) / DAY_MS) + 1;
 
-  const kcalHitDays =
-    target && target.kcal > 0
-      ? days.filter(
-          (d) => Math.abs(d.kcal - target.kcal) / target.kcal <= KCAL_HIT_TOLERANCE,
-        ).length
-      : 0;
-  const proteinHitDays =
-    target && target.protein_g > 0
-      ? days.filter((d) => d.protein_g >= target.protein_g * PROTEIN_HIT_SHARE).length
-      : 0;
+  const highDays = new Set(cycling?.highDayDates ?? []);
+  const targetFor = (date: string): Required<Macros> | null => {
+    if (!target) return null;
+    return dayTarget(target, highDays.has(date), cycling?.config ?? NO_CYCLING);
+  };
+
+  const kcalHitDays = days.filter((d) => {
+    const t = targetFor(d.date);
+    return t != null && t.kcal > 0 && Math.abs(d.kcal - t.kcal) / t.kcal <= KCAL_HIT_TOLERANCE;
+  }).length;
+  // Protein holds identical on a refeed day, so this reads the same figure
+  // either way — it goes through the day target so it can never drift apart
+  // from the calorie side.
+  const proteinHitDays = days.filter((d) => {
+    const t = targetFor(d.date);
+    return t != null && t.protein_g > 0 && d.protein_g >= t.protein_g * PROTEIN_HIT_SHARE;
+  }).length;
 
   return {
     weekStart,

@@ -25,7 +25,7 @@ import {
   weeklyBuckets,
   type WeighIn,
 } from "@/lib/insights";
-import { addDaysISO, weekStartOf } from "@/lib/time";
+import { addDaysISO } from "@/lib/time";
 
 // How much history the small "see the raw days" charts inside the driver cards
 // show. The correlations read months; these are just context for the pattern.
@@ -67,8 +67,12 @@ export default async function Insights() {
     highDayDates: data.highDayDates,
   });
 
-  const thisWeek = weekStartOf(today);
-  const currentTarget = data.targets.find((t) => t.week_start === thisWeek) ?? null;
+  // The target the app is actually holding the user to, resolved once in the
+  // query layer. Picking this week's row out of the raw history instead meant
+  // the scorecard could grade against a row the app itself was overriding — a
+  // week with no row of its own scored against nothing, and a calibration week
+  // scored against a drifted number rather than the pinned anchor.
+  const currentTarget = data.currentTarget;
 
   // Raw day series for the expandable detail inside the driver cards.
   const rawCut = addDaysISO(today, -(RAW_CHART_DAYS - 1));
@@ -102,8 +106,11 @@ export default async function Insights() {
                 weights={data.weights}
                 fatLoss={fatLossSignal(weighIns, tape)}
                 plateau={plateau(weighIns)}
-                scorecard={weekScorecard(data.intake, currentTarget, today)}
-                hasTarget={data.targets.length > 0}
+                scorecard={weekScorecard(data.intake, currentTarget, today, {
+                  highDayDates: data.highDayDates,
+                  config: data.cycle,
+                })}
+                hasTarget={currentTarget != null}
                 board={milestones(
                   weighIns,
                   profile?.goal_weight_kg,
