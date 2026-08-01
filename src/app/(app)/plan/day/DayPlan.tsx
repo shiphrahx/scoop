@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, Pencil, AlertTriangle, AlertCircle, CopyPlus, UtensilsCrossed, Info, Star, ScanBarcode, Sparkles } from "lucide-react";
+import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, Pencil, Pin, AlertTriangle, AlertCircle, CopyPlus, UtensilsCrossed, Info, Star, ScanBarcode, Sparkles } from "lucide-react";
 import BarcodeScanner from "@/components/BarcodeScannerLazy";
 import type { FavouriteMeal, FoodChoice, Macros, MealPick, MealPortion, OffProduct, PlannedMeal, PlanItem, UnitOption } from "@/lib/types";
 import { sumItems, sumMacros } from "@/lib/types";
@@ -1306,6 +1306,11 @@ type EditPortion = {
   unit_label?: string | null;
 };
 
+// Match a portion to its pick the way the server does: case- and whitespace-
+// insensitively, so a portion the build renamed off its pantry row ("tofu" pick
+// → "Tofu" portion) still lines up.
+const normName = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+
 // Grams the AI portioned it at → per-gram macros, or null when an old plan
 // didn't store macros (then we can't rescale, and just keep the grams).
 function toEdit(p: MealPortion): EditPortion {
@@ -1360,17 +1365,38 @@ function AiMealEditor({
 }) {
   const [ports, setPorts] = useState<EditPortion[]>(() => meal.portions.map(toEdit));
   const [saving, startSave] = useTransition();
-  // The foods the user hand-set in this edit, by name. On save these become the
-  // pinned foods: a rebalance holds them where the user left them and re-solves
-  // the rest of the day around them.
-  const [touched, setTouched] = useState<Set<string>>(new Set());
-  const pin = (name: string) =>
-    setTouched((prev) => (prev.has(name) ? prev : new Set(prev).add(name)));
+  // The foods held at an amount the user set, by portion name. On save these are
+  // the pinned foods: every rebalance holds them where the user left them and
+  // re-solves the rest of the day around them.
+  //
+  // Seeded from the pins already on the picks, because saving is what writes the
+  // whole set — start it empty and editing one ingredient would silently release
+  // the hold on every other one in the dish. Matched case- and spacing-
+  // insensitively, as the server does, so a portion the build renamed off its
+  // pantry row still lines up with its pick.
+  const [held, setHeld] = useState<Set<string>>(() => {
+    const pinned = new Set(
+      meal.picks.filter((p) => p.pinned_g != null).map((p) => normName(p.name)),
+    );
+    return new Set(
+      meal.portions.filter((p) => pinned.has(normName(p.name))).map((p) => p.name),
+    );
+  });
+  const hold = (name: string) =>
+    setHeld((prev) => (prev.has(name) ? prev : new Set(prev).add(name)));
+  // Hand a food back to the app to size. The only way out of a hold, so it has
+  // to be a visible tap rather than a side effect of saving.
+  const release = (name: string) =>
+    setHeld((prev) => {
+      const next = new Set(prev);
+      next.delete(name);
+      return next;
+    });
 
   function setGrams(i: number, grams: number) {
     const g = Math.max(0, Math.round(grams));
     setPorts((prev) => prev.map((p, j) => (j === i ? { ...p, grams: g } : p)));
-    pin(ports[i].name);
+    hold(ports[i].name);
   }
 
   // Set a countable portion by a whole count; grams follow grams-per-portion.
@@ -1380,7 +1406,7 @@ function AiMealEditor({
 
   // Add a pantry/scanned food to the dish as a new portion. Its per-gram macros
   // come from the food's per-100g values, so it rescales like the AI portions.
-  // A food the user added is one they chose an amount for, so it's pinned too.
+  // A food the user added is one they chose an amount for, so it's held too.
   function addFood(c: FoodChoice, grams: number) {
     setPorts((prev) => [
       ...prev,
@@ -1401,7 +1427,7 @@ function AiMealEditor({
         unit_label: c.unit_label ?? null,
       },
     ]);
-    pin(c.name);
+    hold(c.name);
   }
 
   const built = ports.map(fromEdit);
@@ -1417,7 +1443,7 @@ function AiMealEditor({
 
   function save() {
     onError("");
-    const pinnedNames = built.filter((p) => touched.has(p.name)).map((p) => p.name);
+    const pinnedNames = built.filter((p) => held.has(p.name)).map((p) => p.name);
     startSave(async () => {
       try {
         await setMealPortions(meal.id, built, pinnedNames);
@@ -1455,6 +1481,24 @@ function AiMealEditor({
                 <span className="block text-xs text-[var(--muted)]">
                   {portionMacroLine(fromEdit(p))}
                 </span>
+              )}
+
+              {/* A held food keeps this amount through every rebalance. Saying
+                  so here, next to the number, is the only place the hold is
+                  visible — and the only way to hand the food back to the app. */}
+              {held.has(p.name) && (
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                  <span className="flex items-center gap-1 font-medium text-[var(--muted)]">
+                    <Pin size={12} /> Held at your amount
+                  </span>
+                  <button
+                    onClick={() => release(p.name)}
+                    disabled={saving}
+                    className="font-semibold text-[var(--ink-teal)] underline underline-offset-2 transition active:scale-95"
+                  >
+                    Let the app size it
+                  </button>
+                </div>
               )}
 
               {p.unit_g && p.unit_g > 0 && p.unit_label !== "ml" ? (
