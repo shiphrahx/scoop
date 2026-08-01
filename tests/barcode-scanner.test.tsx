@@ -3,14 +3,19 @@ import { useState } from "react";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 
 // zxing owns the camera; stub it so the component's request is observable
 // without a real MediaStream.
 const decodeFromConstraints = vi.fn();
 const stop = vi.fn();
+const readerArgs = vi.fn();
 vi.mock("@zxing/browser", () => ({
   BrowserMultiFormatReader: class {
     decodeFromConstraints = decodeFromConstraints;
+    constructor(hints?: unknown, options?: unknown) {
+      readerArgs(hints, options);
+    }
   },
 }));
 
@@ -28,9 +33,14 @@ const videoConstraints = () =>
 
 const lastCallback = () => decodeFromConstraints.mock.calls[0][2] as DecodeCallback;
 
+const hints = () => readerArgs.mock.calls[0][0] as Map<DecodeHintType, unknown>;
+const readerOptions = () =>
+  readerArgs.mock.calls[0][1] as { delayBetweenScanAttempts?: number };
+
 beforeEach(() => {
   decodeFromConstraints.mockReset();
   stop.mockReset();
+  readerArgs.mockReset();
   decodeFromConstraints.mockResolvedValue({ stop });
 });
 
@@ -112,6 +122,65 @@ describe("BarcodeScanner", () => {
     expect(first).not.toHaveBeenCalled();
     // And the camera is released as soon as a code is read.
     expect(ctrl.stop).toHaveBeenCalled();
+  });
+
+  // A food packet only ever carries a retail 1D symbology. Hunting QR, Aztec,
+  // PDF417 and Data Matrix on every attempt spends the decode budget on things
+  // that cannot be there — and it's that budget which pays for TRY_HARDER, the
+  // slower pass that copes with the soft picture a phone actually produces.
+  it("looks only for the barcodes that appear on food packaging, and tries hard", async () => {
+    await act(async () => {
+      render(<BarcodeScanner onDetected={vi.fn()} onClose={vi.fn()} />);
+    });
+
+    const formats = hints().get(DecodeHintType.POSSIBLE_FORMATS) as BarcodeFormat[];
+    expect(formats).toContain(BarcodeFormat.EAN_13);
+    expect(formats).toContain(BarcodeFormat.UPC_A);
+    expect(formats).not.toContain(BarcodeFormat.QR_CODE);
+    expect(hints().get(DecodeHintType.TRY_HARDER)).toBe(true);
+  });
+
+  // zxing's default is 500ms, so autofocus is only judged twice a second and the
+  // brief moment a hand-held phone is sharp is usually missed entirely.
+  it("samples far more often than the zxing default", async () => {
+    await act(async () => {
+      render(<BarcodeScanner onDetected={vi.fn()} onClose={vi.fn()} />);
+    });
+
+    expect(readerOptions().delayBetweenScanAttempts).toBeLessThan(500);
+  });
+
+  // A crease across the bars or a curved tin can defeat any camera. The digits
+  // are printed underneath for exactly that reason.
+  it("accepts the number typed by hand when the camera can't read it", async () => {
+    const onDetected = vi.fn();
+    await act(async () => {
+      render(<BarcodeScanner onDetected={onDetected} onClose={vi.fn()} />);
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /type the number/i }));
+    await userEvent.type(screen.getByLabelText(/barcode number/i), "8720182355560");
+    await userEvent.click(screen.getByRole("button", { name: /find it/i }));
+
+    expect(onDetected).toHaveBeenCalledWith("8720182355560");
+  });
+
+  // Too few digits is a mistyped code, not a product — sending it would just
+  // return "not found" and read as the scanner being broken again.
+  it("won't look up a number too short to be a barcode", async () => {
+    const onDetected = vi.fn();
+    await act(async () => {
+      render(<BarcodeScanner onDetected={onDetected} onClose={vi.fn()} />);
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /type the number/i }));
+    await userEvent.type(screen.getByLabelText(/barcode number/i), "87201");
+
+    expect(screen.getByRole("button", { name: /find it/i })).toHaveProperty(
+      "disabled",
+      true,
+    );
+    expect(onDetected).not.toHaveBeenCalled();
   });
 
   it("explains itself when the camera cannot be opened", async () => {
