@@ -43,8 +43,10 @@ const longDate = (iso: string) =>
     month: "short",
   });
 
-// Space x-axis ticks so they never crowd on a 30-point series.
-const tickInterval = (n: number) => Math.max(0, Math.floor(n / 6) - 1);
+// A "19 Jul" label is ~40px wide. Recharts drops a tick only when the gap to
+// its neighbour is under minTickGap, so this must clear the label itself —
+// otherwise labels touch on narrow cards even at a wide `interval`.
+const DATE_TICK_GAP = 44;
 
 // ── Shared tooltip shell ────────────────────────────────────────────
 function TooltipCard({
@@ -145,8 +147,8 @@ export function WeightTrendChart({
             tick={AXIS_TICK}
             tickLine={false}
             axisLine={false}
-            interval={tickInterval(data.length)}
-            minTickGap={16}
+            interval="preserveStartEnd"
+            minTickGap={DATE_TICK_GAP}
           />
           <YAxis
             domain={[Math.floor(min - pad), Math.ceil(max + pad)]}
@@ -249,8 +251,8 @@ export function TrendDotsChart({
             tick={AXIS_TICK}
             tickLine={false}
             axisLine={false}
-            interval={tickInterval(data.length)}
-            minTickGap={16}
+            interval="preserveStartEnd"
+            minTickGap={DATE_TICK_GAP}
           />
           <YAxis
             domain={[Math.floor(min - pad), Math.ceil(max + pad)]}
@@ -391,8 +393,8 @@ export function WeightVsExercise({
             tick={AXIS_TICK}
             tickLine={false}
             axisLine={false}
-            interval={tickInterval(merged.length)}
-            minTickGap={16}
+            interval="preserveStartEnd"
+            minTickGap={DATE_TICK_GAP}
           />
           <YAxis
             tick={AXIS_TICK}
@@ -582,8 +584,8 @@ export function MeasurementsChart({
             tick={AXIS_TICK}
             tickLine={false}
             axisLine={false}
-            interval={tickInterval(data.length)}
-            minTickGap={16}
+            interval="preserveStartEnd"
+            minTickGap={DATE_TICK_GAP}
           />
           <YAxis
             domain={[Math.floor(min - pad), Math.ceil(max + pad)]}
@@ -714,8 +716,8 @@ export function WeeklyIntakeChart({
             tick={AXIS_TICK}
             tickLine={false}
             axisLine={false}
-            interval={tickInterval(data.length)}
-            minTickGap={16}
+            interval="preserveStartEnd"
+            minTickGap={DATE_TICK_GAP}
           />
           <YAxis
             tick={AXIS_TICK}
@@ -799,8 +801,8 @@ export function SleepChart({
             tick={AXIS_TICK}
             tickLine={false}
             axisLine={false}
-            interval={tickInterval(data.length)}
-            minTickGap={16}
+            interval="preserveStartEnd"
+            minTickGap={DATE_TICK_GAP}
           />
           <YAxis
             tick={AXIS_TICK}
