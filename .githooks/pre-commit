@@ -1,0 +1,16 @@
+#!/bin/sh
+#
+# Fast gate: typecheck + unit tests (~15s). Runs on every commit, and commits
+# here are deliberately small and frequent, so anything slower than this gets
+# bypassed with --no-verify and stops being a gate at all. The build and lint
+# live in pre-push.
+#
+# Caveat worth knowing: this checks the working tree, not the staged content.
+# Stashing unstaged changes around the run is the "correct" version and it
+# loses work when it goes wrong, so we do not.
+#
+# Bypass with `git commit --no-verify` for a deliberate WIP commit.
+
+set -e
+
+npm run preflight

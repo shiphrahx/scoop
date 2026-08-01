@@ -1,0 +1,3 @@
+# Git hooks are run by sh. A CRLF checkout on Windows makes the shebang line
+# `#!/bin/sh\r`, which fails with "bad interpreter".
+.githooks/* text eol=lf

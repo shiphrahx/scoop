@@ -1,0 +1,32 @@
+#!/bin/sh
+#
+# Full gate: lint + typecheck + coverage + build (~90s). This is the one that
+# matters, because CI only runs on main and on pull requests — a feature branch
+# has no other check between here and the PR.
+#
+# Two things it cannot prove:
+#   - RLS. tests/rls.test.ts skips without DATABASE_URL, so the "one user cannot
+#     read another's rows" suite only really runs in CI, against a real Postgres.
+#   - Runtime config. The build below uses placeholder Supabase credentials.
+#
+# Bypass with `git push --no-verify`.
+
+set -e
+
+# Nothing to build for a branch deletion (`git push origin :branch`), where every
+# pushed ref has an all-zero local sha.
+work=""
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+	case "$local_sha" in
+		*[!0]*) work="yes" ;;
+	esac
+done
+[ -n "$work" ] || exit 0
+
+# `next build` only needs these to be defined — it is a compile check, not a
+# check against real data. A real value already in the environment wins.
+NEXT_PUBLIC_SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL:-https://example.supabase.co}"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="${NEXT_PUBLIC_SUPABASE_ANON_KEY:-build-only-placeholder}"
+export NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+npm run preflight:full
