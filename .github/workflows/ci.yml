@@ -18,6 +18,13 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    # Now that push covers every branch, a pull request from this repo would be
+    # checked twice over. Keep the pull_request trigger only for forks, whose
+    # pushes never reach us.
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name != github.repository
+
     # The RLS suite runs the real migrations against a real Postgres and checks
     # one user cannot reach another's rows. Without a database it skips, so it
     # has to be here or it never runs at all.
