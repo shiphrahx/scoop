@@ -1,10 +1,18 @@
 name: CI
 
 on:
+  # Every branch, not just main. The pre-push hook covers most of this locally,
+  # but it cannot run the RLS suite — that needs a real Postgres, which only
+  # exists here.
   push:
-    branches: [main]
+    branches: ["**"]
   pull_request:
     branches: [main]
+
+# A branch only needs its newest push checked; supersede the run in flight.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -42,21 +50,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      # Coverage thresholds are a ratchet (see vitest.config.ts) — a change that
-      # drops coverage of the maths fails here rather than merging quietly.
-      - name: Run tests
-        run: npm run test:coverage
-
-      # Nothing else proves the app still compiles: a type error inside a server
-      # component or a bad import never shows up in the unit tests.
-      - name: Build
-        run: npm run build
+      # The same script the pre-push hook runs: lint, typecheck, tests under the
+      # coverage ratchet (see vitest.config.ts), then a build — nothing else
+      # proves the app still compiles, since a type error inside a server
+      # component never shows up in the unit tests. One script so that "it
+      # passed locally" and "it passed in CI" cannot come to mean different
+      # things.
+      - name: Preflight
+        run: npm run preflight:full
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: build-only-placeholder
