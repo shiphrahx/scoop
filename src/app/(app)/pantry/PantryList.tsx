@@ -408,24 +408,30 @@ function EditRow({
         </>
       )}
 
-      <div className="flex gap-2">
+      {/* Three tap-sized buttons don't fit one row on a narrow phone — Save ran
+          off the edge of the screen. Cancel and Save share the row; Delete, the
+          rare and destructive one, sits under them at its own width, where it
+          can't be hit by accident. */}
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-2">
+          <button onClick={onDone} className="sc-btn sc-btn-neutral min-w-0 flex-1">
+            <X size={16} /> Cancel
+          </button>
+          <button
+            onClick={save}
+            disabled={saving || !name.trim()}
+            className="sc-btn sc-btn-primary min-w-0 flex-1"
+          >
+            <Check size={16} /> {saving ? "Saving…" : "Save"}
+          </button>
+        </div>
         <button
           onClick={() => {
             void deletePantryItem(item.id);
           }}
-          className="sc-btn border border-rose-300 font-semibold text-rose-600"
+          className="sc-btn self-start border border-rose-300 font-semibold text-rose-600"
         >
           <Trash2 size={16} /> Delete
-        </button>
-        <button onClick={onDone} className="sc-btn sc-btn-neutral flex-1">
-          <X size={16} /> Cancel
-        </button>
-        <button
-          onClick={save}
-          disabled={saving || !name.trim()}
-          className="sc-btn sc-btn-primary flex-1"
-        >
-          <Check size={16} /> {saving ? "Saving…" : "Save"}
         </button>
       </div>
     </li>
