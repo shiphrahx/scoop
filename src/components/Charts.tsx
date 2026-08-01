@@ -357,19 +357,11 @@ export function WeightVsExercise({
             domain={["dataMin - 1", "dataMax + 1"]}
             allowDecimals={false}
           />
+          {/* Crosshair only. The card lives on the bottom panel — syncId fires
+              both panels' tooltips at once, so two cards would be identical. */}
           <Tooltip
             cursor={{ stroke: C.teal, strokeWidth: 1, strokeDasharray: "4 4" }}
-            content={({ active, payload }) => {
-              if (!active || !payload?.length) return null;
-              const p = payload[0].payload as { date: string; weight?: number; kcal?: number };
-              const rows: { label: string; value: string; color: string }[] = [];
-              if (p.weight != null)
-                rows.push({ label: "Weight", value: `${p.weight.toFixed(1)} kg`, color: C.teal });
-              if (p.kcal != null)
-                rows.push({ label: "Burn", value: `${Math.round(p.kcal)} kcal`, color: C.violet });
-              if (!rows.length) return null;
-              return <TooltipCard title={longDate(p.date)} rows={rows} />;
-            }}
+            content={() => null}
           />
           <Line
             type="monotone"
