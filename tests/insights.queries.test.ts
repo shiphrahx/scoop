@@ -10,6 +10,7 @@ const {
   getCustomMilestones,
   getDailyMacros,
   getHighDayDates,
+  getInsightsData,
   getNonScaleVictories,
   getTargetHistory,
 } = await import("@/lib/queries");
@@ -104,6 +105,36 @@ describe("getTargetHistory", () => {
     expect(targets.map((t) => t.week_start)).toEqual(["2026-07-06", "2026-07-13"]);
     expect(targets[0].kcal).toBe(2000);
     expect(targets[1].protein_g).toBe(150);
+  });
+});
+
+describe("getInsightsData", () => {
+  // Issue #55: the dashboard used to pick this week's row out of the raw target
+  // history by date. A week the coach hadn't written a row for yet matched
+  // nothing, so every day of it scored as a miss. The in-force target is
+  // whatever the app itself is holding the user to.
+  it("carries the in-force target, not just the row dated this week", async () => {
+    installFakeSupabase({
+      db: {
+        users: [{ id: "user-1", timezone: "UTC", cycling_enabled: false }],
+        daily_targets: [
+          {
+            user_id: "user-1",
+            week_start: "2020-01-06",
+            kcal: 2000,
+            protein_g: 150,
+            carbs_g: 200,
+            fat_g: 60,
+          },
+        ],
+      },
+    });
+
+    const data = await getInsightsData();
+    expect(data.currentTarget?.kcal).toBe(2000);
+    // No maintenance estimate is possible from an empty profile, so refeeds stay
+    // off and every day is scored against the flat target.
+    expect(data.cycle.enabled).toBe(false);
   });
 });
 

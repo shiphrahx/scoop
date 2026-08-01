@@ -948,10 +948,11 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
         return;
       }
       if (vars[i].kind === "pinned") {
-        // A hand-set amount is HELD through this one rebalance, so it can't move
-        // to close a gap. Invisible otherwise: the plan just looks stuck.
+        // A hand-set amount is held at the user's figure on every rebalance, so
+        // it can't move to close a gap. Invisible otherwise: the plan just looks
+        // stuck, with no sign of what is pinning it.
         notes.push(
-          `${food.name} is held at the ${served[i]} g you set — rebalance again to let it move with the rest of the day.`,
+          `${food.name} is held at the ${served[i]} g you set — edit this meal to let the app size it again.`,
         );
       }
       portions.push({ food, grams: served[i] });

@@ -35,7 +35,7 @@ export default function BuildDayCard({
       setResult(null);
     } else if (r.held.length > 0) {
       setResult(
-        `Nothing moved: ${r.held.join(", ")} ${r.held.length === 1 ? "is" : "are"} held at the amount you set. Press again to free ${r.held.length === 1 ? "it" : "them"}.`,
+        `Nothing moved: ${r.held.join(", ")} ${r.held.length === 1 ? "is" : "are"} held at the amount you set. Edit the meal to let the app size ${r.held.length === 1 ? "it" : "them"} again.`,
       );
     } else {
       setResult("Nothing moved — this is the closest these picks get today.");

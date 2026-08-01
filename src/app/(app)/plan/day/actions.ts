@@ -718,14 +718,11 @@ export async function buildMyDay(date?: string) {
   const moves: string[] = [];
   for (const row of picked) {
     const m = bySlot.get(row.slot);
-    // A pin is a ONE-SHOT constraint: it holds a hand-set food through the ONE
-    // rebalance right after the edit (so the edit isn't wiped), then it's spent.
-    // Clearing it here stops a stale pin from silently forcing the same amount
-    // on every future build — which would hold a food at, say, 2 portions each
-    // meal and starve out the other foods the user has since picked.
-    const clearedPicks = row.picks.some((p) => p.pinned_g != null)
-      ? row.picks.map((p) => ({ ...p, pinned_g: null }))
-      : null;
+    // The pins are left exactly as they are. An amount the user set by hand is
+    // theirs, and a rebalance re-portions everything AROUND it — it is never the
+    // thing that gets moved. Pins used to be spent by the build that honoured
+    // them, so the second press quietly overwrote the edit; only the user frees
+    // one now, by editing the meal and releasing that food.
     const patch = m
       ? {
           name: m.name,
@@ -773,7 +770,6 @@ export async function buildMyDay(date?: string) {
       .update({
         position: Math.max(0, slotNames.indexOf(row.slot)),
         ...patch,
-        ...(clearedPicks ? { picks: clearedPicks } : {}),
       })
       .eq("id", row.id)
       .eq("user_id", user.id);
@@ -782,8 +778,9 @@ export async function buildMyDay(date?: string) {
   revalidate();
 
   // The held foods are the usual reason a rebalance can't move anything: they
-  // were hand-set, so this run had to honour them. The pins are spent now, so
-  // saying so tells the user a second press is worth it.
+  // were hand-set, so every run honours them. Naming them is what stops a
+  // no-op rebalance reading as a broken button — and points at the meal editor,
+  // the one place a hold can be released.
   const held = picked.flatMap((row) =>
     row.picks.filter((p) => p.pinned_g != null).map((p) => p.name),
   );

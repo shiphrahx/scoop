@@ -555,6 +555,42 @@ describe("weekScorecard", () => {
     expect(s.kcalHitDays).toBe(0);
     expect(s.proteinHitDays).toBe(0);
   });
+
+  // Issue #55: the refeed day was planned at maintenance BY THE APP. Scored
+  // against the flat deficit target it reads as 800 kcal over, so a user who
+  // followed the plan every day was shown a zero.
+  it("scores a refeed day against maintenance, not the deficit target", () => {
+    const cycling = {
+      highDayDates: ["2026-07-08"],
+      config: { enabled: true, refeedDaysPerWeek: 2, maintenanceKcal: 2800 },
+    };
+    const week = [
+      { date: "2026-07-06", kcal: 2000, protein_g: 150, carbs_g: 200, fat_g: 60 },
+      // The refeed: eaten at maintenance, with the whole gap taken as carbs.
+      { date: "2026-07-08", kcal: 2800, protein_g: 150, carbs_g: 400, fat_g: 60 },
+    ];
+
+    expect(weekScorecard(week, target, "2026-07-09", cycling).kcalHitDays).toBe(2);
+    // Protein is identical on a refeed day, so both days still count.
+    expect(weekScorecard(week, target, "2026-07-09", cycling).proteinHitDays).toBe(2);
+    // Without the refeed settings the same week grades the refeed as a miss.
+    expect(weekScorecard(week, target, "2026-07-09").kcalHitDays).toBe(1);
+  });
+
+  // A day the user did NOT take as a refeed is still judged against the deficit
+  // target, even with cycling switched on.
+  it("holds a plain day to the deficit target while cycling is on", () => {
+    const s = weekScorecard(
+      [{ date: "2026-07-07", kcal: 2800, protein_g: 150, carbs_g: 400, fat_g: 60 }],
+      target,
+      "2026-07-09",
+      {
+        highDayDates: ["2026-07-08"],
+        config: { enabled: true, refeedDaysPerWeek: 2, maintenanceKcal: 2800 },
+      },
+    );
+    expect(s.kcalHitDays).toBe(0);
+  });
 });
 
 describe("loggingStreak", () => {

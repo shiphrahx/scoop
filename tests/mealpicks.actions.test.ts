@@ -478,11 +478,11 @@ describe("buildMyDay", () => {
     expect(String(row.why)).toMatch(/over today's target/i);
   });
 
-  it("honours a pin once, then clears it so it can't stick forever", async () => {
-    // A pin (a hand-set amount saved on a pick) must hold the food through the
-    // rebalance right after the edit, but not on every future build — a stale
-    // pin holding a food at a fixed amount would starve out other picks and
-    // push the day off target. So the build applies the pin, then consumes it.
+  it("holds a pinned food on every rebalance, not just the first", async () => {
+    // A pin (a hand-set amount saved on a pick) is the user's own figure, and
+    // the app never overwrites one. Pins used to be spent by the build that
+    // honoured them, so pressing Rebalance twice silently undid the edit.
+    // Releasing a hold is the user's call, made in the meal editor.
     const { db } = installFakeSupabase({
       db: {
         users: [profile()],
@@ -516,16 +516,17 @@ describe("buildMyDay", () => {
     });
 
     await buildMyDay();
+    await buildMyDay();
 
     const row = db.planned_meals.find((m) => m.id === "meal-1")!;
-    // The pin was honoured this build: chicken held at exactly 150 g.
+    // Chicken is still at exactly the 150 g the user set, two rebalances later.
     const chicken = (row.portions as Array<{ name: string; grams: number }>).find(
       (p) => p.name === "Chicken Breast",
     );
     expect(chicken?.grams).toBe(150);
-    // ...and then cleared, so the next build is free to re-portion it.
+    // And the pin survives, so it will hold on the next build too.
     const picks = row.picks as Array<{ name: string; pinned_g: number | null }>;
-    expect(picks.find((p) => p.name === "Chicken Breast")!.pinned_g).toBeNull();
+    expect(picks.find((p) => p.name === "Chicken Breast")!.pinned_g).toBe(150);
   });
 
   it("sizes a free pick while holding a hand-set one in the same meal", async () => {
@@ -614,15 +615,15 @@ describe("buildMyDay", () => {
 
     const first = await buildMyDay();
     // Pasta was not portioned before, so it shows as a move; the held chicken is
-    // named so the user knows a second press frees it.
+    // named so the user can see what the solve had to work around.
     expect(first.changed).toBe(true);
     expect(first.moves.join(" ")).toMatch(/Pasta/);
     expect(first.held).toContain("Chicken Breast");
     expect(db.planned_meals).toHaveLength(1);
 
-    // Second press: the pin is spent, so nothing is held any more.
+    // Second press: still held. Only the user releases a hold.
     const second = await buildMyDay();
-    expect(second.held).toEqual([]);
+    expect(second.held).toContain("Chicken Breast");
   });
 
   it("offers to drop an over-fat pick, and applies the fix on request", async () => {
@@ -1124,6 +1125,62 @@ describe("buildMyDay", () => {
     const tofu = portions.find((p) => p.name === "Tofu")!;
     expect(tofu.grams).not.toBe(350);
     expect(tofu.grams).toBeLessThanOrEqual(300);
+  });
+
+  it("never re-portions a hand-edited food, however many times you rebalance", async () => {
+    // Issue #58: the user sets tofu to 220 g in the editor and presses Rebalance.
+    // The first press held it, but spent the pin doing so, so the second press
+    // re-solved tofu and wiped the edit. A hand-set amount is the user's, and the
+    // rebalance works around it — the other foods are what move.
+    const { db } = installFakeSupabase({
+      db: {
+        users: [profile()],
+        daily_targets: targets(),
+        food_logs: [],
+        pantry_items: [tofuPackRow(), pantryRow("Pasta", 371, 13, 71, 1.5)],
+        planned_meals: [
+          {
+            id: "meal-1",
+            user_id: "user-1",
+            date: today(),
+            slot: "Dinner",
+            origin: "ai",
+            name: "Tofu with Pasta",
+            items: [],
+            picks: [pick("Tofu", 136, 14, 2, 8, "off"), pastaPick()],
+            portions: [],
+            swaps: [],
+            why: null,
+            kcal: 0,
+            protein_g: 0,
+            carbs_g: 0,
+            fat_g: 0,
+            logged_food_id: null,
+          },
+        ],
+      },
+    });
+
+    await buildMyDay();
+    // The user re-weighs the tofu and leaves the pasta to the app.
+    await setMealPortions(
+      "meal-1",
+      [
+        { name: "Tofu", grams: 220, kcal: 299, protein_g: 31, carbs_g: 4, fat_g: 18 },
+        { name: "Pasta", grams: 150, kcal: 557, protein_g: 20, carbs_g: 107, fat_g: 2 },
+      ],
+      ["Tofu"],
+    );
+
+    const gramsOfTofu = () =>
+      (db.planned_meals[0].portions as { name: string; grams: number }[]).find(
+        (p) => p.name === "Tofu",
+      )!.grams;
+
+    await buildMyDay();
+    expect(gramsOfTofu()).toBe(220);
+    await buildMyDay();
+    expect(gramsOfTofu()).toBe(220);
   });
 
   it("leaves a hand-built meal within its pack untouched on rebalance", async () => {
