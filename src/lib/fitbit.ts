@@ -13,9 +13,32 @@ import * as google from "@/lib/googlehealth";
 
 // Which provider the five public functions use. Defaults to legacy so anything
 // without the env var set (tests, an un-migrated deploy) keeps its old behaviour.
+//
+// Trimmed and lowercased before comparing. An exact match meant "Google", or a
+// value with a space picked up from a dashboard field, fell through to legacy in
+// total silence — the app then looked for FITBIT_* credentials that a migrated
+// deployment has no reason to hold, and reported itself unconfigured with no
+// hint that the provider setting was what missed.
 function isGoogle(): boolean {
-  return process.env.HEALTH_PROVIDER === "google";
+  const explicit = (process.env.HEALTH_PROVIDER ?? "").trim().toLowerCase();
+  if (explicit) return explicit === "google";
+
+  // Nothing set. Rather than assume legacy — which cannot be registered with
+  // Fitbit any more and is being turned down — believe whichever credentials the
+  // deployment actually holds. A deployment carrying only GOOGLE_HEALTH_* has
+  // said which provider it is for; defaulting it to legacy meant hunting for
+  // FITBIT_* it has no reason to own and reporting itself unconfigured, with the
+  // one missing variable named nowhere on screen.
+  //
+  // Only decides when the answer is unambiguous: with both pairs present, or
+  // neither, it stays on the old default and HEALTH_PROVIDER settles it.
+  return hasPair(GOOGLE_KEYS) && !hasPair(LEGACY_KEYS);
 }
+
+const GOOGLE_KEYS = ["GOOGLE_HEALTH_CLIENT_ID", "GOOGLE_HEALTH_CLIENT_SECRET"] as const;
+const LEGACY_KEYS = ["FITBIT_CLIENT_ID", "FITBIT_CLIENT_SECRET"] as const;
+
+const hasPair = (keys: readonly string[]) => keys.every((k) => Boolean(process.env[k]));
 
 const AUTH_URL = "https://www.fitbit.com/oauth2/authorize";
 const TOKEN_URL = "https://api.fitbit.com/oauth2/token";
@@ -251,10 +274,47 @@ export function activeProvider(): "google" | "legacy" {
 // reconnect for something no amount of reconnecting can fix. Check up front so
 // missing configuration reports itself as missing configuration.
 export function providerConfigured(): boolean {
-  const has = (name: string) => Boolean(process.env[name]);
-  return isGoogle()
-    ? has("GOOGLE_HEALTH_CLIENT_ID") && has("GOOGLE_HEALTH_CLIENT_SECRET")
-    : has("FITBIT_CLIENT_ID") && has("FITBIT_CLIENT_SECRET");
+  return missingProviderConfig().length === 0;
+}
+
+// Which env vars the live provider still needs — NAMES ONLY, never values.
+//
+// Worth reporting rather than a bare true/false because the usual mistake is not
+// a forgotten variable but the wrong pair: with HEALTH_PROVIDER unset the code
+// falls back to legacy Fitbit and looks for FITBIT_*, so a deployment carrying a
+// perfectly good set of GOOGLE_HEALTH_* credentials still reports itself
+// unconfigured, and nothing on screen says which pair it was looking for.
+export function missingProviderConfig(): string[] {
+  const names = isGoogle() ? GOOGLE_KEYS : LEGACY_KEYS;
+  return names.filter((n) => !process.env[n]);
+}
+
+// Everything the deployment's wearable setup looks like from inside the running
+// function, for diagnostics. Presence only for the credential pairs — never a
+// value. HEALTH_PROVIDER's value IS included: it is not a secret, and seeing it
+// verbatim is the fastest way to spot a typo or a variable that never arrived.
+export function providerDiagnostics(): {
+  healthProviderRaw: string | null;
+  resolvedProvider: "google" | "legacy";
+  resolvedBy: "env" | "credentials" | "default";
+  credentialsPresent: Record<string, boolean>;
+  missing: string[];
+} {
+  const raw = process.env.HEALTH_PROVIDER ?? null;
+  const explicit = (raw ?? "").trim().toLowerCase();
+  return {
+    healthProviderRaw: raw,
+    resolvedProvider: activeProvider(),
+    resolvedBy: explicit
+      ? "env"
+      : hasPair(GOOGLE_KEYS) !== hasPair(LEGACY_KEYS)
+        ? "credentials"
+        : "default",
+    credentialsPresent: Object.fromEntries(
+      [...GOOGLE_KEYS, ...LEGACY_KEYS].map((k) => [k, Boolean(process.env[k])]),
+    ),
+    missing: missingProviderConfig(),
+  };
 }
 
 // Raw per-endpoint responses for one day — diagnostics only.

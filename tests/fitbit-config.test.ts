@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { providerConfigured, activeProvider } from "@/lib/fitbit";
+import { providerConfigured, activeProvider, missingProviderConfig } from "@/lib/fitbit";
 
 // Missing provider credentials used to throw from deep inside the OAuth and
 // refresh calls: /api/fitbit/authorize answered with a bare 500, and a sync
@@ -68,6 +68,103 @@ describe("providerConfigured", () => {
     process.env.GOOGLE_HEALTH_CLIENT_SECRET = "secret";
 
     expect(providerConfigured()).toBe(true);
+  });
+});
+
+describe("selecting the provider from HEALTH_PROVIDER", () => {
+  // A near miss used to fall through to legacy in silence, and the app then
+  // looked for FITBIT_* credentials a migrated deployment has no reason to hold.
+  it.each(["Google", "GOOGLE", " google", "google ", "\tgoogle\n"])(
+    "reads %j as google",
+    (value) => {
+      process.env.HEALTH_PROVIDER = value;
+
+      expect(activeProvider()).toBe("google");
+    },
+  );
+
+  it("still treats an absent or unrelated value as legacy", () => {
+    expect(activeProvider()).toBe("legacy");
+
+    process.env.HEALTH_PROVIDER = "fitbit";
+    expect(activeProvider()).toBe("legacy");
+  });
+});
+
+// The production failure this whole thread came down to: HEALTH_PROVIDER never
+// reached the deployment, so a perfectly good set of Google credentials was
+// ignored in favour of hunting for FITBIT_* that no migrated deployment holds.
+describe("falling back to whichever credentials exist", () => {
+  it("uses google when only google credentials are present", () => {
+    process.env.GOOGLE_HEALTH_CLIENT_ID = "id";
+    process.env.GOOGLE_HEALTH_CLIENT_SECRET = "secret";
+
+    expect(activeProvider()).toBe("google");
+    expect(providerConfigured()).toBe(true);
+    expect(missingProviderConfig()).toEqual([]);
+  });
+
+  it("uses legacy when only fitbit credentials are present", () => {
+    process.env.FITBIT_CLIENT_ID = "id";
+    process.env.FITBIT_CLIENT_SECRET = "secret";
+
+    expect(activeProvider()).toBe("legacy");
+    expect(providerConfigured()).toBe(true);
+  });
+
+  // Inference is a safety net for an unambiguous deployment, never a way to
+  // overrule someone who said what they wanted.
+  it("never overrides an explicit setting", () => {
+    process.env.HEALTH_PROVIDER = "legacy";
+    process.env.GOOGLE_HEALTH_CLIENT_ID = "id";
+    process.env.GOOGLE_HEALTH_CLIENT_SECRET = "secret";
+
+    expect(activeProvider()).toBe("legacy");
+  });
+
+  it("stays on the old default when both pairs are present", () => {
+    for (const k of [
+      "GOOGLE_HEALTH_CLIENT_ID",
+      "GOOGLE_HEALTH_CLIENT_SECRET",
+      "FITBIT_CLIENT_ID",
+      "FITBIT_CLIENT_SECRET",
+    ]) {
+      process.env[k] = "x";
+    }
+
+    expect(activeProvider()).toBe("legacy");
+  });
+
+  it("stays on the old default when a pair is only half present", () => {
+    process.env.GOOGLE_HEALTH_CLIENT_ID = "id"; // no secret
+
+    expect(activeProvider()).toBe("legacy");
+  });
+});
+
+describe("missingProviderConfig", () => {
+  it("names only the half that is actually absent", () => {
+    process.env.HEALTH_PROVIDER = "google";
+    process.env.GOOGLE_HEALTH_CLIENT_ID = "id";
+
+    expect(missingProviderConfig()).toEqual(["GOOGLE_HEALTH_CLIENT_SECRET"]);
+  });
+
+  it("is empty once the live provider is satisfied", () => {
+    process.env.HEALTH_PROVIDER = "google";
+    process.env.GOOGLE_HEALTH_CLIENT_ID = "id";
+    process.env.GOOGLE_HEALTH_CLIENT_SECRET = "secret";
+
+    expect(missingProviderConfig()).toEqual([]);
+    expect(providerConfigured()).toBe(true);
+  });
+
+  // Names are safe to surface to the signed-in owner; values never are.
+  it("reports names, never values", () => {
+    process.env.HEALTH_PROVIDER = "google";
+    process.env.GOOGLE_HEALTH_CLIENT_ID = "super-secret-id";
+
+    expect(missingProviderConfig().join()).not.toMatch(/super-secret-id/);
   });
 });
 

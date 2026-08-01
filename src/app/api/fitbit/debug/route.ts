@@ -5,6 +5,8 @@ import {
   activeProvider,
   getDay,
   probeDay,
+  providerConfigured,
+  providerDiagnostics,
   refreshTokens,
   type FitbitTokens,
 } from "@/lib/fitbit";
@@ -20,6 +22,17 @@ export async function GET(request: Request) {
   // deploy can't be confused when diagnosing.
   const host = request.headers.get("host");
 
+  // Which provider is live and whether it has what it needs. Reported BEFORE the
+  // token lookup, because a deployment missing its credentials cannot connect in
+  // the first place — bailing out with "not connected" would hide the only thing
+  // worth knowing. `missing` lists variable names, never values.
+  const config = {
+    provider: activeProvider(),
+    configured: providerConfigured(),
+    ...providerDiagnostics(),
+    secretKeySet: Boolean(process.env.SECRET_ENCRYPTION_KEY),
+  };
+
   const { data } = await supabase
     .from("fitbit_tokens")
     .select("access_token, refresh_token, expires_at, scope")
@@ -32,7 +45,15 @@ export async function GET(request: Request) {
     | null;
 
   if (!tokens) {
-    return NextResponse.json({ error: "no tokens — not connected" }, { status: 404 });
+    return NextResponse.json({ host, ...config, error: "no tokens — not connected" });
+  }
+
+  if (!config.configured) {
+    return NextResponse.json({
+      host,
+      ...config,
+      error: `${config.provider} provider is missing: ${config.missing.join(", ")}`,
+    });
   }
 
   let accessToken = decryptSecret(tokens.access_token);
