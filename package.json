@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "preflight": "npm run typecheck && npm run test",
+    "preflight:full": "npm run lint && npm run typecheck && npm run test:coverage && npm run build"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
