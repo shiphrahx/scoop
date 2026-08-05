@@ -801,25 +801,37 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
   // calorie gap left in it: shaving the last few kcal off an otherwise finished
   // day is not worth putting a macro over, and letting the allowance be spent on
   // those last few also pulled meal sizes away from the user's slot weights.
-  const headroom = (g: number[], key: RowKey, soft = true) => {
+  //
+  // Both of these read the day's totals from a snapshot taken once per round
+  // rather than re-summing every portion: they are called for every candidate on
+  // every row, and re-summing there made the fill quadratic in the day's picks.
+  type Totals = Record<RowKey, number>;
+  const totalsOf = (g: number[]): Totals => ({
+    kcal: totalOn(g, "kcal"),
+    protein_g: totalOn(g, "protein_g"),
+    carbs_g: totalOn(g, "carbs_g"),
+    fat_g: totalOn(g, "fat_g"),
+  });
+  const headroom = (totals: Totals, key: RowKey, soft = true) => {
     const ceiling = soft ? fillCeiling[key] : Math.max(0, input.budget[key] ?? 0);
     if (ceiling <= 0) return 0;
-    return ceiling - FILL_CUSHION[key] - totalOn(g, key);
+    return ceiling - FILL_CUSHION[key] - totals[key];
   };
   // The calories a step would put past a macro's real limit, priced. Only grams
   // beyond the limit count, and only the ones this step adds: a day already over
   // is not charged again for where it already stands.
-  const overshootCost = (g: number[], food: PantryFood, step: number) =>
+  const overshootCost = (totals: Totals, food: PantryFood, step: number) =>
     MACRO_KEYS.reduce((s, key) => {
       const per = perGram(food, key);
       const limit = Math.max(0, input.budget[key] ?? 0);
       if (per <= 0 || limit <= 0) return s;
-      const before = totalOn(g, key);
+      const before = totals[key];
       const added = Math.max(0, before + per * step - Math.max(limit, before));
       return s + added * KCAL_PER_G[key] * OVER_PRICE;
     }, 0);
   for (let round = 0; round < 30; round++) {
-    const gap = headroom(grams, "kcal");
+    const totals = totalsOf(grams);
+    const gap = headroom(totals, "kcal");
     if (gap <= 1) break;
     // Worth putting a macro over its limit only while the day is still short
     // enough that it would be reported as short.
@@ -851,7 +863,7 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
       for (const key of LIMIT_KEYS) {
         const per = perGram(v.food, key);
         if (per <= 0) continue;
-        step = Math.min(step, headroom(grams, key, soft) / per);
+        step = Math.min(step, headroom(totals, key, soft) / per);
       }
       const perKcal = perGram(v.food, "kcal");
       if (perKcal > 0) step = Math.min(step, gap / perKcal);
@@ -860,7 +872,7 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
       // limit. A step that buys less than it spends is not worth taking, so the
       // gap is left open (and the note names the macro holding the day back)
       // rather than closed with the one food that makes the split worse.
-      const net = step * perKcal - overshootCost(grams, v.food, step);
+      const net = step * perKcal - overshootCost(totals, v.food, step);
       if (net <= 0) continue;
       // Among the hungry meals, favour the one furthest under its share.
       const score = net * (1 + Math.max(0, slotGap[v.slotIdx]) / 500);

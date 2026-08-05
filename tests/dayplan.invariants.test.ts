@@ -125,7 +125,11 @@ const sumPlan = (plan: PlannedSlot[]) =>
 const saysOffTarget = (plan: PlannedSlot[]) =>
   plan.some((m) => /today's target|protein lands/i.test(m.why ?? ""));
 
-describe("the day plan, over random realistic days", () => {
+// Each property below solves 300-400 whole days. Under the coverage run, with
+// the other sixty-odd test files on the same cores, that is comfortably past the
+// 5 s default — and a timeout here reads as a planner failure when it is only
+// the machine. The budget is per test, not for the file.
+describe("the day plan, over random realistic days", { timeout: 30_000 }, () => {
   it("serves every food the user picked", () => {
     fc.assert(
       fc.property(pickedDay, ({ slots, budget }) => {
