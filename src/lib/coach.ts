@@ -746,15 +746,6 @@ export function calibrationDaysElapsed(
   return Math.floor(ms / DAY_MS);
 }
 
-// A soft count-down for the UI: about this many days left before the user can
-// expect to graduate. Never negative.
-export function calibrationDaysRemaining(
-  startedAt: string | null | undefined,
-  now = new Date(),
-): number {
-  return Math.max(0, CALIBRATION_MIN_DAYS - calibrationDaysElapsed(startedAt, now));
-}
-
 export interface CalibrationState {
   startedAt: string | null | undefined;
   now?: Date;
@@ -780,6 +771,23 @@ export function calibrationComplete(state: CalibrationState): boolean {
 // hasn't yet graduated.
 export function inCalibration(state: CalibrationState): boolean {
   return Boolean(state.startedAt) && !calibrationComplete(state);
+}
+
+// A count-down for the UI: days left before the hold can actually end. Never
+// negative, and never 0 while the hold is still running.
+//
+// It has to read the same gate calibrationComplete does. Counting to the minimum
+// window alone stranded users on "almost done" for days: graduating at
+// CALIBRATION_MIN_DAYS also needs a measurement, and observeTdee will not
+// produce one until the weigh-ins span a fortnight — so before that measurement
+// exists the only date the hold is guaranteed to end on is the max window, and
+// that is the honest number to show. Once a measurement lands the count drops to
+// the minimum window (and to 0 as it graduates).
+export function calibrationDaysRemaining(state: CalibrationState): number {
+  if (!state.startedAt) return 0;
+  const target =
+    state.observed != null ? CALIBRATION_MIN_DAYS : CALIBRATION_MAX_DAYS;
+  return Math.max(0, target - calibrationDaysElapsed(state.startedAt, state.now));
 }
 
 // The first deficit after calibration is deliberately modest — a sustainable
