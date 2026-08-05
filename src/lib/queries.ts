@@ -635,7 +635,7 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
   const calState = { startedAt: calStartedAt, now, observed };
   const calActive = computeInCalibration(calState);
   const calComplete = calibrationComplete(calState);
-  const calDaysRemaining = calibrationDaysRemaining(calStartedAt, now);
+  const calDaysRemaining = calibrationDaysRemaining(calState);
 
   const phase = nextPhase({
     weeksInDeficit: countRun("deficit"),

@@ -1197,9 +1197,32 @@ describe("calibration window", () => {
   it("counts days elapsed and the soft days-remaining count", () => {
     expect(calibrationDaysElapsed(start, at(5))).toBe(5);
     expect(calibrationDaysElapsed(null, at(5))).toBe(0);
-    expect(calibrationDaysRemaining(start, at(3))).toBe(CALIBRATION_MIN_DAYS - 3);
-    // Never negative once past the minimum.
-    expect(calibrationDaysRemaining(start, at(20))).toBe(0);
+    // With a measurement in hand the user can graduate at the minimum window.
+    expect(calibrationDaysRemaining({ startedAt: start, now: at(3), observed })).toBe(
+      CALIBRATION_MIN_DAYS - 3,
+    );
+    // Never negative once past the window.
+    expect(
+      calibrationDaysRemaining({ startedAt: start, now: at(20), observed }),
+    ).toBe(0);
+    expect(
+      calibrationDaysRemaining({ startedAt: null, now: at(3), observed: null }),
+    ).toBe(0);
+  });
+
+  it("counts to the max window while there's no measurement yet", () => {
+    // The regression: counting to the minimum window put the banner on "almost
+    // done" (0 days left) from day 10 while the hold ran on to day 14, because
+    // graduating early needs an observed TDEE that cannot exist that soon.
+    for (let day = 0; day < CALIBRATION_MAX_DAYS; day++) {
+      const state = { startedAt: start, now: at(day), observed: null };
+      expect(inCalibration(state)).toBe(true);
+      expect(calibrationDaysRemaining(state)).toBe(CALIBRATION_MAX_DAYS - day);
+    }
+    // And it reaches 0 exactly as the hold ends.
+    const done = { startedAt: start, now: at(CALIBRATION_MAX_DAYS), observed: null };
+    expect(inCalibration(done)).toBe(false);
+    expect(calibrationDaysRemaining(done)).toBe(0);
   });
 
   it("is not complete before the minimum window, even with a measurement", () => {
