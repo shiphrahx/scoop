@@ -11,6 +11,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 const { setMealPicks, buildMyDay, setMealPortions, applyDayFix } = await import(
   "@/app/(app)/plan/day/actions"
 );
+const { computeDayFix } = await import("@/lib/mealplan");
 
 const today = () => {
   const d = new Date();
@@ -728,6 +729,39 @@ describe("buildMyDay", () => {
     const r = await buildMyDay();
     expect(r.fix).toBeNull();
     void db;
+  });
+
+  it("doesn't offer to drop a food over the few grams that filled the day", async () => {
+    // The planner may put a macro a little over to fill the day's calories. That
+    // is not a stuck day: prompting to drop the oil would hand back the calories
+    // the trade just bought, over a sentence ("these picks can't be portioned any
+    // smaller") that isn't true. Reported as a rebalance that did nothing.
+    const budget = { kcal: 1720, protein_g: 120, carbs_g: 215, fat_g: 42 };
+    const meals = [
+      {
+        slot: "Dinner",
+        portions: [
+          { name: "Extra Virgin Olive Oil", grams: 12, kcal: 108, protein_g: 0, carbs_g: 0, fat_g: 12 },
+          { name: "Basmati Rice", grams: 400, kcal: 1600, protein_g: 110, carbs_g: 214, fat_g: 35 },
+        ],
+        kcal: 1708,
+        protein_g: 110,
+        carbs_g: 214,
+        fat_g: 47,
+      },
+    ];
+    expect(computeDayFix(meals, budget)).toBeNull();
+
+    // Same overshoot on a day still hundreds of calories short IS worth a prompt:
+    // dropping the oil is what frees the room to fill it.
+    const short = [{ ...meals[0], kcal: 1200, protein_g: 70, carbs_g: 150 }];
+    const fix = computeDayFix(short, budget);
+    expect(fix).toBeTruthy();
+    expect(fix!.drops.some((d) => /oil/i.test(d.name))).toBe(true);
+
+    // And a big overshoot is still flagged even when the calories land.
+    const fatty = [{ ...meals[0], fat_g: 60 }];
+    expect(computeDayFix(fatty, budget)).toBeTruthy();
   });
 
   it("sizes meals by the profile's slot weights", async () => {

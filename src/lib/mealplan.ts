@@ -11,6 +11,11 @@
 //  - The day's numbers are CEILINGS. Energy and every macro are pressed back
 //    under their limit rather than traded against each other: a plan that eats
 //    the deficit is a failed plan, however neatly the rest of it fits.
+//  - ENERGY is the only one of those ceilings that is absolute. The split is a
+//    preference between the macros, so when filling the day's calories means a
+//    few grams past one of them, the plan takes the trade and says it did —
+//    otherwise a trace of fat in a bowl of rice can hold a day hundreds of
+//    calories short of its target.
 //  - Under those ceilings the solve fills the day as fully as it can — energy
 //    first, then protein, then the carb/fat split, with each meal's share of the
 //    day as a soft preference that bends before any of them.
@@ -275,6 +280,7 @@ const ROW_SCALE_FLOOR: Record<RowKey, number> = {
 
 const MACRO_KEYS: MacroKey[] = ["protein_g", "carbs_g", "fat_g"];
 const ROW_KEYS: RowKey[] = ["kcal", ...MACRO_KEYS];
+const KCAL_PER_G: Record<MacroKey, number> = { protein_g: 4, carbs_g: 4, fat_g: 9 };
 
 // A day's numbers are CEILINGS, not two-sided goals. Landing under is a gap the
 // user can fill by eating more; landing over is the deficit gone, and no amount
@@ -537,7 +543,7 @@ const EXTRA_UNIT_MARGIN = 0.05;
 // A day is "on target" for energy within this many kcal. Wider than a macro's ±5
 // because portions are whole grams and every food's label energy is itself
 // rounded; narrow enough that a real miss is reported as one.
-const ON_TARGET_KCAL = 50;
+export const ON_TARGET_KCAL = 50;
 
 const isPinnedFood = (food: PantryFood) =>
   food.pinned_g != null && food.pinned_g >= 0;
@@ -760,14 +766,76 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
     carbs_g: 1,
     fat_g: 1,
   };
-  const headroom = (g: number[], key: RowKey) => {
+  // Energy is the ceiling that protects the deficit, so the fill never crosses
+  // it. The carb/fat/protein split is a preference BETWEEN the macros, and
+  // treating each one as a second hard ceiling stopped the fill dead: a macro
+  // already at its limit gave negative headroom, which zeroed the step for every
+  // food carrying so much as a trace of it. A day 5 g over on fat could not take
+  // another spoon of rice — rice carries a little fat — and so sat 180 kcal and
+  // 60 g of carbs short with nothing able to grow.
+  //
+  // A macro that is full buys a bounded allowance to go further over instead,
+  // measured ONCE from where the pressed solve left it so the rounds below can't
+  // ratchet it upwards. Growing into that allowance is not free: the choice
+  // prices every gram past the real limit, so the day reaches for the rice (a
+  // gram of fat per plateful) and never for the oil (nothing but fat).
+  // Mostly proportional, with a floor so a tiny budget still has somewhere to
+  // go: 5 g past a 42 g fat target is a rounding-scale trade, 5 g past an 11 g
+  // one is a different meal.
+  const FILL_OVER_MIN_G = 2;
+  const FILL_OVER_FRAC = 0.1;
+  // What a gram past a limit costs, as a multiple of the calories it carries.
+  // Above 1, so a food whose energy comes mostly from an already-full macro
+  // always scores worse than leaving the gap open.
+  const OVER_PRICE = 2;
+  const fillCeiling: Record<RowKey, number> = { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
+  for (const key of ROW_KEYS) {
     const limit = Math.max(0, input.budget[key] ?? 0);
-    if (limit <= 0) return 0;
-    return limit - FILL_CUSHION[key] - totalOn(g, key);
+    fillCeiling[key] =
+      key === "kcal" || limit <= 0
+        ? limit
+        : Math.max(limit, totalOn(grams, key)) +
+          Math.max(FILL_OVER_MIN_G, limit * FILL_OVER_FRAC);
+  }
+  // `soft` = may grow into the allowance above. Reserved for a day with a REAL
+  // calorie gap left in it: shaving the last few kcal off an otherwise finished
+  // day is not worth putting a macro over, and letting the allowance be spent on
+  // those last few also pulled meal sizes away from the user's slot weights.
+  //
+  // Both of these read the day's totals from a snapshot taken once per round
+  // rather than re-summing every portion: they are called for every candidate on
+  // every row, and re-summing there made the fill quadratic in the day's picks.
+  type Totals = Record<RowKey, number>;
+  const totalsOf = (g: number[]): Totals => ({
+    kcal: totalOn(g, "kcal"),
+    protein_g: totalOn(g, "protein_g"),
+    carbs_g: totalOn(g, "carbs_g"),
+    fat_g: totalOn(g, "fat_g"),
+  });
+  const headroom = (totals: Totals, key: RowKey, soft = true) => {
+    const ceiling = soft ? fillCeiling[key] : Math.max(0, input.budget[key] ?? 0);
+    if (ceiling <= 0) return 0;
+    return ceiling - FILL_CUSHION[key] - totals[key];
   };
+  // The calories a step would put past a macro's real limit, priced. Only grams
+  // beyond the limit count, and only the ones this step adds: a day already over
+  // is not charged again for where it already stands.
+  const overshootCost = (totals: Totals, food: PantryFood, step: number) =>
+    MACRO_KEYS.reduce((s, key) => {
+      const per = perGram(food, key);
+      const limit = Math.max(0, input.budget[key] ?? 0);
+      if (per <= 0 || limit <= 0) return s;
+      const before = totals[key];
+      const added = Math.max(0, before + per * step - Math.max(limit, before));
+      return s + added * KCAL_PER_G[key] * OVER_PRICE;
+    }, 0);
   for (let round = 0; round < 30; round++) {
-    const gap = headroom(grams, "kcal");
+    const totals = totalsOf(grams);
+    const gap = headroom(totals, "kcal");
     if (gap <= 1) break;
+    // Worth putting a macro over its limit only while the day is still short
+    // enough that it would be reported as short.
+    const soft = gap > ON_TARGET_KCAL;
     // How much each meal is under its own share of the day's energy, so the
     // filling doesn't all land on one plate.
     const slotGap = fractions.map((frac, slotIdx) => {
@@ -778,9 +846,16 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
       );
       return want - has;
     });
+    // Two buckets: meals still under their share of the day, and everything
+    // else. A meal that has already had its share only grows once no hungry meal
+    // can — the fill closes the day's gap, but it should not quietly turn a
+    // 25/75 pair of meals into an even one on the way.
     let bestIdx = -1;
     let bestStep = 0;
     let bestScore = 0;
+    let spareIdx = -1;
+    let spareStep = 0;
+    let spareScore = 0;
     for (const i of freeIdx) {
       const v = vars[i];
       let step = v.hi - grams[i];
@@ -788,18 +863,45 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
       for (const key of LIMIT_KEYS) {
         const per = perGram(v.food, key);
         if (per <= 0) continue;
-        step = Math.min(step, headroom(grams, key) / per);
+        step = Math.min(step, headroom(totals, key, soft) / per);
       }
       const perKcal = perGram(v.food, "kcal");
       if (perKcal > 0) step = Math.min(step, gap / perKcal);
       if (step < 1) continue;
-      // Energy this would add, favouring the meal that is furthest under its share.
-      const score = step * perKcal * (1 + Math.max(0, slotGap[v.slotIdx]) / 500);
-      if (score > bestScore) {
-        bestScore = score;
-        bestStep = step;
-        bestIdx = i;
+      // Energy this would add, less what it costs in grams pushed past a macro's
+      // limit. A step that buys less than it spends is not worth taking, so the
+      // gap is left open (and the note names the macro holding the day back)
+      // rather than closed with the one food that makes the split worse.
+      const net = step * perKcal - overshootCost(totals, v.food, step);
+      if (net <= 0) continue;
+      // Among the hungry meals, favour the one furthest under its share.
+      const score = net * (1 + Math.max(0, slotGap[v.slotIdx]) / 500);
+      if (slotGap[v.slotIdx] > 0) {
+        if (score > bestScore) {
+          bestScore = score;
+          bestStep = step;
+          bestIdx = i;
+        }
+      } else if (score > spareScore) {
+        spareScore = score;
+        spareStep = step;
+        spareIdx = i;
       }
+    }
+    if (bestIdx >= 0) {
+      // Don't fill a hungry meal past its own share in one step while another
+      // meal is still short of its: stop at the share and come back next round.
+      const perKcal = perGram(vars[bestIdx].food, "kcal");
+      if (perKcal > 0) {
+        bestStep = Math.min(bestStep, slotGap[vars[bestIdx].slotIdx] / perKcal);
+      }
+      if (bestStep < 1) {
+        bestIdx = -1;
+      }
+    }
+    if (bestIdx < 0) {
+      bestIdx = spareIdx;
+      bestStep = spareStep;
     }
     if (bestIdx < 0) break;
     grams[bestIdx] += bestStep;
@@ -867,7 +969,6 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
 
   // Which macro the missing calories actually are. "You're 300 under" is not much
   // use on its own; "the gap is fat" tells the user what to go and pick.
-  const KCAL_PER_G: Record<MacroKey, number> = { protein_g: 4, carbs_g: 4, fat_g: 9 };
   const gaps = MACRO_KEYS.map((key) => ({
     key,
     short: Math.max(0, Math.max(0, input.budget[key] ?? 0) - dayTotals[key]),
@@ -890,16 +991,21 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
           : `This day comes to ${dayTotals.kcal} kcal — ${kcalMiss} over today's target, the closest these picks get.`
         : `This day comes to ${dayTotals.kcal} kcal — ${-kcalMiss} under today's target.${blocking || " Add to your picks to fill the gap."}${gapNote}${biggest ? maxedNoteFor(biggest.key) : ""}`;
 
-  // Any macro that still ends up OVER its limit gets named. With the limits
-  // pressed hard this only happens when the picks' smallest servings already
-  // exceed the day, which is a fact the user needs rather than a silent overshoot.
+  // Any macro that still ends up OVER its limit gets named. Two different facts
+  // wear the same number, so they get different sentences: a day whose energy is
+  // also over has picks that simply don't go any smaller, while a day that landed
+  // ON its calories has traded a little of the split to get there — which is the
+  // planner working as intended, and reads as a bug if it goes unexplained.
   const overNotes = MACRO_KEYS.filter((key) => {
     const limit = Math.max(0, input.budget[key] ?? 0);
     return limit > 0 && overBy(dayTotals[key], limit, key) > 0;
-  }).map(
-    (key) =>
-      `${MACRO_LABEL[key][0].toUpperCase()}${MACRO_LABEL[key].slice(1)} lands ${dayTotals[key] - Math.max(0, input.budget[key] ?? 0)} g over — these picks don't go any smaller.`,
-  );
+  }).map((key) => {
+    const over = dayTotals[key] - Math.max(0, input.budget[key] ?? 0);
+    const label = `${MACRO_LABEL[key][0].toUpperCase()}${MACRO_LABEL[key].slice(1)}`;
+    return kcalMiss > kcalSlack
+      ? `${label} lands ${over} g over — these picks don't go any smaller.`
+      : `${label} lands ${over} g over — the picks that fill the rest of the day carry it.`;
+  });
 
   // A macro can land well short while the day's ENERGY lands — the picks simply
   // can't carry that macro. Say which, and why it stopped, rather than leaving the
@@ -978,6 +1084,118 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
     });
   });
   return out;
+}
+
+// A concrete way out when a rebalance can't land the day: the macro that's stuck
+// over its ceiling, and the picked foods to drop that would free it up. The UI
+// shows this as a prompt — the app never drops a food the user picked without
+// asking (see the "never silently drop a pick" rule in lib/mealplan).
+export type DayFix = {
+  // Plain-words statement of what's wrong ("Fat lands 13 g over…").
+  reason: string;
+  // The foods to remove, by slot and name, if the user says yes.
+  drops: { slot: string; name: string }[];
+  // The question to put to the user ("Remove olive oil from Dinner and rebalance?").
+  summary: string;
+};
+
+// Which macro a portion is mostly made of, by its share of the portion's energy.
+// Used to pick a food whose removal actually relieves the macro that's over — an
+// oil for a fat overshoot, a rice for a carb one — rather than something that
+// carries the day's protein.
+function dominantRole(p: MealPortion): "protein" | "carb" | "fat" {
+  const fat = (p.fat_g ?? 0) * 9;
+  const carb = (p.carbs_g ?? 0) * 4;
+  const protein = (p.protein_g ?? 0) * 4;
+  if (fat >= carb && fat >= protein) return "fat";
+  if (carb >= protein) return "carb";
+  return "protein";
+}
+
+// When the solved day is stuck OVER one of its ceilings — the picks can't be
+// portioned any smaller, so a plain rebalance changes nothing — work out the
+// smallest set of picked foods to drop that would relieve it. Only foods the
+// solve actually portioned (app-sized picks) are candidates: eaten and
+// hand-pinned foods are the user's own and never proposed. Returns null when the
+// day is within its limits, or when nothing droppable would help (then the plan
+// just reports where it lands, as before).
+export function computeDayFix(
+  meals: Array<{ slot: string; portions: MealPortion[] } & Macros>,
+  budget: Macros,
+): DayFix | null {
+  const solved = meals.reduce<Macros>(
+    (s, m) => ({
+      kcal: s.kcal + m.kcal,
+      protein_g: s.protein_g + m.protein_g,
+      carbs_g: s.carbs_g + m.carbs_g,
+      fat_g: s.fat_g + m.fat_g,
+    }),
+    { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
+  );
+
+  // A day whose ENERGY lands is not a stuck day. The planner is allowed to trade
+  // a few grams of one macro to fill the day's calories (see the fill in
+  // lib/mealplan), and prompting to drop a food over that trade would undo the
+  // calories it just bought — while telling the user something untrue, that the
+  // picks can't go any smaller. So the bar for flagging an overshoot rises to
+  // more than any trade the fill would make once the calories are there.
+  const kcalBudget = Math.max(0, budget.kcal);
+  const energyLanded =
+    kcalBudget > 0 &&
+    solved.kcal <= kcalBudget + Math.max(20, kcalBudget * 0.01) &&
+    solved.kcal >= kcalBudget - ON_TARGET_KCAL;
+  const flagAt = (limit: number) =>
+    energyLanded ? Math.max(5, limit * 0.15) : 2;
+
+  // The macros a day can overshoot in a way the user can act on: fat and carbs.
+  // (Protein over isn't a failure; energy over is always one of these two.)
+  const over = (
+    [
+      { key: "fat_g", role: "fat", label: "Fat", kcalPerG: 9 },
+      { key: "carbs_g", role: "carb", label: "Carbs", kcalPerG: 4 },
+    ] as const
+  )
+    .map((o) => ({ ...o, amount: solved[o.key] - Math.max(0, budget[o.key]) }))
+    .filter((o) => o.amount > flagAt(Math.max(0, budget[o.key])))
+    // Worst by calories, so a big fat overshoot is fixed before a small carb one.
+    .sort((a, b) => b.amount * b.kcalPerG - a.amount * a.kcalPerG);
+  const worst = over[0];
+  if (!worst) return null;
+
+  // Foods the solve portioned that are mostly this macro, biggest contributor
+  // first — the ones whose removal frees the most of what's over.
+  const cands = meals
+    .flatMap((m) =>
+      m.portions.map((p) => ({
+        slot: m.slot,
+        name: p.name,
+        amount: worst.key === "fat_g" ? p.fat_g ?? 0 : p.carbs_g ?? 0,
+        role: dominantRole(p),
+      })),
+    )
+    .filter((c) => c.role === worst.role && c.amount > 0)
+    .sort((a, b) => b.amount - a.amount);
+  if (cands.length === 0) return null;
+
+  // Drop just enough to clear the overshoot; if no single food covers it, drop
+  // the biggest offenders we have (dropping any of them still helps).
+  const drops: { slot: string; name: string }[] = [];
+  let relief = 0;
+  for (const c of cands) {
+    if (relief >= worst.amount) break;
+    drops.push({ slot: c.slot, name: c.name });
+    relief += c.amount;
+  }
+
+  const list = drops
+    .map((d) => `${d.name} from ${d.slot.toLowerCase()}`)
+    .join(" and ")
+    .replace(/, ([^,]*)$/, " and $1");
+  return {
+    reason: `${worst.label} lands ${Math.round(worst.amount)} g over today's target, and these picks can't be portioned any smaller.`,
+    drops,
+    summary: `Remove ${list} and rebalance?`,
+  };
 }
 
 export interface SuggestInput {

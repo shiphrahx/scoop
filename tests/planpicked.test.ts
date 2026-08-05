@@ -187,6 +187,60 @@ describe("planPickedDay", () => {
     expect(maxMealProtein).toBeLessThan(dayProtein * 0.6);
   });
 
+  it("fills the day's calories when a macro is already at its limit", () => {
+    // Reported day: 1537/1720 kcal, carbs 153/215, fat 47/42. Fat over its limit
+    // walled the fill — every food carrying a trace of fat had its step clamped
+    // to zero, and rice carries a little fat — so the day sat ~200 kcal short
+    // with the picks nowhere near their biggest servings.
+    //
+    // Here a pinned spoon of peanut butter puts fat at its limit before anything
+    // is portioned, and the rest of the day still has to be filled from foods
+    // that all carry some.
+    const rice = food("Basmati Rice", 2.7, 28, 0.6, 2000);
+    const tofu = food("Tofu", 14, 2, 8, 1000);
+    const powder = food("Vegan Protein Powder", 80, 5, 5, 500);
+    const peanut: PantryFood = { ...food("Peanut Butter", 25, 12, 50, 400), pinned_g: 60 };
+    const budget = { kcal: 1720, protein_g: 120, carbs_g: 215, fat_g: 42 };
+
+    const plan = planPickedDay({
+      slots: [
+        { slot: "Lunch", foods: [rice, tofu] },
+        { slot: "Snack", foods: [powder, peanut] },
+        { slot: "Dinner", foods: [rice, tofu] },
+      ],
+      budget,
+    });
+
+    const tot = sumPlan(plan);
+    // The day's energy lands (it was 239 kcal short before).
+    expect(Math.abs(tot.kcal - budget.kcal)).toBeLessThanOrEqual(50);
+    // And it lands on real food, not on one macro running away: the trade is
+    // bounded, and protein — the macro the fill was leaving on the table — is
+    // close instead of half missing.
+    expect(tot.fat_g).toBeLessThanOrEqual(budget.fat_g + 10);
+    expect(tot.carbs_g).toBeLessThanOrEqual(budget.carbs_g + 10);
+    expect(budget.protein_g - tot.protein_g).toBeLessThanOrEqual(20);
+    // A macro over its limit is never silent.
+    if (tot.fat_g > budget.fat_g + 2) {
+      expect(plan[0].why).toMatch(/fat lands \d+ g over/i);
+    }
+  });
+
+  it("leaves the gap open rather than closing it with the wrong food", () => {
+    // The other side of the same rule: growing INTO the fat allowance has to buy
+    // more than it costs. Fat is pinned at its limit by the peanut butter and the
+    // only thing left to grow is oil — pure fat — so the fill declines it and the
+    // day is reported short instead of drowned in oil.
+    const peanut: PantryFood = { ...food("Peanut Butter", 25, 12, 50, 400), pinned_g: 84 };
+    const plan = planPickedDay({
+      slots: [{ slot: "Dinner", foods: [peanut, oil()] }],
+      budget: { kcal: 900, protein_g: 60, carbs_g: 90, fat_g: 42 },
+    });
+    const tot = sumPlan(plan);
+    expect(tot.fat_g).toBeLessThanOrEqual(42 + 10);
+    expect(gramsOf(plan, "Olive Oil")).toBeLessThanOrEqual(15);
+  });
+
   it("re-balances the other meals when a countable pick rounds to a whole unit", () => {
     // Dinner's protein is a countable that can only be served in whole portions.
     // It keeps its one portion, the weighable foods carry the rest, every meal
