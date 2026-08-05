@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { Scale, Sparkles, AlertCircle } from "lucide-react";
-import { buildMyDay, applyDayFix, type DayFix } from "./actions";
+import { buildMyDay, applyDayFix } from "./actions";
+import type { DayFix } from "@/lib/mealplan";
 
 // The one button that turns picks into portions: solves every picked meal
 // together so the day lands on its macros. Once everything picked is built it
@@ -38,7 +39,11 @@ export default function BuildDayCard({
         `Nothing moved: ${r.held.join(", ")} ${r.held.length === 1 ? "is" : "are"} held at the amount you set. Edit the meal to let the app size ${r.held.length === 1 ? "it" : "them"} again.`,
       );
     } else {
-      setResult("Nothing moved — this is the closest these picks get today.");
+      // Say where it landed. "Nothing moved" on its own gives no way to tell a
+      // day that already fits from a button that did nothing.
+      setResult(
+        `Nothing moved — these meals come to ${Math.round(r.landed.kcal)} of ${Math.round(r.budget.kcal)} kcal left today, and this is the closest these picks get.`,
+      );
     }
   }
 

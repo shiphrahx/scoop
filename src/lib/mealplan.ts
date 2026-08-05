@@ -543,7 +543,7 @@ const EXTRA_UNIT_MARGIN = 0.05;
 // A day is "on target" for energy within this many kcal. Wider than a macro's ±5
 // because portions are whole grams and every food's label energy is itself
 // rounded; narrow enough that a real miss is reported as one.
-const ON_TARGET_KCAL = 50;
+export const ON_TARGET_KCAL = 50;
 
 const isPinnedFood = (food: PantryFood) =>
   food.pinned_g != null && food.pinned_g >= 0;
@@ -1084,6 +1084,118 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
     });
   });
   return out;
+}
+
+// A concrete way out when a rebalance can't land the day: the macro that's stuck
+// over its ceiling, and the picked foods to drop that would free it up. The UI
+// shows this as a prompt — the app never drops a food the user picked without
+// asking (see the "never silently drop a pick" rule in lib/mealplan).
+export type DayFix = {
+  // Plain-words statement of what's wrong ("Fat lands 13 g over…").
+  reason: string;
+  // The foods to remove, by slot and name, if the user says yes.
+  drops: { slot: string; name: string }[];
+  // The question to put to the user ("Remove olive oil from Dinner and rebalance?").
+  summary: string;
+};
+
+// Which macro a portion is mostly made of, by its share of the portion's energy.
+// Used to pick a food whose removal actually relieves the macro that's over — an
+// oil for a fat overshoot, a rice for a carb one — rather than something that
+// carries the day's protein.
+function dominantRole(p: MealPortion): "protein" | "carb" | "fat" {
+  const fat = (p.fat_g ?? 0) * 9;
+  const carb = (p.carbs_g ?? 0) * 4;
+  const protein = (p.protein_g ?? 0) * 4;
+  if (fat >= carb && fat >= protein) return "fat";
+  if (carb >= protein) return "carb";
+  return "protein";
+}
+
+// When the solved day is stuck OVER one of its ceilings — the picks can't be
+// portioned any smaller, so a plain rebalance changes nothing — work out the
+// smallest set of picked foods to drop that would relieve it. Only foods the
+// solve actually portioned (app-sized picks) are candidates: eaten and
+// hand-pinned foods are the user's own and never proposed. Returns null when the
+// day is within its limits, or when nothing droppable would help (then the plan
+// just reports where it lands, as before).
+export function computeDayFix(
+  meals: Array<{ slot: string; portions: MealPortion[] } & Macros>,
+  budget: Macros,
+): DayFix | null {
+  const solved = meals.reduce<Macros>(
+    (s, m) => ({
+      kcal: s.kcal + m.kcal,
+      protein_g: s.protein_g + m.protein_g,
+      carbs_g: s.carbs_g + m.carbs_g,
+      fat_g: s.fat_g + m.fat_g,
+    }),
+    { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
+  );
+
+  // A day whose ENERGY lands is not a stuck day. The planner is allowed to trade
+  // a few grams of one macro to fill the day's calories (see the fill in
+  // lib/mealplan), and prompting to drop a food over that trade would undo the
+  // calories it just bought — while telling the user something untrue, that the
+  // picks can't go any smaller. So the bar for flagging an overshoot rises to
+  // more than any trade the fill would make once the calories are there.
+  const kcalBudget = Math.max(0, budget.kcal);
+  const energyLanded =
+    kcalBudget > 0 &&
+    solved.kcal <= kcalBudget + Math.max(20, kcalBudget * 0.01) &&
+    solved.kcal >= kcalBudget - ON_TARGET_KCAL;
+  const flagAt = (limit: number) =>
+    energyLanded ? Math.max(5, limit * 0.15) : 2;
+
+  // The macros a day can overshoot in a way the user can act on: fat and carbs.
+  // (Protein over isn't a failure; energy over is always one of these two.)
+  const over = (
+    [
+      { key: "fat_g", role: "fat", label: "Fat", kcalPerG: 9 },
+      { key: "carbs_g", role: "carb", label: "Carbs", kcalPerG: 4 },
+    ] as const
+  )
+    .map((o) => ({ ...o, amount: solved[o.key] - Math.max(0, budget[o.key]) }))
+    .filter((o) => o.amount > flagAt(Math.max(0, budget[o.key])))
+    // Worst by calories, so a big fat overshoot is fixed before a small carb one.
+    .sort((a, b) => b.amount * b.kcalPerG - a.amount * a.kcalPerG);
+  const worst = over[0];
+  if (!worst) return null;
+
+  // Foods the solve portioned that are mostly this macro, biggest contributor
+  // first — the ones whose removal frees the most of what's over.
+  const cands = meals
+    .flatMap((m) =>
+      m.portions.map((p) => ({
+        slot: m.slot,
+        name: p.name,
+        amount: worst.key === "fat_g" ? p.fat_g ?? 0 : p.carbs_g ?? 0,
+        role: dominantRole(p),
+      })),
+    )
+    .filter((c) => c.role === worst.role && c.amount > 0)
+    .sort((a, b) => b.amount - a.amount);
+  if (cands.length === 0) return null;
+
+  // Drop just enough to clear the overshoot; if no single food covers it, drop
+  // the biggest offenders we have (dropping any of them still helps).
+  const drops: { slot: string; name: string }[] = [];
+  let relief = 0;
+  for (const c of cands) {
+    if (relief >= worst.amount) break;
+    drops.push({ slot: c.slot, name: c.name });
+    relief += c.amount;
+  }
+
+  const list = drops
+    .map((d) => `${d.name} from ${d.slot.toLowerCase()}`)
+    .join(" and ")
+    .replace(/, ([^,]*)$/, " and $1");
+  return {
+    reason: `${worst.label} lands ${Math.round(worst.amount)} g over today's target, and these picks can't be portioned any smaller.`,
+    drops,
+    summary: `Remove ${list} and rebalance?`,
+  };
 }
 
 export interface SuggestInput {
