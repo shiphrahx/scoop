@@ -981,9 +981,21 @@ function singularTerms(q: string): string[] {
   );
 }
 
+// The words of a query worth matching on. One-character fragments match
+// everything, so they're dropped.
+function searchWords(q: string): string[] {
+  return (q.toLowerCase().match(/[a-z0-9]+/g) ?? []).filter((w) => w.length > 1);
+}
+
 // Fresh whole foods from the shared reference whose name matches what the user
 // is typing, each with its sizes attached, best-effort ranked with exact/prefix
 // matches first. Empty for a query shorter than two characters (too broad).
+//
+// Matching is word by word, not as one substring. The reference now holds
+// thousands of USDA rows, and they name foods "Cake or cupcake, chocolate with
+// chocolate icing, bakery" — so a substring search for "chocolate cake" finds
+// nothing at all, while an AND of "chocolate" and "cake" finds it.
+//
 // Read in two steps — foods, then their sizes — so it works without a nested
 // join (and against the test fake). Numeric columns arrive as strings from
 // PostgREST, so every macro and gram is coerced to a number here.
@@ -992,22 +1004,24 @@ export async function searchFreshFoods(query: string): Promise<FreshFood[]> {
   if (q.length < 2) return [];
 
   const supabase = await createClient();
-  const byName = async (term: string) => {
-    const { data } = await supabase
+  const byWords = async (term: string) => {
+    const words = searchWords(term);
+    if (words.length === 0) return [];
+    let sel = supabase
       .from("fresh_foods")
       .select(
         "id, name, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, satfat_100g, sodium_mg_100g, cooked",
-      )
-      .ilike("name", `%${term}%`)
-      .order("name", { ascending: true })
-      .limit(8);
+      );
+    // Chained filters AND, so every word must appear somewhere in the name.
+    for (const w of words) sel = sel.ilike("name", `%${w}%`);
+    const { data } = await sel.order("name", { ascending: true }).limit(8);
     return (data as (Omit<FreshFood, "sizes"> & Record<string, unknown>)[]) ?? [];
   };
 
-  let foods = await byName(q);
+  let foods = await byWords(q);
   // Only on a miss, so the common case still costs one round trip.
   for (const singular of foods.length === 0 ? singularTerms(q) : []) {
-    foods = await byName(singular);
+    foods = await byWords(singular);
     if (foods.length > 0) break;
   }
   if (foods.length === 0) return [];
