@@ -36,11 +36,6 @@ export default function PrivacyPage() {
           <strong>Your activity.</strong> Steps, workout calories and sleep, but
           only if you connect a wearable or send data from Apple Health.
         </li>
-        <li>
-          <strong>Your Anthropic API key</strong>, if you add one. It is
-          encrypted before it is stored and is only ever decrypted on the server
-          to call Anthropic on your behalf. It is never sent to your browser.
-        </li>
       </ul>
 
       <h2>What we don&rsquo;t do</h2>
@@ -61,12 +56,6 @@ export default function PrivacyPage() {
         <li>
           <strong>Google</strong> — sign-in, and the Google Health API if you
           choose to connect a wearable.
-        </li>
-        <li>
-          <strong>Anthropic</strong> — only if you add your own API key. When
-          you scan a grocery list, import a recipe or ask for meal ideas, the
-          image or text and the relevant pantry and macro numbers are sent to
-          Anthropic under <em>your</em> key, on your account with them.
         </li>
         <li>
           <strong>Open Food Facts</strong> — when you scan a barcode, the
