@@ -987,15 +987,72 @@ function searchWords(q: string): string[] {
   return (q.toLowerCase().match(/[a-z0-9]+/g) ?? []).filter((w) => w.length > 1);
 }
 
+// The British→American word swaps, cached per request. A tiny table, read by
+// every keystroke's search, and it cannot change mid-request.
+const getFoodAliases = cache(async function getFoodAliases(): Promise<
+  { alias: string; term: string }[]
+> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("food_aliases").select("alias, term");
+  return ((data as { alias: string; term: string }[]) ?? []).map((a) => ({
+    alias: a.alias.toLowerCase(),
+    term: a.term.toLowerCase(),
+  }));
+});
+
+// Rewrite a query into the words the reference actually uses. Returns null when
+// nothing matched — the caller then skips the second search rather than
+// repeating the first.
+//
+// One left-to-right pass over the words, never re-reading what it has already
+// written. Doing it as repeated string replacement cascades: "crisps" becomes
+// "potato chips", and the "chips" rule then fires on that output and turns it
+// into "potato french fries". At each position the longest alias that starts
+// there wins, so "spring onion" is swapped whole rather than leaving a stray
+// "onion" behind.
+export function applyAliases(
+  q: string,
+  aliases: { alias: string; term: string }[],
+): string | null {
+  const words = q.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+  if (words.length === 0) return null;
+
+  // Alias phrases by their word count, longest first.
+  const byLength = [...aliases]
+    .map((a) => ({ words: a.alias.split(/\s+/).filter(Boolean), term: a.term }))
+    .filter((a) => a.words.length > 0)
+    .sort((a, b) => b.words.length - a.words.length);
+  const longest = byLength[0]?.words.length ?? 0;
+
+  const out: string[] = [];
+  let hit = false;
+  for (let i = 0; i < words.length; ) {
+    let taken = 0;
+    for (const a of byLength) {
+      if (a.words.length > longest || i + a.words.length > words.length) continue;
+      if (a.words.every((w, k) => w === words[i + k])) {
+        out.push(a.term);
+        taken = a.words.length;
+        hit = true;
+        break;
+      }
+    }
+    if (taken === 0) {
+      out.push(words[i]);
+      taken = 1;
+    }
+    i += taken;
+  }
+  return hit ? out.join(" ") : null;
+}
+
 // How well a reference food answers what was typed. Lower is better.
 //
 // Needed because the reference is now thousands of USDA rows whose names are
 // comma-inverted and heavily qualified ("Cake or cupcake, chocolate with
 // chocolate icing, bakery"). Every row returned already contains every word
 // searched for, so the question is which is the *tightest* answer: the one
-// carrying the fewest words the user never asked for. Sorting by name, as this
-// did when the reference was a hundred hand-written foods, now just returns
-// whatever is alphabetically first.
+// carrying the fewest words the user never asked for.
 export function rankFreshFood(query: string, name: string): number {
   const q = query.trim().toLowerCase();
   const n = name.trim().toLowerCase();
@@ -1016,23 +1073,21 @@ function sortByRank<T extends { name: string }>(rows: T[], term: string): T[] {
   );
 }
 
-// Enough rows to rank meaningfully before cutting to what's shown. With
-// thousands of foods a bare "cake" matches far more than a dropdown can hold,
-// and the eight the database happens to return first are not the best eight.
-const SEARCH_POOL = 40;
-
-// Fresh whole foods from the shared reference whose name matches what the user
-// is typing, each with its sizes attached, tightest match first. Empty for a
-// query shorter than two characters (too broad).
+// Foods from the shared reference matching what the user is typing, each with
+// its sizes attached. Empty for a query shorter than two characters (too broad).
 //
-// Matching is word by word, not as one substring. The reference now holds
-// thousands of USDA rows, and they name foods "Cake or cupcake, chocolate with
-// chocolate icing, bakery" — so a substring search for "chocolate cake" finds
-// nothing at all, while an AND of "chocolate" and "cake" finds it.
+// Matching is word by word, not as one substring: the reference names foods
+// "Cake or cupcake, chocolate with chocolate icing, bakery", so a substring
+// search for "chocolate cake" finds nothing at all while an AND of "chocolate"
+// and "cake" finds it. Three passes, cheapest first — as typed, then with
+// British words swapped for the American ones the data uses (see 0034), then
+// with a plural singularised.
 //
 // Read in two steps — foods, then their sizes — so it works without a nested
 // join (and against the test fake). Numeric columns arrive as strings from
 // PostgREST, so every macro and gram is coerced to a number here.
+const SEARCH_POOL = 40;
+
 export async function searchFreshFoods(query: string): Promise<FreshFood[]> {
   const q = query.trim();
   if (q.length < 2) return [];
@@ -1052,8 +1107,27 @@ export async function searchFreshFoods(query: string): Promise<FreshFood[]> {
     return (data as (Omit<FreshFood, "sizes"> & Record<string, unknown>)[]) ?? [];
   };
 
-  let foods = sortByRank(await byWords(q), q);
-  // Only on a miss, so the common case still costs one round trip.
+  // The British reading runs whether or not the literal one found anything, and
+  // its hits come first. "chips" is why: searched literally it finds "Potato
+  // chips", a real result and the wrong food, so waiting for the literal search
+  // to fail would never rescue it. The literal hits stay, underneath, because
+  // the reference also holds British foods seeded by hand (0032) that no alias
+  // points at.
+  const aliasedQuery = applyAliases(q, await getFoodAliases());
+  const [literal, aliased] = await Promise.all([
+    byWords(q),
+    aliasedQuery ? byWords(aliasedQuery) : Promise.resolve([]),
+  ]);
+
+  // Rank each reading against the words that produced it, then concatenate —
+  // the aliased reading first, deduped by id.
+  const seen = new Set<string>();
+  let foods = [
+    ...sortByRank(aliased, aliasedQuery ?? q),
+    ...sortByRank(literal, q),
+  ].filter((f) => !seen.has(f.id) && seen.add(f.id));
+
+  // Nothing at all: try a plural made singular ("cookies" → "cookie").
   for (const singular of foods.length === 0 ? singularTerms(q) : []) {
     const rows = await byWords(singular);
     if (rows.length > 0) {
@@ -1073,25 +1147,25 @@ export async function searchFreshFoods(query: string): Promise<FreshFood[]> {
     );
   const sizes = (sizeData as FreshFoodSize[]) ?? [];
 
-  // Order is already decided above; this only shapes the rows.
-  return foods
-    .map((f) => ({
-      id: f.id,
-      name: f.name,
-      kcal_100g: Number(f.kcal_100g),
-      protein_100g: Number(f.protein_100g),
-      carbs_100g: Number(f.carbs_100g),
-      fat_100g: Number(f.fat_100g),
-      fiber_100g: Number(f.fiber_100g),
-      sugar_100g: Number(f.sugar_100g),
-      satfat_100g: Number(f.satfat_100g),
-      sodium_mg_100g: Number(f.sodium_mg_100g),
-      cooked: Boolean(f.cooked),
-      sizes: sizes
-        .filter((s) => s.food_id === f.id)
-        .map((s) => ({ label: s.label, grams: Number(s.grams) }))
-        .sort((a, b) => a.grams - b.grams),
-    }));
+  // Order is already decided above (aliased reading first, each group ranked);
+  // this only shapes the rows.
+  return foods.map((f) => ({
+    id: f.id,
+    name: f.name,
+    kcal_100g: Number(f.kcal_100g),
+    protein_100g: Number(f.protein_100g),
+    carbs_100g: Number(f.carbs_100g),
+    fat_100g: Number(f.fat_100g),
+    fiber_100g: Number(f.fiber_100g),
+    sugar_100g: Number(f.sugar_100g),
+    satfat_100g: Number(f.satfat_100g),
+    sodium_mg_100g: Number(f.sodium_mg_100g),
+    cooked: Boolean(f.cooked),
+    sizes: sizes
+      .filter((s) => s.food_id === f.id)
+      .map((s) => ({ label: s.label, grams: Number(s.grams) }))
+      .sort((a, b) => a.grams - b.grams),
+  }));
 }
 
 // --- Progress insights -------------------------------------------------------
