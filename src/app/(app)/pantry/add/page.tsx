@@ -1,10 +1,8 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import GroceryScan from "../GroceryScan";
 import InvoiceImport from "../InvoiceImport";
 import ListImport from "../ListImport";
 import PantryForm from "../PantryForm";
-import { hasApiKey } from "@/lib/queries";
 
 // Every way to add to the pantry, on its own screen. The list of items the user
 // already has lives on /pantry — this page is purely the input methods. A `name`
@@ -14,7 +12,7 @@ export default async function AddToPantryPage({
 }: {
   searchParams: Promise<{ name?: string }>;
 }) {
-  const [{ name }, connected] = await Promise.all([searchParams, hasApiKey()]);
+  const { name } = await searchParams;
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-5 pt-8 pb-6 lg:px-8">
@@ -35,7 +33,9 @@ export default async function AddToPantryPage({
       <PantryForm key={name ?? ""} initialName={name ?? ""} />
       <ListImport />
       <InvoiceImport />
-      <GroceryScan connected={connected} />
+      {/* GroceryScan is deliberately not rendered: it can only run on a
+          bring-your-own Anthropic key, and that path isn't finished or tested,
+          so the button could never do anything but ask for a key. */}
     </main>
   );
 }
