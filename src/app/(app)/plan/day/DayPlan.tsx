@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, Pencil, Pin, AlertTriangle, AlertCircle, CopyPlus, UtensilsCrossed, Info, Star, ScanBarcode, Sparkles } from "lucide-react";
+import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, Pencil, Pin, AlertTriangle, AlertCircle, CopyPlus, UtensilsCrossed, Info, Star, ScanBarcode, Sparkles, Apple } from "lucide-react";
 import BarcodeScanner from "@/components/BarcodeScannerLazy";
 import type { FavouriteMeal, FoodChoice, Macros, MealPick, MealPortion, OffProduct, PlannedMeal, PlanItem, UnitOption } from "@/lib/types";
 import { sumItems, sumMacros } from "@/lib/types";
@@ -21,6 +21,7 @@ import {
 import { NutrientStats, FIT_TEXT } from "@/components/NutrientBreakdown";
 import {
   searchFoods,
+  searchReference,
   searchWeb,
   setMealItems,
   setMealPicks,
@@ -79,10 +80,13 @@ function itemUnits(it: PlanItem): number {
   return it.unit_g && it.unit_g > 0 ? Math.round(it.grams / it.unit_g) : 0;
 }
 
-// Pluralise a unit label for a count, but leave a label ending in a parenthetical
-// alone ("pasta (cooked)" → "2 pasta (cooked)", not "…(cooked)s").
+// Pluralise a unit label for a count, but leave alone a label ending in a
+// parenthetical ("pasta (cooked)" → "2 pasta (cooked)", not "…(cooked)s") or one
+// already plural in its own name ("medium chips" → "2 medium chips", not
+// "chipss").
 function pluralUnit(label: string, count: number): string {
-  if (count === 1 || label.trim().endsWith(")")) return label;
+  const l = label.trim();
+  if (count === 1 || l.endsWith(")") || l.endsWith("s")) return label;
   return `${label}s`;
 }
 
@@ -382,6 +386,15 @@ function seedGrams(c: FoodChoice, typed: number | null): number {
   );
 }
 
+// The little heading that separates one search source from the next.
+function GroupLabel({ children }: { children: ReactNode }) {
+  return (
+    <li className="border-t border-[var(--border)] bg-[var(--fill-soft)] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+      {children}
+    </li>
+  );
+}
+
 function FoodSearchBox({
   onPick,
 }: {
@@ -390,6 +403,12 @@ function FoodSearchBox({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FoodChoice[]>([]);
   const [searching, setSearching] = useState(false);
+  // Shared-reference results (a slice of cake, a cookie, a banana): the foods
+  // with no barcode, held apart so they sit above the web. Open Food Facts is a
+  // packaged-product database and answers "cake" with branded cake bars, so the
+  // reference has to come first or the right answer is buried.
+  const [refResults, setRefResults] = useState<FoodChoice[]>([]);
+  const [refSearching, setRefSearching] = useState(false);
   // Web (Open Food Facts) results, kept apart from the pantry so the pantry
   // always shows first and the web search — which is slower — fills in behind it.
   const [webResults, setWebResults] = useState<FoodChoice[]>([]);
@@ -443,25 +462,32 @@ function FoodSearchBox({
   }
 
   // Debounced search on the food name only. All state updates happen inside the
-  // timer (never synchronously in the effect). Pantry and web run in parallel;
-  // each writes its own state so a slow web reply never holds up the pantry list.
+  // timer (never synchronously in the effect). The three sources run in
+  // parallel; each writes its own state so the slowest never holds up the rest.
   useEffect(() => {
     const term = parsed.term;
     const t = setTimeout(
       async () => {
         if (term.length < 2) {
           setResults([]);
+          setRefResults([]);
           setWebResults([]);
           setSearching(false);
+          setRefSearching(false);
           setWebSearching(false);
           return;
         }
         setSearching(true);
+        setRefSearching(true);
         setWebSearching(true);
         searchFoods(term)
           .then(setResults)
           .catch(() => setResults([]))
           .finally(() => setSearching(false));
+        searchReference(term)
+          .then(setRefResults)
+          .catch(() => setRefResults([]))
+          .finally(() => setRefSearching(false));
         searchWeb(term)
           .then(setWebResults)
           .catch(() => setWebResults([]))
@@ -476,25 +502,48 @@ function FoodSearchBox({
     onPick(c, seedGrams(c, parsed.grams));
     setQuery("");
     setResults([]);
+    setRefResults([]);
     setWebResults([]);
   }
 
-  const searchingAny = searching || webSearching;
-  const nothingYet =
-    !searchingAny && results.length === 0 && webResults.length === 0;
+  const searchingAny = searching || refSearching || webSearching;
+  const anyResults =
+    results.length > 0 || refResults.length > 0 || webResults.length > 0;
+  const nothingYet = !searchingAny && !anyResults;
 
-  function ResultRow({ c, i }: { c: FoodChoice; i: number }) {
+  // Where a hit came from, which decides its icon and the line under its name.
+  // Not read off `c.source`: a reference food is stored as "off" (it has no
+  // barcode and isn't a pantry item), so only the list it arrived in tells them
+  // apart.
+  type Kind = "pantry" | "ref" | "web";
+  const ICON: Record<Kind, ReactNode> = {
+    pantry: <Package size={15} className="shrink-0 text-[var(--ink-teal)]" />,
+    ref: <Apple size={15} className="shrink-0 text-[var(--ink-teal)]" />,
+    web: <Globe size={15} className="shrink-0 text-[var(--muted)]" />,
+  };
+
+  // The line under a hit's name. A typed amount wins ("50g shreddies" → "add
+  // 50 g"). Otherwise a reference food shows the portion one tap actually adds —
+  // "1 medium slice · 95 g · 352 kcal" — which is the whole point of it: the
+  // user never learns what a slice of cake weighs, they just tap it.
+  function detail(c: FoodChoice, kind: Kind): string {
+    if (parsed.grams != null) return `add ${parsed.grams} g`;
+    if (kind === "ref" && c.unit_g && c.unit_g > 0) {
+      const kcal = Math.round((c.kcal_100g * c.unit_g) / 100);
+      return `1 ${c.unit_label ?? "portion"} · ${Math.round(c.unit_g)} g · ${kcal} kcal`;
+    }
+    const per100 = `${Math.round(c.kcal_100g)} kcal/100g`;
+    return kind === "pantry" ? `In your pantry · ${per100}` : per100;
+  }
+
+  function ResultRow({ c, i, kind }: { c: FoodChoice; i: number; kind: Kind }) {
     return (
-      <li key={`${c.source}-${c.off_barcode ?? c.name}-${i}`}>
+      <li key={`${kind}-${c.off_barcode ?? c.name}-${i}`}>
         <button
           onClick={() => add(c)}
           className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[var(--fill-soft)]"
         >
-          {c.source === "pantry" ? (
-            <Package size={15} className="shrink-0 text-[var(--ink-teal)]" />
-          ) : (
-            <Globe size={15} className="shrink-0 text-[var(--muted)]" />
-          )}
+          {ICON[kind]}
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-medium">
               {c.name}
@@ -503,10 +552,7 @@ function FoodSearchBox({
               ) : null}
             </span>
             <span className="block text-xs text-[var(--muted)]">
-              {c.source === "pantry" ? "In your pantry" : "Web"} ·{" "}
-              {parsed.grams != null
-                ? `add ${parsed.grams} g`
-                : `${Math.round(c.kcal_100g)} kcal/100g`}
+              {detail(c, kind)}
             </span>
           </span>
           <Plus size={16} className="shrink-0 text-[var(--muted)]" />
@@ -530,48 +576,51 @@ function FoodSearchBox({
           style={{ paddingLeft: "2.5rem" }}
         />
 
-        {(searchingAny || results.length > 0 || webResults.length > 0) &&
-          parsed.term.length >= 2 && (
-            <ul className="absolute z-10 mt-1 flex w-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg">
-              {results.map((c, i) => (
-                <ResultRow key={`p-${i}`} c={c} i={i} />
-              ))}
+        {(searchingAny || anyResults) && parsed.term.length >= 2 && (
+          <ul className="absolute z-10 mt-1 flex w-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg">
+            {results.map((c, i) => (
+              <ResultRow key={`p-${i}`} c={c} i={i} kind="pantry" />
+            ))}
 
-              {/* Web results sit under the pantry, behind a small divider so it's
-                  clear these come from Open Food Facts, not the user's shelves. */}
-              {webResults.length > 0 && (
-                <li className="border-t border-[var(--border)] bg-[var(--fill-soft)] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
-                  From the web
-                </li>
-              )}
-              {webResults.map((c, i) => (
-                <ResultRow key={`w-${i}`} c={c} i={i} />
-              ))}
+            {/* Then the shared reference: everyday foods with no barcode, each
+                offered at a real portion. Above the web on purpose — for "cake"
+                or "cookie" this is the answer and Open Food Facts is noise. */}
+            {refResults.length > 0 && <GroupLabel>Common foods</GroupLabel>}
+            {refResults.map((c, i) => (
+              <ResultRow key={`r-${i}`} c={c} i={i} kind="ref" />
+            ))}
 
-              {searchingAny && results.length === 0 && webResults.length === 0 && (
-                <li className="px-4 py-3 text-sm text-[var(--muted)]">Searching…</li>
-              )}
+            {/* Web results last, behind a small divider so it's clear these
+                come from Open Food Facts, not the user's shelves. */}
+            {webResults.length > 0 && <GroupLabel>From the web</GroupLabel>}
+            {webResults.map((c, i) => (
+              <ResultRow key={`w-${i}`} c={c} i={i} kind="web" />
+            ))}
 
-              {nothingYet && (
-                <li>
-                  <Link
-                    href={`/pantry/add?name=${encodeURIComponent(parsed.term)}`}
-                    className="flex w-full items-center gap-2 px-4 py-3 text-left transition hover:bg-[var(--fill-soft)]"
-                  >
-                    <PackagePlus size={15} className="shrink-0 text-[var(--ink-teal)]" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium">
-                        No match found
-                      </span>
-                      <span className="block text-xs text-[var(--muted)]">
-                        Add &ldquo;{parsed.term}&rdquo; to the pantry?
-                      </span>
+            {searchingAny && !anyResults && (
+              <li className="px-4 py-3 text-sm text-[var(--muted)]">Searching…</li>
+            )}
+
+            {nothingYet && (
+              <li>
+                <Link
+                  href={`/pantry/add?name=${encodeURIComponent(parsed.term)}`}
+                  className="flex w-full items-center gap-2 px-4 py-3 text-left transition hover:bg-[var(--fill-soft)]"
+                >
+                  <PackagePlus size={15} className="shrink-0 text-[var(--ink-teal)]" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium">
+                      No match found
                     </span>
-                  </Link>
-                </li>
-              )}
-            </ul>
-          )}
+                    <span className="block text-xs text-[var(--muted)]">
+                      Add &ldquo;{parsed.term}&rdquo; to the pantry?
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            )}
+          </ul>
+        )}
       </div>
 
       {manualOpen ? (

@@ -34,14 +34,19 @@ export function defaultSize(sizes: UnitOption[]): UnitOption | null {
 // `displayName` overrides the shown name when a dry staple is swapped onto the
 // reference's cooked macros but must keep the user's own product name (e.g.
 // "Penne (cooked)"), so distinct staples don't collapse onto the reference.
-export function freshToChoice(f: FreshFood, displayName?: string): FoodChoice {
+//
+// Brandless by definition, so this is also the shape a meal pick wants; the
+// search box's FoodChoice is the same thing with the null brand put back on.
+export function freshToPick(
+  f: FreshFood,
+  displayName?: string,
+): Omit<FoodChoice, "brand"> {
   const size = defaultSize(f.sizes);
   const name = displayName ?? f.name;
   return {
     name,
     source: "off",
     off_barcode: null,
-    brand: null,
     kcal_100g: f.kcal_100g,
     protein_100g: f.protein_100g,
     carbs_100g: f.carbs_100g,
@@ -55,6 +60,10 @@ export function freshToChoice(f: FreshFood, displayName?: string): FoodChoice {
     unit_label: size ? pantryUnitLabel(name, size.label) : null,
     unit_options: f.sizes.length ? f.sizes : null,
   };
+}
+
+export function freshToChoice(f: FreshFood, displayName?: string): FoodChoice {
+  return { ...freshToPick(f, displayName), brand: null };
 }
 
 // The macros a given weight of a per-100g food contributes. Kept here so the

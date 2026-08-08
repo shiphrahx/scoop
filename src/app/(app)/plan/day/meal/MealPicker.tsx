@@ -15,18 +15,10 @@ import {
   X,
 } from "lucide-react";
 import BarcodeScanner from "@/components/BarcodeScannerLazy";
-import type { FoodChoice, FreshFood, MealPick, OffProduct } from "@/lib/types";
-import { cookedName, cookedStapleFor, freshToChoice } from "@/lib/freshfoods";
+import type { FoodChoice, MealPick, OffProduct } from "@/lib/types";
+import { cookedName, cookedStapleFor, freshToPick } from "@/lib/freshfoods";
 import { searchFoods, setMealPicks } from "../actions";
 import { addPantryItem, findFreshFoods } from "@/app/(app)/pantry/actions";
-
-// A reference food as a meal pick — the same shape the search box hands over,
-// minus the brand a reference food never has. Used for the cooked-staple swap
-// (rice, pasta…), where `displayName` keeps the user's own product name.
-function freshToPick(f: FreshFood, displayName?: string): MealPick {
-  const { brand: _brand, ...pick } = freshToChoice(f, displayName);
-  return pick;
-}
 
 type Groups = {
   protein: MealPick[];
