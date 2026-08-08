@@ -1,5 +1,5 @@
 import { User } from "lucide-react";
-import ApiKeySettings from "./ApiKeySettings";
+import CalibrationSettings from "./CalibrationSettings";
 import CyclingSettings from "./CyclingSettings";
 import GoalsSettings from "./GoalsSettings";
 import MealSlotsSettings from "./MealSlotsSettings";
@@ -7,6 +7,7 @@ import NutrientSettings from "./NutrientSettings";
 import SlotWeightsSettings from "./SlotWeightsSettings";
 import { DEFAULT_MEAL_SLOTS } from "@/lib/types";
 import { recommendedHighDays } from "@/lib/highday";
+import { calibrationDaysElapsed } from "@/lib/coach";
 import SignOutButton from "@/components/SignOutButton";
 import InstallAppButton from "@/components/InstallAppButton";
 import {
@@ -21,7 +22,6 @@ import {
   getCurrentTargets,
   getLatestWeight,
   getProfile,
-  hasApiKey,
   maintenanceKcalFor,
 } from "@/lib/queries";
 
@@ -51,11 +51,10 @@ export default async function MePage({
   // splitting them cost a second sequential round trip for nothing. The Apple
   // token isn't in here at all any more — it lives on the users row getProfile
   // already fetched.
-  const [{ fitbit }, profile, connected, targets, weightKg, appleToken, fitbitRes] =
+  const [{ fitbit }, profile, targets, weightKg, appleToken, fitbitRes] =
     await Promise.all([
       searchParams,
       getProfile(),
-      hasApiKey(),
       getCurrentTargets(),
       getLatestWeight(),
       getAppleIngestToken(),
@@ -124,6 +123,19 @@ export default async function MePage({
             maintenanceKcal={maintenanceKcalFor(profile, weightKg)}
             locked={targets?.phase === "calibration"}
           />
+          {/* Days elapsed is pure arithmetic on the stored timestamp, so the
+              banner costs no extra read. Whether the hold is RUNNING is read off
+              the in-force target rather than recomputed: graduation also needs a
+              trustworthy measurement, and only the weekly review is in a position
+              to decide that. */}
+          <CalibrationSettings
+            calibrating={targets?.phase === "calibration"}
+            daysElapsed={
+              profile.calibration_started_at
+                ? calibrationDaysElapsed(profile.calibration_started_at)
+                : null
+            }
+          />
         </>
       )}
 
@@ -159,7 +171,9 @@ export default async function MePage({
         </div>
       </section>
 
-      <ApiKeySettings connected={connected} />
+      {/* The AI-key section (ApiKeySettings) is deliberately not rendered: the
+          bring-your-own-key features aren't finished or tested, so there's
+          nothing worth asking for a key for yet. Component kept, not deleted. */}
 
       <div className="flex justify-center pt-2">
         <SignOutButton />

@@ -8,6 +8,7 @@ import {
   averageActiveKcal,
   dailyTarget,
   maintenanceTarget,
+  tdee,
 } from "@/lib/coach";
 import { getTimezone } from "@/lib/queries";
 import { localWeekStart } from "@/lib/time";
@@ -261,6 +262,127 @@ export async function saveCycling(input: CyclingInput) {
 
   revalidatePath("/me");
   revalidatePath("/dashboard");
+  revalidatePath("/plan/day");
+}
+
+// Start the maintenance-first calibration hold again from today.
+//
+// The point of the hold is that the app learns what this user actually burns by
+// watching intake against the scale. That knowledge goes stale: someone who
+// stopped logging for a few months comes back a different weight, with different
+// activity, and a target computed for the old body. Rather than have them
+// re-onboard (which would wipe their history), they reopen the window: eat at
+// today's maintenance estimate for a fortnight while the app re-measures, then
+// the deficit reopens modestly.
+//
+// The learned tdee_calibration is deliberately KEPT. It is a measured correction
+// to the formula's guess, not a stale target, and the review folds new
+// measurements into it as they land — throwing it away would drop the user back
+// onto the textbook's number, which is exactly what calibration exists to avoid.
+export async function restartCalibration() {
+  const { supabase, user } = await requireUser();
+
+  const cut7 = new Date(Date.now() - (ACTIVE_WINDOW_DAYS - 1) * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  const weekStart = localWeekStart(await getTimezone());
+
+  const [{ data: prof }, { data: w }, { data: act }] = await Promise.all([
+    supabase
+      .from("users")
+      .select(
+        "diet_type, activity_level, height_cm, sex, birth_year, body_fat_pct, goal_weight_kg, tdee_calibration",
+      )
+      .eq("id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("weights")
+      .select("weight_kg")
+      .order("date", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase.from("activity").select("workout_kcal").gte("date", cut7),
+  ]);
+
+  const p = prof as
+    | {
+        diet_type: DietType | null;
+        activity_level: ActivityLevel | null;
+        height_cm: number | null;
+        sex: "male" | "female" | null;
+        birth_year: number | null;
+        body_fat_pct: number | null;
+        goal_weight_kg: number | null;
+        tdee_calibration: number | null;
+      }
+    | null;
+  const weightKg = w ? Number((w as { weight_kg: number }).weight_kg) : null;
+
+  // Without the stats there is no maintenance to hold at, and opening the window
+  // anyway would leave the user calibrating against a deficit target. Refuse
+  // instead of half-doing it.
+  if (!p?.height_cm || !p.sex || !p.birth_year || !weightKg) {
+    throw new Error(
+      "We need your height, sex, birth year and a recent weight before calibrating again.",
+    );
+  }
+
+  const activeKcalPerDay = averageActiveKcal(
+    ((act as { workout_kcal: number | null }[]) ?? []).map((r) => r.workout_kcal),
+    ACTIVE_WINDOW_DAYS,
+  );
+
+  const macroInput = {
+    sex: p.sex,
+    diet: p.diet_type ?? ("regular" as DietType),
+    weightKg,
+    heightCm: Number(p.height_cm),
+    age: ageFromBirthYear(p.birth_year),
+    activity: p.activity_level ?? ("sedentary" as ActivityLevel),
+    activeKcalPerDay,
+    bodyFatPct: p.body_fat_pct,
+    goalWeightKg: p.goal_weight_kg,
+    tdeeCalibration: p.tdee_calibration,
+  };
+
+  const now = new Date();
+
+  // The baseline the progress screen shows as "what we're calibrating from" is
+  // the raw formula, same as onboarding stores — recomputed here so it describes
+  // today's body rather than the one that signed up.
+  const estimatedMaintenance = Math.round(
+    tdee({ ...macroInput, tdeeCalibration: undefined }),
+  );
+
+  const { error } = await supabase
+    .from("users")
+    .update({
+      calibration_started_at: now.toISOString(),
+      estimated_maintenance_kcal: estimatedMaintenance,
+      updated_at: now.toISOString(),
+    })
+    .eq("id", user.id);
+  if (error) throw new Error(error.message);
+
+  // This week's target becomes the hold's anchor: maintenance, phase
+  // "calibration". getCurrentTargets pins the whole run to it (see
+  // calibrationAnchor), so it must be written for the current week — an older
+  // calibration row from a previous run is not the one in force.
+  const { error: targetError } = await supabase.from("daily_targets").upsert(
+    {
+      user_id: user.id,
+      week_start: weekStart,
+      phase: "calibration",
+      ...maintenanceTarget(macroInput),
+    },
+    { onConflict: "user_id,week_start" },
+  );
+  if (targetError) throw new Error(targetError.message);
+
+  revalidatePath("/me");
+  revalidatePath("/dashboard");
+  revalidatePath("/coach");
+  revalidatePath("/progress");
   revalidatePath("/plan/day");
 }
 

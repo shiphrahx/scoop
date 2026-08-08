@@ -95,6 +95,41 @@ describe("searchFreshFoods", () => {
     expect(await searchFreshFoods(" ")).toEqual([]);
   });
 
+  // The reference names foods in the singular, but nobody types "one cookie" —
+  // they type "cookies". Without the retry the natural query draws a blank.
+  it("finds a singular food from a plural query", async () => {
+    installFakeSupabase({
+      db: {
+        fresh_foods: [food("f-1", "Chocolate Chip Cookie")],
+        fresh_food_sizes: [size("f-1", "medium", 16)],
+      },
+    });
+
+    const [cookie] = await searchFreshFoods("cookies");
+    expect(cookie?.name).toBe("Chocolate Chip Cookie");
+    expect(cookie.sizes[0].grams).toBe(16);
+  });
+
+  it("singularises -ies and -oes endings too", async () => {
+    installFakeSupabase({
+      db: {
+        fresh_foods: [food("f-1", "Brownie"), food("f-2", "Potato")],
+        fresh_food_sizes: [],
+      },
+    });
+
+    expect((await searchFreshFoods("brownies"))[0]?.name).toBe("Brownie");
+    expect((await searchFreshFoods("potatoes"))[0]?.name).toBe("Potato");
+  });
+
+  // A word that merely ends in "s" must not be mangled into a wrong match.
+  it("leaves a genuine singular alone", async () => {
+    installFakeSupabase({
+      db: { fresh_foods: [food("f-1", "Hummus")], fresh_food_sizes: [] },
+    });
+    expect((await searchFreshFoods("hummus"))[0]?.name).toBe("Hummus");
+  });
+
   it("comes back empty when nothing matches", async () => {
     installFakeSupabase({
       db: { fresh_foods: [food("f-1", "Banana")], fresh_food_sizes: [] },

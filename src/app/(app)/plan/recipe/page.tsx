@@ -3,21 +3,17 @@ import { ArrowLeft } from "lucide-react";
 import RecipeImport from "./RecipeImport";
 import SavedRecipes from "./SavedRecipes";
 import { createClient } from "@/lib/supabase/server";
-import { hasApiKey } from "@/lib/queries";
 import type { Recipe } from "@/lib/types";
 
 export default async function RecipePage() {
   const supabase = await createClient();
 
-  const [{ data }, connected] = await Promise.all([
-    supabase
-      .from("recipes")
-      .select(
-        "id, name, source_url, servings, ingredients, kcal, protein_g, carbs_g, fat_g",
-      )
-      .order("created_at", { ascending: false }),
-    hasApiKey(),
-  ]);
+  const { data } = await supabase
+    .from("recipes")
+    .select(
+      "id, name, source_url, servings, ingredients, kcal, protein_g, carbs_g, fat_g",
+    )
+    .order("created_at", { ascending: false });
 
   const recipes = (data as Recipe[]) ?? [];
 
@@ -34,7 +30,7 @@ export default async function RecipePage() {
         <h1 className="text-3xl font-semibold">Recipes</h1>
       </div>
 
-      <RecipeImport connected={connected} />
+      <RecipeImport />
 
       <SavedRecipes recipes={recipes} />
     </main>

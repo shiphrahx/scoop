@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Apple,
   Check,
   Drumstick,
   Droplet,
@@ -15,38 +16,10 @@ import {
   X,
 } from "lucide-react";
 import BarcodeScanner from "@/components/BarcodeScannerLazy";
-import type { FoodChoice, FreshFood, MealPick, OffProduct } from "@/lib/types";
-import { cookedName, cookedStapleFor, defaultSize, pantryUnitLabel } from "@/lib/freshfoods";
-import { searchFoods, setMealPicks } from "../actions";
+import type { FoodChoice, MealPick, OffProduct } from "@/lib/types";
+import { cookedName, cookedStapleFor, freshToPick } from "@/lib/freshfoods";
+import { searchFoods, searchReference, setMealPicks } from "../actions";
 import { addPantryItem, findFreshFoods } from "@/app/(app)/pantry/actions";
-
-// A cooked reference staple (rice, pasta…) as a meal pick: cooked macros and the
-// cooked serving sizes, no barcode (it's reference data, not the scanned pack).
-// Turn a fresh food into a meal pick. `displayName` overrides the shown name
-// when a dry staple is swapped onto the reference's cooked macros but must keep
-// the user's own product name (e.g. "Basmati Rice (cooked)"), so distinct
-// staples don't collapse onto the shared reference name.
-function freshToPick(f: FreshFood, displayName?: string): MealPick {
-  const size = defaultSize(f.sizes);
-  const name = displayName ?? f.name;
-  return {
-    name,
-    source: "off",
-    off_barcode: null,
-    kcal_100g: f.kcal_100g,
-    protein_100g: f.protein_100g,
-    carbs_100g: f.carbs_100g,
-    fat_100g: f.fat_100g,
-    fiber_100g: f.fiber_100g,
-    sugar_100g: f.sugar_100g,
-    satfat_100g: f.satfat_100g,
-    sodium_mg_100g: f.sodium_mg_100g,
-    pack_size_g: null,
-    unit_g: size?.grams ?? null,
-    unit_label: size ? pantryUnitLabel(name, size.label) : null,
-    unit_options: f.sizes.length ? f.sizes : null,
-  };
-}
 
 type Groups = {
   protein: MealPick[];
@@ -357,8 +330,44 @@ export default function MealPicker({
   );
 }
 
-// Search the pantry for a food to pick. Mirrors the plan screen's search box
-// but hands back the choice itself — no grams involved here.
+// One hit in the pick search: the pantry's own items and the shared reference
+// share a row, so a food with no barcode is picked exactly like one the user
+// has on a shelf.
+function PickRow({
+  choice,
+  fromPantry,
+  onPick,
+}: {
+  choice: FoodChoice;
+  fromPantry: boolean;
+  onPick: () => void;
+}) {
+  return (
+    <li>
+      <button
+        onClick={onPick}
+        className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[var(--fill-soft)]"
+      >
+        {fromPantry ? (
+          <Package size={15} className="shrink-0 text-[var(--ink-teal)]" />
+        ) : (
+          <Apple size={15} className="shrink-0 text-[var(--ink-teal)]" />
+        )}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium">{choice.name}</span>
+          <span className="block text-xs text-[var(--muted)]">
+            {Math.round(choice.kcal_100g)} kcal/100g
+          </span>
+        </span>
+      </button>
+    </li>
+  );
+}
+
+// Search for a food to pick: the user's pantry first, then the shared reference
+// of everyday foods that carry no barcode (a slice of cake, a cookie, a banana).
+// Mirrors the plan screen's search box but hands back the choice itself — no
+// grams involved here, the day solve works those out.
 function PickSearchBox({
   onPick,
   disabled,
@@ -368,6 +377,7 @@ function PickSearchBox({
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FoodChoice[]>([]);
+  const [refResults, setRefResults] = useState<FoodChoice[]>([]);
   const [searching, setSearching] = useState(false);
 
   const term = useMemo(() => query.trim(), [query]);
@@ -377,14 +387,19 @@ function PickSearchBox({
       async () => {
         if (term.length < 2) {
           setResults([]);
+          setRefResults([]);
           setSearching(false);
           return;
         }
         setSearching(true);
         try {
-          setResults(await searchFoods(term));
-        } catch {
-          setResults([]);
+          // In parallel: neither source should wait on the other.
+          const [pantry, reference] = await Promise.all([
+            searchFoods(term).catch(() => []),
+            searchReference(term).catch(() => []),
+          ]);
+          setResults(pantry);
+          setRefResults(reference);
         } finally {
           setSearching(false);
         }
@@ -398,7 +413,10 @@ function PickSearchBox({
     onPick(c);
     setQuery("");
     setResults([]);
+    setRefResults([]);
   }
+
+  const anyResults = results.length > 0 || refResults.length > 0;
 
   return (
     <div className="relative">
@@ -409,35 +427,42 @@ function PickSearchBox({
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         disabled={disabled}
-        placeholder="Search your pantry…"
+        placeholder="Search for a food…"
         className="sc-input w-full"
         style={{ paddingLeft: "2.5rem" }}
       />
 
-      {(searching || results.length > 0) && term.length >= 2 && (
+      {(searching || anyResults) && term.length >= 2 && (
         <ul className="absolute z-10 mt-1 flex w-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg">
-          {searching && results.length === 0 && (
+          {searching && !anyResults && (
             <li className="px-4 py-3 text-sm text-[var(--muted)]">Searching…</li>
           )}
           {results.map((c, i) => (
-            <li key={`${c.off_barcode ?? c.name}-${i}`}>
-              <button
-                onClick={() => add(c)}
-                className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[var(--fill-soft)]"
-              >
-                <Package size={15} className="shrink-0 text-[var(--ink-teal)]" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{c.name}</span>
-                  <span className="block text-xs text-[var(--muted)]">
-                    {Math.round(c.kcal_100g)} kcal/100g
-                  </span>
-                </span>
-              </button>
-            </li>
+            <PickRow
+              key={`p-${c.off_barcode ?? c.name}-${i}`}
+              choice={c}
+              fromPantry
+              onPick={() => add(c)}
+            />
           ))}
-          {!searching && results.length === 0 && (
+
+          {refResults.length > 0 && (
+            <li className="border-t border-[var(--border)] bg-[var(--fill-soft)] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+              Common foods
+            </li>
+          )}
+          {refResults.map((c, i) => (
+            <PickRow
+              key={`r-${c.name}-${i}`}
+              choice={c}
+              fromPantry={false}
+              onPick={() => add(c)}
+            />
+          ))}
+
+          {!searching && !anyResults && (
             <li className="px-4 py-3 text-sm text-[var(--muted)]">
-              Nothing in your pantry matches — try the scanner.
+              No match — try the scanner.
             </li>
           )}
         </ul>

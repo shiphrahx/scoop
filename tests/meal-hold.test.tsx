@@ -16,6 +16,7 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/app/(app)/plan/day/actions", () => ({
   searchFoods: vi.fn(async () => []),
+  searchReference: vi.fn(async () => []),
   searchWeb: vi.fn(async () => []),
   setMealItems: vi.fn(),
   setMealPicks: vi.fn(),

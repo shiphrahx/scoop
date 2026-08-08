@@ -238,6 +238,26 @@ describe("getCurrentTargets", () => {
     });
     expect((await getCurrentTargets())!.kcal).toBe(2000);
   });
+
+  it("anchors a restarted calibration on the new run, not the original one", async () => {
+    atUkMidnight();
+    // This user calibrated a year ago, drifted away, and restarted last week at a
+    // different weight. Pinning them to the row that onboarded them would hold
+    // them to a target computed for a body they no longer have.
+    installFakeSupabase({
+      db: {
+        users: [
+          { ...profile("UTC"), calibration_started_at: "2026-07-08T09:00:00Z" },
+        ],
+        daily_targets: [
+          { ...target("2025-07-07", 2600), phase: "calibration" },
+          { ...target("2025-07-14", 2600), phase: "calibration" },
+          { ...target("2026-07-06", 2100), phase: "calibration" },
+        ],
+      },
+    });
+    expect((await getCurrentTargets())!.kcal).toBe(2100);
+  });
 });
 
 describe("hasApiKey", () => {

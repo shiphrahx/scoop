@@ -2,7 +2,7 @@
 // large sizes) into a pantry item's countable unit. Pure and deterministic, so
 // they're cheap to unit-test and carry no dependency on the database.
 
-import type { UnitOption } from "@/lib/types";
+import type { FoodChoice, FreshFood, UnitOption } from "@/lib/types";
 
 // What one selected size is called on a pantry item: "medium banana", so a plan
 // or log can read "2 medium bananas". Folds the food name to lower case (the
@@ -24,6 +24,46 @@ export function defaultSize(sizes: UnitOption[]): UnitOption | null {
   if (medium) return medium;
   const byGrams = [...sizes].sort((a, b) => a.grams - b.grams);
   return byGrams[Math.floor((byGrams.length - 1) / 2)];
+}
+
+// A reference food as a food the user can add straight to a meal. It carries no
+// barcode (it isn't a packaged product), and its default size becomes the unit,
+// so adding it is one tap at a real portion — "1 medium croissant" — with the
+// rest of its sizes riding along for the size chips.
+//
+// `displayName` overrides the shown name when a dry staple is swapped onto the
+// reference's cooked macros but must keep the user's own product name (e.g.
+// "Penne (cooked)"), so distinct staples don't collapse onto the reference.
+//
+// Brandless by definition, so this is also the shape a meal pick wants; the
+// search box's FoodChoice is the same thing with the null brand put back on.
+export function freshToPick(
+  f: FreshFood,
+  displayName?: string,
+): Omit<FoodChoice, "brand"> {
+  const size = defaultSize(f.sizes);
+  const name = displayName ?? f.name;
+  return {
+    name,
+    source: "off",
+    off_barcode: null,
+    kcal_100g: f.kcal_100g,
+    protein_100g: f.protein_100g,
+    carbs_100g: f.carbs_100g,
+    fat_100g: f.fat_100g,
+    fiber_100g: f.fiber_100g,
+    sugar_100g: f.sugar_100g,
+    satfat_100g: f.satfat_100g,
+    sodium_mg_100g: f.sodium_mg_100g,
+    pack_size_g: null,
+    unit_g: size?.grams ?? null,
+    unit_label: size ? pantryUnitLabel(name, size.label) : null,
+    unit_options: f.sizes.length ? f.sizes : null,
+  };
+}
+
+export function freshToChoice(f: FreshFood, displayName?: string): FoodChoice {
+  return { ...freshToPick(f, displayName), brand: null };
 }
 
 // The macros a given weight of a per-100g food contributes. Kept here so the

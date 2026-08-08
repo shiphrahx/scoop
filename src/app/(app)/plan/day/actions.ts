@@ -20,7 +20,9 @@ import {
   getProfile,
   getTimezone,
   localToday,
+  searchFreshFoods,
 } from "@/lib/queries";
+import { freshToChoice } from "@/lib/freshfoods";
 import { addDaysISO, dayRangeFor, weekStartOf } from "@/lib/time";
 import {
   sumItems,
@@ -155,6 +157,24 @@ export async function searchFoods(query: string): Promise<FoodChoice[]> {
     unit_label: p.unit_label,
     unit_options: p.unit_options ?? null,
   }));
+}
+
+// Search the shared food reference by name — the everyday foods that have no
+// barcode and whose macros nobody knows: a slice of cake, a cookie, a portion of
+// chips, a banana. Open Food Facts can't answer those (it's a database of
+// packaged products), and the alternative was for the user to type four macro
+// numbers they'd have to look up first.
+//
+// Returns the same FoodChoice shape as the pantry and web searches, so the meal
+// builder adds one exactly like any other food — at its default portion, with
+// its other sizes along for the size chips. It carries no barcode: it's
+// reference data, not a product, and nothing is written to the pantry.
+export async function searchReference(query: string): Promise<FoodChoice[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+  await requireUser();
+
+  return (await searchFreshFoods(q)).map((f) => freshToChoice(f));
 }
 
 // Search Open Food Facts by name — for a food the user is eating that isn't in

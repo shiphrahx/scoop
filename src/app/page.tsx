@@ -14,7 +14,6 @@ import {
   Gauge,
   Drumstick,
   Calculator,
-  KeyRound,
 } from "lucide-react";
 import type { Metadata } from "next";
 import InstallAppButton from "@/components/InstallAppButton";
@@ -157,7 +156,7 @@ export default async function LandingPage() {
                 icon: Package,
                 step: "2",
                 title: "Scan your pantry",
-                body: "Barcode, receipt, or a grocery screenshot. Scoop learns what you actually have on hand.",
+                body: "Barcode, receipt, or a typed list. Scoop learns what you actually have on hand.",
               },
               {
                 icon: ChefHat,
@@ -382,24 +381,6 @@ export default async function LandingPage() {
             })}
           </div>
 
-          {/* Say the quiet part before sign-up, not after. */}
-          <div className="sc-card mt-6 flex gap-4 p-6">
-            <span className="sc-icon-tile-soft">
-              <KeyRound size={22} strokeWidth={2.2} />
-            </span>
-            <div>
-              <h3 className="text-lg font-semibold">
-                The AI features need your own key
-              </h3>
-              <p className="mt-1 text-[var(--muted)]">
-                Reading a grocery screenshot, importing a recipe and suggesting
-                dishes run on Anthropic, using an API key you paste in yourself,
-                so you pay Anthropic directly and we never sit between you and
-                your data. Everything else, including targets, logging, barcodes
-                and the weekly coach review, works without a key.
-              </p>
-            </div>
-          </div>
         </section>
 
         {/* ---------- Final CTA ---------- */}
