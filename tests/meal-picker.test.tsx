@@ -10,6 +10,7 @@ import type { MealPick } from "@/lib/types";
 
 const setMealPicks = vi.fn();
 const searchFoods = vi.fn();
+const searchReference = vi.fn();
 const addPantryItem = vi.fn();
 const push = vi.fn();
 
@@ -19,6 +20,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/app/(app)/plan/day/actions", () => ({
   setMealPicks: (...args: unknown[]) => setMealPicks(...args),
   searchFoods: (...args: unknown[]) => searchFoods(...args),
+  searchReference: (...args: unknown[]) => searchReference(...args),
 }));
 vi.mock("@/app/(app)/pantry/actions", () => ({
   addPantryItem: (...args: unknown[]) => addPantryItem(...args),
@@ -59,6 +61,7 @@ const groups = {
 beforeEach(() => {
   setMealPicks.mockReset().mockResolvedValue(undefined);
   searchFoods.mockReset().mockResolvedValue([]);
+  searchReference.mockReset().mockResolvedValue([]);
   addPantryItem.mockReset().mockResolvedValue(undefined);
   push.mockReset();
 });
@@ -223,5 +226,39 @@ describe("MealPicker", () => {
     expect(savedPicks().map((p) => p.name)).toEqual(["Rye Bagel"]);
 
     vi.unstubAllGlobals();
+  });
+  // A one-off with no barcode — a slice of cake — has to be pickable here too,
+  // or the only way to plan a meal round it is to type its macros.
+  it("picks a food from the shared reference, not just the pantry", async () => {
+    searchReference.mockResolvedValue([
+      {
+        name: "Chocolate Cake Slice",
+        source: "off",
+        off_barcode: null,
+        brand: null,
+        kcal_100g: 371,
+        protein_100g: 4.5,
+        carbs_100g: 51,
+        fat_100g: 17,
+        fiber_100g: 1.8,
+        sugar_100g: 36,
+        satfat_100g: 6.5,
+        sodium_mg_100g: 320,
+        pack_size_g: null,
+        unit_g: 95,
+        unit_label: "medium chocolate cake slice",
+        unit_options: null,
+      },
+    ]);
+    const user = userEvent.setup();
+    render(<MealPicker slot="Snack" groups={groups} initial={[]} />);
+
+    await user.type(screen.getByPlaceholderText(/search for a food/i), "cake");
+    await user.click(await screen.findByRole("button", { name: /chocolate cake slice/i }));
+    await user.click(await save());
+
+    expect(searchReference).toHaveBeenCalledWith("cake");
+    expect(savedPicks().map((p) => p.name)).toEqual(["Chocolate Cake Slice"]);
+    expect(savedPicks()[0].off_barcode).toBeNull();
   });
 });

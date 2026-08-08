@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Apple,
   Check,
   Drumstick,
   Droplet,
@@ -17,7 +18,7 @@ import {
 import BarcodeScanner from "@/components/BarcodeScannerLazy";
 import type { FoodChoice, MealPick, OffProduct } from "@/lib/types";
 import { cookedName, cookedStapleFor, freshToPick } from "@/lib/freshfoods";
-import { searchFoods, setMealPicks } from "../actions";
+import { searchFoods, searchReference, setMealPicks } from "../actions";
 import { addPantryItem, findFreshFoods } from "@/app/(app)/pantry/actions";
 
 type Groups = {
@@ -329,8 +330,44 @@ export default function MealPicker({
   );
 }
 
-// Search the pantry for a food to pick. Mirrors the plan screen's search box
-// but hands back the choice itself — no grams involved here.
+// One hit in the pick search: the pantry's own items and the shared reference
+// share a row, so a food with no barcode is picked exactly like one the user
+// has on a shelf.
+function PickRow({
+  choice,
+  fromPantry,
+  onPick,
+}: {
+  choice: FoodChoice;
+  fromPantry: boolean;
+  onPick: () => void;
+}) {
+  return (
+    <li>
+      <button
+        onClick={onPick}
+        className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[var(--fill-soft)]"
+      >
+        {fromPantry ? (
+          <Package size={15} className="shrink-0 text-[var(--ink-teal)]" />
+        ) : (
+          <Apple size={15} className="shrink-0 text-[var(--ink-teal)]" />
+        )}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium">{choice.name}</span>
+          <span className="block text-xs text-[var(--muted)]">
+            {Math.round(choice.kcal_100g)} kcal/100g
+          </span>
+        </span>
+      </button>
+    </li>
+  );
+}
+
+// Search for a food to pick: the user's pantry first, then the shared reference
+// of everyday foods that carry no barcode (a slice of cake, a cookie, a banana).
+// Mirrors the plan screen's search box but hands back the choice itself — no
+// grams involved here, the day solve works those out.
 function PickSearchBox({
   onPick,
   disabled,
@@ -340,6 +377,7 @@ function PickSearchBox({
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FoodChoice[]>([]);
+  const [refResults, setRefResults] = useState<FoodChoice[]>([]);
   const [searching, setSearching] = useState(false);
 
   const term = useMemo(() => query.trim(), [query]);
@@ -349,14 +387,19 @@ function PickSearchBox({
       async () => {
         if (term.length < 2) {
           setResults([]);
+          setRefResults([]);
           setSearching(false);
           return;
         }
         setSearching(true);
         try {
-          setResults(await searchFoods(term));
-        } catch {
-          setResults([]);
+          // In parallel: neither source should wait on the other.
+          const [pantry, reference] = await Promise.all([
+            searchFoods(term).catch(() => []),
+            searchReference(term).catch(() => []),
+          ]);
+          setResults(pantry);
+          setRefResults(reference);
         } finally {
           setSearching(false);
         }
@@ -370,7 +413,10 @@ function PickSearchBox({
     onPick(c);
     setQuery("");
     setResults([]);
+    setRefResults([]);
   }
+
+  const anyResults = results.length > 0 || refResults.length > 0;
 
   return (
     <div className="relative">
@@ -381,35 +427,42 @@ function PickSearchBox({
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         disabled={disabled}
-        placeholder="Search your pantry…"
+        placeholder="Search for a food…"
         className="sc-input w-full"
         style={{ paddingLeft: "2.5rem" }}
       />
 
-      {(searching || results.length > 0) && term.length >= 2 && (
+      {(searching || anyResults) && term.length >= 2 && (
         <ul className="absolute z-10 mt-1 flex w-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg">
-          {searching && results.length === 0 && (
+          {searching && !anyResults && (
             <li className="px-4 py-3 text-sm text-[var(--muted)]">Searching…</li>
           )}
           {results.map((c, i) => (
-            <li key={`${c.off_barcode ?? c.name}-${i}`}>
-              <button
-                onClick={() => add(c)}
-                className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[var(--fill-soft)]"
-              >
-                <Package size={15} className="shrink-0 text-[var(--ink-teal)]" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{c.name}</span>
-                  <span className="block text-xs text-[var(--muted)]">
-                    {Math.round(c.kcal_100g)} kcal/100g
-                  </span>
-                </span>
-              </button>
-            </li>
+            <PickRow
+              key={`p-${c.off_barcode ?? c.name}-${i}`}
+              choice={c}
+              fromPantry
+              onPick={() => add(c)}
+            />
           ))}
-          {!searching && results.length === 0 && (
+
+          {refResults.length > 0 && (
+            <li className="border-t border-[var(--border)] bg-[var(--fill-soft)] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+              Common foods
+            </li>
+          )}
+          {refResults.map((c, i) => (
+            <PickRow
+              key={`r-${c.name}-${i}`}
+              choice={c}
+              fromPantry={false}
+              onPick={() => add(c)}
+            />
+          ))}
+
+          {!searching && !anyResults && (
             <li className="px-4 py-3 text-sm text-[var(--muted)]">
-              Nothing in your pantry matches — try the scanner.
+              No match — try the scanner.
             </li>
           )}
         </ul>
