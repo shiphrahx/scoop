@@ -112,6 +112,25 @@ export const getProfile = cache(async function getProfile(): Promise<Profile | n
 const TARGET_COLS =
   "week_start, phase, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg";
 
+// The calibration row a running hold is pinned to: the earliest one belonging to
+// the current run, i.e. not older than the week the hold started. Rows from an
+// abandoned earlier run are skipped — restarting calibration after months away
+// must measure today's body, not re-apply the target of the one that onboarded.
+// Null `startedAt` (or no row at or after it) falls back to the earliest row, which
+// is what a user who has only ever calibrated once has anyway.
+export function calibrationAnchor(
+  rows: DailyTargets[],
+  startedAt: string | null,
+): DailyTargets | null {
+  if (rows.length === 0) return null;
+  if (startedAt) {
+    const runStart = weekStartOf(startedAt.slice(0, 10));
+    const inRun = rows.find((r) => r.week_start >= runStart);
+    if (inRun) return inRun;
+  }
+  return rows[0];
+}
+
 export const getCurrentTargets = cache(async function getCurrentTargets(): Promise<DailyTargets | null> {
   const supabase = await createClient();
   const tz = await getTimezone();
@@ -121,7 +140,7 @@ export const getCurrentTargets = cache(async function getCurrentTargets(): Promi
   // screen for exactly the new users who have the least patience for it. Both
   // are single-row lookups on the (user_id, week_start) index, so speculatively
   // asking for the anchor costs far less than waiting to find out we need it.
-  const [latestRes, anchorRes] = await Promise.all([
+  const [latestRes, anchorRes, profile] = await Promise.all([
     // Prefer this week's target; fall back to the most recent one. The week turns
     // over on the user's Monday, not the server's.
     supabase
@@ -131,14 +150,19 @@ export const getCurrentTargets = cache(async function getCurrentTargets(): Promi
       .order("week_start", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    // The earliest calibration-phase row: the true onboarding anchor.
+    // The calibration-phase rows, oldest first. The anchor is the earliest one of
+    // the RUN that is in force — not simply the earliest ever, because a user can
+    // restart calibration and the original onboarding row would then pin them to a
+    // target computed from a body they no longer have. A handful of rows is plenty:
+    // a run is a fortnight, so at most three weeks belong to it.
     supabase
       .from("daily_targets")
       .select(TARGET_COLS)
       .eq("phase", "calibration")
       .order("week_start", { ascending: true })
-      .limit(1)
-      .maybeSingle(),
+      .limit(12),
+    // Cached per request, and needed here only to date the run in force.
+    getProfile(),
   ]);
 
   const latest = (latestRes.data as DailyTargets) ?? null;
@@ -148,7 +172,10 @@ export const getCurrentTargets = cache(async function getCurrentTargets(): Promi
   // moving maintenance estimate), ignore it and return the anchor so the number
   // can't creep and any past creep is undone.
   if (latest?.phase === "calibration") {
-    return (anchorRes.data as DailyTargets) ?? latest;
+    return calibrationAnchor(
+      (anchorRes.data as DailyTargets[]) ?? [],
+      profile?.calibration_started_at ?? null,
+    ) ?? latest;
   }
 
   return latest;

@@ -1,5 +1,4 @@
 import { User } from "lucide-react";
-import ApiKeySettings from "./ApiKeySettings";
 import CyclingSettings from "./CyclingSettings";
 import GoalsSettings from "./GoalsSettings";
 import MealSlotsSettings from "./MealSlotsSettings";
@@ -21,7 +20,6 @@ import {
   getCurrentTargets,
   getLatestWeight,
   getProfile,
-  hasApiKey,
   maintenanceKcalFor,
 } from "@/lib/queries";
 
@@ -51,11 +49,10 @@ export default async function MePage({
   // splitting them cost a second sequential round trip for nothing. The Apple
   // token isn't in here at all any more — it lives on the users row getProfile
   // already fetched.
-  const [{ fitbit }, profile, connected, targets, weightKg, appleToken, fitbitRes] =
+  const [{ fitbit }, profile, targets, weightKg, appleToken, fitbitRes] =
     await Promise.all([
       searchParams,
       getProfile(),
-      hasApiKey(),
       getCurrentTargets(),
       getLatestWeight(),
       getAppleIngestToken(),
@@ -159,7 +156,9 @@ export default async function MePage({
         </div>
       </section>
 
-      <ApiKeySettings connected={connected} />
+      {/* The AI-key section (ApiKeySettings) is deliberately not rendered: the
+          bring-your-own-key features aren't finished or tested, so there's
+          nothing worth asking for a key for yet. Component kept, not deleted. */}
 
       <div className="flex justify-center pt-2">
         <SignOutButton />
