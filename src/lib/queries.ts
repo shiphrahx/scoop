@@ -987,9 +987,43 @@ function searchWords(q: string): string[] {
   return (q.toLowerCase().match(/[a-z0-9]+/g) ?? []).filter((w) => w.length > 1);
 }
 
+// How well a reference food answers what was typed. Lower is better.
+//
+// Needed because the reference is now thousands of USDA rows whose names are
+// comma-inverted and heavily qualified ("Cake or cupcake, chocolate with
+// chocolate icing, bakery"). Every row returned already contains every word
+// searched for, so the question is which is the *tightest* answer: the one
+// carrying the fewest words the user never asked for. Sorting by name, as this
+// did when the reference was a hundred hand-written foods, now just returns
+// whatever is alphabetically first.
+export function rankFreshFood(query: string, name: string): number {
+  const q = query.trim().toLowerCase();
+  const n = name.trim().toLowerCase();
+  if (n === q) return 0;
+  const asked = new Set(searchWords(q));
+  const extra = searchWords(n).filter((w) => !asked.has(w)).length;
+  // A name that opens with what was typed is the plain reading of it
+  // ("Croissant" for "croissant", "Cake, chocolate…" for "cake").
+  return (n.startsWith(q) ? 1 : 2) * 1000 + extra * 10 + Math.min(n.length, 9) / 10;
+}
+
+// Order a batch of rows by how tightly each answers the words that found it.
+function sortByRank<T extends { name: string }>(rows: T[], term: string): T[] {
+  return [...rows].sort(
+    (a, b) =>
+      rankFreshFood(term, a.name) - rankFreshFood(term, b.name) ||
+      a.name.localeCompare(b.name),
+  );
+}
+
+// Enough rows to rank meaningfully before cutting to what's shown. With
+// thousands of foods a bare "cake" matches far more than a dropdown can hold,
+// and the eight the database happens to return first are not the best eight.
+const SEARCH_POOL = 40;
+
 // Fresh whole foods from the shared reference whose name matches what the user
-// is typing, each with its sizes attached, best-effort ranked with exact/prefix
-// matches first. Empty for a query shorter than two characters (too broad).
+// is typing, each with its sizes attached, tightest match first. Empty for a
+// query shorter than two characters (too broad).
 //
 // Matching is word by word, not as one substring. The reference now holds
 // thousands of USDA rows, and they name foods "Cake or cupcake, chocolate with
@@ -1014,17 +1048,21 @@ export async function searchFreshFoods(query: string): Promise<FreshFood[]> {
       );
     // Chained filters AND, so every word must appear somewhere in the name.
     for (const w of words) sel = sel.ilike("name", `%${w}%`);
-    const { data } = await sel.order("name", { ascending: true }).limit(8);
+    const { data } = await sel.order("name", { ascending: true }).limit(SEARCH_POOL);
     return (data as (Omit<FreshFood, "sizes"> & Record<string, unknown>)[]) ?? [];
   };
 
-  let foods = await byWords(q);
+  let foods = sortByRank(await byWords(q), q);
   // Only on a miss, so the common case still costs one round trip.
   for (const singular of foods.length === 0 ? singularTerms(q) : []) {
-    foods = await byWords(singular);
-    if (foods.length > 0) break;
+    const rows = await byWords(singular);
+    if (rows.length > 0) {
+      foods = sortByRank(rows, singular);
+      break;
+    }
   }
   if (foods.length === 0) return [];
+  foods = foods.slice(0, 8);
 
   const { data: sizeData } = await supabase
     .from("fresh_food_sizes")
@@ -1035,14 +1073,7 @@ export async function searchFreshFoods(query: string): Promise<FreshFood[]> {
     );
   const sizes = (sizeData as FreshFoodSize[]) ?? [];
 
-  const ql = q.toLowerCase();
-  const rank = (name: string) => {
-    const n = name.toLowerCase();
-    if (n === ql) return 0;
-    if (n.startsWith(ql)) return 1;
-    return 2;
-  };
-
+  // Order is already decided above; this only shapes the rows.
   return foods
     .map((f) => ({
       id: f.id,
@@ -1060,8 +1091,7 @@ export async function searchFreshFoods(query: string): Promise<FreshFood[]> {
         .filter((s) => s.food_id === f.id)
         .map((s) => ({ label: s.label, grams: Number(s.grams) }))
         .sort((a, b) => a.grams - b.grams),
-    }))
-    .sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name));
+    }));
 }
 
 // --- Progress insights -------------------------------------------------------
