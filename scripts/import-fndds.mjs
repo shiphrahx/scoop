@@ -113,6 +113,15 @@ const TYPICAL = "quantity not specified";
 // medium 28 g"), so the tighter one is dropped.
 const DISTINCT_RATIO = 1.15;
 
+// FNDDS lists bite-size and cocktail portions alongside real ones: a 5 g
+// chocolate chip cookie, a 30 g sliver of bakery cake. As a tappable "small"
+// those mislead — nobody eats a twelfth of a slice — so a small has to be at
+// least this fraction of the typical portion to earn the chip.
+const SMALL_FLOOR = 0.35;
+// Likewise a "large" that is several times the typical portion is a sharing
+// platter, not a serving.
+const LARGE_CEILING = 3;
+
 // Turn one food's candidate gram weights into at most three named sizes.
 // Ranked by weight, never by wording, so small < medium < large always holds.
 function toSizes(typicalG, others) {
@@ -136,8 +145,12 @@ function toSizes(typicalG, others) {
   }
 
   const medium = Math.round(typicalG);
-  const below = distinct.filter((g) => g * DISTINCT_RATIO < medium);
-  const above = distinct.filter((g) => g > medium * DISTINCT_RATIO);
+  const below = distinct.filter(
+    (g) => g * DISTINCT_RATIO < medium && g >= medium * SMALL_FLOOR,
+  );
+  const above = distinct.filter(
+    (g) => g > medium * DISTINCT_RATIO && g <= medium * LARGE_CEILING,
+  );
   const sizes = [{ label: "medium", grams: medium }];
   if (below.length) sizes.unshift({ label: "small", grams: below[0] });
   if (above.length) sizes.push({ label: "large", grams: above[above.length - 1] });
