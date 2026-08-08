@@ -26,9 +26,13 @@ import type {
 
 const MODEL = "claude-opus-4-8";
 
+// Thrown when there's no key to read with. The message is what the user sees on
+// the keyless paths that fall through to AI (a recipe link with no structured
+// data, a product page with no macros), so it says what to do next rather than
+// naming a key — nowhere in the app asks for one while these features are off.
 export class NoApiKeyError extends Error {
   constructor() {
-    super("Connect your Anthropic key in Me to use AI features.");
+    super("Couldn't read that automatically. Enter the details yourself.");
     this.name = "NoApiKeyError";
   }
 }
