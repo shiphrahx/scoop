@@ -1,26 +1,15 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Camera, Minus, Plus } from "lucide-react";
+import { useState } from "react";
+import { Minus, Plus } from "lucide-react";
 import type { ParsedRecipe } from "@/lib/ai";
-import { readImageForUpload } from "@/lib/image";
-import {
-  importRecipeImage,
-  importRecipeUrl,
-  logRecipeServings,
-  saveRecipe,
-} from "./actions";
+import { importRecipeUrl, logRecipeServings, saveRecipe } from "./actions";
 
-// Import a recipe from a link or a screenshot, then see it scaled: per-serving
-// macros and how many servings fit the calories you have left today. The link
-// path is keyless (reads the page's structured data); only the screenshot
-// backup needs the user's own key.
-export default function RecipeImport({
-  connected,
-}: {
-  connected: boolean;
-}) {
-  const fileRef = useRef<HTMLInputElement>(null);
+// Import a recipe from a link, then see it scaled: per-serving macros and how
+// many servings fit the calories you have left today. Only the link path is
+// offered — the screenshot backup runs on the user's own Anthropic key, which
+// isn't a finished path, so it stays hidden.
+export default function RecipeImport() {
   const [url, setUrl] = useState("");
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
   const [recipe, setRecipe] = useState<ParsedRecipe | null>(null);
@@ -52,20 +41,6 @@ export default function RecipeImport({
     try {
       const r = await importRecipeUrl(url.trim());
       onResult(r, url.trim());
-    } catch (e) {
-      setNote(e instanceof Error ? e.message : "Import failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function fromImage(file: File) {
-    setBusy(true);
-    setNote("Reading the recipe…");
-    try {
-      const { base64, mediaType } = await readImageForUpload(file);
-      const r = await importRecipeImage(base64, mediaType);
-      onResult(r, null);
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Import failed.");
     } finally {
@@ -117,32 +92,6 @@ export default function RecipeImport({
           Import
         </button>
       </div>
-
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) fromImage(f);
-          e.target.value = "";
-        }}
-      />
-      <button
-        onClick={() => fileRef.current?.click()}
-        disabled={busy || !connected}
-        className="sc-btn sc-btn-soft"
-      >
-        <Camera size={20} /> Screenshot instead
-      </button>
-
-      {!connected && (
-        <p className="text-center text-xs text-[var(--muted)]">
-          Paste a link works without a key. Connect your key in Settings for
-          screenshot import.
-        </p>
-      )}
 
       {note && (
         <p className="text-center text-sm font-medium text-[var(--muted)]">
