@@ -209,3 +209,64 @@ describe("searchFreshFoods — a big, American reference", () => {
     expect(await searchFreshFoods("xyzzy")).toEqual([]);
   });
 });
+
+const { applyAliases, rankFreshFood } = await import("@/lib/queries");
+
+const UK = [
+  { alias: "crisps", term: "potato chips" },
+  { alias: "chips", term: "french fries" },
+  { alias: "spring onion", term: "scallion" },
+  { alias: "biscuit", term: "cookie" },
+];
+
+describe("applyAliases", () => {
+  it("swaps a British word for the American one", () => {
+    expect(applyAliases("chips", UK)).toBe("french fries");
+  });
+
+  // The one that bit: "crisps" expands to "potato chips", and a second pass over
+  // that output turned the "chips" rule loose on it — "potato french fries".
+  it("never re-reads what it just wrote", () => {
+    expect(applyAliases("crisps", UK)).toBe("potato chips");
+  });
+
+  it("swaps a multi-word alias whole, not word by word", () => {
+    expect(applyAliases("spring onion", UK)).toBe("scallion");
+  });
+
+  it("leaves the untouched words in place and in order", () => {
+    expect(applyAliases("chocolate biscuit", UK)).toBe("chocolate cookie");
+  });
+
+  it("returns null when no alias applies, so no second search runs", () => {
+    expect(applyAliases("banana", UK)).toBeNull();
+    expect(applyAliases("", UK)).toBeNull();
+  });
+
+  it("matches whole words only — 'chipshop' is not 'chips'", () => {
+    expect(applyAliases("chipshop", UK)).toBeNull();
+  });
+});
+
+describe("rankFreshFood", () => {
+  const best = (query: string, names: string[]) =>
+    [...names].sort((a, b) => rankFreshFood(query, a) - rankFreshFood(query, b))[0];
+
+  it("prefers the exact name", () => {
+    expect(best("croissant", ["Croissant, apple", "Croissant", "Croissant, cheese"]))
+      .toBe("Croissant");
+  });
+
+  it("prefers the name carrying fewest words nobody asked for", () => {
+    expect(
+      best("chocolate cake", [
+        "Cake or cupcake, chocolate with chocolate icing, bakery, ready to eat",
+        "Cake, chocolate",
+      ]),
+    ).toBe("Cake, chocolate");
+  });
+
+  it("prefers a name that opens with what was typed", () => {
+    expect(best("cake", ["Sponge, cake type", "Cake, plain"])).toBe("Cake, plain");
+  });
+});
