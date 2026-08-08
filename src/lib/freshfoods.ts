@@ -4,6 +4,14 @@
 
 import type { FoodChoice, FreshFood, UnitOption } from "@/lib/types";
 
+// A portion word longer than this is not a portion word any more, it's a
+// sentence. USDA reference foods are named in full ("Cake or cupcake, chocolate
+// with chocolate icing, bakery"), and gluing a size onto that produced counts
+// like "2 medium cake or cupcake, chocolate with chocolate icing, bakerys".
+// Past this length the size stands alone — the food's name is already on the
+// line above it, so "2 medium" reads correctly and fits on a phone.
+const MAX_UNIT_LABEL = 24;
+
 // What one selected size is called on a pantry item: "medium banana", so a plan
 // or log can read "2 medium bananas". Folds the food name to lower case (the
 // size label is already lower case in the reference) and trims both.
@@ -12,7 +20,8 @@ export function pantryUnitLabel(foodName: string, sizeLabel: string): string {
   const size = sizeLabel.trim();
   if (!size) return name.toLowerCase();
   if (!name) return size;
-  return `${size} ${name}`.toLowerCase();
+  const full = `${size} ${name}`.toLowerCase();
+  return full.length > MAX_UNIT_LABEL ? size.toLowerCase() : full;
 }
 
 // The size a food defaults to when the user first adds it: "medium" if it has
