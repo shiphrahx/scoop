@@ -1,4 +1,5 @@
 import { User } from "lucide-react";
+import CalibrationSettings from "./CalibrationSettings";
 import CyclingSettings from "./CyclingSettings";
 import GoalsSettings from "./GoalsSettings";
 import MealSlotsSettings from "./MealSlotsSettings";
@@ -6,6 +7,7 @@ import NutrientSettings from "./NutrientSettings";
 import SlotWeightsSettings from "./SlotWeightsSettings";
 import { DEFAULT_MEAL_SLOTS } from "@/lib/types";
 import { recommendedHighDays } from "@/lib/highday";
+import { calibrationDaysElapsed } from "@/lib/coach";
 import SignOutButton from "@/components/SignOutButton";
 import InstallAppButton from "@/components/InstallAppButton";
 import {
@@ -120,6 +122,19 @@ export default async function MePage({
             base={targets ? { kcal: targets.kcal } : null}
             maintenanceKcal={maintenanceKcalFor(profile, weightKg)}
             locked={targets?.phase === "calibration"}
+          />
+          {/* Days elapsed is pure arithmetic on the stored timestamp, so the
+              banner costs no extra read. Whether the hold is RUNNING is read off
+              the in-force target rather than recomputed: graduation also needs a
+              trustworthy measurement, and only the weekly review is in a position
+              to decide that. */}
+          <CalibrationSettings
+            calibrating={targets?.phase === "calibration"}
+            daysElapsed={
+              profile.calibration_started_at
+                ? calibrationDaysElapsed(profile.calibration_started_at)
+                : null
+            }
           />
         </>
       )}
