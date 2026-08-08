@@ -16,36 +16,16 @@ import {
 } from "lucide-react";
 import BarcodeScanner from "@/components/BarcodeScannerLazy";
 import type { FoodChoice, FreshFood, MealPick, OffProduct } from "@/lib/types";
-import { cookedName, cookedStapleFor, defaultSize, pantryUnitLabel } from "@/lib/freshfoods";
+import { cookedName, cookedStapleFor, freshToChoice } from "@/lib/freshfoods";
 import { searchFoods, setMealPicks } from "../actions";
 import { addPantryItem, findFreshFoods } from "@/app/(app)/pantry/actions";
 
-// A cooked reference staple (rice, pasta…) as a meal pick: cooked macros and the
-// cooked serving sizes, no barcode (it's reference data, not the scanned pack).
-// Turn a fresh food into a meal pick. `displayName` overrides the shown name
-// when a dry staple is swapped onto the reference's cooked macros but must keep
-// the user's own product name (e.g. "Basmati Rice (cooked)"), so distinct
-// staples don't collapse onto the shared reference name.
+// A reference food as a meal pick — the same shape the search box hands over,
+// minus the brand a reference food never has. Used for the cooked-staple swap
+// (rice, pasta…), where `displayName` keeps the user's own product name.
 function freshToPick(f: FreshFood, displayName?: string): MealPick {
-  const size = defaultSize(f.sizes);
-  const name = displayName ?? f.name;
-  return {
-    name,
-    source: "off",
-    off_barcode: null,
-    kcal_100g: f.kcal_100g,
-    protein_100g: f.protein_100g,
-    carbs_100g: f.carbs_100g,
-    fat_100g: f.fat_100g,
-    fiber_100g: f.fiber_100g,
-    sugar_100g: f.sugar_100g,
-    satfat_100g: f.satfat_100g,
-    sodium_mg_100g: f.sodium_mg_100g,
-    pack_size_g: null,
-    unit_g: size?.grams ?? null,
-    unit_label: size ? pantryUnitLabel(name, size.label) : null,
-    unit_options: f.sizes.length ? f.sizes : null,
-  };
+  const { brand: _brand, ...pick } = freshToChoice(f, displayName);
+  return pick;
 }
 
 type Groups = {
