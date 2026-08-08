@@ -933,6 +933,27 @@ export async function getMeasurementHistory(days = 365): Promise<
   }));
 }
 
+// Singular readings of a plural query, most conservative first, so a plural
+// still finds the reference food ("cookies" → "cookie", "potatoes" → "potato",
+// "berries" → "berry"). The reference names foods in the singular and the match
+// is a plain `ilike`, so without this the natural way to type a food draws a
+// blank. Only the last word is touched — that's the noun. Empty when the word
+// isn't a plural we recognise.
+function singularTerms(q: string): string[] {
+  const words = q.split(/\s+/);
+  const last = words[words.length - 1].toLowerCase();
+  if (last.length <= 3 || !last.endsWith("s") || last.endsWith("ss")) return [];
+
+  const stems = [
+    last.slice(0, -1), // cookies → cookie, apples → apple
+    last.endsWith("es") ? last.slice(0, -2) : null, // potatoes → potato
+    last.endsWith("ies") ? `${last.slice(0, -3)}y` : null, // berries → berry
+  ];
+  return [...new Set(stems.filter((s): s is string => !!s && s.length >= 3))].map(
+    (stem) => [...words.slice(0, -1), stem].join(" "),
+  );
+}
+
 // Fresh whole foods from the shared reference whose name matches what the user
 // is typing, each with its sizes attached, best-effort ranked with exact/prefix
 // matches first. Empty for a query shorter than two characters (too broad).
@@ -944,16 +965,24 @@ export async function searchFreshFoods(query: string): Promise<FreshFood[]> {
   if (q.length < 2) return [];
 
   const supabase = await createClient();
-  const { data: foodData } = await supabase
-    .from("fresh_foods")
-    .select(
-      "id, name, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, satfat_100g, sodium_mg_100g, cooked",
-    )
-    .ilike("name", `%${q}%`)
-    .order("name", { ascending: true })
-    .limit(8);
+  const byName = async (term: string) => {
+    const { data } = await supabase
+      .from("fresh_foods")
+      .select(
+        "id, name, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, satfat_100g, sodium_mg_100g, cooked",
+      )
+      .ilike("name", `%${term}%`)
+      .order("name", { ascending: true })
+      .limit(8);
+    return (data as (Omit<FreshFood, "sizes"> & Record<string, unknown>)[]) ?? [];
+  };
 
-  const foods = (foodData as (Omit<FreshFood, "sizes"> & Record<string, unknown>)[]) ?? [];
+  let foods = await byName(q);
+  // Only on a miss, so the common case still costs one round trip.
+  for (const singular of foods.length === 0 ? singularTerms(q) : []) {
+    foods = await byName(singular);
+    if (foods.length > 0) break;
+  }
   if (foods.length === 0) return [];
 
   const { data: sizeData } = await supabase
