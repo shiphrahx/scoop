@@ -15,6 +15,7 @@ const {
   saveMealSlots,
   saveNutrientPrefs,
   saveCycling,
+  restartCalibration,
 } = await import("@/app/(app)/me/actions");
 
 const userRow = () => ({
@@ -240,5 +241,84 @@ describe("saveGoals", () => {
 
     expect(db.users[0].goal_pace).toBe("gentle");
     expect(db.daily_targets).toHaveLength(0);
+  });
+});
+
+describe("restartCalibration", () => {
+  const returning = () => ({
+    users: [
+      {
+        ...userRow(),
+        activity_level: "moderate",
+        goal_pace: "steady",
+        goal_weight_kg: 65,
+        tdee_calibration: 0.92,
+        calibration_started_at: "2025-01-06T09:00:00Z",
+        estimated_maintenance_kcal: 2400,
+      },
+    ],
+    weights: [{ user_id: "user-1", date: "2026-07-15", weight_kg: 80 }],
+    activity: [],
+    daily_targets: [],
+  });
+
+  it("reopens the window from today and holds this week at maintenance", async () => {
+    const { db } = installFakeSupabase({ db: returning() });
+
+    await restartCalibration();
+
+    // The clock restarts now — the stale timestamp from the first run would leave
+    // the hold already "finished" the moment it reopened.
+    const startedAt = String(db.users[0].calibration_started_at);
+    expect(Date.parse(startedAt)).toBeGreaterThan(Date.parse("2026-01-01"));
+
+    expect(db.daily_targets).toHaveLength(1);
+    expect(db.daily_targets[0].phase).toBe("calibration");
+    expect(Number(db.daily_targets[0].kcal)).toBeGreaterThan(1200);
+  });
+
+  it("holds at more calories than the deficit it replaces", async () => {
+    const cut = installFakeSupabase({ db: returning() });
+    await saveGoals({
+      diet_type: "regular",
+      activity_level: "moderate",
+      goal_pace: "steady",
+    });
+    const deficitKcal = Number(cut.db.daily_targets[0].kcal);
+
+    const hold = installFakeSupabase({ db: returning() });
+    await restartCalibration();
+    const maintenanceKcal = Number(hold.db.daily_targets[0].kcal);
+
+    expect(maintenanceKcal).toBeGreaterThan(deficitKcal);
+  });
+
+  it("keeps the learned calibration factor", async () => {
+    // It is a measured correction to the formula, not a stale target. Wiping it
+    // would drop the user back onto the textbook's guess — the very thing
+    // calibrating exists to replace.
+    const { db } = installFakeSupabase({ db: returning() });
+    await restartCalibration();
+    expect(Number(db.users[0].tdee_calibration)).toBe(0.92);
+  });
+
+  it("refreshes the maintenance baseline for today's body", async () => {
+    const { db } = installFakeSupabase({ db: returning() });
+    await restartCalibration();
+    // The stored estimate described the weight they signed up at. After a restart
+    // it must describe the one on the scale now.
+    expect(Number(db.users[0].estimated_maintenance_kcal)).not.toBe(2400);
+  });
+
+  it("refuses rather than calibrating against a deficit target", async () => {
+    // No weigh-in means no maintenance to hold at. Opening the window anyway
+    // would leave the user "calibrating" against whatever target they had.
+    const { db } = installFakeSupabase({
+      db: { ...returning(), weights: [] },
+    });
+
+    await expect(restartCalibration()).rejects.toThrow(/weight/i);
+    expect(db.daily_targets).toHaveLength(0);
+    expect(db.users[0].calibration_started_at).toBe("2025-01-06T09:00:00Z");
   });
 });
