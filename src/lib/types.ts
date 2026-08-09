@@ -92,10 +92,25 @@ export interface Macros {
 
 export interface DailyTargets extends Macros {
   week_start: string;
+  // The day this target actually started being eaten. Usually the Monday it is
+  // keyed to, but a target written part-way through a week (a calibration
+  // graduation, a profile edit) starts that day — and the review counts real
+  // days on the food. Absent on rows written before the column existed.
+  effective_from?: string | null;
   // Which phase this weekly target belongs to (see Phase in coach.ts). Drives
   // whether cycling is offered and how the next review adapts it. Absent on
   // older rows, which predate phases and mean 'deficit'.
   phase?: import("@/lib/coach").Phase;
+}
+
+// One row of the food diary, as the day screen shows it back. `source` says
+// where it came from ('alcohol' for a drink, 'batch' for a serving out of a
+// pot, and so on).
+export interface LoggedFood extends Macros {
+  id: string;
+  name: string;
+  source: string;
+  logged_at: string;
 }
 
 // A saved "my usual" item — logged to today's food with one tap.

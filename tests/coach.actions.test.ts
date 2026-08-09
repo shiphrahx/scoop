@@ -126,6 +126,22 @@ function graduatingUser() {
   };
 }
 
+// The same stall, but the target in force was written part-way through a week —
+// so the only honest count of how long it has been eaten is its effective_from.
+function stallStartedDaysAgo(days: number) {
+  const base = stalledUser();
+  return {
+    ...base,
+    daily_targets: [
+      {
+        ...base.daily_targets[0],
+        week_start: localWeekStart("UTC"),
+        effective_from: iso(days),
+      },
+    ],
+  };
+}
+
 describe("ensureReviewApplied", () => {
   it("does NOT auto-apply a target change — a change is only a proposal", async () => {
     // The app must never move the user's macros without them choosing to. A
@@ -189,6 +205,25 @@ describe("applyReview", () => {
     expect(Number(written.kcal)).toBeLessThan(2000); // a stall cuts calories
   });
 
+  it("will not judge a target that has been eaten for only 13 days", async () => {
+    // A stall the coach would normally cut. The row is filed under this week, so
+    // counting calendar weeks would have called it old enough; it isn't.
+    const { db } = installFakeSupabase({ db: stallStartedDaysAgo(13) });
+
+    await applyReview();
+
+    for (const t of db.daily_targets) expect(Number(t.kcal)).toBe(2000);
+  });
+
+  it("cuts the same stall on the fourteenth day", async () => {
+    const { db } = installFakeSupabase({ db: stallStartedDaysAgo(14) });
+
+    await applyReview();
+
+    const written = db.daily_targets[db.daily_targets.length - 1];
+    expect(Number(written.kcal)).toBeLessThan(2000);
+  });
+
   it("graduating from calibration changes THIS week's target, not next week's", async () => {
     // The hold ends mid-week off its own timestamp. Deferring the first deficit
     // to Monday left the planner on maintenance for days after the coach said
@@ -202,6 +237,9 @@ describe("applyReview", () => {
     expect(row).toBeDefined();
     expect(row!.phase).toBe("deficit");
     expect(Number(row!.kcal)).toBeLessThan(1700);
+    // Dated from the day it starts being eaten, not the Monday it is filed
+    // under: the two-week adaptation wait counts real days on the food.
+    expect(row!.effective_from).toBe(new Date().toISOString().slice(0, 10));
     // Nothing written for next week: the target in force IS the new one.
     const nextWeek = localWeekStart("UTC", new Date(Date.now() + 7 * DAY));
     expect(db.daily_targets.some((t) => t.week_start === nextWeek)).toBe(false);

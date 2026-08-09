@@ -48,7 +48,7 @@ const PACE_KG_PER_WEEK: Record<GoalPace, number> = {
 
 // Energy in 1 kg of body fat (≈ 3500 kcal/lb). Standard clinical heuristic for
 // turning a target loss rate into a daily calorie deficit.
-const KCAL_PER_KG = 7700;
+export const KCAL_PER_KG = 7700;
 
 // Never prescribe a loss faster than 1% of bodyweight/week — beyond that the
 // deficit starts costing muscle. Caps the requested rate for light people.
@@ -872,10 +872,17 @@ function maintenanceTargetKcal(currentKcal: number, maintenanceKcal?: number | n
 }
 
 // Give the body time before judging a target. One week of scale movement is
-// mostly water and noise — the body needs about two weeks on a set of macros to
-// show whether it's really adapting. We hold (never cut or add) until the
-// current target has been in force this long AND the user logged consistently.
-const MIN_WEEKS_ON_TARGET = 2;
+// mostly water and noise — glycogen and the water bound to it swing a couple of
+// kilos on their own, and that swing is largest in the first week of any change.
+// About two weeks on a set of macros is what it takes for the trend to be
+// showing fat rather than water. We hold (never cut or add) until the current
+// target has been in force this long AND the user logged consistently.
+//
+// Counted in DAYS, not weeks. Targets change mid-week — a calibration hold ends
+// on its own timestamp, a profile edit recomputes the week in force — and
+// counting calendar weeks credited a target that started on the Thursday with
+// the four days before it existed, letting the coach adjust after eleven.
+export const MIN_DAYS_ON_TARGET = 14;
 
 // Plain mean of a list of weights; null when the list is empty.
 export function average(values: number[]): number | null {
@@ -1025,11 +1032,12 @@ export interface WeeklyReviewInput {
   current: Macros; // the target in force now
   heightCm?: number; // caps the protein basis on recompute (same as onboarding)
   goalWeightKg?: number | null; // preferred target weight for the protein cap
-  // Cadence gates. Whole weeks the current target has been unchanged, and
-  // whether the user weighed in often enough to trust the trend. When either
-  // says "not ready" we hold rather than guess. Omitted = no opinion (the field
-  // is only supplied by the live review; unit tests exercise a ready state).
-  weeksOnTarget?: number;
+  // Cadence gates. Days the current target has been in force (counted from the
+  // day it started being eaten, not the Monday it is filed under), and whether
+  // the user weighed in often enough to trust the trend. When either says "not
+  // ready" we hold rather than guess. Omitted = no opinion (the field is only
+  // supplied by the live review; unit tests exercise a ready state).
+  daysOnTarget?: number;
   consistent?: boolean;
   // How closely the user ate the target this week. Omitted = no opinion, which
   // leaves the old scale-only behaviour for callers that don't supply it.
@@ -1081,7 +1089,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
     diet = "regular",
     heightCm,
     goalWeightKg,
-    weeksOnTarget,
+    daysOnTarget,
     consistent,
     adherence,
     stepsDropped,
@@ -1166,7 +1174,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
         ? "Calibration complete — deficit starting"
         : "Diet break over — deficit resuming",
       detail: fromCalibration
-        ? `Your measured maintenance is about ${maint} kcal a day. A ${cut} kcal/day deficit now applies, giving a target of ${target} kcal.${easedNote} This will be adjusted from your results each week.`
+        ? `Your calibrated maintenance is about ${maint} kcal a day. A ${cut} kcal/day deficit now applies, giving a target of ${target} kcal.${easedNote} Your results are reviewed every week, but this target is held for two weeks before any adjustment — that is how long the body takes to show a real response rather than a change in water weight.`
         : `A ${cut} kcal/day deficit from your maintenance of about ${maint} kcal now applies, giving a target of ${target} kcal.${easedNote}`,
     };
   }
@@ -1200,17 +1208,22 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
     };
   }
 
-  // Current target is still new — give the body ~2 weeks to respond before
-  // judging it. Changing now would just be reacting to water weight.
-  if ((weeksOnTarget ?? MIN_WEEKS_ON_TARGET) < MIN_WEEKS_ON_TARGET) {
+  // Current target is still new — give the body a full two weeks to respond
+  // before judging it. Changing now would just be reacting to water weight.
+  const days = daysOnTarget ?? MIN_DAYS_ON_TARGET;
+  if (days < MIN_DAYS_ON_TARGET) {
+    const left = MIN_DAYS_ON_TARGET - days;
     return {
       macros: current,
       changed: false,
       changeKg: null,
       changePct: null,
       headline: "Settling in",
-      detail:
-        "Your current targets are less than two weeks old, which is how long the body takes to respond. Keep logging and they will be reviewed then.",
+      detail: `Your current targets have been in force for ${days} day${
+        days === 1 ? "" : "s"
+      }. The first week on a new target is mostly water weight, so they are held for two weeks before any adjustment. Keep logging — ${left} day${
+        left === 1 ? "" : "s"
+      } to go.`,
     };
   }
 

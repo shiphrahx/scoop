@@ -130,6 +130,13 @@ suite("row-level security", () => {
         `insert into activity (user_id, date, steps, source)
          values ('${id}', '2026-07-13', 8000, 'fitbit')`,
     },
+    {
+      table: "calibration_reviews",
+      owner: "user_id",
+      insert: (id) =>
+        `insert into calibration_reviews (user_id, started_at, days, findings)
+         values ('${id}', now() - interval '15 days', 15, '{"days":15}'::jsonb)`,
+    },
   ];
 
   describe.each(tables)("$table", ({ table, insert }) => {

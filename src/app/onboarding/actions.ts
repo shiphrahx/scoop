@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ageFromBirthYear, dailyTarget, maintenanceTarget, tdee } from "@/lib/coach";
-import { localWeekStart, safeTimezone } from "@/lib/time";
+import { localDate, localWeekStart, safeTimezone } from "@/lib/time";
 import type {
   ActivityLevel,
   DietType,
@@ -121,6 +121,9 @@ export async function saveOnboarding(input: OnboardingInput) {
       {
         user_id: user.id,
         week_start: localWeekStart(safeTimezone(input.timezone)),
+        // Signing up on a Thursday means the first target starts on that
+        // Thursday. The review counts days actually spent on it.
+        effective_from: localDate(safeTimezone(input.timezone), new Date()),
         phase: calibrating ? "calibration" : "deficit",
         ...target,
       },

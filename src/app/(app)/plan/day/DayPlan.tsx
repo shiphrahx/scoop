@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, Pencil, Pin, AlertTriangle, AlertCircle, CopyPlus, UtensilsCrossed, Info, Star, ScanBarcode, Sparkles, Apple } from "lucide-react";
+import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, Pencil, Pin, AlertTriangle, AlertCircle, CopyPlus, UtensilsCrossed, Info, Star, ScanBarcode, Sparkles, Apple, Wine } from "lucide-react";
 import BarcodeScanner from "@/components/BarcodeScannerLazy";
-import type { FavouriteMeal, FoodChoice, Macros, MealPick, MealPortion, OffProduct, PlannedMeal, PlanItem, UnitOption } from "@/lib/types";
+import type { FavouriteMeal, FoodChoice, LoggedFood, Macros, MealPick, MealPortion, OffProduct, PlannedMeal, PlanItem, UnitOption } from "@/lib/types";
 import { sumItems, sumMacros } from "@/lib/types";
 import { mealToItems } from "@/lib/favourites";
-import { pantryUnitLabel } from "@/lib/freshfoods";
+import { isBulkStaple, pantryUnitLabel } from "@/lib/freshfoods";
 import { parseFoodQuery } from "@/lib/foodquery";
 import {
   NUTRIENTS,
@@ -33,19 +33,23 @@ import {
   logPlannedMeal,
   unlogPlannedMeal,
   removePlannedMeal,
+  removeFoodLog,
   saveFavouriteMeal,
   addFavouriteMeal,
 } from "./actions";
 
 type Slot = { slot: string; meal: PlannedMeal | null };
 
-// Sum every meal in the plan (built meals + AI dishes) for the day header. Sums
-// the extra nutrients too (fibre, sugar, saturates, sodium), so a tracked one
-// like fibre reads the real total instead of zero.
-function dayTotal(slots: Slot[]): Macros {
-  return sumMacros(
-    slots.flatMap(({ meal }) => (meal ? [meal] : [])),
-  );
+// What the day comes to: every meal in the plan (built meals + AI dishes) plus
+// anything logged straight into the day, like a drink. Leaving the extras out
+// was a day that quietly under-read — a logged drink moved nothing on this
+// screen at all. Sums the extra nutrients too (fibre, sugar, saturates,
+// sodium), so a tracked one like fibre reads the real total instead of zero.
+function dayTotal(slots: Slot[], extras: LoggedFood[]): Macros {
+  return sumMacros([
+    ...slots.flatMap(({ meal }) => (meal ? [meal] : [])),
+    ...extras,
+  ]);
 }
 
 // The macros a single item contributes at its current portion — shown under
@@ -61,9 +65,11 @@ function itemMacroLine(it: PlanItem): string {
 // How much of a portion to serve, as the user would measure it: a whole-unit
 // count for a countable food ("2 bagels · 170 g"), a volume for a liquid unit
 // ("250 ml"), or plain grams otherwise. Grams stays the real amount underneath.
+// A bulk staple reads in grams even when it carries a size — 180 g of rice is
+// the amount, "1 medium rice" is not.
 function portionAmount(p: MealPortion): string {
   const grams = Math.round(p.grams);
-  if (!p.unit_g || p.unit_g <= 0) return `${grams} g`;
+  if (!p.unit_g || p.unit_g <= 0 || isBulkStaple(p.name)) return `${grams} g`;
   if (p.unit_label === "ml") return `${grams} ml`;
   const units = Math.round(grams / p.unit_g);
   return `${units} ${pluralUnit(p.unit_label ?? "unit", units)} · ${grams} g`;
@@ -71,8 +77,16 @@ function portionAmount(p: MealPortion): string {
 
 // A countable food is one split into portions ("bagel", "portion"): it has a
 // grams-per-portion. Liquids (ml) keep the grams stepper — a count reads oddly.
+// So do bulk staples (rice, pasta, oats): they carry named sizes as a shortcut,
+// but they are served BY WEIGHT, so the user must always be able to set 180 g
+// rather than pick from small/medium/large (matches isCountable in mealplan.ts).
 function isCountable(it: PlanItem): boolean {
-  return !!it.unit_g && it.unit_g > 0 && it.unit_label !== "ml";
+  return (
+    !!it.unit_g &&
+    it.unit_g > 0 &&
+    it.unit_label !== "ml" &&
+    !isBulkStaple(it.name)
+  );
 }
 
 // How many whole portions the current grams work out to.
@@ -116,12 +130,14 @@ function macroLine(prefs: NutrientKey[], m: Macros): string {
 
 export default function DayPlan({
   slots,
+  extras = [],
   target,
   prefs,
   date,
   favourites = [],
 }: {
   slots: Slot[];
+  extras?: LoggedFood[];
   target: Macros | null;
   prefs: NutrientKey[];
   date: string;
@@ -130,7 +146,7 @@ export default function DayPlan({
   const [busy, startTransition] = useTransition();
   const [err, setErr] = useState<string | null>(null);
 
-  const total = dayTotal(slots);
+  const total = dayTotal(slots, extras);
   // Meals the app planned that the user hasn't eaten — the ones "Remove the
   // app's plan" clears (their own built meals and eaten meals are kept).
   const anyAppPlanned = slots.some(
@@ -154,6 +170,42 @@ export default function DayPlan({
         <div className="sc-card flex flex-col gap-3 p-4">
           <NutrientStats prefs={prefs} consumed={total} target={target} showFit />
           <FitVerdict total={total} target={target} prefs={prefs} />
+        </div>
+      )}
+
+      {/* Logged outside the meal slots — a drink, a serving out of a batch. It
+          counts toward the day above, so it has to be visible and removable
+          here; there is nowhere else on this screen it would show up. */}
+      {extras.length > 0 && (
+        <div className="sc-card flex flex-col gap-3 p-4">
+          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+            Also logged
+          </span>
+          {extras.map((log) => (
+            <div key={log.id} className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-start gap-2">
+                {log.source === "alcohol" ? (
+                  <Wine size={16} className="mt-0.5 shrink-0 text-[var(--ink-teal)]" />
+                ) : (
+                  <UtensilsCrossed size={16} className="mt-0.5 shrink-0 text-[var(--muted)]" />
+                )}
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate font-medium">{log.name}</span>
+                  <span className="text-xs text-[var(--muted)]">
+                    {macroLine(prefs, log)}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => run(() => removeFoodLog(log.id))}
+                disabled={busy}
+                className="shrink-0 text-[var(--muted)] transition active:scale-90"
+                aria-label={`Remove ${log.name}`}
+              >
+                <Trash2 size={18} />
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -530,6 +582,8 @@ function FoodSearchBox({
     if (parsed.grams != null) return `add ${parsed.grams} g`;
     if (kind === "ref" && c.unit_g && c.unit_g > 0) {
       const kcal = Math.round((c.kcal_100g * c.unit_g) / 100);
+      // A bulk staple is weighed, so its size is a starting weight, not a count.
+      if (isBulkStaple(c.name)) return `${Math.round(c.unit_g)} g · ${kcal} kcal`;
       return `1 ${c.unit_label ?? "portion"} · ${Math.round(c.unit_g)} g · ${kcal} kcal`;
     }
     const per100 = `${Math.round(c.kcal_100g)} kcal/100g`;
@@ -905,9 +959,11 @@ function ItemPicker({
 
   // Switch a fresh food to one of its named sizes (small→large). The unit becomes
   // that size, and grams follow the current count at the new size (≥ one unit).
+  // A bulk staple isn't counted, so its sizes are plain gram shortcuts: tapping
+  // one sets that weight, which the user can then edit to any grams they like.
   function setSize(i: number, opt: UnitOption) {
     const it = items[i];
-    const count = Math.max(1, itemUnits(it));
+    const count = isCountable(it) ? Math.max(1, itemUnits(it)) : 1;
     save(
       items.map((x, j) =>
         j === i
@@ -955,7 +1011,9 @@ function ItemPicker({
                 {itemMacroLine(it)}
               </span>
 
-              {/* Fresh food with named sizes: tap the size you have. */}
+              {/* Fresh food with named sizes: tap the size you have. On a bulk
+                  staple these are gram shortcuts, so one reads as active only
+                  while the grams still match it. */}
               {it.unit_options && it.unit_options.length > 1 && (
                 <div className="flex flex-wrap gap-1.5">
                   {it.unit_options.map((opt) => (
@@ -963,7 +1021,11 @@ function ItemPicker({
                       key={opt.label}
                       onClick={() => setSize(i, opt)}
                       disabled={busy}
-                      data-active={it.unit_g === opt.grams}
+                      data-active={
+                        isCountable(it)
+                          ? it.unit_g === opt.grams
+                          : Math.round(it.grams) === Math.round(opt.grams)
+                      }
                       className="sc-chip capitalize"
                     >
                       {opt.label}
@@ -1550,8 +1612,9 @@ function AiMealEditor({
                 </div>
               )}
 
-              {p.unit_g && p.unit_g > 0 && p.unit_label !== "ml" ? (
-                /* Countable portion: whole units only, never a part of one. */
+              {p.unit_g && p.unit_g > 0 && p.unit_label !== "ml" && !isBulkStaple(p.name) ? (
+                /* Countable portion: whole units only, never a part of one. A
+                   bulk staple is weighed, so it drops to the grams field. */
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setUnits(i, p.unit_g!, Math.round(p.grams / p.unit_g!) - 1)}
