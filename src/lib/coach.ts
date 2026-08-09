@@ -616,6 +616,78 @@ export function observeTdee(
   };
 }
 
+// --- Trusting a measurement -------------------------------------------------
+// observeTdee does the arithmetic. Whether the answer describes the user's BODY
+// is a separate question, and getting it wrong is how a fortnight of patchy
+// logging becomes someone's metabolism.
+//
+// The energy balance identity only holds if the intake term is a full account of
+// what was eaten. Nothing in the app can know that for certain, but two things
+// give a bad log away:
+//
+//   - The plan says 1,700 and the log says 900. Either the user really ate half
+//     their target for a fortnight, in which case the scale would have fallen
+//     about twice as fast as it did, or food is missing from the log. Both
+//     readings make the burn figure worthless.
+//   - The answer lands at or below resting metabolism. Nobody who gets out of
+//     bed burns only their RMR, so a measurement that says so is measuring the
+//     log, not the body.
+//
+// The coverage rule above (MIN_LOG_COVERAGE) does not catch either: it counts
+// DAYS with a log, and a day carrying one logged snack counts as covered.
+//
+// Setting a measurement aside is safe. Without one the coach falls back on the
+// formula and on the scale, which is what it did before any of this existed.
+// Acting on a bad one cuts the user's food on evidence that isn't there.
+
+export type MeasurementDoubt = "intake_shortfall" | "burn_below_resting";
+
+// How far mean logged intake may sit below the target in force before the
+// measurement is treated as a reading of the log rather than of the body. Same
+// 15% as the adherence tolerance: inside it the user ate their plan.
+export const MAX_INTAKE_SHORTFALL = 0.15;
+
+// The lowest multiple of resting metabolism a real daily burn can plausibly be.
+// Even complete bed rest runs around 1.2; 1.1 rejects only the impossible.
+const MIN_TDEE_OVER_RMR = 1.1;
+
+export interface TrustedTdee {
+  // The measurement, when it is safe to build a target on. Null both when there
+  // was never one and when there was one we are setting aside.
+  observed: ObservedTdee | null;
+  // Why it was set aside, so the screens can say so instead of going quiet.
+  // Null when the measurement was fine, and when there was nothing to judge.
+  doubt: MeasurementDoubt | null;
+}
+
+// Decide whether a measured burn is a reading of the user's body.
+//
+// `targetKcal` is the target in force over the window, what the user was asked
+// to eat. On a window that spans a target change this is approximate, which is
+// why the shortfall allowed is wide.
+export function trustedTdee(
+  measured: ObservedTdee | null,
+  input: { targetKcal?: number | null; restingRateKcal?: number | null },
+): TrustedTdee {
+  if (measured == null) return { observed: null, doubt: null };
+
+  const target = input.targetKcal;
+  if (
+    target != null &&
+    target > 0 &&
+    measured.meanIntakeKcal < target * (1 - MAX_INTAKE_SHORTFALL)
+  ) {
+    return { observed: null, doubt: "intake_shortfall" };
+  }
+
+  const rmr = input.restingRateKcal;
+  if (rmr != null && rmr > 0 && measured.kcalPerDay < rmr * MIN_TDEE_OVER_RMR) {
+    return { observed: null, doubt: "burn_below_resting" };
+  }
+
+  return { observed: measured, doubt: null };
+}
+
 // How far the measured burn is allowed to drag the prediction. A measurement
 // built on logged food inherits some of that log's error, so an unbounded
 // factor would let one badly-logged fortnight rewrite the user's metabolism.
