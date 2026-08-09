@@ -21,9 +21,11 @@ import {
   stepsFalling,
   tdee,
   trendChange,
+  trustedTdee,
   weeklyReview,
   type Adherence,
   type DailyIntake,
+  type MeasurementDoubt,
   type Phase,
   type ObservedTdee,
   type TrendChange,
@@ -470,8 +472,12 @@ export interface CoachData {
   trendWeightKg: number | null;
   waistDeltaCm: number | null;
   // What the user's own numbers say they burn, and the running correction to
-  // the formula that it feeds. Null when the data can't support a measurement.
+  // the formula that it feeds. Null when the data can't support a measurement,
+  // which includes one the app measured and then set aside.
   observed: ObservedTdee | null;
+  // Why it was set aside, when it was (see trustedTdee). Null when the
+  // measurement stood, and when there was never one to judge.
+  measurementDoubt: MeasurementDoubt | null;
   calibration: number;
   // The correction this review's target was computed with, the stored one for
   // an ordinary week, the measurement-led one on the way out of calibration.
@@ -633,9 +639,10 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
 
   // What the user's own numbers say they burn. This is the measurement that
   // outranks the formula: intake against the slope of their weight. `intake` is
-  // fetched in the batch above.
+  // fetched in the batch above. Judged for trustworthiness below, once the
+  // resting rate it has to be plausible against has been worked out.
   const weighIns = weights.map((w) => ({ date: w.date, kg: Number(w.weight_kg) }));
-  const observed = observeTdee(weighIns, intake);
+  const measured = observeTdee(weighIns, intake);
   const adherence = current ? computeAdherence(intake, current.kcal) : null;
   const calibration =
     profile?.tdee_calibration != null && profile.tdee_calibration > 0
@@ -654,6 +661,16 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
           bodyFatPct: profile.body_fat_pct,
         })
       : null;
+
+  // Is that measurement a reading of this user's body, or of their food log?
+  // A mean intake far below the target they were asked to eat, or a burn at or
+  // below resting metabolism, means the arithmetic was fed a log that is missing
+  // food, and a target built on it would cut a user who is already losing.
+  const { observed, doubt: measurementDoubt } = trustedTdee(measured, {
+    targetKcal: current?.kcal ?? null,
+    restingRateKcal,
+  });
+
   const thisWeekActivity = activityRows.filter((a) => a.date >= cut7);
   const lastWeekActivity = activityRows.filter((a) => a.date >= cut14 && a.date < cut7);
   const stepsDropped = stepsFalling(
@@ -822,6 +839,9 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
         // The user's real maintenance, calibrated. Passed in so holding at
         // maintenance never has to be back-derived from the target in force.
         maintenanceKcal,
+        // When the fortnight's measurement was set aside, leaving calibration
+        // reads the scale rather than cutting from the formula again.
+        measurementDoubt,
       })
     : {
         macros: { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
@@ -839,6 +859,7 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
     trendWeightKg: trend?.nowKg ?? null,
     waistDeltaCm,
     observed,
+    measurementDoubt,
     calibration,
     calibrationForTarget,
     adherence,
