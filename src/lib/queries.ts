@@ -978,6 +978,11 @@ export const getCalibrationWrap = cache(async function getCalibrationWrap(): Pro
     intake,
     activity: coach.activity,
     observed: coach.observed,
+    // Why there is no measured burn, when the app measured one and set it aside.
+    // Without this the screen cannot tell a thin log (nothing to say) from a
+    // rejected measurement (a great deal to say), and it explains a target that
+    // was held rather than cut.
+    measurementDoubt: coach.measurementDoubt,
     predictedTdeeKcal: coach.predictedTdee,
     holdTargetKcal: coach.current.kcal,
     // The same maintenance the graduating target was cut from, so the screen
