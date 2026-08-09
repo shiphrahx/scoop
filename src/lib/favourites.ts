@@ -1,7 +1,7 @@
 // Turning a planned meal into the foods a favourite meal stores.
 //
-// A favourite meal keeps its foods as PlanItem[] — the same shape a hand-built
-// meal uses — so adding it back rebuilds an identical, editable meal. A meal the
+// A favourite meal keeps its foods as PlanItem[], the same shape a hand-built
+// meal uses, so adding it back rebuilds an identical, editable meal. A meal the
 // user built by hand already IS a PlanItem[] (`items`); an app-portioned dish is
 // a list of MealPortion (grams + the macros of that portion), so we recover each
 // food's per-100g macros from what the portion contributed.
@@ -10,7 +10,7 @@ import type { MealPortion, PlanItem } from "@/lib/types";
 
 // One AI portion → a PlanItem. Per-100g macros are back-calculated from the
 // portion's stored macros over its grams (macro / grams × 100). A portion with
-// no stored macros (an old plan) or zero grams contributes zeroes — it can't be
+// no stored macros (an old plan) or zero grams contributes zeroes, it can't be
 // rescaled, so it's kept only as a name at that amount.
 function portionToItem(p: MealPortion): PlanItem {
   const g = p.grams > 0 ? p.grams : 0;

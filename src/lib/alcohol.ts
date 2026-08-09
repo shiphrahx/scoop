@@ -1,10 +1,10 @@
-// Alcohol logging maths — pure, no DB, no AI.
+// Alcohol logging maths, pure, no DB, no AI.
 //
 // Alcohol is 7 kcal/g and isn't protein, carb or fat. Scoop tracks only
 // protein/carbs/fat, so a drink's alcohol calories are booked against carbs OR
 // fat (the user's choice per drink), and any REAL drink carbs (beer sugars,
 // wine residual sugar, mixers) are added as actual carbs on top. Booking uses
-// each macro's own energy — carbs 4 kcal/g, fat 9 kcal/g — NOT alcohol's 7, so
+// each macro's own energy, carbs 4 kcal/g, fat 9 kcal/g, NOT alcohol's 7, so
 // the gram figure carries the right number of calories into the daily total.
 
 import type { Macros } from "@/lib/types";
@@ -15,7 +15,7 @@ export const ETHANOL_DENSITY = 0.789;
 export const KCAL_PER_G_ALCOHOL = 7;
 
 // A sane ceiling so a fat-fingered "5000 ml" or "900%" can be caught. Not a law
-// of nature — just far past any real single drink.
+// of nature, just far past any real single drink.
 export const MAX_VOLUME_ML = 3000;
 export const MAX_ABV_PCT = 100;
 
@@ -28,13 +28,13 @@ export function alcoholGrams(volumeMl: number, abvPct: number): number {
 }
 
 // Calories from the alcohol itself (ethanol grams × 7). Real drink carbs are
-// separate — see drinkMacros.
+// separate, see drinkMacros.
 export function alcoholCalories(volumeMl: number, abvPct: number): number {
   return alcoholGrams(volumeMl, abvPct) * KCAL_PER_G_ALCOHOL;
 }
 
 // Book a block of alcohol calories onto carb and/or fat grams. Divide by the
-// TARGET macro's kcal/g (4 or 9), never by alcohol's 7 — the point is to carry
+// TARGET macro's kcal/g (4 or 9), never by alcohol's 7, the point is to carry
 // the same calories under a macro the app can track. "split" puts half the
 // calories under each.
 export function allocateAlcohol(
@@ -71,7 +71,7 @@ export interface DrinkMacros extends Required<Macros> {
 
 // Full macros for one drink: the booked alcohol calories plus any real carbs/
 // fat/protein. kcal is the true energy (alcohol + real components), so the daily
-// calorie total is right whichever way the alcohol is booked. Unrounded — round
+// calorie total is right whichever way the alcohol is booked. Unrounded, round
 // at the storage/display boundary.
 export function drinkMacros(input: DrinkInput): DrinkMacros {
   const alcoholKcal = alcoholCalories(input.volumeMl, input.abvPct);
@@ -86,7 +86,7 @@ export function drinkMacros(input: DrinkInput): DrinkMacros {
     carbs_g: booked.carbs_g + extraCarbs,
     fat_g: booked.fat_g + extraFat,
     fiber_g: 0,
-    // Mixer/residual carbs are sugars — surface them so the day's sugar reads true.
+    // Mixer/residual carbs are sugars, surface them so the day's sugar reads true.
     sugar_g: extraCarbs,
     satfat_g: 0,
     sodium_mg: 0,
@@ -103,7 +103,7 @@ export function defaultAllocation(
 ): AlcoholAllocation {
   const c = carbsLeft ?? 0;
   const f = fatLeft ?? 0;
-  // Compare on calories, not grams — 20 g fat is far more room than 20 g carbs.
+  // Compare on calories, not grams, 20 g fat is far more room than 20 g carbs.
   return f * 9 > c * 4 ? "fat" : "carbs";
 }
 

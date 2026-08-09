@@ -34,10 +34,10 @@ export interface PdfExtract {
 }
 
 // Read a PDF's text layer into lines. hasTextLayer is false for scanned-image
-// PDFs (no extractable text) — the caller then routes to screenshot import.
+// PDFs (no extractable text), the caller then routes to screenshot import.
 export async function extractInvoiceText(file: File): Promise<PdfExtract> {
   const pdfjs = await import("pdfjs-dist");
-  // Bundle the worker as a same-origin asset (no external CDN — CSP/offline safe).
+  // Bundle the worker as a same-origin asset (no external CDN, CSP/offline safe).
   pdfjs.GlobalWorkerOptions.workerSrc = new URL(
     "pdfjs-dist/build/pdf.worker.min.mjs",
     import.meta.url,

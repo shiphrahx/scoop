@@ -4,7 +4,7 @@
 // The server has no way to know a viewport, and `hidden lg:flex` hides markup
 // without saving the render or the queries behind it. The client does know, so
 // it writes this cookie (see DesktopDashboardMount) and the next request can
-// act on it. It is a hint only: absent — a first visit — means "assume wide and
+// act on it. It is a hint only: absent, a first visit, means "assume wide and
 // fetch everything", which is the safe way round, and a client that finds the
 // hint was wrong asks for a refresh.
 //

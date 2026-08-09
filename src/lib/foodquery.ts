@@ -1,6 +1,6 @@
 // The "add a food" search box: the user types the item and how much in one go
 // ("50g shreddies", "rice 200 g", "medium banana"), and this pulls the two
-// apart. Less typing, more tapping — but the grams it finds are multiplied
+// apart. Less typing, more tapping, but the grams it finds are multiplied
 // straight into the food's macros, so getting the amount wrong here logs the
 // wrong calories just as surely as bad maths would.
 
@@ -24,7 +24,7 @@ const SIZE = Object.keys(SIZE_G).join("|");
 export interface FoodQuery {
   // Grams the user asked for, or null when they didn't say.
   grams: number | null;
-  // What to actually search the pantry for — the amount and any size word
+  // What to actually search the pantry for, the amount and any size word
   // stripped out, so "50g shreddies" searches for "shreddies".
   term: string;
 }

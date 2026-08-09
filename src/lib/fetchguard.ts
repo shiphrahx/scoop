@@ -44,7 +44,7 @@ export function isBlockedIp(ip: string): boolean {
     if (ip6 === "::1" || ip6 === "::") return true; // loopback / unspecified
     if (ip6.startsWith("fe80")) return true; // link-local
     if (ip6.startsWith("fc") || ip6.startsWith("fd")) return true; // unique-local
-    // IPv4-mapped (::ffff:a.b.c.d) — re-check the embedded v4 address.
+    // IPv4-mapped (::ffff:a.b.c.d), re-check the embedded v4 address.
     const mapped = ip6.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
     if (mapped) return isBlockedIp(mapped[1]);
     return false;
@@ -64,7 +64,7 @@ async function assertPublicUrl(raw: string): Promise<URL> {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new BlockedUrlError("Only http and https links are allowed.");
   }
-  // Resolve every A/AAAA record — a host with even one private answer is out.
+  // Resolve every A/AAAA record, a host with even one private answer is out.
   const results = await lookup(url.hostname, { all: true }).catch(() => {
     throw new BlockedUrlError("Couldn't resolve that host.");
   });

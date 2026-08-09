@@ -13,7 +13,7 @@ export type SessionUser = {
 
 // The signed-in user, resolved ONCE per request.
 //
-// This used to call `auth.getUser()` — a network round trip to Supabase on
+// This used to call `auth.getUser()`, a network round trip to Supabase on
 // every render and every server action. The root middleware already validates
 // and refreshes the token against Supabase on the way in, so inside the render
 // we can trust the cookie and read the identity straight from the JWT with

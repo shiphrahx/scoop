@@ -16,15 +16,15 @@ import * as google from "@/lib/googlehealth";
 //
 // Trimmed and lowercased before comparing. An exact match meant "Google", or a
 // value with a space picked up from a dashboard field, fell through to legacy in
-// total silence — the app then looked for FITBIT_* credentials that a migrated
+// total silence, the app then looked for FITBIT_* credentials that a migrated
 // deployment has no reason to hold, and reported itself unconfigured with no
 // hint that the provider setting was what missed.
 function isGoogle(): boolean {
   const explicit = (process.env.HEALTH_PROVIDER ?? "").trim().toLowerCase();
   if (explicit) return explicit === "google";
 
-  // Nothing set. Rather than assume legacy — which cannot be registered with
-  // Fitbit any more and is being turned down — believe whichever credentials the
+  // Nothing set. Rather than assume legacy, which cannot be registered with
+  // Fitbit any more and is being turned down, believe whichever credentials the
   // deployment actually holds. A deployment carrying only GOOGLE_HEALTH_* has
   // said which provider it is for; defaulting it to legacy meant hunting for
   // FITBIT_* it has no reason to own and reporting itself unconfigured, with the
@@ -205,7 +205,7 @@ async function legacyGetDay(
   };
 }
 
-// Raw, UNPARSED responses for one day — status + body per Fitbit endpoint,
+// Raw, UNPARSED responses for one day, status + body per Fitbit endpoint,
 // exactly as returned. The debug route uses this to confirm the live shape.
 async function legacyProbeDay(
   accessToken: string,
@@ -268,7 +268,7 @@ export function activeProvider(): "google" | "legacy" {
 // Whether the live provider has the credentials it needs, asked WITHOUT throwing.
 //
 // clientId() and its friends throw when their env var is missing, and they sit
-// deep inside the OAuth and refresh calls — so a deployment that never had these
+// deep inside the OAuth and refresh calls, so a deployment that never had these
 // set answered /api/fitbit/authorize with a 500, and answered a sync with "that
 // connection has expired", which is not what went wrong and sends the user off to
 // reconnect for something no amount of reconnecting can fix. Check up front so
@@ -277,7 +277,7 @@ export function providerConfigured(): boolean {
   return missingProviderConfig().length === 0;
 }
 
-// Which env vars the live provider still needs — NAMES ONLY, never values.
+// Which env vars the live provider still needs, NAMES ONLY, never values.
 //
 // Worth reporting rather than a bare true/false because the usual mistake is not
 // a forgotten variable but the wrong pair: with HEALTH_PROVIDER unset the code
@@ -290,7 +290,7 @@ export function missingProviderConfig(): string[] {
 }
 
 // Everything the deployment's wearable setup looks like from inside the running
-// function, for diagnostics. Presence only for the credential pairs — never a
+// function, for diagnostics. Presence only for the credential pairs, never a
 // value. HEALTH_PROVIDER's value IS included: it is not a secret, and seeing it
 // verbatim is the fastest way to spot a typo or a variable that never arrived.
 export function providerDiagnostics(): {
@@ -317,7 +317,7 @@ export function providerDiagnostics(): {
   };
 }
 
-// Raw per-endpoint responses for one day — diagnostics only.
+// Raw per-endpoint responses for one day, diagnostics only.
 export async function probeDay(
   accessToken: string,
   date: string,

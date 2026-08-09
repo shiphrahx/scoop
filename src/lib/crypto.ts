@@ -6,7 +6,7 @@ import {
 } from "node:crypto";
 
 // Server-only, symmetric encryption for secrets we must store but never want
-// readable at rest — the user's Anthropic key, their Fitbit OAuth tokens. A DB
+// readable at rest, the user's Anthropic key, their Fitbit OAuth tokens. A DB
 // dump or leaked backup then yields ciphertext, not live credentials.
 //
 // AES-256-GCM (authenticated: tampering fails the decrypt). The 32-byte key

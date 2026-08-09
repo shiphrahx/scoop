@@ -3,14 +3,14 @@ import { z } from "zod";
 // What a server action will accept. Anything a user types, scans or lets the AI
 // guess arrives here first.
 //
-// These aren't form niceties — the UI already does that. They're the last line
+// These aren't form niceties, the UI already does that. They're the last line
 // before a number reaches the database and starts being counted. A NaN weight, a
 // negative portion or a 900 g-of-protein-per-100 g "food" doesn't fail loudly:
 // it quietly poisons the day's totals, the trailing average and, through the
 // weekly review, the user's calorie target.
 
 // A macro figure per 100 g of a food. Nothing edible is negative, and nothing is
-// more than 100 g of one macro per 100 g — an AI or a bad barcode record that
+// more than 100 g of one macro per 100 g, an AI or a bad barcode record that
 // claims otherwise would blow up every meal built on it. The messages are the
 // ones a user reads when a bad food is caught, so they say what's wrong in plain
 // words rather than Zod's "Too big: expected number to be <=100".
@@ -35,7 +35,7 @@ export const macrosPer100gSchema = z.object({
   fiber_100g: per100g.optional(),
   sugar_100g: per100g.optional(),
   satfat_100g: per100g.optional(),
-  // Sodium is milligrams, and salty food is genuinely salty — pure salt is about
+  // Sodium is milligrams, and salty food is genuinely salty, pure salt is about
   // 39,000 mg of sodium per 100 g.
   sodium_mg_100g: z.number().finite().min(0).max(40_000).optional(),
 });
@@ -44,13 +44,13 @@ export const macrosPer100gSchema = z.object({
 //
 // The AI's numbers are the least trustworthy in the app and, until now, the only
 // ones with no bounds at all: the output schemas said `z.number()`, which
-// accepts -400 kcal and 9000 g of protein. A hallucinated figure doesn't throw —
+// accepts -400 kcal and 9000 g of protein. A hallucinated figure doesn't throw,
 // it becomes a pantry item, a fixed meal in the day's budget, a food log, and
 // eventually a nudge to the user's calorie target.
 //
 // Two checks, because they catch different lies:
-//   1. bounds     — no negative food, nothing denser than food can be
-//   2. coherence  — the macros have to roughly account for the calories
+//   1. bounds    , no negative food, nothing denser than food can be
+//   2. coherence , the macros have to roughly account for the calories
 
 // The macros of one serving or one dish.
 export const mealMacrosSchema = z.object({
@@ -63,8 +63,8 @@ export const mealMacrosSchema = z.object({
 export type MealMacros = z.infer<typeof mealMacrosSchema>;
 
 // Atwater factors: protein and carbs are 4 kcal/g, fat is 9. Real food doesn't
-// land exactly on them — fibre is counted in carbs but yields about 2 kcal/g,
-// and labels round — so this is deliberately loose. It isn't here to audit a
+// land exactly on them, fibre is counted in carbs but yields about 2 kcal/g,
+// and labels round, so this is deliberately loose. It isn't here to audit a
 // nutrition label; it's here to catch a number that cannot be food at all:
 // "0 kcal, 60 g of protein", or 3000 kcal of thin air.
 export function energyFromMacros(m: {
@@ -92,7 +92,7 @@ export function isPlausibleMeal(m: unknown): m is MealMacros {
   return parsed.success && macrosExplainKcal(parsed.data);
 }
 
-// A food the model read off a label, a page, or a photo — per 100 g.
+// A food the model read off a label, a page, or a photo, per 100 g.
 export function isPlausibleFood(f: unknown): boolean {
   const parsed = macrosPer100gSchema.safeParse(f);
   if (!parsed.success) return false;
@@ -120,7 +120,7 @@ export const measurementCmSchema = z.number().finite().min(10).max(300);
 // Grams of food, eaten or planned.
 export const gramsSchema = z.number().finite().positive().max(10_000);
 
-// Grams in a planned portion — 0 is allowed here (the user dragged it to nothing
+// Grams in a planned portion, 0 is allowed here (the user dragged it to nothing
 // and is about to drop it), unlike a serving actually being eaten.
 export const portionGramsSchema = z.number().finite().min(0).max(10_000);
 

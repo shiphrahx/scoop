@@ -2,7 +2,7 @@
 //
 // This is the one numeric primitive the meal planner needs. It replaces an
 // active-set method that pinned a variable to a bound and never released it,
-// which returned portions that were not the minimum of its own objective — a
+// which returned portions that were not the minimum of its own objective, a
 // picked food could sit at zero grams because an early iteration put it there.
 //
 // The method here is cyclic coordinate descent. The objective is a convex

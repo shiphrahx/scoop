@@ -8,7 +8,7 @@ import type { FoodChoice, FreshFood, UnitOption } from "@/lib/types";
 // sentence. USDA reference foods are named in full ("Cake or cupcake, chocolate
 // with chocolate icing, bakery"), and gluing a size onto that produced counts
 // like "2 medium cake or cupcake, chocolate with chocolate icing, bakerys".
-// Past this length the size stands alone — the food's name is already on the
+// Past this length the size stands alone, the food's name is already on the
 // line above it, so "2 medium" reads correctly and fits on a phone.
 const MAX_UNIT_LABEL = 24;
 
@@ -37,7 +37,7 @@ export function defaultSize(sizes: UnitOption[]): UnitOption | null {
 
 // A reference food as a food the user can add straight to a meal. It carries no
 // barcode (it isn't a packaged product), and its default size becomes the unit,
-// so adding it is one tap at a real portion — "1 medium croissant" — with the
+// so adding it is one tap at a real portion, "1 medium croissant", with the
 // rest of its sizes riding along for the size chips.
 //
 // `displayName` overrides the shown name when a dry staple is swapped onto the
@@ -121,7 +121,7 @@ const COOKED_STAPLES: { canonical: string; words: string[] }[] = [
 ];
 
 // Words that mean a DIFFERENT product than the plain dry staple, so a match must
-// be blocked — using cooked-rice macros for rice milk or a rice cake would be
+// be blocked, using cooked-rice macros for rice milk or a rice cake would be
 // wrong. Better to leave these to the pack/user than to substitute badly.
 const NOT_PLAIN_STAPLE = [
   "milk", "drink", "pudding", "cake", "cracker", "snack", "flour", "noodle",
@@ -131,8 +131,8 @@ const NOT_PLAIN_STAPLE = [
 
 // Words that say the pack is ALREADY as-eaten: a steamed pouch, a microwave rice,
 // anything labelled cooked or boiled. Its label is the real cooked number for
-// THAT product — usually denser than the generic reference, because a pouch is
-// steamed rather than boiled — so swapping it onto the shared cooked staple
+// THAT product, usually denser than the generic reference, because a pouch is
+// steamed rather than boiled, so swapping it onto the shared cooked staple
 // would replace a true figure with an approximate one.
 const ALREADY_COOKED = [
   "cooked", "steamed", "boiled", "precooked", "pre-cooked", "ready to heat",
@@ -150,7 +150,7 @@ export function isAlreadyCooked(productName: string): boolean {
   return ALREADY_COOKED.some((w) => n.includes(words(w)));
 }
 
-// Is this a bulk staple — rice, pasta, couscous, quinoa, oats — however it was
+// Is this a bulk staple, rice, pasta, couscous, quinoa, oats, however it was
 // sold? True for a dry bag AND for a steamed pouch, because the thing that makes
 // a staple special is that it's served BY WEIGHT, not by a fixed serving (issue
 // #27). Kept separate from the cooked-macro swap below, which only applies to
@@ -164,7 +164,7 @@ export function isBulkStaple(productName: string): boolean {
 }
 
 // Mark a food's own name cooked without losing it: "Basmati Rice" → "Basmati
-// Rice (cooked)". Idempotent — an already-cooked name is returned unchanged, so
+// Rice (cooked)". Idempotent, an already-cooked name is returned unchanged, so
 // re-adding never doubles the tag. Used when a dry staple is swapped onto the
 // cooked reference's MACROS but must keep the user's product name, so distinct
 // staples (penne, rigatoni, basmati) stay distinct instead of collapsing onto

@@ -22,14 +22,14 @@ import type {
 } from "@/lib/types";
 
 // All AI runs on the user's own Anthropic key (bring-your-own-key). This module
-// is server-only — the key is read here and never sent to the browser.
+// is server-only, the key is read here and never sent to the browser.
 
 const MODEL = "claude-opus-4-8";
 
 // Thrown when there's no key to read with. The message is what the user sees on
 // the keyless paths that fall through to AI (a recipe link with no structured
 // data, a product page with no macros), so it says what to do next rather than
-// naming a key — nowhere in the app asks for one while these features are off.
+// naming a key, nowhere in the app asks for one while these features are off.
 export class NoApiKeyError extends Error {
   constructor() {
     super("Couldn't read that automatically. Enter the details yourself.");
@@ -114,7 +114,7 @@ const ANIMAL = [
   ...MEAT, "egg", "milk", "cheese", "butter", "cream", "yogurt", "yoghurt",
   "honey", "whey", "casein", "ghee",
 ];
-// Fish/seafood terms — the slice of MEAT a pescatarian is allowed to keep.
+// Fish/seafood terms, the slice of MEAT a pescatarian is allowed to keep.
 const FISH = [
   "fish", "salmon", "tuna", "cod", "prawn", "shrimp", "crab", "lobster",
   "anchovy",
@@ -128,7 +128,7 @@ const GLUTEN = [
 // Meat-substitute products carry the meat word on purpose ("Vegan Shredded
 // Chicken", "Meat-Free Mince", "plant-based bacon"). An explicit plant-based
 // marker means the food is free of animal products, so the keyword meat/animal
-// guard must not veto it — otherwise the whole Linda McCartney / Quorn aisle
+// guard must not veto it, otherwise the whole Linda McCartney / Quorn aisle
 // vanishes from a vegan's pantry. Does NOT bypass the gluten guard (seitan is
 // vegan but full of wheat).
 const PLANT_MARKERS = [
@@ -141,7 +141,7 @@ function isPlantBased(hay: string): boolean {
 }
 
 export function violatesDiet(text: string, diet: DietType): boolean {
-  // Keto is a macro budget, not an ingredient ban — the carb target guards it.
+  // Keto is a macro budget, not an ingredient ban, the carb target guards it.
   if (diet === "regular" || diet === "keto") return false;
   const hay = text.toLowerCase();
   const hits = (words: string[]) =>
@@ -153,14 +153,14 @@ export function violatesDiet(text: string, diet: DietType): boolean {
   return hits(diet === "vegan" ? ANIMAL : MEAT);
 }
 
-// User free text (allergies/dislikes) may contain regex metacharacters — escape
+// User free text (allergies/dislikes) may contain regex metacharacters, escape
 // before building a matcher.
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 // True when a food name matches any of the user's avoid terms (their allergies
-// or their dislikes). Word-boundary and plural-tolerant, case-insensitive — so
+// or their dislikes). Word-boundary and plural-tolerant, case-insensitive, so
 // "peanut" flags "Crunchy Peanut Butter" but not "coconut", and "mushroom"
 // catches "Chestnut Mushrooms". Blank terms are ignored.
 export function matchesAvoided(name: string, terms: string[]): boolean {
@@ -203,7 +203,7 @@ const mealKcalField = z.number().min(0).max(5000);
 const mealMacroField = z.number().min(0).max(1000);
 
 // Drop the items the model got wrong, keeping the ones it got right. A response
-// that is entirely implausible is a failed read, not an empty shopping list —
+// that is entirely implausible is a failed read, not an empty shopping list,
 // say so rather than handing back nothing and looking like it worked.
 function keepPlausible<T>(
   items: T[],
@@ -252,7 +252,7 @@ export async function parseGroceryImage(
     ],
   );
 
-  // Anything the model misread — a price column mistaken for calories, say —
+  // Anything the model misread, a price column mistaken for calories, say,
   // would land in the pantry and be portioned into meals from then on.
   return keepPlausible(
     parsed?.items ?? [],
@@ -264,7 +264,7 @@ export async function parseGroceryImage(
 // --- Recipe import (URL or screenshot) → parsed recipe ----------------------
 
 // A recipe's macros are for the WHOLE dish, not one plate, so the ceilings are
-// higher than a serving's — a big tray bake really is several thousand calories.
+// higher than a serving's, a big tray bake really is several thousand calories.
 const RecipeSchema = z.object({
   name: z.string(),
   // Servings divides every macro below. A zero would make each plate infinite.
@@ -323,7 +323,7 @@ export async function parseRecipeFromUrl(url: string): Promise<ParsedRecipe> {
   const structured = extractRecipeJsonLd(html);
   if (structured && structured.kcal > 0) return structured;
 
-  // Otherwise have the model read the page text — but if the user has no key,
+  // Otherwise have the model read the page text, but if the user has no key,
   // fall back to the (macro-less) structured recipe rather than failing.
   let client: Anthropic;
   try {
@@ -345,7 +345,7 @@ export async function parseRecipeFromUrl(url: string): Promise<ParsedRecipe> {
   return checkedRecipe(parsed);
 }
 
-// A recipe whose macros don't account for its calories has been misread — often
+// A recipe whose macros don't account for its calories has been misread, often
 // a per-serving figure reported as the whole dish, or the other way round. Both
 // scale every plate the user eats from it.
 function checkedRecipe(recipe: ParsedRecipe): ParsedRecipe {
@@ -393,7 +393,7 @@ const ProductSchema = z.object({
 });
 
 // Read a shop product page (Tesco, Ocado, Lidl, a brand site, anywhere) into one
-// pantry item. Keyless first — the page's structured data and Open Food Facts
+// pantry item. Keyless first, the page's structured data and Open Food Facts
 // cover most products (see keylessProduct). AI only reads the page text when
 // that finds no macros AND the user has a key; without a key we return whatever
 // the keyless pass got (often name + pack size for the user to fill in).
@@ -409,10 +409,10 @@ export async function parseProductFromUrl(url: string): Promise<ParsedProduct> {
   }
 
   const keyless = await keylessProduct(html);
-  // Good enough when we actually got calories — hand it straight back.
+  // Good enough when we actually got calories, hand it straight back.
   if (keyless && keyless.kcal_100g > 0) return keyless;
 
-  // No macros yet. Fall back to the model — but if the user has no key, return
+  // No macros yet. Fall back to the model, but if the user has no key, return
   // the keyless result (name + pack size) so they can type the numbers in.
   let client: Anthropic;
   try {
@@ -444,7 +444,7 @@ export async function parseProductFromUrl(url: string): Promise<ParsedProduct> {
   // for the user to fill the macros in by hand.
   if (parsed && parsed.name.trim() && isPlausibleFood(parsed)) return parsed;
 
-  // Model drew a blank too — fall back to the keyless name/pack if we have it.
+  // Model drew a blank too, fall back to the keyless name/pack if we have it.
   if (keyless && keyless.name.trim()) return keyless;
   throw new Error("Couldn't read a product there.");
 }
@@ -519,7 +519,7 @@ export async function suggestMeals(
 
   const meals = parsed?.meals ?? [];
   // Final guards: drop anything that slipped past the diet rule, and anything
-  // whose macros don't add up — a suggestion the user might cook and log.
+  // whose macros don't add up, a suggestion the user might cook and log.
   return meals
     .filter(
       (m) =>
@@ -587,7 +587,7 @@ export async function estimateMeals(
 
   // These get FIXED into the day: the planner budgets every other meal around
   // them. A bad estimate here doesn't just mislog one meal, it shifts all of
-  // them — so say the estimate failed rather than quietly building on it.
+  // them, so say the estimate failed rather than quietly building on it.
   return keepPlausible(
     parsed?.meals ?? [],
     isPlausibleMeal,
@@ -623,10 +623,10 @@ export interface PlanDayInput {
   // logged). The empty slots we invent should fill what's left of this after
   // the meals the user has already decided.
   budget: Macros;
-  // Meals the user has already built for themselves — fixed, not to be changed.
+  // Meals the user has already built for themselves, fixed, not to be changed.
   // We only send their totals so the AI can budget around them.
   fixed: Macros;
-  // The slots with no meal yet, in order — invent one dish for each.
+  // The slots with no meal yet, in order, invent one dish for each.
   emptySlots: string[];
 }
 

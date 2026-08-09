@@ -5,7 +5,7 @@
 // user actually achieved: a fortnight of logging bought them a maintenance
 // figure measured from their own results instead of a formula's guess, and every
 // target from here is built on it. This module turns that fortnight into the
-// findings a review screen can show — what was measured, how the body responded,
+// findings a review screen can show, what was measured, how the body responded,
 // what the new target is, and where it leads if they eat it.
 //
 // Pure and deterministic: no database, no clock beyond what the caller passes.
@@ -25,13 +25,13 @@ import type { Activity, Macros, Sex } from "@/lib/types";
 const DAY_MS = 86_400_000;
 
 // A day counts as "ate the plan" when intake landed within this fraction of the
-// target. Matches the coach's own adherence tolerance — the two numbers describe
+// target. Matches the coach's own adherence tolerance, the two numbers describe
 // the same thing and drifting apart would let the wrap praise a fortnight the
 // review had already judged unfollowed.
 const ADHERENCE_TOLERANCE = 0.15;
 
 // How far ahead the projection runs. A year is long enough to reach almost any
-// goal from almost any start, and short enough that the curve isn't a fantasy —
+// goal from almost any start, and short enough that the curve isn't a fantasy,
 // it is capped again by the honesty note the screen shows alongside it.
 export const MAX_PROJECTION_WEEKS = 52;
 
@@ -88,7 +88,7 @@ export interface CalibrationWrap {
   predictedMaintenanceKcal: number | null; // formula, uncalibrated
   maintenanceDeltaKcal: number | null; // measured − predicted (+ = burns more)
   // The share of the burn that isn't resting metabolism: moving, digesting,
-  // fidgeting. 0–1, null when the resting rate isn't known.
+  // fidgeting. 0 to 1, null when the resting rate isn't known.
   activeShare: number | null;
   meanStepsPerDay: number | null;
   meanSleepHours: number | null;
@@ -130,7 +130,7 @@ export function holdDays(startedAt: string, now: Date): number {
 // Weight at the end of each week if the user eats `targetKcal` every day.
 //
 // Not a straight line. Maintenance falls as the body it belongs to gets lighter,
-// so a fixed target is a shrinking deficit and the loss slows — drawing it as a
+// so a fixed target is a shrinking deficit and the loss slows, drawing it as a
 // constant rate promises a goal date the user will miss by weeks. Maintenance is
 // scaled with bodyweight, which is the simple form of that effect and errs on
 // the honest side.
@@ -234,7 +234,7 @@ export function calibrationWrap(input: WrapInput): CalibrationWrap {
       : null;
 
   // What the burn is made of. The resting rate is the floor of it; everything
-  // above is movement — the part the user controls day to day.
+  // above is movement, the part the user controls day to day.
   const burn = measured ?? (input.maintenanceKcal > 0 ? input.maintenanceKcal : null);
   const activeShare =
     burn != null && input.restingRateKcal != null && input.restingRateKcal > 0 && burn > 0

@@ -2,7 +2,7 @@ import type { ImportedItem } from "@/lib/types";
 
 // Turn the text lines of a UK grocery invoice/order (Tesco, Sainsbury's, Ocado)
 // into items + quantities. Layout-tolerant: strip prices and quantities, drop
-// non-item lines. Deliberately generous — the user confirms everything in the
+// non-item lines. Deliberately generous, the user confirms everything in the
 // matcher (#6), so a stray line is cheaper than a dropped item.
 
 // Non-item lines: totals, fees, headers, payment, addresses.

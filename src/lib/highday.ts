@@ -1,7 +1,7 @@
-// Refeed days ("high days") — pure maths, no AI, no DB.
+// Refeed days ("high days"), pure maths, no AI, no DB.
 //
 // The model the successful studies use (Campbell/ICECAP refeeds, MATADOR diet
-// breaks): a refeed day eats UP TO maintenance and is FREE — nothing is
+// breaks): a refeed day eats UP TO maintenance and is FREE, nothing is
 // subtracted from any other day to pay for it. Deficit days stay exactly at
 // their normal deficit macros. This deliberately makes the week's deficit a
 // little smaller on weeks with refeeds; that cost is shown honestly rather than
@@ -9,7 +9,7 @@
 //
 // Carbs are the only lever: protein holds identical every day (it protects
 // muscle in a deficit), fat holds steady, and the gap between the deficit target
-// and maintenance is filled with carbs — capped so a refeed never exceeds
+// and maintenance is filled with carbs, capped so a refeed never exceeds
 // maintenance.
 
 import type { Phase } from "@/lib/coach";
@@ -30,7 +30,7 @@ export function clampHighDaysChoice(n: number): number {
 
 // Two refeed days a week is the evidence-based default (Campbell/ICECAP): enough
 // to help adherence and refill glycogen without eroding the week's deficit. The
-// pace no longer changes this — because refeeds are now FREE (a refeed day eats
+// pace no longer changes this, because refeeds are now FREE (a refeed day eats
 // at maintenance and no other day pays it back), a faster pace doesn't need
 // fewer of them to stay balanced; it just means each refeed costs a little of
 // that week's deficit, which the projection shows honestly.
@@ -62,13 +62,13 @@ export interface CycleConfig {
   // the user still picks WHICH days.
   refeedDaysPerWeek: number;
   // The calorie ceiling a refeed day is raised to. Null when maintenance isn't
-  // confidently estimated yet (still calibrating) — in which case no refeed
+  // confidently estimated yet (still calibrating), in which case no refeed
   // uplift is applied and every day stays at its deficit target.
   maintenanceKcal: number | null;
 }
 
 // The high-days count actually used: the user's own, clamped to a sane range.
-// A NULL user override is resolved to the recommendation BEFORE this — callers
+// A NULL user override is resolved to the recommendation BEFORE this, callers
 // pass a concrete number. At least one low day must remain to absorb the
 // surplus, hence the WEEK_DAYS - 1 ceiling.
 export function effectiveHighDays(highDaysPerWeek: number): number {
@@ -81,7 +81,7 @@ const KCAL_PER_KG = 7700;
 
 // The week's calorie deficit once refeed days are counted. Each refeed day sits
 // AT maintenance (zero deficit that day); the rest keep the full daily deficit.
-// Because refeeds are free, this is genuinely smaller than seven deficit days —
+// Because refeeds are free, this is genuinely smaller than seven deficit days,
 // the honest number to project a rate from, not the flat 7-day figure.
 export function weeklyDeficitKcal(dailyDeficitKcal: number, refeedDays: number): number {
   const refeeds = Math.max(0, Math.min(WEEK_DAYS, Math.round(refeedDays)));
@@ -103,12 +103,12 @@ export function refeedCarbUpliftG(base: Pick<Macros, "kcal">, cfg: CycleConfig):
 }
 
 // One day's macro target. A deficit day is the base target, untouched. A refeed
-// day is raised UP TO maintenance (never above) by adding carbs only — protein
+// day is raised UP TO maintenance (never above) by adding carbs only, protein
 // and fat are the base's, and the micro targets carry through. No other day is
 // altered to pay for it: refeeds are free, so the week's deficit is genuinely
 // smaller, and the projection reflects that (see coach maths).
 //
-// Not rounded here — round at the display boundary (see roundMacros).
+// Not rounded here, round at the display boundary (see roundMacros).
 export function dayTarget(base: Macros, isRefeed: boolean, cfg: CycleConfig): Required<Macros> {
   const full: Required<Macros> = {
     kcal: base.kcal,
@@ -144,12 +144,12 @@ export function roundMacros(m: Required<Macros>): Required<Macros> {
 // The weekly high-day allowance for a user: their own chosen count, or the
 // recommendation for their goal when they haven't set one (high_days_per_week
 // NULL). A goal change therefore re-recommends without overwriting a manual
-// choice — the choice lives in the column, the recommendation is derived.
+// choice, the choice lives in the column, the recommendation is derived.
 export function resolveHighDaysAllowance(
   profile: Pick<Profile, "high_days_per_week" | "goal_pace">,
   phase: Phase = "deficit",
 ): number {
-  // No high days during calibration, even if the user set a count before — the
+  // No high days during calibration, even if the user set a count before, the
   // deficit hasn't started, so there's nothing to cycle around.
   if (phase === "calibration") return 0;
   const chosen = profile.high_days_per_week;
@@ -158,7 +158,7 @@ export function resolveHighDaysAllowance(
   );
 }
 
-// A user's whole refeed config, ready for dayTarget — the master switch, the
+// A user's whole refeed config, ready for dayTarget, the master switch, the
 // resolved count, and the maintenance ceiling a refeed is raised to. Refeeds are
 // only offered once the deficit is real AND maintenance is confidently estimated:
 // during calibration (the learning window) there's nothing to refeed from, and
@@ -168,7 +168,7 @@ export function cycleConfigFrom(
   profile: Pick<Profile, "cycling_enabled" | "high_days_per_week" | "goal_pace">,
   phase: Phase = "deficit",
   // The user's best maintenance estimate. Null/absent when it isn't well
-  // estimated yet — refeeds are not pushed until it is.
+  // estimated yet, refeeds are not pushed until it is.
   maintenanceKcal?: number | null,
 ): CycleConfig {
   if (phase === "calibration") {

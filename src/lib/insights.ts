@@ -1,7 +1,7 @@
 // Progress insights: the maths behind the Progress dashboard.
 //
 // Everything here is a pure function over rows the app already stores. Nothing
-// fetches, nothing writes — the queries hand these functions plain arrays and
+// fetches, nothing writes, the queries hand these functions plain arrays and
 // the UI renders what comes back. That's deliberate: these are the numbers a
 // user makes decisions about their body from, and they need to be testable
 // without a database.
@@ -44,7 +44,7 @@ export function round(value: number, dp = 1): number {
 export interface TrendPoint {
   date: string;
   // The scale reading for that day, when the user stood on it. Null on days
-  // they didn't — drawn as a gap in the dots, not as a zero.
+  // they didn't, drawn as a gap in the dots, not as a zero.
   weight: number | null;
   // The smoothed trend, carried forward across missed days.
   trend: number;
@@ -185,7 +185,7 @@ export interface GoalProjection {
   currentKg: number; // trend weight today
   remainingKg: number;
   // The window the goal plausibly lands in. `latest` is null when the slower
-  // end of the error band doesn't reach the goal at all inside a year — an
+  // end of the error band doesn't reach the goal at all inside a year, an
   // honest "we can't put a back edge on this yet".
   earliest: string;
   midpoint: string;
@@ -207,7 +207,7 @@ const MAX_PROJECTION_DAYS = 365;
 const addDays = (fromMs: number, days: number) =>
   new Date(fromMs + days * DAY_MS).toISOString().slice(0, 10);
 
-// When the current trend reaches the goal weight — as a RANGE, never a date.
+// When the current trend reaches the goal weight, as a RANGE, never a date.
 //
 // A single "you'll hit 75 kg on 4 October" is a promise the body has not made.
 // The honest version is the error band of the fitted slope: fast end, middle,
@@ -281,7 +281,7 @@ export interface GoalProgress {
   goalKg: number;
   lostKg: number; // positive = lost since the start
   remainingKg: number; // clamped at 0 once the goal is met
-  pctComplete: number; // 0–100
+  pctComplete: number; // 0 to 100
   reached: boolean;
 }
 
@@ -360,14 +360,14 @@ export const FAT_LOSS_WINDOW_DAYS = 28;
 const FLAT_SCALE_KG = -0.2; // weight change at or above this counts as "not falling"
 const REAL_WAIST_DROP_CM = -0.5;
 
-// "The scale is stuck but you're losing fat" — said only when the data actually
+// "The scale is stuck but you're losing fat", said only when the data actually
 // says it.
 //
 // This is the single most useful thing a weight-loss app can tell someone,
 // because it's the moment most people quit. Recomposition is real: glycogen and
 // water refill as fat leaves, and the scale sits still for weeks while the tape
 // keeps moving. Null when there isn't a pair of tape readings spanning the
-// window to compare — the callout has to be earned.
+// window to compare, the callout has to be earned.
 export function fatLossSignal(
   weighIns: WeighIn[],
   tape: TapePoint[],
@@ -420,7 +420,7 @@ const WHTR_LOW = 0.4;
 const WHTR_HEALTHY_MAX = 0.5;
 const WHTR_INCREASED_MAX = 0.6;
 
-// Waist against height — a better read on health risk than BMI, and one the app
+// Waist against height, a better read on health risk than BMI, and one the app
 // already has both numbers for.
 //
 // BMI can't tell a lifter from a couch, because it doesn't know where the mass
@@ -564,14 +564,14 @@ export interface WeeklyInput {
 //
 // Every driver card downstream is a comparison of one weekly column against
 // another, so they all read from this one builder. Doing it once means "week"
-// means the same thing on every card — and means a fix to how a week is
+// means the same thing on every card, and means a fix to how a week is
 // bucketed can't half-land.
 export function weeklyBuckets(input: WeeklyInput): InsightWeek[] {
   const trend = trendSeries(
     input.weighIns.filter((p) => Number.isFinite(p.kg) && p.kg > 0),
   );
 
-  // Last trend value seen in each week — the week's closing weight.
+  // Last trend value seen in each week, the week's closing weight.
   const closing = new Map<string, number>();
   for (const t of trend) closing.set(weekStartOf(t.date), t.kg);
 
@@ -672,7 +672,7 @@ export interface Correlation {
   // Each week as a plotted point: the driver on x, kg lost on y.
   points: { weekStart: string; x: number; y: number }[];
   // The driver's mean in the weeks that went best vs the weeks that went worst
-  // — the same finding stated in a way a person can act on.
+  //, the same finding stated in a way a person can act on.
   bestWeeksMean: number;
   worstWeeksMean: number;
 }
@@ -708,7 +708,7 @@ function pearson(xs: number[], ys: number[]): number | null {
 
 // Compare one weekly driver against how much weight came off that week.
 //
-// This is a paired weekly comparison and nothing more ambitious — no lags, no
+// This is a paired weekly comparison and nothing more ambitious, no lags, no
 // controls, no significance test. That is the honest ceiling of a few dozen
 // weeks of one person's data, and it's why every card built on it is labelled
 // a pattern rather than a cause.
@@ -756,7 +756,7 @@ export function correlate(
 }
 
 // Sleep against weight loss. Short sleep raises ghrelin and blunts insulin
-// sensitivity, so this one often shows up — but it's still a pattern in one
+// sensitivity, so this one often shows up, but it's still a pattern in one
 // person's weeks, not a finding.
 export function sleepVsLoss(weeks: InsightWeek[]): Correlation | null {
   return correlate(weeks, (w) => w.meanSleepH);
@@ -776,7 +776,7 @@ export interface MovementCorrelation extends Correlation {
 // Steps first: for most people non-exercise movement moves the daily burn far
 // more than a gym session does, and every tracker reports it. Workout calories
 // are the fallback for someone whose device only logs sessions. Null when
-// neither has enough weeks — which is also what a disconnected device looks
+// neither has enough weeks, which is also what a disconnected device looks
 // like, so the UI shows its connect-prompt instead.
 export function movementVsLoss(weeks: InsightWeek[]): MovementCorrelation | null {
   const steps = correlate(weeks, (w) => w.meanSteps);
@@ -791,7 +791,7 @@ export function movementVsLoss(weeks: InsightWeek[]): MovementCorrelation | null
 // Sticking to the calorie target against weight loss.
 //
 // This is the one card that can answer "is the plan wrong, or am I not doing
-// it?" — the question every stall turns on. A strong positive here means the
+// it?", the question every stall turns on. A strong positive here means the
 // plan works when it's followed, and the fix is adherence, not a smaller target.
 export function adherenceVsLoss(weeks: InsightWeek[]): Correlation | null {
   return correlate(weeks, (w) => w.adherencePct);
@@ -817,7 +817,7 @@ const MEANINGFUL_DIFFERENCE_KG = 0.1;
 // Weeks with high days against weeks without them.
 //
 // Cycling doesn't change the weekly calorie total by design (see highday.ts),
-// so the honest expectation is no difference in loss — the point of high days
+// so the honest expectation is no difference in loss, the point of high days
 // is adherence and training fuel. This card exists to let the user check that
 // on their own body rather than take our word for it, and to catch the case
 // where high days quietly became extra days.
@@ -864,7 +864,7 @@ export interface WeekScorecard {
 // weekly review can never disagree about what "hit it" means.
 const KCAL_HIT_TOLERANCE = 0.15;
 
-// Protein is a floor, not a window — going over is fine and often good — so a
+// Protein is a floor, not a window, going over is fine and often good, so a
 // day counts once intake reaches this share of the target.
 const PROTEIN_HIT_SHARE = 0.9;
 
@@ -908,7 +908,7 @@ export interface WeekCycling {
 // Each day is scored against the target that was actually in force ON THAT DAY,
 // which on a refeed day is the base raised to maintenance. Scored against the
 // flat weekly figure instead, a refeed the app itself planned reads as a day
-// hundreds of calories over — so a user who followed the plan every day saw a
+// hundreds of calories over, so a user who followed the plan every day saw a
 // zero. `target` must be the in-force target as the app resolves it (see
 // getCurrentTargets), not whatever row happens to carry this week's date.
 export function weekScorecard(
@@ -933,7 +933,7 @@ export function weekScorecard(
     return t != null && t.kcal > 0 && Math.abs(d.kcal - t.kcal) / t.kcal <= KCAL_HIT_TOLERANCE;
   }).length;
   // Protein holds identical on a refeed day, so this reads the same figure
-  // either way — it goes through the day target so it can never drift apart
+  // either way, it goes through the day target so it can never drift apart
   // from the calorie side.
   const proteinHitDays = days.filter((d) => {
     const t = targetFor(d.date);
@@ -971,7 +971,7 @@ export interface WeekCompare {
 //
 // Averaged over LOGGED days only. Counting an unlogged day as zero would show a
 // 900-calorie deficit that never happened and would make an under-logger look
-// like a saint — the opposite of useful.
+// like a saint, the opposite of useful.
 export function actualVsTarget(
   intake: DayIntake[],
   targets: WeekTarget[],
@@ -1171,7 +1171,7 @@ export function milestones(
     .filter((m) => m.reached)
     .sort((a, b) => (b.reachedOn ?? "").localeCompare(a.reachedOn ?? ""));
 
-  // The next one is the nearest unreached milestone that has a weight on it —
+  // The next one is the nearest unreached milestone that has a weight on it,
   // a hand-ticked "fit my old jeans" has no distance to report.
   const next =
     all
@@ -1200,7 +1200,7 @@ export interface Plateau {
 export const PLATEAU_WEEKS = 3;
 
 // Movement below this share of bodyweight over the window counts as no
-// movement. Half a percent — under a pound for most people, which is inside
+// movement. Half a percent, under a pound for most people, which is inside
 // what the scale and the trend can resolve.
 const PLATEAU_PCT = 0.005;
 
@@ -1209,7 +1209,7 @@ const PLATEAU_PCT = 0.005;
 // Worth saying out loud, because the answer is usually NOT to cut further: a
 // long deficit drops resting burn and daily movement, and the fix is a diet
 // break or a fresh maintenance measurement. The card points at the Coach for
-// exactly that. Null when the weigh-ins don't span the window — silence beats
+// exactly that. Null when the weigh-ins don't span the window, silence beats
 // declaring a plateau on a fortnight of data.
 export function plateau(
   points: WeighIn[],

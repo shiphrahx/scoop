@@ -2,7 +2,7 @@ import { lookupBarcode, searchProducts, parsePackSizeG } from "@/lib/off";
 import type { ParsedProduct } from "@/lib/types";
 
 // Keyless extraction of a grocery product's per-100g nutrition from its web page
-// — no AI, no key. Tried in order, most reliable first:
+//, no AI, no key. Tried in order, most reliable first:
 //   1. schema.org/Product JSON-LD `nutrition` (deterministic, when the page
 //      carries it AND states a gram serving size so we can normalise to 100 g).
 //   2. The page's barcode (GTIN/EAN, from JSON-LD) → Open Food Facts lookup.
@@ -94,7 +94,7 @@ function findProduct(data: unknown): Json | null {
   return null;
 }
 
-// A GTIN/EAN barcode from the product node — 8, 12, 13, or 14 digits.
+// A GTIN/EAN barcode from the product node, 8, 12, 13, or 14 digits.
 function gtinOf(node: Json): string | null {
   for (const key of ["gtin13", "gtin", "gtin14", "gtin12", "gtin8", "ean"]) {
     const raw = node[key];
@@ -125,7 +125,7 @@ function packOf(node: Json): number | null {
 
 // schema.org NutritionInformation is per SERVING. Normalise to per 100 g using
 // its servingSize; return null when we can't read a gram serving size (so the
-// figures would be per an unknown amount — better to fall through than guess).
+// figures would be per an unknown amount, better to fall through than guess).
 function nutritionOf(node: Json): Per100 | null {
   const n = node.nutrition as Json | undefined;
   if (!n || typeof n !== "object") return null;
@@ -197,7 +197,7 @@ export function extractProductName(html: string): string {
 // --- 3: UK/EU nutrition label table -----------------------------------------
 
 // Grab the first number followed by `g` that appears within a short window
-// after a label — the "per 100 g" column, which UK/EU labels list first.
+// after a label, the "per 100 g" column, which UK/EU labels list first.
 function gramsAfter(text: string, label: RegExp): number {
   const re = new RegExp(`${label.source}[^\\d]{0,25}?(\\d[\\d.,]*)\\s*g\\b`, "i");
   const m = text.match(re);
@@ -223,7 +223,7 @@ export function extractNutritionTable(html: string): Per100 | null {
   const fat = gramsAfter(text, /\bfat\b/);
   const carbs = gramsAfter(text, /carbohydrate/);
   const protein = gramsAfter(text, /protein/);
-  // Need the core macros to trust the table — otherwise it's noise.
+  // Need the core macros to trust the table, otherwise it's noise.
   if (protein <= 0 && carbs <= 0 && fat <= 0) return null;
 
   const salt = gramsAfter(text, /salt/);
@@ -298,7 +298,7 @@ export async function keylessProduct(html: string): Promise<ParsedProduct | null
         pack_size_g: pack ?? hit.pack_size_g,
       };
     }
-    // Named product, but nobody had its macros — hand back name + pack.
+    // Named product, but nobody had its macros, hand back name + pack.
     return build(name, ZERO, pack);
   }
 

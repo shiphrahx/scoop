@@ -31,7 +31,7 @@ export async function createRouteClient() {
   );
 
   // Copies every cookie the client asked for onto the response, plus the
-  // no-store headers Supabase hands us — a cached response carrying a
+  // no-store headers Supabase hands us, a cached response carrying a
   // Set-Cookie would serve one user's session to the next.
   function applyCookies<T extends NextResponse>(response: T): T {
     for (const { name, value, options } of pending) {
