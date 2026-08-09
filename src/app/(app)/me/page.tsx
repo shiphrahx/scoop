@@ -19,6 +19,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth";
 import {
   getAppleIngestToken,
+  getCalibrationReviews,
   getCurrentTargets,
   getLatestWeight,
   getProfile,
@@ -51,8 +52,15 @@ export default async function MePage({
   // splitting them cost a second sequential round trip for nothing. The Apple
   // token isn't in here at all any more — it lives on the users row getProfile
   // already fetched.
-  const [{ fitbit }, profile, targets, weightKg, appleToken, fitbitRes] =
-    await Promise.all([
+  const [
+    { fitbit },
+    profile,
+    targets,
+    weightKg,
+    appleToken,
+    fitbitRes,
+    calibrationReviews,
+  ] = await Promise.all([
       searchParams,
       getProfile(),
       getCurrentTargets(),
@@ -61,6 +69,7 @@ export default async function MePage({
       user
         ? supabase.from("fitbit_tokens").select("user_id").eq("user_id", user.id).maybeSingle()
         : Promise.resolve({ data: null }),
+      getCalibrationReviews(),
     ]);
 
   const fitbitConnected = Boolean(
@@ -135,6 +144,12 @@ export default async function MePage({
                 ? calibrationDaysElapsed(profile.calibration_started_at)
                 : null
             }
+            reviews={calibrationReviews.map((r) => ({
+              id: r.id,
+              endedAt: r.endedAt,
+              days: r.days,
+              targetKcal: r.findings?.newTarget?.kcal ?? 0,
+            }))}
           />
         </>
       )}

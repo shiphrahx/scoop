@@ -1,9 +1,19 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { RotateCcw } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, RotateCcw, Telescope } from "lucide-react";
 import { restartCalibration } from "./actions";
 import { CALIBRATION_MAX_DAYS, CALIBRATION_MIN_DAYS } from "@/lib/coach";
+
+// A calibration review the user has already been shown, as the history list
+// needs it. The findings themselves stay in the database until one is opened.
+export interface PastReview {
+  id: string;
+  endedAt: string;
+  days: number;
+  targetKcal: number;
+}
 
 // Restarting the maintenance-first calibration hold.
 //
@@ -18,11 +28,14 @@ import { CALIBRATION_MAX_DAYS, CALIBRATION_MIN_DAYS } from "@/lib/coach";
 export default function CalibrationSettings({
   calibrating,
   daysElapsed,
+  reviews = [],
 }: {
   // Whether a hold is running right now (the in-force target is a calibration one).
   calibrating: boolean;
   // Whole days since the current hold opened. Null when none has ever run.
   daysElapsed: number | null;
+  // Reviews from holds that have finished, newest first.
+  reviews?: PastReview[];
 }) {
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +86,46 @@ export default function CalibrationSettings({
           </p>
         )}
       </div>
+
+      {/* What past holds measured. The review is a keepsake as much as a record:
+          it is the one screen that says what this user's own body turned out to
+          be, so it stays reachable long after the deficit it started. */}
+      {reviews.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <h3 className="text-sm font-semibold">Your calibration reviews</h3>
+          <ul className="flex flex-col gap-2">
+            {reviews.map((r) => (
+              <li key={r.id}>
+                <Link
+                  href={`/calibration/${r.id}`}
+                  className="flex items-center gap-3 rounded-2xl bg-[var(--fill-soft)] p-3 transition active:scale-[0.99]"
+                >
+                  <span
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white"
+                    style={{ background: "var(--grad-cool)" }}
+                  >
+                    <Telescope size={17} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold">
+                      {new Date(r.endedAt).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      })}
+                    </span>
+                    <span className="block text-xs text-[var(--muted)]">
+                      {r.days} day{r.days === 1 ? "" : "s"} measured · set{" "}
+                      {Math.round(r.targetKcal).toLocaleString("en-GB")} kcal
+                    </span>
+                  </span>
+                  <ChevronRight size={18} className="shrink-0 text-[var(--muted)]" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {done && (
         <p className="text-sm font-semibold" style={{ color: "var(--ink-teal)" }}>
