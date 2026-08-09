@@ -1150,10 +1150,10 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       headline: "Calibration in progress",
       detail:
         daysLeft > 0
-          ? `Your first two weeks are set at your estimated maintenance of about ${target} kcal. This measures how your weight responds before any deficit is applied. About ${daysLeft} day${
+          ? `You're eating at your estimated maintenance, about ${target} kcal, for these first two weeks. Nothing is being cut yet: this is to see how your weight responds first. ${daysLeft} day${
               daysLeft === 1 ? "" : "s"
-            } remaining. Log your food and weight daily.`
-          : `Calibration is ending, at about ${target} kcal. Continue logging your food and weight so your deficit is set from your measured response rather than an estimate.`,
+            } to go. Keep logging your food and weight each day.`
+          : `Calibration is nearly done, still at about ${target} kcal. Keep logging your food and weight so your deficit comes from what your body actually did, not an estimate.`,
     };
   }
 
@@ -1182,7 +1182,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
     const eased = target > wantedKcal;
     const fromCalibration = prevPhase === "calibration";
     const easedNote = eased
-      ? " The deficit was reduced slightly to keep your carbohydrates above their minimum."
+      ? " The deficit was eased back a little to keep your carbs above their minimum."
       : "";
     return {
       macros,
@@ -1193,8 +1193,8 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
         ? "Calibration complete, deficit starting"
         : "Diet break over, deficit resuming",
       detail: fromCalibration
-        ? `Your calibrated maintenance is about ${maint} kcal a day. A ${cut} kcal/day deficit now applies, giving a target of ${target} kcal.${easedNote} Your results are reviewed every week, but this target is held for two weeks before any adjustment. That is how long the body takes to show a real response rather than a change in water weight.`
-        : `A ${cut} kcal/day deficit from your maintenance of about ${maint} kcal now applies, giving a target of ${target} kcal.${easedNote}`,
+        ? `Your measured maintenance is about ${maint} kcal a day, so your target is ${target} kcal: a ${cut} kcal a day deficit.${easedNote} It holds for two weeks before anything is adjusted, because the first week on new calories is mostly water. After that your results are reviewed weekly.`
+        : `Your maintenance is about ${maint} kcal a day, so you're back to ${target} kcal: a ${cut} kcal a day deficit.${easedNote}`,
     };
   }
 
@@ -1209,7 +1209,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       changePct: null,
       headline: "Not enough data yet",
       detail:
-        "Log your weight for another week and your targets will be reviewed against your trend.",
+        "Weigh in for another week and your targets get checked against your trend.",
     };
   }
 
@@ -1223,7 +1223,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       changePct: null,
       headline: "Need a fuller week",
       detail:
-        "Only a few weigh-ins were logged this week, so the trend isn't reliable yet. Weigh in on most days for an accurate review.",
+        "Only a few weigh-ins this week, so the trend isn't reliable yet. Weigh in on most days for a proper review.",
     };
   }
 
@@ -1238,9 +1238,9 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       changeKg: null,
       changePct: null,
       headline: "Settling in",
-      detail: `Your current targets have been in force for ${days} day${
+      detail: `You've been on these targets for ${days} day${
         days === 1 ? "" : "s"
-      }. The first week on a new target is mostly water weight, so they are held for two weeks before any adjustment. Keep logging. ${left} day${
+      }. The first week on new calories is mostly water, so they hold for two weeks before anything changes. Keep logging, ${left} day${
         left === 1 ? "" : "s"
       } to go.`,
     };
@@ -1270,8 +1270,8 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       changePct,
       headline: "Goal weight reached",
       detail: atMaintenance
-        ? "You're eating at maintenance and holding. Keep weighing in and any drift in the trend will be flagged."
-        : `You've reached your goal weight, so a deficit is no longer needed. Your target has been raised to about ${target} kcal to hold this weight. Keep logging so any drift is caught early.`,
+        ? "You're eating at maintenance and holding steady. Keep weighing in and any drift gets picked up early."
+        : `You've hit your goal weight, so there's no deficit any more. Your target goes up to about ${target} kcal to hold you here. Keep logging so any drift is caught early.`,
     };
   }
 
@@ -1291,8 +1291,8 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       changePct,
       headline: onBreak ? "Diet break in progress" : "Diet break scheduled",
       detail: onBreak
-        ? "You're eating at maintenance for two weeks. The scale is not expected to move much during this period."
-        : `You've been in a deficit for an extended period. Long deficits reduce your burn and your daily movement. Your target is about ${target} kcal for the next two weeks, after which the deficit resumes.`,
+        ? "You're at maintenance for two weeks, so don't expect the scale to move much."
+        : `You've been in a deficit a long time, and that wears down both your burn and how much you move. Your target is about ${target} kcal for two weeks, then the deficit picks back up.`,
     };
   }
 
@@ -1306,7 +1306,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       headline: `Down ${lostText}, on track`,
       detail: `That's ${(changePct * 100).toFixed(
         1,
-      )}% of your bodyweight this week, within the healthy range. Your targets are unchanged.`,
+      )}% of your bodyweight this week, right in the healthy range, so nothing changes.`,
     };
   }
 
@@ -1319,9 +1319,9 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       changeKg,
       changePct,
       headline: `Down ${lostText}, faster than target`,
-      detail: `Losing more than about 1% of bodyweight a week increases muscle loss. ${
+      detail: `Past about 1% of bodyweight a week you start losing muscle along with the fat, so you've got ${
         newKcal - current.kcal
-      } kcal/day has been added to bring the rate back into range.`,
+      } kcal a day back to ease the rate down.`,
     };
   }
 
@@ -1337,7 +1337,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
         waistDeltaCm,
       ).toFixed(
         1,
-      )} cm, which indicates fat loss the scale doesn't show. Your targets are unchanged.`,
+      )} cm. That's fat loss the scale doesn't show, so nothing changes.`,
     };
   }
 
@@ -1354,7 +1354,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       headline: "Waist up, targets held",
       detail: `Your waist is up ${waistDeltaCm.toFixed(
         1,
-      )} cm while the scale has stayed roughly flat. This usually indicates muscle loss alongside fat gain, and a larger deficit would increase it. Your targets are unchanged. Prioritise protein and add resistance training if possible.`,
+      )} cm and the scale has barely moved. That usually means muscle going and fat arriving, and a bigger deficit would only speed it up, so your targets stay put. Get your protein in, and add resistance training if you can.`,
     };
   }
 
@@ -1370,9 +1370,9 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       headline: "Your steps dropped this week",
       detail: `You averaged ${Math.round(
         stepsDropped.thisWeek ?? 0,
-      )} steps a day, against ${Math.round(
+      )} steps a day, down from ${Math.round(
         stepsDropped.lastWeek ?? 0,
-      )} the week before. That accounts for most of the missing deficit. Your targets are unchanged. Restoring your step count is preferable to eating less.`,
+      )} the week before. That's where most of the missing deficit went, so your food stays as it is. Getting the steps back is easier than eating less.`,
     };
   }
 
@@ -1392,12 +1392,12 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       headline: over ? "Above your target this week" : "Target not tested yet",
       detail:
         adherence.loggedDays === 0
-          ? "No food was logged this week, so there's no way to tell whether the target is wrong or simply wasn't met. Log your food for a week and it can be assessed."
+          ? "Nothing was logged this week, so there's no telling whether the target is wrong or just wasn't met. Log your food for a week and it can be judged."
           : over
             ? `You averaged about ${Math.round(
                 ate!,
-              )} kcal against a target of ${current.kcal}. The target hasn't been tested yet, so it's unchanged. Lowering it now would only widen the gap.`
-            : "Your intake varied widely this week, so a stall isn't informative yet. Stay close to the target for a week and it can be reviewed properly.",
+              )} kcal against a target of ${current.kcal}. The target hasn't really been tried yet, so it stays put. Cutting it now would only put it further out of reach.`
+            : "Your intake swung about a lot this week, so a stall doesn't mean much yet. Stay close to the target for a week and it can be reviewed properly.",
     };
   }
 
@@ -1409,7 +1409,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       changeKg,
       changePct,
       headline: "Holding at your calorie floor",
-      detail: `Progress has stalled, but you're already at the safe minimum of ${floor} kcal. Your targets are unchanged. Increase activity rather than eating less.`,
+      detail: `Progress has stalled, but you're already at the safe minimum of ${floor} kcal. Nothing comes off your food. More movement is the way on from here.`,
     };
   }
 
@@ -1424,8 +1424,8 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
     headline: gained
       ? `Up ${Math.abs(changeKg).toFixed(1)} kg this week`
       : "Loss has stalled",
-    detail: `${
+    detail: `Your target comes down by ${
       current.kcal - newKcal
-    } kcal/day has been removed to restart progress. This will be reviewed again next week.`,
+    } kcal a day to get things moving again. Next week's review will show whether that was enough.`,
   };
 }
