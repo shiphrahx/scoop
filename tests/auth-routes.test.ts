@@ -173,16 +173,67 @@ describe("GET /auth/callback", () => {
     expect(res.headers.get("location")).toBe("https://scoop.app/dashboard");
   });
 
-  it("explains a lost verifier in plain words", async () => {
+  it("restarts the flow itself when the verifier went missing", async () => {
+    // First sign-in on a device: the home-screen app started the flow and the
+    // system browser finished it, so the verifier never came back. The same
+    // taps work a second time, so take them for the user.
     state.exchangeError = {
       message: "PKCE code verifier not found in storage",
     };
 
-    const res = await callback(get("https://scoop.app/auth/callback?code=abc"));
-    const reason = new URL(res.headers.get("location")!).searchParams.get("reason");
+    const res = await callback(
+      get("https://scoop.app/auth/callback?code=abc&next=%2Fprogress"),
+    );
 
+    expect(res.headers.get("location")).toBe(
+      "https://scoop.app/auth/signin?next=%2Fprogress",
+    );
+    expect(cookieNames(res)).toContain("sc-auth-retry");
+    // A cached copy of this would hand the next visitor a spent retry.
+    expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("explains a lost verifier in plain words once the retry is spent", async () => {
+    state.exchangeError = {
+      message: "PKCE code verifier not found in storage",
+    };
+
+    const res = await callback(
+      get("https://scoop.app/auth/callback?code=abc", {
+        cookie: "sc-auth-retry=1",
+      }),
+    );
+    const url = new URL(res.headers.get("location")!);
+    const reason = url.searchParams.get("reason");
+
+    // No second bounce — one retry, then the user is told.
+    expect(url.pathname).toBe("/login");
     expect(reason).toMatch(/Tap Continue with Google/);
     expect(reason).not.toMatch(/storage/);
+    // Nothing about being signed in elsewhere: other devices are welcome.
+    expect(reason).not.toMatch(/somewhere else/);
+  });
+
+  it("gives the next sign-in its own retry", async () => {
+    state.exchangeError = { message: "PKCE code verifier not found in storage" };
+    const failed = await callback(
+      get("https://scoop.app/auth/callback?code=abc", {
+        cookie: "sc-auth-retry=1",
+      }),
+    );
+    expect(failed.headers.getSetCookie().join()).toMatch(/sc-auth-retry=;/);
+
+    state.exchangeError = null;
+    const ok = await callback(get("https://scoop.app/auth/callback?code=abc"));
+    expect(ok.headers.getSetCookie().join()).toMatch(/sc-auth-retry=;/);
+  });
+
+  it("does not retry an error that a fresh flow cannot fix", async () => {
+    state.exchangeError = { message: "provider is down" };
+
+    const res = await callback(get("https://scoop.app/auth/callback?code=abc"));
+
+    expect(new URL(res.headers.get("location")!).pathname).toBe("/login");
   });
 
   it("refuses an off-site next", async () => {
