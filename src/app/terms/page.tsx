@@ -18,7 +18,7 @@ export default function TermsPage() {
         Scoop works out calorie and macro targets from standard formulas and the
         numbers you give it. That is general nutrition guidance, not medical
         advice, and it is not a substitute for a doctor or a dietitian. Talk to
-        a healthcare professional before changing how you eat — especially if
+        a healthcare professional before changing how you eat, especially if
         you are pregnant, breastfeeding, under 18, or managing a medical
         condition or an eating disorder. If a target ever looks wrong for you,
         trust the professional, not the app.
@@ -34,7 +34,7 @@ export default function TermsPage() {
 
       <h2>Your account</h2>
       <p>
-        You need a Google account to sign in. Keep it secure — anything done
+        You need a Google account to sign in. Keep it secure. Anything done
         with your account is treated as done by you. Use Scoop for yourself, and
         don&rsquo;t use it to break the law or to attack the service.
       </p>
@@ -49,7 +49,7 @@ export default function TermsPage() {
 
       <h2>Ending it</h2>
       <p>
-        Stop using Scoop whenever you like and ask us to delete your account —{" "}
+        Stop using Scoop whenever you like and ask us to delete your account:{" "}
         <a href={ISSUES_URL} target="_blank" rel="noreferrer">
           open an issue on GitHub
         </a>

@@ -209,7 +209,7 @@ export function WeightTrendChart({
           value={`${change > 0 ? "+" : ""}${change.toFixed(1)} kg`}
           tint={change <= 0 ? "var(--ink-green)" : "var(--accent)"}
         />
-        <Stat label="Range" value={`${min.toFixed(1)}–${max.toFixed(1)}`} />
+        <Stat label="Range" value={`${min.toFixed(1)} to ${max.toFixed(1)}`} />
         <Stat label="Logs" value={`${data.length}`} />
       </div>
     </div>
@@ -311,7 +311,7 @@ export function TrendDotsChart({
           value={`${change > 0 ? "+" : ""}${change.toFixed(1)} kg`}
           tint={change <= 0 ? "var(--ink-green)" : "var(--accent)"}
         />
-        <Stat label="Range" value={`${min.toFixed(1)}–${max.toFixed(1)}`} />
+        <Stat label="Range" value={`${min.toFixed(1)} to ${max.toFixed(1)}`} />
         <Stat label="Weigh-ins" value={`${logs}`} />
       </div>
     </div>
@@ -633,7 +633,7 @@ export function MeasurementsChart({
           value={`${change > 0 ? "+" : ""}${change.toFixed(1)} cm`}
           tint={change <= 0 ? "var(--ink-green)" : "var(--accent)"}
         />
-        <Stat label="Range" value={`${min.toFixed(1)}–${max.toFixed(1)}`} />
+        <Stat label="Range" value={`${min.toFixed(1)} to ${max.toFixed(1)}`} />
         <Stat label="Points" value={`${data.length}`} />
       </div>
     </div>

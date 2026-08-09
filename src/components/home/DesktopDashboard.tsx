@@ -138,7 +138,7 @@ export default function DesktopDashboard({
             <p className="truncate text-sm text-white/80">
               {planPrompt.hasPlan
                 ? "Pick up where you left off"
-                : "Nothing logged yet — plan your meals for the day"}
+                : "Nothing logged yet, plan your meals for the day"}
             </p>
           </div>
           <ChevronRight size={22} className="ml-auto shrink-0 text-white/80" />
@@ -150,7 +150,7 @@ export default function DesktopDashboard({
         <StatCard
           icon={Scale}
           label="Weight"
-          value={latestWeight != null ? `${latestWeight.toFixed(1)} kg` : "—"}
+          value={latestWeight != null ? `${latestWeight.toFixed(1)} kg` : " "}
           sub={
             weightChange != null
               ? `${weightChange > 0 ? "+" : ""}${weightChange.toFixed(1)} kg over ${weightHistory.length} logs`
@@ -162,21 +162,21 @@ export default function DesktopDashboard({
         <StatCard
           icon={Flame}
           label="Calories left"
-          value={targets ? `${kcalLeft}` : "—"}
+          value={targets ? `${kcalLeft}` : " "}
           sub={targets ? `of ${Math.round(targets.kcal)} kcal` : "Set a target"}
           tint="var(--grad-warm)"
         />
         <StatCard
           icon={Beef}
           label="Protein left"
-          value={targets ? `${proteinLeft} g` : "—"}
+          value={targets ? `${proteinLeft} g` : " "}
           sub={targets ? `of ${Math.round(targets.protein_g)} g` : "Set a target"}
           tint="var(--grad-cool)"
         />
         <StatCard
           icon={Moon}
           label="Sleep"
-          value={avgSleep != null ? `${avgSleep.toFixed(1)} h` : "—"}
+          value={avgSleep != null ? `${avgSleep.toFixed(1)} h` : " "}
           sub={avgSleep != null ? "nightly average" : "Connect a device"}
           tint="var(--grad-indigo)"
         />
