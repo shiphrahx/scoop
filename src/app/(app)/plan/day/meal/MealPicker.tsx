@@ -253,7 +253,7 @@ export default function MealPicker({
         )
       ) : (
         <p className="sc-card p-4 text-sm text-[var(--muted)]">
-          Your pantry is empty. Search or scan below, or add items on the
+          Nothing in your pantry yet. Search or scan below, or fill it in on the
           Pantry screen first.
         </p>
       )}
