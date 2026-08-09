@@ -83,22 +83,25 @@ export function buildCards(
       `For ${w.days} day${w.days === 1 ? "" : "s"} you ate ${kcal(w.holdTargetKcal)} kcal a day, ` +
       `logged your food on ${w.loggedDays} of them and stepped on the scale ${w.weighInDays} time${
         w.weighInDays === 1 ? "" : "s"
-      }. That's what made everything below possible.`,
+      }.`,
     note:
-      `A fortnight is the shortest run that shows real change on the scale. Anything less and you're ` +
-      `mostly watching water move in and out.`,
+      `A fortnight is the shortest run that shows real change on the scale rather than water moving ` +
+      `in and out.`,
   });
 
   if (w.measuredMaintenanceKcal != null) {
     const delta = w.maintenanceDeltaKcal;
+    // Under 50 kcal apart, the two numbers speak for themselves and the reader
+    // can see both; only a gap worth naming gets a sentence naming it.
     const versus =
       delta == null || w.predictedMaintenanceKcal == null
         ? ""
-        : Math.abs(delta) < 50
-          ? ` A textbook formula would have guessed ${kcal(w.predictedMaintenanceKcal)} for someone your age, height and weight. Close, as it turns out.`
+        : ` A textbook formula would have guessed ${kcal(w.predictedMaintenanceKcal)} for someone your age, height and weight.` +
+          (Math.abs(delta) < 50
+            ? ""
             : delta > 0
-            ? ` A textbook formula would have guessed ${kcal(w.predictedMaintenanceKcal)} for someone your age, height and weight. You run ${kcal(delta)} kcal a day warmer than that.`
-            : ` A textbook formula would have guessed ${kcal(w.predictedMaintenanceKcal)} for someone your age, height and weight. You run ${kcal(-delta)} kcal a day cooler than that.`;
+              ? ` You run ${kcal(delta)} kcal a day warmer than that.`
+              : ` You run ${kcal(-delta)} kcal a day cooler than that.`);
     cards.push({
       key: "burn",
       kicker: "What your body burns",
@@ -108,8 +111,8 @@ export function buildCards(
         `This is what keeps you exactly where you are, no gain and no loss. It came from the food you ` +
         `logged and what your weight did over ${w.days} days.${versus}`,
       note:
-        `Formulas describe the average of thousands of people. Any one person can sit 300 to 400 kcal either side of ` +
-        `that average, which is why it was worth spending a fortnight finding yours.`,
+        `Formulas describe the average of thousands of people. Any one person can sit 300 to 400 kcal ` +
+        `either side of that average.`,
     });
   }
 
@@ -119,7 +122,7 @@ export function buildCards(
     const movingKcal = Math.round(burn * w.activeShare);
     const steps =
       w.meanStepsPerDay != null
-        ? ` That's ${kcal(w.meanStepsPerDay)} steps on an average day`
+        ? ` You averaged ${kcal(w.meanStepsPerDay)} steps a day`
         : "";
     const sleep =
       w.meanSleepHours != null
@@ -132,11 +135,11 @@ export function buildCards(
       value: `${kcal(movingKcal)}`,
       unit: "kcal a day from moving",
       body:
-        `Another ${kcal(restingKcal)} kcal goes on simply being alive: heart, lungs, brain, all of it ` +
-        `running while you sit still.${habits}`,
+        `Another ${kcal(restingKcal)} kcal goes on being alive: heart, lungs and brain, running while ` +
+        `you sit still.${habits}`,
       note:
-        `Walking, standing and fidgeting usually add up to more than exercise does. When a diet stops working, ` +
-        `this is often the part that quietly shrank.`,
+        `Walking, standing and fidgeting usually add up to more than exercise does. When a diet stops ` +
+        `working, this is often the part that shrank.`,
     });
   }
 
@@ -158,18 +161,18 @@ export function buildCards(
           : `gained over ${w.days} days`,
       body: steady
         ? `You ate ${kcal(w.meanIntakeKcal)} kcal a day and the scale barely moved. ` +
-          `That's exactly what maintenance looks like, and the best evidence there is that the number above is yours.`
+          `That is what maintenance looks like.`
         : w.weightChangeKg > 0
           ? // The case that reads as a contradiction unless it's spelled out: they
             // were told they were eating at maintenance, and lost weight anyway.
             `You ate ${kcal(w.meanIntakeKcal)} kcal a day and lost weight anyway${rate ? `, around ${rate}` : ""}. ` +
-            `So the calories we called maintenance were already asking a little more of you than they looked` +
+            `So the calories called maintenance were already a small deficit` +
             (burn != null
               ? `. Your real burn is closer to ${kcal(burn)} kcal, and that's the figure your new target is built on.`
               : `, and your new target takes that into account.`)
           : `You ate ${kcal(w.meanIntakeKcal)} kcal a day and the trend crept up by ${kg(-w.weightChangeKg)}` +
             `${rate ? `, around ${rate}` : ""}. ` +
-            `Some of that's simply food and water sitting in you on weigh-in day` +
+            `Some of that is food and water sitting in you on weigh-in day` +
             (burn != null
               ? `; the rest points to a burn closer to ${kcal(burn)} kcal, which is what your new target is built on.`
               : `, and your new target takes that into account.`),
@@ -201,8 +204,8 @@ export function buildCards(
     target: t,
     body:
       (versusBurn ? `That's ${versusBurn}, and ${versusPlate}. ` : `That's ${versusPlate}. `) +
-      `Protein stays high at ${Math.round(t.protein_g)} g, and that's what keeps the weight coming off as fat ` +
-      `rather than the muscle you want to hold on to.`,
+      `Protein stays high at ${Math.round(t.protein_g)} g, which is what keeps the loss coming from fat ` +
+      `rather than muscle.`,
     note:
       `A first deficit is kept between 300 and 500 kcal a day: enough to show up on the scale within a fortnight, ` +
       `gentle enough to live with for months. Anything faster comes later, and only if your own results say you can take it.`,
@@ -214,7 +217,7 @@ export function buildCards(
     // food, and judge whether the new one is plausible.
     const already =
       w.holdLossKgPerWeek != null && w.holdLossKgPerWeek > 0.05
-        ? ` You were already losing about ${w.holdLossKgPerWeek.toFixed(2)} kg a week during calibration, on more food than this, so this should be a change you can actually see.`
+        ? ` You were already losing about ${w.holdLossKgPerWeek.toFixed(2)} kg a week during calibration, on more food than this.`
         : "";
     const goal =
       w.projection?.goalDate != null && w.projection.goalWeeks != null
@@ -222,7 +225,7 @@ export function buildCards(
         : "";
     const band =
       w.inHealthyBand === false
-        ? ` It's a gentle pace for your size, and that's on purpose.`
+        ? ` It's a deliberately gentle pace for your size.`
         : "";
     cards.push({
       key: "expect",
