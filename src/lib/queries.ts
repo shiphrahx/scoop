@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth";
 import { decryptSecret } from "@/lib/crypto";
 import {
+  CALIBRATION_MAX_DAYS,
   TREND_WINDOW_DAYS,
   ageFromBirthYear,
   average,
@@ -19,6 +20,7 @@ import {
   stepsFalling,
   tdee,
   trendChange,
+  updateCalibration,
   weeklyReview,
   type Adherence,
   type DailyIntake,
@@ -27,6 +29,11 @@ import {
   type TrendChange,
   type WeeklyReview,
 } from "@/lib/coach";
+import {
+  calibrationWrap,
+  holdDays,
+  type CalibrationWrap,
+} from "@/lib/calibrationwrap";
 import {
   DEFAULT_TIMEZONE,
   dayRangeFor,
@@ -57,6 +64,7 @@ import type {
   DailyTargets,
   FreshFood,
   FreshFoodSize,
+  LoggedFood,
   Macros,
   NonScaleVictory,
   PlannedMeal,
@@ -331,6 +339,56 @@ export async function getConsumedForDate(date: string): Promise<Macros> {
   );
 }
 
+// The day's food logs that no meal in the plan owns: a drink, a serving out of
+// a batch, a scanned product — anything logged straight into the day rather
+// than by eating a planned meal.
+//
+// Eating a planned meal writes a food log too and points the meal at it, so
+// those are filtered out: the day screen already shows them under their slot,
+// and counting them here as well would double the day.
+export async function getLoggedExtrasForDate(
+  date: string,
+): Promise<LoggedFood[]> {
+  const supabase = await createClient();
+  const { start, end } = dayRangeFor(await getTimezone(), date);
+
+  const [{ data }, { data: planned }] = await Promise.all([
+    supabase
+      .from("food_logs")
+      .select(
+        "id, name, source, logged_at, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg",
+      )
+      .gte("logged_at", start.toISOString())
+      .lt("logged_at", end.toISOString())
+      .order("logged_at", { ascending: true }),
+    supabase
+      .from("planned_meals")
+      .select("logged_food_id")
+      .eq("date", date)
+      .not("logged_food_id", "is", null),
+  ]);
+
+  const eatenFromPlan = new Set(
+    ((planned as { logged_food_id: string }[]) ?? []).map(
+      (p) => p.logged_food_id,
+    ),
+  );
+
+  return ((data as LoggedFood[]) ?? [])
+    .filter((row) => !eatenFromPlan.has(row.id))
+    .map((row) => ({
+      ...row,
+      kcal: Number(row.kcal),
+      protein_g: Number(row.protein_g),
+      carbs_g: Number(row.carbs_g),
+      fat_g: Number(row.fat_g),
+      fiber_g: Number(row.fiber_g ?? 0),
+      sugar_g: Number(row.sugar_g ?? 0),
+      satfat_g: Number(row.satfat_g ?? 0),
+      sodium_mg: Number(row.sodium_mg ?? 0),
+    }));
+}
+
 // Today's saved day plan (all slots), ordered as the user arranged them.
 export async function getTodayPlan(): Promise<PlannedMeal[]> {
   return getPlanForDate(await localToday());
@@ -429,6 +487,11 @@ export interface CoachData {
   // week's. True only for the calibration→deficit graduation: see applyReview.
   takesEffectNow: boolean;
   estimatedMaintenanceKcal: number | null;
+  // The maintenance figure this review's target was actually built from: the
+  // formula's prediction times the correction in force (including, on the way
+  // out of calibration, the measurement the hold just produced). Null when the
+  // profile can't support a prediction.
+  maintenanceKcal: number | null;
   // The formula's maintenance estimate with NO calibration applied. The
   // correction is the ratio of the measurement to this raw prediction — measure
   // it against an already-corrected number and the ratio sits at 1 for ever and
@@ -707,6 +770,24 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
         )
       : null;
 
+  // The correction the user's maintenance is figured from.
+  //
+  // On the way out of calibration this has to include the measurement the hold
+  // just produced. The stored factor is only folded in applyReview, moments
+  // AFTER this target is computed, so the first deficit — the whole point of the
+  // fortnight — was being cut from the formula's own guess, with the fortnight's
+  // evidence not arriving until the following review. It also made the message
+  // untrue: it named a "measured maintenance" the target had not been built on.
+  // Fold here with the same call applyReview will make, so the number shown, the
+  // target written and the correction stored all agree.
+  const graduating = prevPhase === "calibration" && phase !== "calibration";
+  const calibrationForTarget =
+    graduating && observed && predictedTdee != null && predictedTdee > 0
+      ? updateCalibration(calibration, observed.kcalPerDay, predictedTdee)
+      : calibration;
+  const maintenanceKcal =
+    predictedTdee != null ? Math.round(predictedTdee * calibrationForTarget) : null;
+
   const sex = profile?.sex ?? "female";
   const review = current
     ? weeklyReview({
@@ -735,8 +816,7 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
         calibrationDaysRemaining: calDaysRemaining,
         // The user's real maintenance, calibrated. Passed in so holding at
         // maintenance never has to be back-derived from the target in force.
-        maintenanceKcal:
-          predictedTdee != null ? predictedTdee * calibration : null,
+        maintenanceKcal,
       })
     : {
         macros: { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
@@ -768,6 +848,7 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
     // moved in the meantime — each apply landing lower than the last. The
     // graduating target belongs to the week in force.
     takesEffectNow: review.changed && prevPhase === "calibration" && phase !== "calibration",
+    maintenanceKcal,
     estimatedMaintenanceKcal:
       profile?.estimated_maintenance_kcal != null
         ? Number(profile.estimated_maintenance_kcal)
@@ -781,6 +862,62 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
       return stored ? decryptSecret(stored) : null;
     })(),
   };
+});
+
+// The calibration review, or null when there isn't one to show.
+//
+// There is exactly one moment this returns anything: the hold has ended, a first
+// deficit is waiting, and the user has not started it yet (takesEffectNow, which
+// goes false the instant the graduating target is written). So the screen is its
+// own gate — no "seen" flag to keep in step, and closing the tab without
+// starting leaves the review exactly where it was.
+export const getCalibrationWrap = cache(async function getCalibrationWrap(): Promise<CalibrationWrap | null> {
+  const [coach, profile, tz] = await Promise.all([
+    getCoachData(),
+    getProfile(),
+    getTimezone(),
+  ]);
+  const startedAt = profile?.calibration_started_at ?? null;
+  if (!coach.takesEffectNow || !startedAt || !coach.current) return null;
+
+  // Read back far enough to cover the whole hold whatever length it ran, with a
+  // little slack for a user who left the app open past the end of it.
+  const days = Math.min(90, Math.max(CALIBRATION_MAX_DAYS, holdDays(startedAt, new Date())) + 7);
+  const [weights, intake] = await Promise.all([
+    getWeightHistory(days),
+    getDailyIntake(tz, days),
+  ]);
+
+  const weightKg = coach.trendWeightKg ?? (weights.length ? weights[weights.length - 1].weight_kg : null);
+  const restingRateKcal =
+    profile?.height_cm && profile.sex && profile.birth_year && weightKg
+      ? restingRate({
+          sex: profile.sex,
+          weightKg,
+          heightCm: Number(profile.height_cm),
+          age: ageFromBirthYear(profile.birth_year),
+          bodyFatPct: profile.body_fat_pct,
+        })
+      : null;
+
+  return calibrationWrap({
+    startedAt,
+    weighIns: weights.map((w) => ({ date: w.date, kg: w.weight_kg })),
+    intake,
+    activity: coach.activity,
+    observed: coach.observed,
+    predictedTdeeKcal: coach.predictedTdee,
+    holdTargetKcal: coach.current.kcal,
+    // The same maintenance the graduating target was cut from, so the screen
+    // can't quote a figure the plan wasn't built on.
+    maintenanceKcal: coach.maintenanceKcal ?? coach.current.kcal,
+    newTarget: coach.review.macros,
+    weightKg,
+    goalWeightKg: profile?.goal_weight_kg ?? null,
+    sex: profile?.sex ?? "female",
+    bodyFatPct: profile?.body_fat_pct ?? null,
+    restingRateKcal,
+  });
 });
 
 // Recent weigh-ins, oldest→newest, for the dashboard trend chart.

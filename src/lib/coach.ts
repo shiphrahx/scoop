@@ -1174,7 +1174,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
         ? "Calibration complete — deficit starting"
         : "Diet break over — deficit resuming",
       detail: fromCalibration
-        ? `Your measured maintenance is about ${maint} kcal a day. A ${cut} kcal/day deficit now applies, giving a target of ${target} kcal.${easedNote} Your results are reviewed every week, but this target is held for two weeks before any adjustment — that is how long the body takes to show a real response rather than a change in water weight.`
+        ? `Your calibrated maintenance is about ${maint} kcal a day. A ${cut} kcal/day deficit now applies, giving a target of ${target} kcal.${easedNote} Your results are reviewed every week, but this target is held for two weeks before any adjustment — that is how long the body takes to show a real response rather than a change in water weight.`
         : `A ${cut} kcal/day deficit from your maintenance of about ${maint} kcal now applies, giving a target of ${target} kcal.${easedNote}`,
     };
   }
