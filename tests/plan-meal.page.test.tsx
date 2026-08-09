@@ -4,8 +4,8 @@ import { installFakeSupabase, type Row } from "./helpers/fake-supabase";
 import type { PlannedMeal } from "@/lib/types";
 
 // "Plan this meal" is one route (/plan/day/meal) that shows a different meal per
-// ?slot=. To the App Router those are the SAME segment — it keeps client state
-// across a change of query on purpose — so the picker has to be given an
+// ?slot=. To the App Router those are the SAME segment, it keeps client state
+// across a change of query on purpose, so the picker has to be given an
 // identity of its own, or snack opens holding the foods picked for lunch and
 // saving writes them into snack.
 

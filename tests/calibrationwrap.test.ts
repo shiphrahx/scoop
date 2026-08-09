@@ -233,12 +233,12 @@ describe("calibrationWrap", () => {
     const w = calibrationWrap(fortnight());
     expect(w.deficitKcal).toBe(400);
     expect(w.expectedLossKgPerWeek).toBeCloseTo(0.364, 3);
-    // 0.36 kg on 80 kg is 0.45%/week — inside a 0.5–0.75% band? No: below it.
+    // 0.36 kg on 80 kg is 0.45%/week, inside a 0.5 to 0.75% band? No: below it.
     expect(w.inHealthyBand).toBe(false);
   });
 
   it("calls a rate inside the healthy band for this body healthy", () => {
-    // 500 kcal/day = 0.4545 kg/week = 0.57% of 80 kg, inside 0.5–0.75%.
+    // 500 kcal/day = 0.4545 kg/week = 0.57% of 80 kg, inside 0.5 to 0.75%.
     const w = calibrationWrap(
       fortnight({ newTarget: macros({ kcal: 1900 }), bodyFatPct: 30 }),
     );

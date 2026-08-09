@@ -194,7 +194,7 @@ describe("weekly effect is honestly smaller on refeed weeks", () => {
       refeeds * dayTarget(base, true, cfg()).kcal +
       (WEEK_DAYS - refeeds) * dayTarget(base, false, cfg()).kcal;
     const flatWeek = WEEK_DAYS * base.kcal;
-    // Free refeeds add calories back — the week is NOT calorie-neutral.
+    // Free refeeds add calories back, the week is NOT calorie-neutral.
     expect(week).toBeGreaterThan(flatWeek);
     // And the extra is exactly the uplift on each refeed day (nothing borrowed).
     expect(week - flatWeek).toBe(refeeds * refeedCarbUpliftG(base, cfg()) * 4);

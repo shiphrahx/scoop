@@ -46,7 +46,7 @@ describe("parseInvoiceLines", () => {
   });
 
   it("does not treat a leading number as quantity when nothing follows", () => {
-    // "500 g" alone is a weight line, not "500 of g" — reject as non-item.
+    // "500 g" alone is a weight line, not "500 of g", reject as non-item.
     expect(parseInvoiceLines(["500 g"])).toEqual([]);
   });
 

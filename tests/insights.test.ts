@@ -117,7 +117,7 @@ describe("lossRate", () => {
 
   it("narrows the healthy band for a lean user", () => {
     const points = series("2026-06-01", 29, (i) => 100 - 0.1 * i);
-    // 12% body fat on a man: the band tightens to 0.25–0.5%, so the same
+    // 12% body fat on a man: the band tightens to 0.25 to 0.5%, so the same
     // 0.7%/week that was on track for an average user is now too fast.
     expect(lossRate(points, "male", 12)!.bandMaxPct).toBe(0.5);
     expect(lossRate(points, "male", 12)!.verdict).toBe("fast");
@@ -663,7 +663,7 @@ describe("weekdayVsWeekend", () => {
 
   it("prices up a bigger weekend", () => {
     const w = weekdayVsWeekend([
-      // Mon–Fri of two weeks (2026-07-06 is a Monday), plus three weekend days.
+      // Mon Fri of two weeks (2026-07-06 is a Monday), plus three weekend days.
       ...["2026-07-06", "2026-07-07", "2026-07-08", "2026-07-09"].map((d) => at(d, 1800)),
       ...["2026-07-13", "2026-07-14", "2026-07-15"].map((d) => at(d, 1800)),
       ...["2026-07-11", "2026-07-12", "2026-07-18"].map((d) => at(d, 2600)),

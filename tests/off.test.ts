@@ -96,7 +96,7 @@ function jsonResponse(body: unknown, ok = true, status = 200) {
 }
 
 function textErrorResponse() {
-  // OFF sometimes serves an HTML error page with a 200 — JSON parse throws.
+  // OFF sometimes serves an HTML error page with a 200, JSON parse throws.
   return {
     ok: true,
     status: 200,
@@ -188,7 +188,7 @@ function installOff(
 ) {
   fetchMock.mockImplementation(async (url: string) => {
     const u = new URL(url);
-    // Lowercase for routing — the full query keeps the user's capitals while
+    // Lowercase for routing, the full query keeps the user's capitals while
     // internal sub-queries are already lowercased.
     const q = (u.searchParams.get("q") ?? "").toLowerCase();
     if (q.startsWith("brands_tags:")) return jsonResponse({ count: 0 });
@@ -396,7 +396,7 @@ describe("searchProducts — real wrong-answer regressions", () => {
   });
 
   it("returns no match rather than crisps when OFF has only crisps", async () => {
-    // Every hit for a potato query is a crisp — raw potatoes aren't in OFF's
+    // Every hit for a potato query is a crisp, raw potatoes aren't in OFF's
     // pool. Defaulting to Lay's is worse than nothing, so expect an empty set.
     installOff((q) => {
       if (has(q, "potato")) {
@@ -438,7 +438,7 @@ describe("searchProducts — real wrong-answer regressions", () => {
 
   it("prefers the plain fruit over processed products that merely name it", async () => {
     // What the popularity-ranked legacy search actually returns for "banana":
-    // banana-flavoured yogurt, muesli, cookies — plus the real fruit further
+    // banana-flavoured yogurt, muesli, cookies, plus the real fruit further
     // down. The plain food must win, not the most popular derivative.
     installOff((q) =>
       has(q, "banana")
@@ -487,7 +487,7 @@ describe("searchProducts — legacy CGI fallback", () => {
       if (u.hostname === "search.openfoodfacts.org") {
         return jsonResponse({}, false, 502);
       }
-      // Legacy CGI is up — returns matches under `products`.
+      // Legacy CGI is up, returns matches under `products`.
       if (u.pathname.includes("search.pl")) {
         return jsonResponse({ products: [prod("Bananas")] });
       }

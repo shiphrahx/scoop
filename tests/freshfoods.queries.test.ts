@@ -8,8 +8,8 @@ vi.mock("@/lib/supabase/server", async () => {
 
 const { searchFreshFoods } = await import("@/lib/queries");
 
-// A reference food row, macros as PostgREST hands them back — strings, not
-// numbers — so the test also proves the query coerces them.
+// A reference food row, macros as PostgREST hands them back, strings, not
+// numbers, so the test also proves the query coerces them.
 const food = (id: string, name: string, over: Row = {}): Row => ({
   id,
   name,
@@ -73,7 +73,7 @@ describe("searchFreshFoods", () => {
     installFakeSupabase({
       db: {
         fresh_foods: [
-          food("f-1", "Pineapple"), // substring of 'apple'? no — contains 'apple'
+          food("f-1", "Pineapple"), // substring of 'apple'? no, contains 'apple'
           food("f-2", "Apple Juice"), // prefix
           food("f-3", "Apple"), // exact
         ],
@@ -95,7 +95,7 @@ describe("searchFreshFoods", () => {
     expect(await searchFreshFoods(" ")).toEqual([]);
   });
 
-  // The reference names foods in the singular, but nobody types "one cookie" —
+  // The reference names foods in the singular, but nobody types "one cookie",
   // they type "cookies". Without the retry the natural query draws a blank.
   it("finds a singular food from a plural query", async () => {
     installFakeSupabase({
@@ -162,7 +162,7 @@ describe("searchFreshFoods — a big, American reference", () => {
       },
     });
 
-  // A substring search for "chocolate cake" finds nothing in this data — the
+  // A substring search for "chocolate cake" finds nothing in this data, the
   // words are the wrong way round and split apart. Matching word by word is the
   // only thing that reaches it.
   it("matches every word anywhere in the name, not one substring", async () => {
@@ -173,8 +173,8 @@ describe("searchFreshFoods — a big, American reference", () => {
     expect(names[0]).toContain("Cake");
   });
 
-  // "chips" here means french fries. Searched literally it finds Potato chips —
-  // a real hit for the wrong food — so the swap can't wait for a failed search.
+  // "chips" here means french fries. Searched literally it finds Potato chips,
+  // a real hit for the wrong food, so the swap can't wait for a failed search.
   it("reads a British word as the food a Brit means, even when the literal word hits", async () => {
     usda();
     const names = (await searchFreshFoods("chips")).map((f) => f.name);
@@ -225,7 +225,7 @@ describe("applyAliases", () => {
   });
 
   // The one that bit: "crisps" expands to "potato chips", and a second pass over
-  // that output turned the "chips" rule loose on it — "potato french fries".
+  // that output turned the "chips" rule loose on it, "potato french fries".
   it("never re-reads what it just wrote", () => {
     expect(applyAliases("crisps", UK)).toBe("potato chips");
   });

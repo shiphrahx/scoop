@@ -4,7 +4,7 @@ import { providerConfigured, activeProvider, missingProviderConfig } from "@/lib
 
 // Missing provider credentials used to throw from deep inside the OAuth and
 // refresh calls: /api/fitbit/authorize answered with a bare 500, and a sync
-// reported "that connection has expired" — sending the user to reconnect for
+// reported "that connection has expired", sending the user to reconnect for
 // something no reconnect can fix. These lock the up-front check instead.
 
 const VARS = [

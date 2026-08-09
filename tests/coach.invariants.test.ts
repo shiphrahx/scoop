@@ -5,7 +5,7 @@ import type { ActivityLevel, DietType, GoalPace, Sex } from "@/lib/types";
 
 // Properties the macro maths must hold for EVERY user, not just the tidy ones in
 // the example-based tests. The example tests pin the happy path; these pin the
-// rules that must never break — the ones a real user finds at the extremes
+// rules that must never break, the ones a real user finds at the extremes
 // (very heavy, very light, very old, at the calorie floor).
 
 // A target's macros have to describe the calories they sit next to: a user told

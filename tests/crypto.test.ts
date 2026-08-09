@@ -7,7 +7,7 @@ import {
 } from "@/lib/crypto";
 
 // This module holds the user's Anthropic key and their Fitbit tokens. A silent
-// break here doesn't show up as a crash — it shows up as everyone's saved key
+// break here doesn't show up as a crash, it shows up as everyone's saved key
 // no longer working, or (worse) a secret written to the database in the clear.
 
 const KEY_B64 = Buffer.alloc(32, 7).toString("base64");
@@ -122,7 +122,7 @@ describe("hashToken", () => {
   });
 
   it("does not need the encryption key", () => {
-    // It's a hash, not a cipher — it must keep working for the ingest endpoint
+    // It's a hash, not a cipher, it must keep working for the ingest endpoint
     // even if the encryption key is unavailable.
     delete process.env.SECRET_ENCRYPTION_KEY;
     expect(() => hashToken("x")).not.toThrow();

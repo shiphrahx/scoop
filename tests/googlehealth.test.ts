@@ -107,7 +107,7 @@ describe("refreshTokens", () => {
     );
     const t = await refreshTokens("old-refresh");
     expect(t.access_token).toBe("fresh");
-    // Google doesn't reissue the refresh token on refresh — carry it forward.
+    // Google doesn't reissue the refresh token on refresh, carry it forward.
     expect(t.refresh_token).toBe("old-refresh");
   });
 

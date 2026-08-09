@@ -124,14 +124,14 @@ describe("tdee", () => {
     // ~2050 kcal (BMR 1322.75 × 1.55). Conservative band must bring it down.
     const maintenance = tdee({
       sex: "female", diet: "regular", weightKg: 64, heightCm: 163, age: 35,
-      activity: "moderate", // "3–5×/week" — no longer inflates the estimate
+      activity: "moderate", // "3 to 5×/week", no longer inflates the estimate
     });
     expect(maintenance).toBeGreaterThanOrEqual(1600);
     expect(maintenance).toBeLessThanOrEqual(1800);
   });
 
   it("puts measured active energy on the bare resting rate, plus TEF", () => {
-    // Device "active energy" is everything burned above resting — all movement,
+    // Device "active energy" is everything burned above resting, all movement,
     // not just workouts. It must sit on RMR, not on an already-inflated 1.2
     // sedentary baseline, or everyday activity gets counted twice.
     const base = bmr("male", 80, 180, 30); // 1780
@@ -150,7 +150,7 @@ describe("tdee", () => {
 
   it("does not double-count everyday movement", () => {
     // The old maths added the device burn on top of a 1.2 multiplier. That
-    // overstated the day by ~0.2 × RMR — enough to eat most of a 0.5 kg/week
+    // overstated the day by ~0.2 × RMR, enough to eat most of a 0.5 kg/week
     // deficit. Guard the gap explicitly.
     const base = bmr("male", 80, 180, 30);
     const withDevice = tdee({
@@ -219,7 +219,7 @@ describe("ageFromBirthYear", () => {
 
 describe("macrosForKcal", () => {
   // Expected values are written out, not recomputed from the source's own
-  // formula — an assertion that re-derives the answer the same way the code does
+  // formula, an assertion that re-derives the answer the same way the code does
   // can never catch the code changing.
   it("sets protein (~1 g/lb) and fat (~0.3 g/lb floor), carbs the remainder", () => {
     const m = macrosForKcal(2000, 80);
@@ -406,7 +406,7 @@ describe("deficit caps", () => {
   it("holds a lean user to the slower band even on an aggressive pace", () => {
     // Same person, same aggressive pace: the leaner one is ALLOWED a smaller
     // deficit, because there's less fat to draw on. Assert the band-level
-    // allowance directly (deficitPerDay) — the realized target-to-maintenance
+    // allowance directly (deficitPerDay), the realized target-to-maintenance
     // gap is now confounded by the resting-rate floor, which the conservative
     // maintenance estimate sits much closer to.
     const leanDeficit = deficitPerDay("aggressive", 80, 10, "male");
@@ -459,7 +459,7 @@ describe("deficitPerDay", () => {
       (0.55 * KCAL_PER_KG) / 7,
       5,
     );
-    // The cap only bites when the pace exceeds it — 0.25 kg/week stays as-is.
+    // The cap only bites when the pace exceeds it, 0.25 kg/week stays as-is.
     expect(deficitPerDay("gentle", 55)).toBeCloseTo((0.25 * KCAL_PER_KG) / 7, 5);
   });
 });
@@ -568,7 +568,7 @@ describe("trendSeries / trendChange", () => {
 
   it("recovers the true weekly rate from a steady linear loss", () => {
     // 0.1 kg/day for 60 days = 0.7 kg/week. The trend's LEVEL lags the scale by
-    // about nine days, but its slope is unbiased — and slope is what the review
+    // about nine days, but its slope is unbiased, and slope is what the review
     // acts on.
     const kgs = Array.from({ length: 60 }, (_, i) => 100 - i * 0.1);
     const c = trendChange(run(kgs));
@@ -614,7 +614,7 @@ describe("observeTdee", () => {
   });
 
   it("recovers a burn the formula would have missed", () => {
-    // 28 days eating a logged 2000 kcal while losing 0.25 kg/week — a real
+    // 28 days eating a logged 2000 kcal while losing 0.25 kg/week, a real
     // maintenance of roughly 2275 kcal, whatever Mifflin thinks of this person.
     const kgs = Array.from({ length: 28 }, (_, i) => 90 - i * (0.25 / 7));
     const o = observeTdee(weighIns(kgs), intake(28, 2000));
@@ -680,7 +680,7 @@ describe("weightSlopeKgPerDay", () => {
 
   it("does not lag a falling weight the way the smoothed trend does", () => {
     // The bias that matters. Over the first month of a diet the EWMA has not
-    // caught up, so differencing its endpoints under-reports the loss — which
+    // caught up, so differencing its endpoints under-reports the loss, which
     // reads as a stall and cuts the user's food. The regression does not.
     const kgs = Array.from({ length: 28 }, (_, i) => 90 - i * 0.05);
     const pts = kgs.map((kg, i) => ({ date: day(i), kg }));
@@ -798,7 +798,7 @@ describe("weeklyReview", () => {
       waistDeltaCm: null,
       current,
       phase: "calibration",
-      maintenanceKcal: 2600, // well above current 2000 — must be ignored
+      maintenanceKcal: 2600, // well above current 2000, must be ignored
       weightKg: 89.9,
       heightCm: 180,
       calibrationDaysRemaining: 5,
@@ -1260,7 +1260,7 @@ describe("calibration window", () => {
   });
 
   it("extends when logging is too sparse to measure (observed null)", () => {
-    // Sparse logging keeps observed null — hold rather than cut on thin data.
+    // Sparse logging keeps observed null, hold rather than cut on thin data.
     expect(
       calibrationComplete({ startedAt: start, now: at(CALIBRATION_MIN_DAYS), observed: null }),
     ).toBe(false);
@@ -1385,7 +1385,7 @@ describe("maintenance estimate corrects from real weight trend", () => {
   });
 
   it("corrects downward when weight still drifts up at the estimate", () => {
-    // Gaining while eating the estimate means they burn LESS than we guessed —
+    // Gaining while eating the estimate means they burn LESS than we guessed,
     // observed maintenance is below the estimate, so the factor drops below 1.
     // observeTdee would return ~2200 for a 300-kcal/day gain against 2500 intake.
     const observed = tdeeFromEnergyBalance(2500, -0.55, days); // gained ~0.55 kg

@@ -30,7 +30,7 @@ describe("macroRole (data-driven)", () => {
   });
 
   it("still calls a genuine fat a fat, even a high-protein one", () => {
-    // These carry real protein but their calories are overwhelmingly fat —
+    // These carry real protein but their calories are overwhelmingly fat,
     // anchoring a protein target on them would blow the fat target getting there.
     expect(macroRole({ protein_100g: 25, carbs_100g: 20, fat_100g: 50 })).toBe("fat"); // peanut butter
     expect(macroRole({ protein_100g: 25, carbs_100g: 1, fat_100g: 33 })).toBe("fat"); // cheddar

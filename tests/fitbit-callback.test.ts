@@ -49,8 +49,8 @@ describe("GET /api/fitbit/callback", () => {
     expect(upsert).toHaveBeenCalled();
   });
 
-  // A grant with no refresh token works until the access token lapses — about an
-  // hour — and can then never be renewed. Stored, it dies quietly long after the
+  // A grant with no refresh token works until the access token lapses, about an
+  // hour, and can then never be renewed. Stored, it dies quietly long after the
   // user connected and shows up as "that connection has expired" with nothing
   // pointing at the real cause. Refuse it while the cause is still on screen.
   it("refuses a grant with no refresh token instead of storing a doomed one", async () => {

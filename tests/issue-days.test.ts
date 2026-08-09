@@ -249,7 +249,7 @@ describe("the reported days, built end to end", () => {
     expect(tot.kcal).toBeLessThanOrEqual(2000);
     expect(tot.protein_g).toBeLessThanOrEqual(152);
     // The chips paid for it: fewer than in the same dinner without the spread
-    // (the control below) — exactly what the report asked for.
+    // (the control below), exactly what the report asked for.
     chipsWithSpread = gramsIn(fake, "Dinner", "Straight cut chips");
     expect(chipsWithSpread).toBeGreaterThan(0);
   });

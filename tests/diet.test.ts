@@ -94,7 +94,7 @@ describe("violatesDiet", () => {
   });
 
   it("still flags a vegan-labelled food that breaks the gluten guard", () => {
-    // Seitan is vegan but wheat-based — plant marker must not clear celiac.
+    // Seitan is vegan but wheat-based, plant marker must not clear celiac.
     expect(violatesDiet("Vegan Seitan Wheat Strips", "celiac")).toBe(true);
   });
 });

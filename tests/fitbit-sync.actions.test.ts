@@ -120,7 +120,7 @@ describe("syncFitbit", () => {
   });
 
   // A key that can no longer decrypt what we stored is our problem, not a
-  // connection the user let lapse — it shouldn't be reported as one, though
+  // connection the user let lapse, it shouldn't be reported as one, though
   // reconnecting does replace the unreadable token.
   it("separates an unreadable stored token from an expired connection", async () => {
     const { db } = connected();
@@ -135,7 +135,7 @@ describe("syncFitbit", () => {
     expect(refreshTokens).not.toHaveBeenCalled();
   });
 
-  // Only a dead connection gets the button — a transient provider wobble or a
+  // Only a dead connection gets the button, a transient provider wobble or a
   // quiet week must not push the user through a fresh grant for nothing.
   it("does not ask for a reconnect on a recoverable failure", async () => {
     connected();
@@ -182,7 +182,7 @@ describe("syncFitbit", () => {
 
   // The failure that wasted the most time: missing credentials threw from inside
   // refreshTokens and were caught as an expired connection, so an unconfigured
-  // deployment told the user to reconnect — repeatedly, for something no
+  // deployment told the user to reconnect, repeatedly, for something no
   // reconnect could fix. It must name itself, and must not offer the button.
   it("names an unconfigured deployment rather than blaming the connection", async () => {
     connected();

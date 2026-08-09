@@ -127,7 +127,7 @@ const saysOffTarget = (plan: PlannedSlot[]) =>
 
 // Each property below solves 300-400 whole days. Under the coverage run, with
 // the other sixty-odd test files on the same cores, that is comfortably past the
-// 5 s default — and a timeout here reads as a planner failure when it is only
+// 5 s default, and a timeout here reads as a planner failure when it is only
 // the machine. The budget is per test, not for the file.
 describe("the day plan, over random realistic days", { timeout: 30_000 }, () => {
   it("serves every food the user picked", () => {
@@ -168,7 +168,7 @@ describe("the day plan, over random realistic days", { timeout: 30_000 }, () => 
   });
 
   it("never plans a day over its energy or its macros", () => {
-    // The day's numbers are ceilings. A plan may land under them — and say so —
+    // The day's numbers are ceilings. A plan may land under them, and say so,
     // but going over spends the deficit the whole app exists to protect. The only
     // exception is a day whose picks cannot go smaller, which the note names.
     fc.assert(

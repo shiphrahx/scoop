@@ -66,9 +66,9 @@ describe("drinkMacros", () => {
     const base = { volumeMl: 500, abvPct: 5, extraCarbsG: 10 } as const;
     const asCarbs = drinkMacros({ ...base, allocation: "carbs" });
     const asFat = drinkMacros({ ...base, allocation: "fat" });
-    // Same total calories either way — only the macro split moves.
+    // Same total calories either way, only the macro split moves.
     expect(asCarbs.kcal).toBeCloseTo(asFat.kcal, 6);
-    // And kcal equals carbs×4 + fat×9 (+ protein×4) — internally consistent.
+    // And kcal equals carbs×4 + fat×9 (+ protein×4), internally consistent.
     for (const m of [asCarbs, asFat]) {
       expect(m.kcal).toBeCloseTo(m.carbs_g * 4 + m.fat_g * 9 + m.protein_g * 4, 6);
     }

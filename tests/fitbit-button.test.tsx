@@ -40,7 +40,7 @@ describe("FitbitButton", () => {
 
   // The bug this covers: `connected` only means a token row exists. Once the
   // provider rejected that token the UI still showed nothing but "Sync", so the
-  // "connect again" advice pointed at a link that was never on screen — the user
+  // "connect again" advice pointed at a link that was never on screen, the user
   // was told the fix and given no way to apply it.
   it("turns into a reconnect link when the connection is dead", async () => {
     syncFitbit.mockResolvedValue({
@@ -61,7 +61,7 @@ describe("FitbitButton", () => {
   });
 
   // A quiet week or a provider wobble is not a reason to send someone through a
-  // fresh grant — the sync button has to stay put.
+  // fresh grant, the sync button has to stay put.
   it("keeps the sync button on a failure that is not a dead connection", async () => {
     syncFitbit.mockResolvedValue({
       ok: false,

@@ -2,7 +2,7 @@ import { localWeekStart } from "@/lib/time";
 
 // A user whose calibration hold has run its full window: a fortnight of eating
 // the target the hold pinned, logged daily, weight flat, steps synced. The
-// review graduates them into their first deficit — the one moment the
+// review graduates them into their first deficit, the one moment the
 // calibration review exists.
 //
 // Shared by the tests that read the review and the ones that start the deficit

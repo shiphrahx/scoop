@@ -192,7 +192,7 @@ describe("planPickedDay", () => {
   });
 
   it("holds a pinned vegetable at the user's amount, not the filler serving", () => {
-    // Onion is a filler — normally a fixed ~30 kcal serving. Pinned to 40 g, it
+    // Onion is a filler, normally a fixed ~30 kcal serving. Pinned to 40 g, it
     // must stay at 40 g instead of being reset to the standard veg portion.
     const onion: PantryFood = {
       name: "Onion",
@@ -214,7 +214,7 @@ describe("planPickedDay", () => {
 
   it("scales a cooked staple by weight and leaves room for the other meals (issue #27)", () => {
     // Lunch and dinner both have rice + mince + oil; a snack has a banana and
-    // protein powder. Rice carries a 200 g "medium" serving preset — but locking
+    // protein powder. Rice carries a 200 g "medium" serving preset, but locking
     // it to whole 200 g servings ate the whole day and starved the snack. Rice
     // must portion by weight so every meal, snack included, gets its share.
     const mince: PantryFood = {
@@ -249,7 +249,7 @@ describe("planPickedDay", () => {
       budget: { kcal: 1800, protein_g: 150, carbs_g: 180, fat_g: 60 },
     });
 
-    // The snack survived — before the fix rice consumed the day and left none.
+    // The snack survived, before the fix rice consumed the day and left none.
     const snack = meals.find((m) => m.slot === "Snack");
     expect(snack).toBeDefined();
     expect((snack?.portions ?? []).find((p) => p.name === "Banana")?.grams ?? 0).toBeGreaterThan(0);

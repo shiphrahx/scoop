@@ -430,7 +430,7 @@ describe("buildMyDay", () => {
   });
 
   it("still serves the picks when the day is already eaten, and says it's over", async () => {
-    // The whole day is already eaten — no budget left for the picked meal.
+    // The whole day is already eaten, no budget left for the picked meal.
     const { db } = installFakeSupabase({
       db: {
         users: [profile()],
@@ -473,7 +473,7 @@ describe("buildMyDay", () => {
 
     const row = db.planned_meals[0];
     expect((row.picks as MealPick[]).length).toBe(1); // picks survive
-    // The pasta is still served — dropping a pick is not the planner's call — and
+    // The pasta is still served, dropping a pick is not the planner's call, and
     // the note says the day ends up over target.
     expect((row.portions as { name: string }[]).map((p) => p.name)).toEqual(["Pasta"]);
     expect(String(row.why)).toMatch(/over today's target/i);
@@ -580,7 +580,7 @@ describe("buildMyDay", () => {
 
   it("reports what it moved, and what held it back", async () => {
     // A rebalance that changes nothing is a real answer, but silence reads as a
-    // broken button — so the action says what moved, or which held food stopped
+    // broken button, so the action says what moved, or which held food stopped
     // anything moving.
     const { db } = installFakeSupabase({
       db: {
@@ -636,7 +636,7 @@ describe("buildMyDay", () => {
       db: {
         users: [profile()],
         daily_targets: targets(),
-        // 63 g of fat already eaten (of 65) — only the calories, so protein and
+        // 63 g of fat already eaten (of 65), only the calories, so protein and
         // carbs still have all their room.
         food_logs: [
           {
@@ -806,7 +806,7 @@ describe("buildMyDay", () => {
 
   // A 300 g pack of tofu in the pantry, picked into a meal that wants far more
   // protein than a pack can give. The build must never portion more than the
-  // pack holds — even when the pick itself carries no pack size (it was scanned
+  // pack holds, even when the pick itself carries no pack size (it was scanned
   // before we knew, or added by chip), because we read the pantry's pack now.
   const tofuPackRow = (): Row => ({
     ...pantryRow("Tofu", 136, 14, 2, 8),
@@ -988,7 +988,7 @@ describe("buildMyDay", () => {
 
   it("caps a picked food when its name differs from the pantry only in case/spacing", async () => {
     // The pick was saved as "silken  tofu" (lowercase, double space); the pantry
-    // row is "Silken Tofu". They're the same food — the cap must still find it.
+    // row is "Silken Tofu". They're the same food, the cap must still find it.
     const { db } = installFakeSupabase({
       db: {
         users: [profile()],
@@ -1114,7 +1114,7 @@ describe("buildMyDay", () => {
 
   it("a dish portion lowered by hand never rebounds above the pack on rebalance", async () => {
     // The exact user flow: build a picked meal, tap Edit and lower tofu, then
-    // rebalance. Rebalance re-solves from the picks — but must never push tofu
+    // rebalance. Rebalance re-solves from the picks, but must never push tofu
     // back above its 300 g pack (previously it rebounded to the 350 g protein
     // ceiling because the pack cap wasn't reaching the solve).
     const { db } = installFakeSupabase({
@@ -1165,7 +1165,7 @@ describe("buildMyDay", () => {
     // Issue #58: the user sets tofu to 220 g in the editor and presses Rebalance.
     // The first press held it, but spent the pin doing so, so the second press
     // re-solved tofu and wiped the edit. A hand-set amount is the user's, and the
-    // rebalance works around it — the other foods are what move.
+    // rebalance works around it, the other foods are what move.
     const { db } = installFakeSupabase({
       db: {
         users: [profile()],
@@ -1271,7 +1271,7 @@ describe("buildMyDay", () => {
     const item = (manual.items as { name: string; grams: number }[]).find(
       (i) => i.name === "Tofu",
     )!;
-    expect(item.grams).toBe(250); // within the 300 g pack — left as set
+    expect(item.grams).toBe(250); // within the 300 g pack, left as set
     expect(Number(manual.kcal)).toBe(340);
   });
 });

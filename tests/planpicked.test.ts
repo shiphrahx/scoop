@@ -12,7 +12,7 @@ import type { PlannedSlot } from "@/lib/types";
 // The per-meal planner's promise: the user names the foods for each meal, the
 // solve portions ALL the meals together, and the day's totals land on the
 // budget (within ±5 of each macro) whenever the picks can reach it. Meal sizes
-// follow the slot weights, softly — they bend before the day total does.
+// follow the slot weights, softly, they bend before the day total does.
 
 const TOLERANCE = 5;
 
@@ -149,7 +149,7 @@ describe("planPickedDay", () => {
     // Regression: lean vegan picks, one protein per meal, and a day whose fat
     // target the picks can't cleanly reach. The solver must NOT dump the day's
     // protein onto the single fattiest food (the vegan chicken) just to chase
-    // fat — each meal's own protein source should carry a real share.
+    // fat, each meal's own protein source should carry a real share.
     const bagelUnit: PantryFood = { ...bagel(), unit_g: 85, unit_label: "bagel" };
     const freeMince = food("Vegan Mince", 17, 5, 3);
     const banana = food("Banana", 1.1, 23, 0.3);
@@ -175,7 +175,7 @@ describe("planPickedDay", () => {
     expect(gramsOf("Vegan Protein Powder")).toBeGreaterThan(20);
     expect(gramsOf("Vegan Chicken")).toBeGreaterThan(50);
     // No protein source balloons to an unrealistic amount chasing the fat target
-    // (before the fix the vegan chicken ran to 500 g — half a kilo — to hit fat).
+    // (before the fix the vegan chicken ran to 500 g, half a kilo, to hit fat).
     for (const name of ["Vegan Mince", "Vegan Protein Powder", "Vegan Chicken"]) {
       expect(gramsOf(name)).toBeLessThanOrEqual(350);
     }
@@ -189,8 +189,8 @@ describe("planPickedDay", () => {
 
   it("fills the day's calories when a macro is already at its limit", () => {
     // Reported day: 1537/1720 kcal, carbs 153/215, fat 47/42. Fat over its limit
-    // walled the fill — every food carrying a trace of fat had its step clamped
-    // to zero, and rice carries a little fat — so the day sat ~200 kcal short
+    // walled the fill, every food carrying a trace of fat had its step clamped
+    // to zero, and rice carries a little fat, so the day sat ~200 kcal short
     // with the picks nowhere near their biggest servings.
     //
     // Here a pinned spoon of peanut butter puts fat at its limit before anything
@@ -215,7 +215,7 @@ describe("planPickedDay", () => {
     // The day's energy lands (it was 239 kcal short before).
     expect(Math.abs(tot.kcal - budget.kcal)).toBeLessThanOrEqual(50);
     // And it lands on real food, not on one macro running away: the trade is
-    // bounded, and protein — the macro the fill was leaving on the table — is
+    // bounded, and protein, the macro the fill was leaving on the table, is
     // close instead of half missing.
     expect(tot.fat_g).toBeLessThanOrEqual(budget.fat_g + 10);
     expect(tot.carbs_g).toBeLessThanOrEqual(budget.carbs_g + 10);
@@ -229,7 +229,7 @@ describe("planPickedDay", () => {
   it("leaves the gap open rather than closing it with the wrong food", () => {
     // The other side of the same rule: growing INTO the fat allowance has to buy
     // more than it costs. Fat is pinned at its limit by the peanut butter and the
-    // only thing left to grow is oil — pure fat — so the fill declines it and the
+    // only thing left to grow is oil, pure fat, so the fill declines it and the
     // day is reported short instead of drowned in oil.
     const peanut: PantryFood = { ...food("Peanut Butter", 25, 12, 50, 400), pinned_g: 84 };
     const plan = planPickedDay({
@@ -244,7 +244,7 @@ describe("planPickedDay", () => {
   it("re-balances the other meals when a countable pick rounds to a whole unit", () => {
     // Dinner's protein is a countable that can only be served in whole portions.
     // It keeps its one portion, the weighable foods carry the rest, every meal
-    // still gets protein, and the DAY stays on target — the whole-unit grain is
+    // still gets protein, and the DAY stays on target, the whole-unit grain is
     // absorbed by the weighable foods, not dumped on one meal while another goes
     // without.
     const freeMince = food("Vegan Mince", 17, 5, 3);
@@ -382,7 +382,7 @@ describe("planPickedDay", () => {
   });
 
   it("serves less of the flexible food rather than dropping a picked sauce", () => {
-    // Issue #28: the reported dinner — chicken, chips, three veg and a fat spread —
+    // Issue #28: the reported dinner, chicken, chips, three veg and a fat spread,
     // on a day with barely any fat left. The fit is cheapest with the spread left
     // out entirely, so it used to be dropped ("couldn't fit it") while the chips
     // stayed at their full portion. The user asked for the spread: it has to be on
@@ -578,7 +578,7 @@ describe("planPickedDay — vegetables as fillers", () => {
 
   it("puts the veg the user picked in lunch INTO lunch, not all in dinner", () => {
     const plan = reportedPlan();
-    // Lunch keeps its onion, courgette and broccoli — none dropped.
+    // Lunch keeps its onion, courgette and broccoli, none dropped.
     expect(gramsIn(plan, "Lunch", "Brown Onions")).toBeGreaterThan(0);
     expect(gramsIn(plan, "Lunch", "Courgettes")).toBeGreaterThan(0);
     expect(gramsIn(plan, "Lunch", "Tenderstem Broccoli")).toBeGreaterThan(0);
@@ -666,7 +666,7 @@ describe("planPickedDay — vegetables as fillers", () => {
   });
 
   it("keeps a pea/soy protein product a source, not a filler", () => {
-    // "Pea Protein" reads as a vegetable (pea) AND a protein — it must stay a
+    // "Pea Protein" reads as a vegetable (pea) AND a protein, it must stay a
     // solved protein source, not be pinned to an 80 g filler serving.
     const plan = planPickedDay({
       slots: [{ slot: "Lunch", foods: [food("Pea Protein Powder", 80, 5, 6), rice()] }],
@@ -713,8 +713,8 @@ const mealFoodsOf = (tag: string) =>
         macroRole(p) === "protein" && macroRole(c) === "carb" && macroRole(f) === "fat",
     );
 
-// A whole picked day: 1–3 meals, each with its own three foods, and a budget
-// built by weighing out real portions of exactly those foods — reachable by
+// A whole picked day: 1 to 3 meals, each with its own three foods, and a budget
+// built by weighing out real portions of exactly those foods, reachable by
 // construction, so a miss is the solver's fault.
 const reachablePickedDay = fc
   .integer({ min: 1, max: 3 })

@@ -128,7 +128,7 @@ describe("GET /auth/signin", () => {
 
   it("comes back to the callback on the public host, carrying next", async () => {
     // The provider redirects to whatever we hand it, and the verifier cookie
-    // only comes back on the host it was set for — the browser's, not the
+    // only comes back on the host it was set for, the browser's, not the
     // internal one behind the proxy.
     await signin(
       get("http://10.0.0.1/auth/signin?next=/progress", {
@@ -206,7 +206,7 @@ describe("GET /auth/callback", () => {
     const url = new URL(res.headers.get("location")!);
     const reason = url.searchParams.get("reason");
 
-    // No second bounce — one retry, then the user is told.
+    // No second bounce, one retry, then the user is told.
     expect(url.pathname).toBe("/login");
     expect(reason).toMatch(/Tap Continue with Google/);
     expect(reason).not.toMatch(/storage/);

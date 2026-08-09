@@ -62,7 +62,7 @@ function stalledUser() {
 }
 
 // A user with no weigh-ins yet, so there's no trend for the review to act on: it
-// HOLDS with no macro change — the safe-to-auto-advance case. Same target
+// HOLDS with no macro change, the safe-to-auto-advance case. Same target
 // history as the stall.
 function heldReviewUser() {
   return {
@@ -126,7 +126,7 @@ function graduatingUser() {
   };
 }
 
-// The same stall, but the target in force was written part-way through a week —
+// The same stall, but the target in force was written part-way through a week,
 // so the only honest count of how long it has been eaten is its effective_from.
 function stallStartedDaysAgo(days: number) {
   const base = stalledUser();
@@ -156,7 +156,7 @@ describe("ensureReviewApplied", () => {
   });
 
   it("auto-advances a HELD week (no change) so the chain stays unbroken, idempotently", async () => {
-    // Holding weeks carry no macro change, so writing them silently is fine — and
+    // Holding weeks carry no macro change, so writing them silently is fine, and
     // necessary, or the run of weekly rows the adaptation gate counts breaks.
     const { db } = installFakeSupabase({ db: heldReviewUser() });
     const before = db.daily_targets.length;
@@ -227,7 +227,7 @@ describe("applyReview", () => {
   it("graduating from calibration changes THIS week's target, not next week's", async () => {
     // The hold ends mid-week off its own timestamp. Deferring the first deficit
     // to Monday left the planner on maintenance for days after the coach said
-    // the cut had started — which is what "nothing changed" looked like.
+    // the cut had started, which is what "nothing changed" looked like.
     const { db } = installFakeSupabase({ db: graduatingUser() });
     const thisWeek = localWeekStart("UTC");
 
@@ -248,7 +248,7 @@ describe("applyReview", () => {
   it("applying the graduation twice does not walk the target down", async () => {
     // Each apply used to fold the same measurement into the calibration factor
     // again AND leave this week still in calibration, so the next render
-    // re-proposed the transition off a lower maintenance estimate — 1500, then
+    // re-proposed the transition off a lower maintenance estimate, 1500, then
     // 1378, then 1300, all from one fortnight of data.
     const { db } = installFakeSupabase({ db: graduatingUser() });
     const thisWeek = localWeekStart("UTC");

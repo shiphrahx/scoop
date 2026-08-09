@@ -4,7 +4,7 @@ import { parseFoodQuery } from "@/lib/foodquery";
 // The search box is the front door to logging food: the user types the item and
 // the amount together. Two things have to be right, and they fail differently.
 //
-// A wrong TERM means they can't find the food — annoying, and they'll notice.
+// A wrong TERM means they can't find the food, annoying, and they'll notice.
 // A wrong GRAMS means they find it and log the wrong number of calories, and
 // they won't notice at all. This is search UX and macro maths at the same time.
 
@@ -40,7 +40,7 @@ describe("parseFoodQuery", () => {
   });
 
   it("uses a size word when no weight is given, and searches without it", () => {
-    // The size word is an adjective, not part of the food's name — leaving it in
+    // The size word is an adjective, not part of the food's name, leaving it in
     // means searching the pantry for "medium banana" and finding nothing.
     expect(parseFoodQuery("medium banana")).toEqual({ grams: 120, term: "banana" });
     expect(parseFoodQuery("large egg")).toEqual({ grams: 180, term: "egg" });
@@ -53,7 +53,7 @@ describe("parseFoodQuery", () => {
   });
 
   it("asks for no particular amount when none is typed", () => {
-    // null (not 0) — the caller then falls back to the pack size or 100 g.
+    // null (not 0), the caller then falls back to the pack size or 100 g.
     expect(parseFoodQuery("chicken breast")).toEqual({
       grams: null,
       term: "chicken breast",

@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FoodChoice, Macros, PlanItem, PlannedMeal } from "@/lib/types";
 
 // Building a meal by hand: a fresh food (banana) carries its named sizes, so the
-// user taps "small" instead of typing grams. The size the app saves — its grams
-// and unit — is what the day's macros are built from, so the wrong size means the
+// user taps "small" instead of typing grams. The size the app saves, its grams
+// and unit, is what the day's macros are built from, so the wrong size means the
 // wrong plan.
 
 const searchFoods = vi.fn();
@@ -151,7 +151,7 @@ describe("meal builder — fresh food sizes", () => {
 
     await addRice(user);
 
-    // No portion stepper — a staple is weighed.
+    // No portion stepper, a staple is weighed.
     expect(screen.queryByRole("button", { name: /one more/i })).toBeNull();
 
     const input = await screen.findByLabelText(/white rice \(cooked\) grams/i);
