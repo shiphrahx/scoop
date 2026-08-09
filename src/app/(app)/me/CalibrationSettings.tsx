@@ -115,8 +115,9 @@ export default function CalibrationSettings({
                       })}
                     </span>
                     <span className="block text-xs text-[var(--muted)]">
-                      {r.days} day{r.days === 1 ? "" : "s"} measured · set{" "}
-                      {Math.round(r.targetKcal).toLocaleString("en-GB")} kcal
+                      {r.days} day{r.days === 1 ? "" : "s"} measured · set your
+                      target at {Math.round(r.targetKcal).toLocaleString("en-GB")}{" "}
+                      kcal
                     </span>
                   </span>
                   <ChevronRight size={18} className="shrink-0 text-[var(--muted)]" />
