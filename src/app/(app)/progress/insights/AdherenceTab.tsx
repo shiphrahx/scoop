@@ -45,13 +45,13 @@ export default function AdherenceTab({
   if (weeks.length === 0) {
     locked.push({
       title: "Eaten vs target",
-      why: "What you ate each week against your target. Log food for a week that has a target.",
+      why: "What you ate each week against your target. Log your food for a week that has one.",
     });
   }
   if (pattern == null) {
     locked.push({
       title: "Weekdays vs weekends",
-      why: "Whether weekend intake is eroding the week's deficit. Six weekdays and three weekend days logged.",
+      why: "Whether your weekends are eating into the week's deficit. Needs six weekdays and three weekend days logged.",
     });
   }
 

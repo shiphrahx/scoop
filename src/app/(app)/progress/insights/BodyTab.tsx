@@ -91,19 +91,19 @@ export default function BodyTab({
   if (whtr == null) {
     locked.push({
       title: "Waist to height",
-      why: "A stronger health indicator than weight alone. Add a waist at a check-in and a height on your profile.",
+      why: "A better health marker than weight alone. Add a waist at a check-in, and your height on your profile.",
     });
   }
   if (!anyMeasurement) {
     locked.push({
       title: "Measurements",
-      why: "Track waist, chest, arms, thighs and hips, which can change on weeks the scale doesn't. Take them at a check-in.",
+      why: "Waist, chest, arms, thighs and hips, which often move on the weeks the scale doesn't. Take them at a check-in.",
     });
   }
   if (pair == null) {
     locked.push({
       title: "Then and now",
-      why: "Slide your first photo over your latest. Add one at two check-ins a week or more apart.",
+      why: "Slide your first photo over your latest. Add one at two check-ins, a week or more apart.",
     });
   }
   if (checkIns.length === 0) {

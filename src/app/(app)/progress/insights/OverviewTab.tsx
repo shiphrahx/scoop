@@ -125,19 +125,19 @@ export default function OverviewTab({
   if (trend.length === 0) {
     locked.push({
       title: "Weight trend",
-      why: "Your real weight line, with the daily water noise smoothed out. Weigh in on four separate days.",
+      why: "Your real weight line, with the day to day water noise smoothed out. Weigh in on four separate days to see it.",
     });
   }
   if (rate == null) {
     locked.push({
       title: "Rate of loss",
-      why: "How fast you're losing, against the healthy band for your body. Needs a week of weigh-ins.",
+      why: "How fast you're losing, against the healthy range for your body. Weigh in for a week to see it.",
     });
   }
   if (projection == null) {
     locked.push({
       title: "Goal date",
-      why: "The date you're on course to hit your goal. Needs three weeks of weigh-ins on a falling trend, plus a goal weight.",
+      why: "The date you're on course to hit your goal. Needs a goal weight, and three weeks of weigh-ins on a falling trend.",
     });
   }
   if (progress == null) {
@@ -149,7 +149,7 @@ export default function OverviewTab({
   if (!hasTarget) {
     locked.push({
       title: "This week",
-      why: "The days you hit calories and protein this week. Finish onboarding so the Coach sets a target.",
+      why: "The days you hit your calories and your protein this week. Finish onboarding and the Coach sets you a target.",
     });
   }
 

@@ -89,7 +89,7 @@ describe("progress dashboard, locked insights", () => {
     expect(screen.getByText("Sticking to the plan")).toBeTruthy();
     expect(screen.getByText("High days")).toBeTruthy();
 
-    expect(screen.getByText(/weeks with more sleep are weeks with more loss/i))
+    expect(screen.getByText(/weeks you sleep more are the weeks you lose more/i))
       .toBeTruthy();
     expect(screen.getByText(/four weeks of logging against a target/i)).toBeTruthy();
     expect(screen.getByText(/turn calorie cycling on/i)).toBeTruthy();
@@ -118,7 +118,7 @@ describe("progress dashboard, locked insights", () => {
     expect(screen.getByText("7.8")).toBeTruthy();
     expect(screen.getByText(/6.4 h on your worst/)).toBeTruthy();
     // And the sleep card is no longer pitching itself.
-    expect(screen.queryByText(/weeks with more sleep are weeks with more loss/i))
+    expect(screen.queryByText(/weeks you sleep more are the weeks you lose more/i))
       .toBeNull();
     // The three that still have no data keep their place.
     expect(screen.getByText("Movement and weight loss")).toBeTruthy();
