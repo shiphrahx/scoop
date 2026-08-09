@@ -179,16 +179,31 @@ export function buildCards(
   }
 
   const t = w.newTarget;
+  const burn = w.measuredMaintenanceKcal;
+  // Two sentences that used to be one number, which is what made this card read
+  // as wrong arithmetic: 1,378 is 231 below a burn of 1,609 AND 322 less food
+  // than a hold at 1,700. Both are true, and only naming the first left the
+  // other 91 kcal unaccounted for on the reader's own subtraction.
+  const versusBurn =
+    burn != null ? `${kcal(w.deficitKcal)} kcal below the ${kcal(burn)} kcal you burn` : null;
+  const versusPlate =
+    w.changeFromHoldKcal > 0
+      ? `${kcal(w.changeFromHoldKcal)} kcal less food than the ${kcal(w.holdTargetKcal)} you have been eating`
+      : w.changeFromHoldKcal < 0
+        ? `${kcal(-w.changeFromHoldKcal)} kcal MORE food than the ${kcal(w.holdTargetKcal)} you have been eating`
+        : `the same amount of food you have been eating`;
   cards.push({
     key: "target",
-    kicker: replay ? "The target it set" : "Your target from today",
+    kicker: replay ? "The target it set" : "What you eat from today",
     value: kcal(t.kcal),
     unit: "kcal a day",
     target: t,
     body:
-      `A ${kcal(w.deficitKcal)} kcal a day cut from your calibrated maintenance. ` +
-      `Opening deficits are kept modest on purpose — the aim is a cut you can hold for months, not the fastest one arithmetic allows. ` +
-      `Protein is set high to protect muscle while you lose.`,
+      (versusBurn ? `That is ${versusBurn}, and ${versusPlate}. ` : `That is ${versusPlate}. `) +
+      `Protein is set at ${Math.round(t.protein_g)} g — deliberately high, so what you lose is fat rather than muscle.`,
+    note:
+      `A first deficit is held to 300–500 kcal a day: enough to show on the scale inside a fortnight, ` +
+      `small enough to live with for months. Faster cuts are earned later from real results, not chosen at the start.`,
   });
 
   if (w.expectedLossKgPerWeek != null) {
