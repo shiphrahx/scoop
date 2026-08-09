@@ -110,7 +110,7 @@ export const getProfile = cache(async function getProfile(): Promise<Profile | n
 // writes a target then re-reads it inside one request. One daily_targets round
 // trip instead of one per caller.
 const TARGET_COLS =
-  "week_start, phase, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg";
+  "week_start, effective_from, phase, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, satfat_g, sodium_mg";
 
 // The calibration row a running hold is pinned to: the earliest one belonging to
 // the current run, i.e. not older than the week the hold started. Rows from an
@@ -548,7 +548,7 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
       getDailyIntake(tz, TREND_WINDOW_DAYS, now),
       supabase
         .from("daily_targets")
-        .select("week_start, kcal, phase")
+        .select("week_start, effective_from, kcal, phase")
         .lte("week_start", thisWeekStart)
         .order("week_start", { ascending: false })
         .limit(26),
@@ -623,28 +623,39 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
   const inWeekBefore = weights.filter((w) => w.date >= cut14 && w.date < cut7).length;
   const consistent = inLastWeek >= MIN_WEIGH_INS && inWeekBefore >= MIN_WEIGH_INS;
 
-  // Adaptation gate: how many whole weeks the current calorie target has been
-  // unchanged. The review won't cut or add until the body has had ~2 weeks to
-  // respond. We measure it as the span from the start of the current unbroken
-  // run of same-kcal weekly targets up to this week. The history was fetched in
-  // the batch above; it's only meaningful once there's a current target.
+  // Adaptation gate: how many DAYS the current calorie target has actually been
+  // in force. The review won't cut or add until the body has had a full two
+  // weeks to respond. We walk back through the unbroken run of same-kcal weekly
+  // rows and count from the day the earliest of them started being eaten —
+  // effective_from, which is the Monday for an ordinary weekly target but the
+  // day itself for one written mid-week (a calibration graduation, a profile
+  // edit). Counting calendar weeks handed a target that began on the Thursday
+  // credit for the four days before it existed. The history was fetched in the
+  // batch above; it's only meaningful once there's a current target.
   const targetHistory = current
     ? ((histRes.data as
-        | { week_start: string; kcal: number; phase: string | null }[]
+        | {
+            week_start: string;
+            effective_from: string | null;
+            kcal: number;
+            phase: string | null;
+          }[]
         | null) ?? [])
     : [];
-  let weeksOnTarget = 0;
+  let daysOnTarget = 0;
   if (current) {
-    let runStart = thisWeekStart;
+    const today = localDate(tz, now);
+    let startedOn = thisWeekStart;
     for (const row of targetHistory) {
       if (Math.round(Number(row.kcal)) === Math.round(current.kcal)) {
-        runStart = row.week_start;
+        startedOn = row.effective_from ?? row.week_start;
       } else {
         break;
       }
     }
-    weeksOnTarget = Math.round(
-      (Date.parse(thisWeekStart) - Date.parse(runStart)) / (7 * DAY_MS),
+    daysOnTarget = Math.max(
+      0,
+      Math.round((Date.parse(today) - Date.parse(startedOn)) / DAY_MS),
     );
   }
 
@@ -707,9 +718,9 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
         // Keep the protein cap consistent with onboarding when we recompute.
         heightCm: profile?.height_cm,
         goalWeightKg: profile?.goal_weight_kg,
-        // Cadence gates — hold unless the target is ≥2 weeks old and the
-        // weigh-ins are consistent.
-        weeksOnTarget,
+        // Cadence gates — hold unless the target has been eaten for a full two
+        // weeks and the weigh-ins are consistent.
+        daysOnTarget,
         consistent,
         adherence: adherence ?? undefined,
         stepsDropped,

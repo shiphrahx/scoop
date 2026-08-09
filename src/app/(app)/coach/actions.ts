@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { encryptSecret, decryptSecret, hashToken } from "@/lib/crypto";
 import { updateCalibration } from "@/lib/coach";
 import { getCoachData, getProfile, getTimezone } from "@/lib/queries";
-import { localWeekStart } from "@/lib/time";
+import { localDate, localWeekStart } from "@/lib/time";
 import {
   activeProvider,
   providerConfigured,
@@ -77,6 +77,10 @@ export async function applyReview() {
   const weekStart = takesEffectNow
     ? localWeekStart(tz, new Date())
     : localWeekStart(tz, new Date(Date.now() + 7 * DAY_MS));
+  // The day the target starts being eaten, which is what the two-week
+  // adaptation gate counts. Next week's target starts on its Monday; one that
+  // takes effect now starts today, part-way through the week it is filed under.
+  const effectiveFrom = takesEffectNow ? localDate(tz, new Date()) : weekStart;
   // Only the macro numbers come from review.macros — pick them out explicitly.
   // On a HELD review, review.macros IS the current target row, which carries its
   // own week_start and phase; spreading it would overwrite the week we picked
@@ -87,6 +91,7 @@ export async function applyReview() {
     {
       user_id: user.id,
       week_start: weekStart,
+      effective_from: effectiveFrom,
       phase,
       kcal: m.kcal,
       protein_g: m.protein_g,

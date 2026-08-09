@@ -11,7 +11,7 @@ import {
   tdee,
 } from "@/lib/coach";
 import { getTimezone } from "@/lib/queries";
-import { localWeekStart } from "@/lib/time";
+import { localDate, localWeekStart } from "@/lib/time";
 import { clampHighDaysChoice } from "@/lib/highday";
 import type { ActivityLevel, DietType, GoalPace } from "@/lib/types";
 
@@ -85,7 +85,7 @@ export async function saveGoals(input: GoalsInput) {
       supabase.from("activity").select("workout_kcal").gte("date", cut7),
       supabase
         .from("daily_targets")
-        .select("phase")
+        .select("phase, kcal, effective_from")
         .eq("user_id", user.id)
         .eq("week_start", weekStart)
         .maybeSingle(),
@@ -94,7 +94,10 @@ export async function saveGoals(input: GoalsInput) {
   // Don't knock a calibrating user out of their maintenance hold: while the
   // current week's target is a calibration one, recompute at maintenance and
   // keep the phase. Otherwise it's an ordinary deficit recompute.
-  const curPhase = (curTarget as { phase: string | null } | null)?.phase ?? null;
+  const cur = curTarget as
+    | { phase: string | null; kcal: number; effective_from: string | null }
+    | null;
+  const curPhase = cur?.phase ?? null;
   const calibrating = curPhase === "calibration";
 
   const p = prof as
@@ -139,12 +142,22 @@ export async function saveGoals(input: GoalsInput) {
     const target = calibrating
       ? maintenanceTarget(macroInput)
       : dailyTarget({ ...macroInput, pace: input.goal_pace });
+    // A profile edit recomputes the week already in force, part-way through it.
+    // When that actually moves the calories, the two-week adaptation clock starts
+    // today — the days before it were spent on a different target. When the
+    // number comes out the same, nothing restarts: keep the date the run began,
+    // or every visit to Settings would push the next review back.
+    const movedKcal =
+      cur == null || Math.round(Number(cur.kcal)) !== Math.round(target.kcal);
     await supabase
       .from("daily_targets")
       .upsert(
         {
           user_id: user.id,
           week_start: weekStart,
+          effective_from: movedKcal
+            ? localDate(await getTimezone(), new Date())
+            : (cur?.effective_from ?? weekStart),
           // Keep whatever phase the week already had (diet break, maintenance);
           // only a calibration hold pins the target to maintenance.
           phase: curPhase ?? "deficit",
@@ -372,6 +385,9 @@ export async function restartCalibration() {
     {
       user_id: user.id,
       week_start: weekStart,
+      // The hold starts the moment it is asked for, not on the Monday of the
+      // week it lands in.
+      effective_from: localDate(await getTimezone(), now),
       phase: "calibration",
       ...maintenanceTarget(macroInput),
     },

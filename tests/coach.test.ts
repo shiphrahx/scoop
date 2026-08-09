@@ -930,7 +930,7 @@ describe("weeklyReview adherence gate", () => {
     trend: tr(90, 90),
     waistDeltaCm: 0,
     current,
-    weeksOnTarget: 3,
+    daysOnTarget: 21,
     consistent: true,
   };
   const ate = (kcal: number): Adherence => ({
@@ -1042,7 +1042,7 @@ describe("weeklyReview step diagnosis", () => {
     trend: { nowKg: 90, thenKg: 90, changeKg: 0, changePct: 0, spanDays: 7 },
     waistDeltaCm: 0,
     current,
-    weeksOnTarget: 3,
+    daysOnTarget: 21,
     consistent: true,
     adherence: {
       loggedDays: 7,
@@ -1128,7 +1128,7 @@ describe("weeklyReview phases", () => {
     trend: { nowKg: 90, thenKg: 90.6, changeKg: 0.6, changePct: 0.6 / 90.6, spanDays: 7 },
     waistDeltaCm: null,
     current,
-    weeksOnTarget: 3,
+    daysOnTarget: 21,
     consistent: true,
   };
 
@@ -1390,7 +1390,7 @@ describe("weeklyReview waist going the wrong way", () => {
       trend: { nowKg: 90, thenKg: 90, changeKg: 0, changePct: 0, spanDays: 7 },
       waistDeltaCm: 1.5,
       current,
-      weeksOnTarget: 3,
+      daysOnTarget: 21,
       consistent: true,
       adherence: {
         loggedDays: 7,
@@ -1424,24 +1424,35 @@ describe("weeklyReview cadence gates", () => {
     current,
   };
 
-  it("holds a stalled target that is still new (under 2 weeks)", () => {
-    const r = weeklyReview({ ...stall, weeksOnTarget: 1, consistent: true });
+  it("holds a stalled target that is still new (under 14 days on it)", () => {
+    const r = weeklyReview({ ...stall, daysOnTarget: 7, consistent: true });
     expect(r.changed).toBe(false);
     expect(r.macros).toEqual(current);
     expect(r.headline).toMatch(/settling/i);
   });
 
   it("holds when weigh-ins are inconsistent, even after 2 weeks", () => {
-    const r = weeklyReview({ ...stall, weeksOnTarget: 3, consistent: false });
+    const r = weeklyReview({ ...stall, daysOnTarget: 21, consistent: false });
     expect(r.changed).toBe(false);
     expect(r.macros).toEqual(current);
     expect(r.headline).toMatch(/fuller/i);
   });
 
-  it("adjusts once the target is >=2 weeks old and logging is consistent", () => {
-    const r = weeklyReview({ ...stall, weeksOnTarget: 2, consistent: true });
+  it("adjusts once the target has 14 days on it and logging is consistent", () => {
+    const r = weeklyReview({ ...stall, daysOnTarget: 14, consistent: true });
     expect(r.changed).toBe(true);
     expect(r.macros.kcal).toBeLessThan(current.kcal);
+  });
+
+  it("still holds on the thirteenth day — a part-week is not a week", () => {
+    // A target written mid-week used to be credited with the whole calendar
+    // week, so a Thursday change could be judged after eleven days on it. The
+    // wait is physiological: the trend isn't showing fat yet.
+    const r = weeklyReview({ ...stall, daysOnTarget: 13, consistent: true });
+    expect(r.changed).toBe(false);
+    expect(r.headline).toMatch(/settling/i);
+    expect(r.detail).toMatch(/13 days/);
+    expect(r.detail).toMatch(/1 day to go/);
   });
 
   it("also holds a too-fast loss while the target is new (one noisy week)", () => {
@@ -1450,7 +1461,7 @@ describe("weeklyReview cadence gates", () => {
       ...stall,
       trend: tr(90, 88),
       waistDeltaCm: null,
-      weeksOnTarget: 1,
+      daysOnTarget: 7,
       consistent: true,
     });
     expect(r.changed).toBe(false);
