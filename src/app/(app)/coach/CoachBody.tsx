@@ -9,7 +9,7 @@ import { ApplyTargetsButton } from "./Controls";
 // and this streams in behind a Suspense boundary.
 export default async function CoachBody() {
   const data = await getCoachData();
-  const { review, current } = data;
+  const { review, current, takesEffectNow } = data;
 
   return (
     <>
@@ -34,7 +34,9 @@ export default async function CoachBody() {
               <>
                 <ArrowRight size={22} className="mb-1 text-[var(--muted)]" />
                 <div className="text-right">
-                  <p className="text-xs text-[var(--muted)]">Next week</p>
+                  <p className="text-xs text-[var(--muted)]">
+                    {takesEffectNow ? "From today" : "Next week"}
+                  </p>
                   <p
                     className="text-2xl font-bold tabular-nums"
                     style={{ color: "var(--ink-green)" }}
@@ -48,7 +50,9 @@ export default async function CoachBody() {
           </div>
         )}
 
-        {current && <ApplyTargetsButton changed={review.changed} />}
+        {current && (
+          <ApplyTargetsButton changed={review.changed} immediate={takesEffectNow} />
+        )}
       </section>
 
       {/* Recent activity */}

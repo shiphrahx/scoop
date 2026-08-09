@@ -10,8 +10,16 @@ import {
   syncFitbit,
 } from "./actions";
 
-// Save the reviewed target as next week's plan.
-export function ApplyTargetsButton({ changed }: { changed: boolean }) {
+// Save the reviewed target. Usually that means next week's plan; a calibration
+// graduation applies to the week in force, so the label has to say so rather
+// than promise Monday for something that has already happened.
+export function ApplyTargetsButton({
+  changed,
+  immediate = false,
+}: {
+  changed: boolean;
+  immediate?: boolean;
+}) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -33,7 +41,7 @@ export function ApplyTargetsButton({ changed }: { changed: boolean }) {
     >
       {saved ? (
         <>
-          <Check size={18} /> Set for next week
+          <Check size={18} /> {immediate ? "Applied" : "Set for next week"}
         </>
       ) : saving ? (
         "Saving…"

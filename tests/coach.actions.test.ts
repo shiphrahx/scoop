@@ -8,6 +8,7 @@ vi.mock("@/lib/supabase/server", async () => {
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
 const { ensureReviewApplied, applyReview } = await import("@/app/(app)/coach/actions");
+const { localWeekStart } = await import("@/lib/time");
 
 const DAY = 86_400_000;
 const iso = (daysAgo: number) =>
@@ -67,6 +68,61 @@ function heldReviewUser() {
   return {
     ...stalledUser(),
     weights: [],
+  };
+}
+
+// A user whose calibration hold has run its full window: a fortnight of eating
+// at the estimated maintenance the hold pinned, logged daily, weight flat. The
+// review graduates them into their first deficit.
+function graduatingUser() {
+  const MAINTENANCE = 1700;
+  const weights = Array.from({ length: 28 }, (_, i) => ({
+    user_id: "user-1",
+    date: iso(27 - i),
+    weight_kg: 70,
+  }));
+  const food_logs = Array.from({ length: 28 }, (_, i) => ({
+    user_id: "user-1",
+    logged_at: new Date(Date.now() - (27 - i) * DAY).toISOString(),
+    kcal: MAINTENANCE,
+    protein_g: 130,
+    carbs_g: 170,
+    fat_g: 55,
+  }));
+  const calRow = (daysAgo: number) => ({
+    user_id: "user-1",
+    week_start: localWeekStart("UTC", new Date(Date.now() - daysAgo * DAY)),
+    kcal: MAINTENANCE,
+    protein_g: 130,
+    carbs_g: 170,
+    fat_g: 55,
+    phase: "calibration",
+  });
+  return {
+    users: [
+      {
+        id: "user-1",
+        sex: "female" as const,
+        height_cm: 165,
+        birth_year: 1990,
+        diet_type: "regular",
+        activity_level: "sedentary",
+        goal_pace: "steady",
+        body_fat_pct: null,
+        goal_weight_kg: null,
+        tdee_calibration: 1,
+        tdee_observed_at: null,
+        // Past the max window, so the hold is over however the data looks.
+        calibration_started_at: new Date(Date.now() - 15 * DAY).toISOString(),
+        timezone: "UTC",
+      },
+    ],
+    weights,
+    food_logs,
+    measurements: [],
+    activity: [],
+    daily_targets: [calRow(14), calRow(7), calRow(0)],
+    fitbit_tokens: [],
   };
 }
 
@@ -131,5 +187,43 @@ describe("applyReview", () => {
     expect(db.daily_targets.length).toBe(before + 1);
     const written = db.daily_targets[db.daily_targets.length - 1];
     expect(Number(written.kcal)).toBeLessThan(2000); // a stall cuts calories
+  });
+
+  it("graduating from calibration changes THIS week's target, not next week's", async () => {
+    // The hold ends mid-week off its own timestamp. Deferring the first deficit
+    // to Monday left the planner on maintenance for days after the coach said
+    // the cut had started — which is what "nothing changed" looked like.
+    const { db } = installFakeSupabase({ db: graduatingUser() });
+    const thisWeek = localWeekStart("UTC");
+
+    await applyReview();
+
+    const row = db.daily_targets.find((t) => t.week_start === thisWeek);
+    expect(row).toBeDefined();
+    expect(row!.phase).toBe("deficit");
+    expect(Number(row!.kcal)).toBeLessThan(1700);
+    // Nothing written for next week: the target in force IS the new one.
+    const nextWeek = localWeekStart("UTC", new Date(Date.now() + 7 * DAY));
+    expect(db.daily_targets.some((t) => t.week_start === nextWeek)).toBe(false);
+  });
+
+  it("applying the graduation twice does not walk the target down", async () => {
+    // Each apply used to fold the same measurement into the calibration factor
+    // again AND leave this week still in calibration, so the next render
+    // re-proposed the transition off a lower maintenance estimate — 1500, then
+    // 1378, then 1300, all from one fortnight of data.
+    const { db } = installFakeSupabase({ db: graduatingUser() });
+    const thisWeek = localWeekStart("UTC");
+
+    await applyReview();
+    const first = Number(db.daily_targets.find((t) => t.week_start === thisWeek)!.kcal);
+    await applyReview();
+
+    expect(Number(db.daily_targets.find((t) => t.week_start === thisWeek)!.kcal)).toBe(
+      first,
+    );
+    for (const t of db.daily_targets) {
+      if (t.phase === "deficit") expect(Number(t.kcal)).toBe(first);
+    }
   });
 });
