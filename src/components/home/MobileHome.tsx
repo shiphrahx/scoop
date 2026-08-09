@@ -155,6 +155,44 @@ export default function MobileHome({
   );
 }
 
+// The hold has ended and the review of it hasn't been seen yet.
+//
+// This covers the screen rather than sitting in the stack of cards. It is the
+// one moment in the app where there is a right thing to do next and only one of
+// them: read what the fortnight measured, then start the deficit it produced.
+// Logging a breakfast against a maintenance target that is about to be replaced
+// is not worth the interruption it would cost to allow.
+export function CalibrationDone({ days }: { days: number }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col justify-end gap-6 p-6 text-white"
+      style={{ background: "var(--grad-cool)" }}
+    >
+      <div className="flex flex-col gap-3">
+        <span className="grid h-14 w-14 place-items-center rounded-3xl bg-white/20">
+          <Telescope size={28} />
+        </span>
+        <p className="text-sm font-semibold uppercase tracking-wide text-white/80">
+          Calibration complete
+        </p>
+        <h1 className="text-4xl font-bold leading-tight tracking-tight">
+          {days} days of logging just measured your metabolism.
+        </h1>
+        <p className="text-white/90">
+          Your maintenance calories, where your energy goes and the target that
+          starts your weight loss — all worked out from your own data.
+        </p>
+      </div>
+      <Link
+        href="/calibration"
+        className="flex h-14 items-center justify-center gap-2 rounded-full bg-white text-lg font-bold text-[var(--ink-teal)] transition active:scale-95"
+      >
+        See what we learned <ChevronRight size={20} />
+      </Link>
+    </div>
+  );
+}
+
 // A new user is calibrating: eating at maintenance while the app learns their
 // burn. Frame it as progress, with the days-left count front and centre.
 export function CalibrationBanner({ daysRemaining }: { daysRemaining: number }) {
