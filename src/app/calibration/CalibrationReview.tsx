@@ -83,7 +83,7 @@ export function buildCards(
       `For ${w.days} day${w.days === 1 ? "" : "s"} you ate ${kcal(w.holdTargetKcal)} kcal a day, ` +
       `logged your food on ${w.loggedDays} of them and stepped on the scale ${w.weighInDays} time${
         w.weighInDays === 1 ? "" : "s"
-      }. That's what made everything below possible. None of it is guesswork.`,
+      }. That's what made everything below possible.`,
     note:
       `A fortnight is the shortest run that shows real change on the scale. Anything less and you're ` +
       `mostly watching water move in and out.`,
@@ -105,8 +105,8 @@ export function buildCards(
       value: kcal(w.measuredMaintenanceKcal),
       unit: "kcal a day",
       body:
-        `This is the amount that keeps you exactly where you are, with no gain and no loss. ` +
-        `It's your figure, not a guess: it came from the food you logged and what your weight did over ${w.days} days.${versus}`,
+        `This is what keeps you exactly where you are, no gain and no loss. It came from the food you ` +
+        `logged and what your weight did over ${w.days} days.${versus}`,
       note:
         `Formulas describe the average of thousands of people. Any one person can sit 300 to 400 kcal either side of ` +
         `that average, which is why it was worth spending a fortnight finding yours.`,
@@ -133,7 +133,7 @@ export function buildCards(
       unit: "kcal a day from moving",
       body:
         `Another ${kcal(restingKcal)} kcal goes on simply being alive: heart, lungs, brain, all of it ` +
-        `running while you sit still. The rest is you, up and about. ${habits}`,
+        `running while you sit still.${habits}`,
       note:
         `Walking, standing and fidgeting usually add up to more than exercise does. When a diet stops working, ` +
         `this is often the part that quietly shrank.`,
@@ -158,7 +158,7 @@ export function buildCards(
           : `gained over ${w.days} days`,
       body: steady
         ? `You ate ${kcal(w.meanIntakeKcal)} kcal a day and the scale barely moved. ` +
-          `That's exactly what maintenance is meant to look like, and it's the best evidence there is that the number above is yours.`
+          `That's exactly what maintenance looks like, and the best evidence there is that the number above is yours.`
         : w.weightChangeKg > 0
           ? // The case that reads as a contradiction unless it's spelled out: they
             // were told they were eating at maintenance, and lost weight anyway.
@@ -247,10 +247,10 @@ export function buildCards(
           kicker: "That was your calibration",
           value: "Done",
           body:
-            `This is your calibration exactly as it was on ${
+            `This is your calibration as it stood on ${
               endedAt ? longDate(endedAt.slice(0, 10)) : "the day it finished"
-            }, kept just as it was. ` +
-            `Your targets have moved on since then. They're reviewed against your results every week.`,
+            }. ` +
+            `Your targets have moved on since then — they're reviewed against your results every week.`,
         }
       : {
           key: "start",
@@ -258,7 +258,7 @@ export function buildCards(
           value: "Start now",
           body:
             `Tap start and today's target becomes ${kcal(w.newTarget.kcal)} kcal. ` +
-            `This review is yours to keep. It'll be waiting in Settings whenever you want to look back at it.`,
+            `This review stays in Settings if you want to look back at it.`,
           note:
             `Your new target holds for two weeks before anything is adjusted. The first week on new calories is ` +
             `mostly water, so reading it sooner just means reacting to noise. After that your results are reviewed ` +
