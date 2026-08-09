@@ -45,7 +45,7 @@ export async function GET(request: Request) {
     | null;
 
   if (!tokens) {
-    return NextResponse.json({ host, ...config, error: "no tokens — not connected" });
+    return NextResponse.json({ host, ...config, error: "no tokens, not connected" });
   }
 
   if (!config.configured) {

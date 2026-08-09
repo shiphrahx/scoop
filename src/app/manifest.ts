@@ -3,7 +3,7 @@ import type { MetadataRoute } from "next";
 // Web app manifest, makes Scoop installable to the home screen.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Scoop — your portion coach",
+    name: "Scoop: your portion coach",
     short_name: "Scoop",
     description:
       "We tell you the portion to eat to hit your macros. No searching, just scooping.",

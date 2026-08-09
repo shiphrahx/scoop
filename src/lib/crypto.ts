@@ -21,7 +21,7 @@ function key(): Buffer {
   const raw = process.env.SECRET_ENCRYPTION_KEY;
   if (!raw) {
     throw new Error(
-      "SECRET_ENCRYPTION_KEY is not set — cannot encrypt/decrypt secrets.",
+      "SECRET_ENCRYPTION_KEY is not set. Cannot encrypt or decrypt secrets.",
     );
   }
   // Accept base64 or hex; both must decode to exactly 32 bytes.

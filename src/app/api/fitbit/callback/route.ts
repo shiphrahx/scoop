@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
   if (!tokens.refresh_token) {
     logError(
       `fitbit connect for user ${user.id}`,
-      new Error("provider returned no refresh token — offline access not granted"),
+      new Error("provider returned no refresh token, offline access not granted"),
     );
     return fail("offline");
   }

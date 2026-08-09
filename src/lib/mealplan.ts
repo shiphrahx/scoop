@@ -976,7 +976,7 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
   const biggest = gaps[0];
   const gapNote =
     biggest && biggest.short * KCAL_PER_G[biggest.key] >= 100
-      ? ` Most of the gap is ${MACRO_LABEL[biggest.key]} — ${biggest.short} g short.`
+      ? ` Most of the gap is ${MACRO_LABEL[biggest.key]}, ${biggest.short} g short.`
       : "";
 
   // Over its limit is reported as soon as it is measurably over; under gets the
@@ -987,9 +987,9 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
       ? null
       : kcalMiss > 0
         ? atSmallest
-          ? `Even at their smallest sensible servings these picks come to ${dayTotals.kcal} kcal — ${kcalMiss} over today's target. Take something out to bring the day back.`
-          : `This day comes to ${dayTotals.kcal} kcal — ${kcalMiss} over today's target, the closest these picks get.`
-        : `This day comes to ${dayTotals.kcal} kcal — ${-kcalMiss} under today's target.${blocking || " Add to your picks to fill the gap."}${gapNote}${biggest ? maxedNoteFor(biggest.key) : ""}`;
+          ? `Even at their smallest sensible servings these picks come to ${dayTotals.kcal} kcal, which is ${kcalMiss} over today's target. Take something out to bring the day back.`
+          : `This day comes to ${dayTotals.kcal} kcal, which is ${kcalMiss} over today's target, the closest these picks get.`
+        : `This day comes to ${dayTotals.kcal} kcal, which is ${-kcalMiss} under today's target.${blocking || " Add to your picks to fill the gap."}${gapNote}${biggest ? maxedNoteFor(biggest.key) : ""}`;
 
   // Any macro that still ends up OVER its limit gets named. Two different facts
   // wear the same number, so they get different sentences: a day whose energy is
@@ -1003,8 +1003,8 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
     const over = dayTotals[key] - Math.max(0, input.budget[key] ?? 0);
     const label = `${MACRO_LABEL[key][0].toUpperCase()}${MACRO_LABEL[key].slice(1)}`;
     return kcalMiss > kcalSlack
-      ? `${label} lands ${over} g over — these picks don't go any smaller.`
-      : `${label} lands ${over} g over — the picks that fill the rest of the day carry it.`;
+      ? `${label} lands ${over} g over. These picks don't go any smaller.`
+      : `${label} lands ${over} g over. The picks that fill the rest of the day carry it.`;
   });
 
   // A macro can land well short while the day's ENERGY lands, the picks simply
@@ -1028,7 +1028,7 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
   const proteinShort = proteinTarget - dayTotals.protein_g;
   const proteinNote =
     proteinShort > Math.max(10, proteinTarget * 0.1)
-      ? `Protein lands ${proteinShort} g under — these picks can't carry more of it.`
+      ? `Protein lands ${proteinShort} g under. These picks can't carry more of it.`
       : null;
   const dayNote =
     [energyNote, ...overNotes, ...shortNotes, proteinNote].filter(Boolean).join(" ") ||
@@ -1048,8 +1048,8 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
           : "none";
         notes.push(
           isCountable(food)
-            ? `No whole ${food.unit_label ?? "unit"} of ${food.name} left (${left}) — restock it and rebuild.`
-            : `Not enough ${food.name} left (${left}) for a serving — restock it and rebuild.`,
+            ? `No whole ${food.unit_label ?? "unit"} of ${food.name} left (${left}). Restock it and rebuild.`
+            : `Not enough ${food.name} left (${left}) for a serving. Restock it and rebuild.`,
         );
         return;
       }
@@ -1058,7 +1058,7 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
         // it can't move to close a gap. Invisible otherwise: the plan just looks
         // stuck, with no sign of what is pinning it.
         notes.push(
-          `${food.name} is held at the ${served[i]} g you set — edit this meal to let the app size it again.`,
+          `${food.name} is held at the ${served[i]} g you set. Edit this meal to let the app size it again.`,
         );
       }
       portions.push({ food, grams: served[i] });

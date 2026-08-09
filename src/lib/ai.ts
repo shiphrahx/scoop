@@ -94,10 +94,10 @@ export function dietRule(diet: DietType): string {
     return "The user is PESCATARIAN. Never include meat or poultry (fish, seafood, eggs, and dairy are fine).";
   }
   if (diet === "keto") {
-    return "The user is on a KETOGENIC diet. Keep carbs very low — avoid bread, pasta, rice, potatoes, grains, sugar, and sugary fruit. Favour meat, fish, eggs, cheese, non-starchy vegetables, nuts, and healthy fats.";
+    return "The user is on a KETOGENIC diet. Keep carbs very low. Avoid bread, pasta, rice, potatoes, grains, sugar, and sugary fruit. Favour meat, fish, eggs, cheese, non-starchy vegetables, nuts, and healthy fats.";
   }
   if (diet === "celiac") {
-    return "The user has CELIAC disease. Everything must be strictly GLUTEN-FREE — never include wheat, barley, rye, malt, or ordinary bread, pasta, flour, couscous, or beer unless it is explicitly gluten-free.";
+    return "The user has CELIAC disease. Everything must be strictly GLUTEN-FREE. Never include wheat, barley, rye, malt, or ordinary bread, pasta, flour, couscous, or beer unless it is explicitly gluten-free.";
   }
   return "The user eats everything (no dietary restriction).";
 }
@@ -352,7 +352,7 @@ function checkedRecipe(recipe: ParsedRecipe): ParsedRecipe {
   const stated = { ...recipe };
   if (stated.kcal > 0 && !macrosExplainKcal(stated)) {
     throw new Error(
-      "The nutrition on that recipe doesn't add up — check it and enter the macros yourself.",
+      "The nutrition on that recipe doesn't add up. Check it and enter the macros yourself.",
     );
   }
   return recipe;
@@ -430,7 +430,7 @@ export async function parseProductFromUrl(url: string): Promise<ParsedProduct> {
       "name is the product's name (with brand and pack size if shown). The " +
       "macro fields are PER 100 GRAMS as printed in the nutrition table: " +
       "kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, " +
-      "satfat_100g (saturated fat), sodium_mg_100g (sodium in mg — convert from " +
+      "satfat_100g (saturated fat), sodium_mg_100g (sodium in mg, convert from " +
       "salt if only salt is given: sodium = salt_g / 2.5 × 1000). Use 0 for any " +
       "macro the page doesn't give. pack_size_g is the total grams in the pack " +
       "from the title/quantity (e.g. '500g' → 500, '1kg' → 1000), or null if " +
@@ -495,7 +495,7 @@ export async function suggestMeals(
     `${dietRule(input.diet)}\n` +
     pick +
     "This diet rule is absolute: never suggest a dish that includes a " +
-    "forbidden ingredient, EVEN IF that ingredient is in the pantry — skip it " +
+    "forbidden ingredient, EVEN IF that ingredient is in the pantry. Skip it " +
     "entirely. Also avoid the user's allergies and dislikes. Prefer dishes " +
     "that mostly use pantry items. For each dish give EXACT portions in grams " +
     "per ingredient (the `portions` array) chosen so the dish's totals hit the " +
@@ -573,7 +573,7 @@ export async function estimateMeals(
     "For each entry, return a tidy dish `name`, echo its `slot`, and estimate " +
     "the macros of ONE serving as described: kcal, protein_g, carbs_g, fat_g. " +
     `${dietRule(diet)}\n` +
-    "Estimate from typical recipes; don't refuse — give your best numeric guess.";
+    "Estimate from typical recipes; don't refuse. Give your best numeric guess.";
 
   const parsed = await parseStructured(
     client,
