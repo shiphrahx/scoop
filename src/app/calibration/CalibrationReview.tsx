@@ -33,7 +33,14 @@ interface Card {
   kicker: string;
   value: string;
   unit?: string;
+  // Strictly about THIS user: their numbers, their fortnight, what happens to
+  // them. Never a general statement about bodies or dieting.
   body: string;
+  // The general point behind it — true of everyone, not measured from anything
+  // this user did. Kept in its own slot because mixing the two into one
+  // paragraph is what made the screen read as a leaflet: the reader could not
+  // tell which sentences were about them. Rendered visibly apart, and labelled.
+  note?: string;
   // The gradient this card wears. Cycled so consecutive cards never repeat.
   grad: string;
   chart?: ProjectionPoint[];
@@ -71,12 +78,15 @@ export function buildCards(
         ? `${name}, calibration is complete`
         : "Calibration is complete",
     value: String(w.days),
-    unit: w.days === 1 ? "day" : "days",
+    unit: w.days === 1 ? "day measured" : "days measured",
     body:
-      `You ate at maintenance for ${w.days} day${w.days === 1 ? "" : "s"} while the app watched what happened. ` +
-      `Food was logged on ${w.loggedDays} of them and you weighed in ${w.weighInDays} time${
+      `For ${w.days} day${w.days === 1 ? "" : "s"} you ate ${kcal(w.holdTargetKcal)} kcal a day, ` +
+      `logged your food on ${w.loggedDays} of them and stepped on the scale ${w.weighInDays} time${
         w.weighInDays === 1 ? "" : "s"
-      }. That is the data everything below is built on.`,
+      }. That's what made everything below possible — none of it is guesswork.`,
+    note:
+      `A fortnight is the shortest run that shows real change on the scale. Anything less and you're ` +
+      `mostly watching water move in and out.`,
   });
 
   if (w.measuredMaintenanceKcal != null) {
@@ -85,91 +95,145 @@ export function buildCards(
       delta == null || w.predictedMaintenanceKcal == null
         ? ""
         : Math.abs(delta) < 50
-          ? ` The standard formula predicted ${kcal(w.predictedMaintenanceKcal)}, so your body runs close to average for your size.`
-          : delta > 0
-            ? ` The standard formula predicted ${kcal(w.predictedMaintenanceKcal)} — you burn about ${kcal(delta)} kcal a day more than an estimate would have given you.`
-            : ` The standard formula predicted ${kcal(w.predictedMaintenanceKcal)} — you burn about ${kcal(-delta)} kcal a day less than an estimate would have given you.`;
+          ? ` A textbook formula would have guessed ${kcal(w.predictedMaintenanceKcal)} for someone your age, height and weight — close, as it turns out.`
+            : delta > 0
+            ? ` A textbook formula would have guessed ${kcal(w.predictedMaintenanceKcal)} for someone your age, height and weight. You run ${kcal(delta)} kcal a day warmer than that.`
+            : ` A textbook formula would have guessed ${kcal(w.predictedMaintenanceKcal)} for someone your age, height and weight. You run ${kcal(-delta)} kcal a day cooler than that.`;
     cards.push({
       key: "burn",
-      kicker: "What your body actually burns",
+      kicker: "What your body burns",
       value: kcal(w.measuredMaintenanceKcal),
       unit: "kcal a day",
       body:
-        `Measured from what you ate against what the scale did, not from a formula.${versus}` +
-        ` This is the number your targets are built from now.`,
+        `This is the amount that keeps you exactly where you are — no gain, no loss. ` +
+        `It's your figure, not a guess: it came from the food you logged and what your weight did over ${w.days} days.${versus}`,
+      note:
+        `Formulas describe the average of thousands of people. Any one person can sit 300–400 kcal either side of ` +
+        `that average, which is why it was worth spending a fortnight finding yours.`,
     });
   }
 
   if (w.activeShare != null) {
-    const restingPct = Math.round((1 - w.activeShare) * 100);
+    const burn = w.measuredMaintenanceKcal ?? w.newTarget.kcal + w.deficitKcal;
+    const restingKcal = Math.round(burn * (1 - w.activeShare));
+    const movingKcal = Math.round(burn * w.activeShare);
     const steps =
       w.meanStepsPerDay != null
-        ? ` You averaged ${kcal(w.meanStepsPerDay)} steps a day.`
+        ? ` That's ${kcal(w.meanStepsPerDay)} steps on an average day`
         : "";
     const sleep =
       w.meanSleepHours != null
-        ? ` Sleep averaged ${w.meanSleepHours.toFixed(1)} hours a night.`
+        ? `${steps ? ", and" : " You slept"} ${w.meanSleepHours.toFixed(1)} hours of sleep a night`
         : "";
+    const habits = steps || sleep ? `${steps}${sleep}.` : "";
     cards.push({
       key: "split",
-      kicker: "Where that energy goes",
-      value: `${Math.round(w.activeShare * 100)}%`,
-      unit: "of it is movement",
+      kicker: "Where it all goes",
+      value: `${kcal(movingKcal)}`,
+      unit: "kcal a day from moving",
       body:
-        `About ${restingPct}% of your burn happens lying still — heart, brain, organs. ` +
-        `The rest is you moving.${steps}${sleep}`,
+        `Another ${kcal(restingKcal)} kcal goes on simply being alive — heart, lungs, brain, all of it ` +
+        `running while you sit still. The rest is you, up and about. ${habits}`,
+      note:
+        `Walking, standing and fidgeting usually add up to more than exercise does. When a diet stops working, ` +
+        `this is often the part that quietly shrank.`,
     });
   }
 
   if (w.weightChangeKg != null && w.meanIntakeKcal != null) {
     const steady = Math.abs(w.weightChangeKg) < 0.5;
+    const rate =
+      w.holdLossKgPerWeek != null && Math.abs(w.holdLossKgPerWeek) >= 0.05
+        ? `${Math.abs(w.holdLossKgPerWeek).toFixed(2)} kg a week`
+        : null;
+    const burn = w.measuredMaintenanceKcal;
     cards.push({
       key: "response",
-      kicker: "How your weight responded",
-      value: steady ? "Steady" : kg(w.weightChangeKg),
-      unit: steady ? "at maintenance" : w.weightChangeKg > 0 ? "lost" : "gained",
-      body: steady
-        ? `You averaged ${kcal(w.meanIntakeKcal)} kcal a day and your trend weight barely moved. ` +
-          `That is exactly what maintenance looks like, and it is why the measurement above can be trusted.`
+      kicker: "What the scale did",
+      value: steady ? "Held steady" : kg(w.weightChangeKg),
+      unit: steady
+        ? "on maintenance calories"
         : w.weightChangeKg > 0
-          ? `You averaged ${kcal(w.meanIntakeKcal)} kcal a day and still lost weight, so your real burn sits above what you ate. ` +
-            `That has been taken into account.`
-          : `You averaged ${kcal(w.meanIntakeKcal)} kcal a day and the trend rose slightly. ` +
-            `Some of that is water and food weight; the rest is accounted for in the figure above.`,
+          ? `lost over ${w.days} days`
+          : `gained over ${w.days} days`,
+      body: steady
+        ? `You ate ${kcal(w.meanIntakeKcal)} kcal a day and the scale barely moved. ` +
+          `That's exactly what maintenance is meant to look like, and it's the best evidence there is that the number above is yours.`
+        : w.weightChangeKg > 0
+          ? // The case that reads as a contradiction unless it's spelled out: they
+            // were told they were eating at maintenance, and lost weight anyway.
+            `You ate ${kcal(w.meanIntakeKcal)} kcal a day and lost weight anyway${rate ? `, around ${rate}` : ""}. ` +
+            `So the calories we called maintenance were already asking a little more of you than they looked` +
+            (burn != null
+              ? ` — your real burn is closer to ${kcal(burn)} kcal, and that's the figure your new target is built on.`
+              : `, and your new target takes that into account.`)
+          : `You ate ${kcal(w.meanIntakeKcal)} kcal a day and the trend crept up by ${kg(-w.weightChangeKg)}` +
+            `${rate ? `, around ${rate}` : ""}. ` +
+            `Some of that's simply food and water sitting in you on weigh-in day` +
+            (burn != null
+              ? `; the rest points to a burn closer to ${kcal(burn)} kcal, which is what your new target is built on.`
+              : `, and your new target takes that into account.`),
+      note:
+        `One morning's weight can swing a kilo on water alone. What's read here is the line through all your ` +
+        `weigh-ins, not the gap between the first and the last.`,
     });
   }
 
   const t = w.newTarget;
+  const burn = w.measuredMaintenanceKcal;
+  // Two sentences that used to be one number, which is what made this card read
+  // as wrong arithmetic: 1,378 is 231 below a burn of 1,609 AND 322 less food
+  // than a hold at 1,700. Both are true, and only naming the first left the
+  // other 91 kcal unaccounted for on the reader's own subtraction.
+  const versusBurn =
+    burn != null ? `${kcal(w.deficitKcal)} kcal below the ${kcal(burn)} kcal you burn` : null;
+  const versusPlate =
+    w.changeFromHoldKcal > 0
+      ? `${kcal(w.changeFromHoldKcal)} kcal less food than the ${kcal(w.holdTargetKcal)} you're used to`
+      : w.changeFromHoldKcal < 0
+        ? `${kcal(-w.changeFromHoldKcal)} kcal more food than the ${kcal(w.holdTargetKcal)} you're used to`
+        : `the same amount of food you're already used to`;
   cards.push({
     key: "target",
-    kicker: replay ? "The target it set" : "Your target from today",
+    kicker: replay ? "The target it set" : "What you eat from today",
     value: kcal(t.kcal),
     unit: "kcal a day",
     target: t,
     body:
-      `A ${kcal(w.deficitKcal)} kcal a day cut from your calibrated maintenance. ` +
-      `Opening deficits are kept modest on purpose — the aim is a cut you can hold for months, not the fastest one arithmetic allows. ` +
-      `Protein is set high to protect muscle while you lose.`,
+      (versusBurn ? `That's ${versusBurn}, and ${versusPlate}. ` : `That's ${versusPlate}. `) +
+      `Protein stays high at ${Math.round(t.protein_g)} g — that's what keeps the weight coming off as fat ` +
+      `rather than the muscle you want to hold on to.`,
+    note:
+      `A first deficit is kept between 300 and 500 kcal a day: enough to show up on the scale within a fortnight, ` +
+      `gentle enough to live with for months. Anything faster comes later, and only if your own results say you can take it.`,
   });
 
   if (w.expectedLossKgPerWeek != null) {
+    // The comparison that makes the prediction checkable rather than a number to
+    // take on faith: they can see the rate they were ALREADY losing at, on more
+    // food, and judge whether the new one is plausible.
+    const already =
+      w.holdLossKgPerWeek != null && w.holdLossKgPerWeek > 0.05
+        ? ` You were already losing about ${w.holdLossKgPerWeek.toFixed(2)} kg a week during calibration, on more food than this — so this should be a change you can actually see.`
+        : "";
     const goal =
       w.projection?.goalDate != null && w.projection.goalWeeks != null
-        ? ` At that rate you reach your goal weight around ${longDate(w.projection.goalDate)} — about ${w.projection.goalWeeks} weeks.`
+        ? ` Keep to it and your goal weight is about ${w.projection.goalWeeks} weeks away, somewhere around ${longDate(w.projection.goalDate)}.`
         : "";
     const band =
       w.inHealthyBand === false
-        ? " That is a deliberately cautious rate for your body."
+        ? ` It's a gentle pace for your size, and that's on purpose.`
         : "";
     cards.push({
       key: "expect",
-      kicker: "What to expect",
+      kicker: "What happens from here",
       value: w.expectedLossKgPerWeek.toFixed(2),
       unit: "kg a week",
       chart: w.projection?.points,
-      body:
-        `Loss slows as you get lighter — a smaller body burns less, so the same target is a smaller deficit each month.${goal}${band}` +
-        ` Weeks vary by a few hundred grams; the trend is what counts.`,
+      body: `That's what ${kcal(w.newTarget.kcal)} kcal a day should give you.${already}${goal}${band}`,
+      note:
+        `The line flattens because a lighter body burns less — the same target slowly becomes a smaller deficit. ` +
+        `Individual weeks will bounce a few hundred grams either way, so give the trend a fortnight before reading anything into it.`,
     });
   }
 
@@ -183,16 +247,22 @@ export function buildCards(
           kicker: "That was your calibration",
           value: "Done",
           body:
-            `These are the findings exactly as they were shown to you when this deficit started. ` +
-            `They are kept as they were — your targets have moved on since, and are reviewed against your results every week.`,
+            `This is your calibration exactly as it was on ${
+              endedAt ? longDate(endedAt.slice(0, 10)) : "the day it finished"
+            }, kept just as it was. ` +
+            `Your targets have moved on since then — they're reviewed against your results every week.`,
         }
       : {
           key: "start",
-          kicker: "Ready",
+          kicker: "Ready when you are",
           value: "Start now",
           body:
-            `Your new target applies from today. It is held for two weeks before any adjustment — that is how long the body takes to show a real response rather than a change in water weight. ` +
-            `After that your results are reviewed every week, and nothing changes without you agreeing to it.`,
+            `Tap start and today's target becomes ${kcal(w.newTarget.kcal)} kcal. ` +
+            `This review is yours to keep — it'll be waiting in Settings whenever you want to look back at it.`,
+          note:
+            `Your new target holds for two weeks before anything is adjusted. The first week on new calories is ` +
+            `mostly water, so reading it sooner just means reacting to noise. After that your results are reviewed ` +
+            `every week, and you'll always be asked before anything changes.`,
         },
   );
 
@@ -244,12 +314,19 @@ export default function CalibrationReview({
   }
 
   return (
+    // A phone-shaped card deck full-bleed on a phone, and a centred two-column
+    // spread on a laptop. Stretched across a wide window it was one small
+    // paragraph adrift on the left with a full-width button under it: the layout
+    // has to hold the content together as the window grows, not spread it out.
     <main
-      className="flex min-h-dvh flex-col gap-6 p-6 text-white"
+      className="flex min-h-dvh flex-col gap-6 p-6 text-white lg:justify-center lg:p-12"
       style={{ background: card.grad }}
     >
       {/* Where you are in the review. */}
-      <div className="flex items-center gap-1.5 pt-2" aria-hidden>
+      <div
+        className="mx-auto flex w-full max-w-5xl items-center gap-1.5 pt-2"
+        aria-hidden
+      >
         {cards.map((c, n) => (
           <span
             key={c.key}
@@ -259,42 +336,73 @@ export default function CalibrationReview({
         ))}
       </div>
 
-      <section className="flex flex-1 flex-col justify-center gap-4">
-        <p className="text-sm font-semibold uppercase tracking-wide text-white/80">
-          {card.kicker}
-        </p>
-        <h1 className="text-6xl font-bold leading-none tracking-tight">{card.value}</h1>
-        {card.unit && <p className="-mt-2 text-xl font-semibold text-white/90">{card.unit}</p>}
+      <section className="mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center gap-4 lg:flex-none lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:items-center lg:gap-14 lg:py-8">
+        {/* The finding: kicker, the number itself, what it is. */}
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-semibold uppercase tracking-wide text-white/80">
+            {card.kicker}
+          </p>
+          <h1 className="text-6xl font-bold leading-none tracking-tight lg:text-8xl">
+            {card.value}
+          </h1>
+          {card.unit && (
+            <p className="-mt-1 text-xl font-semibold text-white/90 lg:text-2xl">
+              {card.unit}
+            </p>
+          )}
 
-        {card.target && (
-          <ul className="flex flex-wrap gap-2 pt-1">
-            {[
-              ["Protein", card.target.protein_g],
-              ["Carbs", card.target.carbs_g],
-              ["Fat", card.target.fat_g],
-            ].map(([label, grams]) => (
-              <li
-                key={label as string}
-                className="rounded-2xl bg-white/20 px-3 py-2 text-sm font-semibold"
-              >
-                {label} {Math.round(grams as number)} g
-              </li>
-            ))}
-          </ul>
-        )}
+          {card.target && (
+            <ul className="flex flex-wrap gap-2 pt-1">
+              {[
+                ["Protein", card.target.protein_g],
+                ["Carbs", card.target.carbs_g],
+                ["Fat", card.target.fat_g],
+              ].map(([label, grams]) => (
+                <li
+                  key={label as string}
+                  className="rounded-2xl bg-white/20 px-3 py-2 text-sm font-semibold"
+                >
+                  {label} {Math.round(grams as number)} g
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
-        {card.chart && card.chart.length > 1 && <ProjectionCurve points={card.chart} />}
+        {/* What it means, and the general point behind it. */}
+        <div className="flex flex-col gap-4">
+          {card.chart && card.chart.length > 1 && <ProjectionCurve points={card.chart} />}
 
-        <p className="max-w-prose text-white/90">{card.body}</p>
+          <p className="max-w-prose text-lg leading-relaxed text-white lg:text-xl">
+            {card.body}
+          </p>
+
+          {card.note && (
+            <p className="max-w-prose rounded-2xl bg-black/15 p-3 text-sm leading-relaxed text-white/75">
+              {/* Labelled so it reads as background rather than as another fact
+                  about the reader — the point of keeping the two apart. */}
+              <span className="font-semibold uppercase tracking-wide">
+                Why this works:{" "}
+              </span>
+              {card.note}
+            </p>
+          )}
+        </div>
       </section>
 
       {err && (
-        <p className="rounded-2xl bg-white/20 p-3 text-sm font-medium" role="alert">
+        <p
+          className="mx-auto w-full max-w-5xl rounded-2xl bg-white/20 p-3 text-sm font-medium"
+          role="alert"
+        >
           {err}
         </p>
       )}
 
-      <div className="flex items-center gap-3 pb-2">
+      {/* Full width on a phone, thumb-sized. On a laptop the controls sit under
+          the left column at a normal button width — a metre-wide Next button is
+          not a bigger target, it is a stretched one. */}
+      <div className="mx-auto flex w-full max-w-5xl items-center gap-3 pb-2 lg:max-w-md lg:self-start">
         {i > 0 && (
           <button
             onClick={() => setI((n) => n - 1)}

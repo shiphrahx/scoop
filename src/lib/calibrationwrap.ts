@@ -98,10 +98,21 @@ export interface CalibrationWrap {
   holdTargetKcal: number;
   adherentDays: number;
   weightChangeKg: number | null; // + = lost over the hold
+  // The rate that change came out at, per week. The honest sanity check on the
+  // prediction below: a user already losing at the hold's calories is not about
+  // to lose LESS on fewer of them, and if the two numbers disagree it is the
+  // measurement of their burn that is wrong, not their scale.
+  holdLossKgPerWeek: number | null;
 
   // --- What happens next
   newTarget: Macros;
-  deficitKcal: number; // maintenance − new target
+  // Two different numbers, both true, and showing only the first is what made
+  // the screen read as wrong: the deficit is measured against the burn, but what
+  // changes on the user's plate is measured against the calories they were told
+  // to eat during the hold. Someone held at 1700 who turns out to burn 1810 and
+  // is now given 1378 sees a "231 kcal cut" that takes 322 off their day.
+  deficitKcal: number; // measured maintenance − new target
+  changeFromHoldKcal: number; // hold target − new target (+ = eating less)
   expectedLossKgPerWeek: number | null;
   // Whether that rate sits inside the healthy band for this body (see
   // healthyLossBand). The band is a fraction of bodyweight, so it needs a weight.
@@ -267,8 +278,13 @@ export function calibrationWrap(input: WrapInput): CalibrationWrap {
     holdTargetKcal: Math.round(input.holdTargetKcal),
     adherentDays: window.adherentDays,
     weightChangeKg: window.weightChangeKg,
+    holdLossKgPerWeek:
+      window.weightChangeKg != null && days >= 7
+        ? (window.weightChangeKg * 7) / days
+        : null,
     newTarget: input.newTarget,
     deficitKcal,
+    changeFromHoldKcal: Math.round(input.holdTargetKcal - input.newTarget.kcal),
     expectedLossKgPerWeek,
     inHealthyBand,
     projection,

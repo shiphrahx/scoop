@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { encryptSecret, decryptSecret, hashToken } from "@/lib/crypto";
-import { updateCalibration } from "@/lib/coach";
 import { getCoachData, getProfile, getTimezone } from "@/lib/queries";
 import { localDate, localWeekStart } from "@/lib/time";
 import {
@@ -65,7 +64,7 @@ export async function ensureReviewApplied(): Promise<boolean> {
 
 export async function applyReview() {
   const { supabase, user } = await requireUser();
-  const { review, observed, calibration, predictedTdee, phase, takesEffectNow } =
+  const { review, observed, calibrationForTarget, predictedTdee, phase, takesEffectNow } =
     await getCoachData();
   if (review.macros.kcal <= 0) throw new Error("No target to apply yet.");
 
@@ -106,21 +105,26 @@ export async function applyReview() {
   );
   if (error) throw new Error(error.message);
 
-  // Fold this review's measurement into the standing correction. This is the
+  // Store the correction this review's target was computed with. This is the
   // part that makes the coach learn rather than re-guess: next week's target is
   // built on what this user demonstrably burns, and it survives profile edits.
   //
-  // Once per review, not once per apply. Each fold moves the correction halfway
-  // to the measurement, so two folds in a day move it three quarters of the way
-  // — and since the graduating target is computed FROM that correction, applying
-  // twice in a week walked the target down step by step off the same fortnight
-  // of data. The measurement itself only changes as new weigh-ins land, so a
-  // second fold inside the week adds no information.
+  // Taken from the review rather than recomputed here. Recomputing produced a
+  // different number from the one the target was built on — a half-step where
+  // the graduation takes the measurement in full — so the stored correction and
+  // the target disagreed from the moment it was written.
+  //
+  // Once per review, not once per apply. Each ordinary fold moves the correction
+  // halfway to the measurement, so two folds in a day move it three quarters of
+  // the way — and since the graduating target is computed FROM that correction,
+  // applying twice in a week walked the target down step by step off the same
+  // fortnight of data. The measurement itself only changes as new weigh-ins land,
+  // so a second fold inside the week adds no information.
   const profile = await getProfile();
   const foldedAt = profile?.tdee_observed_at ? Date.parse(profile.tdee_observed_at) : null;
   const foldedThisWeek = foldedAt != null && Date.now() - foldedAt < 6 * DAY_MS;
   if (observed && predictedTdee != null && predictedTdee > 0 && !foldedThisWeek) {
-    const next = updateCalibration(calibration, observed.kcalPerDay, predictedTdee);
+    const next = calibrationForTarget;
     await supabase
       .from("users")
       .update({

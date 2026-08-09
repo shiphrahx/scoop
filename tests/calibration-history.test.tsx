@@ -29,7 +29,9 @@ describe("calibration settings — past reviews", () => {
     expect(links[0].getAttribute("href")).toBe("/calibration/rev-2");
     expect(links[1].getAttribute("href")).toBe("/calibration/rev-1");
     expect(screen.getByText(/9 August 2026/)).toBeTruthy();
-    expect(screen.getByText(/15 days measured · set 1,506 kcal/)).toBeTruthy();
+    expect(
+      screen.getByText(/15 days measured · set your target at 1,506 kcal/),
+    ).toBeTruthy();
   });
 
   it("says nothing about history for a user who has never finished a hold", () => {

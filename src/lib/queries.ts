@@ -12,6 +12,7 @@ import {
   calibrationComplete,
   calibrationDaysRemaining,
   deficitPerDay,
+  graduationCalibration,
   inCalibration as computeInCalibration,
   nextPhase,
   observeTdee,
@@ -20,7 +21,6 @@ import {
   stepsFalling,
   tdee,
   trendChange,
-  updateCalibration,
   weeklyReview,
   type Adherence,
   type DailyIntake,
@@ -473,6 +473,11 @@ export interface CoachData {
   // the formula that it feeds. Null when the data can't support a measurement.
   observed: ObservedTdee | null;
   calibration: number;
+  // The correction this review's target was computed with — the stored one for
+  // an ordinary week, the measurement-led one on the way out of calibration.
+  // Applying the review stores THIS, rather than recomputing and risking a
+  // different number from the one the target was built on.
+  calibrationForTarget: number;
   // How closely the user ate this week's target. The review will not cut on a
   // stall the user never actually tested.
   adherence: Adherence | null;
@@ -783,7 +788,7 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
   const graduating = prevPhase === "calibration" && phase !== "calibration";
   const calibrationForTarget =
     graduating && observed && predictedTdee != null && predictedTdee > 0
-      ? updateCalibration(calibration, observed.kcalPerDay, predictedTdee)
+      ? graduationCalibration(calibration, observed.kcalPerDay, predictedTdee)
       : calibration;
   const maintenanceKcal =
     predictedTdee != null ? Math.round(predictedTdee * calibrationForTarget) : null;
@@ -835,6 +840,7 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
     waistDeltaCm,
     observed,
     calibration,
+    calibrationForTarget,
     adherence,
     predictedTdee,
     phase,

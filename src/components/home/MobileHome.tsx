@@ -165,10 +165,10 @@ export default function MobileHome({
 export function CalibrationDone({ days }: { days: number }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col justify-end gap-6 p-6 text-white"
+      className="fixed inset-0 z-50 flex flex-col justify-end gap-6 p-6 lg:justify-center lg:p-12 text-white"
       style={{ background: "var(--grad-cool)" }}
     >
-      <div className="flex flex-col gap-3">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
         <span className="grid h-14 w-14 place-items-center rounded-3xl bg-white/20">
           <Telescope size={28} />
         </span>
@@ -176,19 +176,23 @@ export function CalibrationDone({ days }: { days: number }) {
           Calibration complete
         </p>
         <h1 className="text-4xl font-bold leading-tight tracking-tight">
-          {days} days of logging just measured your metabolism.
+          {days} days of logging, and now we know how your body works.
         </h1>
         <p className="text-white/90">
-          Your maintenance calories, where your energy goes and the target that
-          starts your weight loss — all worked out from your own data.
+          What you burn, where it goes, and the target that starts your weight
+          loss — all of it measured from you, not guessed.
         </p>
       </div>
-      <Link
-        href="/calibration"
-        className="flex h-14 items-center justify-center gap-2 rounded-full bg-white text-lg font-bold text-[var(--ink-teal)] transition active:scale-95"
-      >
-        See what we learned <ChevronRight size={20} />
-      </Link>
+      {/* Same centred column as the text above it, so on a laptop the button
+          sits under the sentence it belongs to rather than spanning the window. */}
+      <div className="mx-auto w-full max-w-2xl">
+        <Link
+          href="/calibration"
+          className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-white text-lg font-bold text-[var(--ink-teal)] transition active:scale-95 lg:w-auto lg:max-w-sm lg:px-8"
+        >
+          Show me <ChevronRight size={20} />
+        </Link>
+      </div>
     </div>
   );
 }

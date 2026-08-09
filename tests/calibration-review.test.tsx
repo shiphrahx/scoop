@@ -31,6 +31,8 @@ const wrap = (over: Partial<CalibrationWrap> = {}): CalibrationWrap => ({
   weightChangeKg: 0.1,
   newTarget: { kcal: 2000, protein_g: 150, carbs_g: 200, fat_g: 60 },
   deficitKcal: 400,
+  changeFromHoldKcal: 400,
+  holdLossKgPerWeek: 0.1,
   expectedLossKgPerWeek: 0.36,
   inHealthyBand: true,
   projection: {
@@ -62,7 +64,9 @@ describe("calibration review", () => {
     render(<CalibrationReview wrap={wrap()} name="Sam" />);
     expect(screen.getByText(/Sam, calibration is complete/i)).toBeTruthy();
     expect(screen.getByRole("heading", { name: "14" })).toBeTruthy();
-    expect(screen.getByText(/logged on 13 of them/i)).toBeTruthy();
+    expect(screen.getByText(/logged your food on 13 of them/i)).toBeTruthy();
+    // The general point is in its own labelled block, not mixed into the above.
+    expect(screen.getByText(/^Why this works:/)).toBeTruthy();
   });
 
   it("shows the measured burn against the formula's guess", async () => {
@@ -71,7 +75,7 @@ describe("calibration review", () => {
     await user.click(screen.getByRole("button", { name: /next/i }));
 
     expect(screen.getByRole("heading", { name: "2,400" })).toBeTruthy();
-    expect(screen.getByText(/200 kcal a day more/i)).toBeTruthy();
+    expect(screen.getByText(/200 kcal a day warmer than that/i)).toBeTruthy();
   });
 
   it("states the new target with its macros and the cut behind it", async () => {
@@ -84,7 +88,33 @@ describe("calibration review", () => {
 
     expect(screen.getByRole("heading", { name: "2,000" })).toBeTruthy();
     expect(screen.getByText(/Protein 150 g/)).toBeTruthy();
-    expect(screen.getByText(/400 kcal a day cut/i)).toBeTruthy();
+    // Both numbers, because the reader can do the subtraction either way.
+    expect(screen.getByText(/400 kcal below the 2,400 kcal you burn/i)).toBeTruthy();
+    expect(screen.getByText(/400 kcal less food than the 2,400 you're used to/i)).toBeTruthy();
+  });
+
+  it("names the cut against the burn AND against what was being eaten", async () => {
+    const user = userEvent.setup();
+    // The case that read as broken arithmetic: held at 1,700, burns 1,609,
+    // now eating 1,378 — a 231 kcal deficit but 322 kcal less food.
+    render(
+      <CalibrationReview
+        wrap={wrap({
+          holdTargetKcal: 1700,
+          measuredMaintenanceKcal: 1609,
+          newTarget: { kcal: 1378, protein_g: 130, carbs_g: 130, fat_g: 43 },
+          deficitKcal: 231,
+          changeFromHoldKcal: 322,
+        })}
+        name={null}
+      />,
+    );
+    await toEnd(user);
+    await user.click(screen.getByRole("button", { name: /back/i }));
+    await user.click(screen.getByRole("button", { name: /back/i }));
+
+    expect(screen.getByText(/231 kcal below the 1,609 kcal you burn/i)).toBeTruthy();
+    expect(screen.getByText(/322 kcal less food than the 1,700/i)).toBeTruthy();
   });
 
   it("predicts the weekly loss and when the goal is reached", async () => {
@@ -95,7 +125,9 @@ describe("calibration review", () => {
 
     expect(screen.getByRole("heading", { name: "0.36" })).toBeTruthy();
     expect(screen.getByText(/29 November 2026/)).toBeTruthy();
-    expect(screen.getByText(/about 16 weeks/i)).toBeTruthy();
+    expect(screen.getByText(/goal weight is about 16 weeks away/i)).toBeTruthy();
+    // Checkable against the rate they were already losing at, on more food.
+    expect(screen.getByText(/already losing about 0.10 kg a week/i)).toBeTruthy();
     // The curve is drawn, and says what it is for a screen reader.
     expect(screen.getByRole("img", { name: /projected weight/i })).toBeTruthy();
   });
