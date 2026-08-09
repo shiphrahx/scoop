@@ -366,7 +366,7 @@ function PickRow({
 
 // Search for a food to pick: the user's pantry first, then the shared reference
 // of everyday foods that carry no barcode (a slice of cake, a cookie, a banana).
-// Mirrors the plan screen's search box but hands back the choice itself — no
+// Mirrors the plan screen's search box but hands back the choice itself, no
 // grams involved here, the day solve works those out.
 function PickSearchBox({
   onPick,

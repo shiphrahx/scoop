@@ -45,7 +45,7 @@ export function Drawer({
   }, [open, onClose]);
 
   // Every trigger starts closed, so the server and the first client render agree
-  // on null and there's nothing to hydrate — by the time this is open there is a
+  // on null and there's nothing to hydrate, by the time this is open there is a
   // document to portal into.
   if (!open || typeof document === "undefined") return null;
 
@@ -186,7 +186,7 @@ export function InsightGrid({
 //
 // Hiding these would hide the reason to log anything: someone who never sees
 // "sleep vs weight loss" has no idea that wearing the watch to bed would buy
-// them one. So it keeps its place in the grid at a card's size — quiet, dashed
+// them one. So it keeps its place in the grid at a card's size, quiet, dashed
 // and empty of numbers, so it can't be mistaken for a result.
 function LockedCard({ item }: { item: LockedInsight }) {
   return (
@@ -209,7 +209,7 @@ function LockedCard({ item }: { item: LockedInsight }) {
   );
 }
 
-// Something *inside* an open card has nothing to say yet — a measure with no
+// Something *inside* an open card has nothing to say yet, a measure with no
 // readings, a board with no markers. A whole card in this state gets a
 // LockedCard instead, which names what would fill it in.
 export function NeedsMoreData({ what }: { what: string }) {
@@ -221,7 +221,7 @@ export function NeedsMoreData({ what }: { what: string }) {
 }
 
 // Stamped on every correlation card. These are one person's weekly numbers next
-// to each other — a real pattern is worth knowing and is still not a cause, and
+// to each other, a real pattern is worth knowing and is still not a cause, and
 // the card should never let a user forget which one they're looking at.
 export function PatternNote({ weeks }: { weeks: number }) {
   return (
@@ -243,7 +243,7 @@ export function Hero({
   unit?: string;
   label: string;
   tone?: "cool" | "good" | "warn";
-  // "sm" is the dashboard-tile version — same figure, sized for half a phone.
+  // "sm" is the dashboard-tile version, same figure, sized for half a phone.
   size?: "lg" | "sm";
 }) {
   const tint =
@@ -276,8 +276,8 @@ export function Hero({
 }
 
 // The numbers a user opens this page for, before any chart: two across on a
-// phone, four on a desktop. Only tiles with a real number are ever passed in —
-// an "—" placeholder would take the same space as an answer.
+// phone, four on a desktop. Only tiles with a real number are ever passed in,
+// an " " placeholder would take the same space as an answer.
 export function KpiRow({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{children}</div>;
 }
@@ -410,7 +410,7 @@ export function Expandable({
   );
 }
 
-// Rounds for display. Everything the user reads goes through here or a toFixed —
+// Rounds for display. Everything the user reads goes through here or a toFixed,
 // a raw 0.6999999999999993 kg is the fastest way to look like a spreadsheet.
 export function fmt(value: number, dp = 1): string {
   return value.toFixed(dp);

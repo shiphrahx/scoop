@@ -7,7 +7,7 @@ import { importRecipeUrl, logRecipeServings, saveRecipe } from "./actions";
 
 // Import a recipe from a link, then see it scaled: per-serving macros and how
 // many servings fit the calories you have left today. Only the link path is
-// offered — the screenshot backup runs on the user's own Anthropic key, which
+// offered, the screenshot backup runs on the user's own Anthropic key, which
 // isn't a finished path, so it stays hidden.
 export default function RecipeImport() {
   const [url, setUrl] = useState("");

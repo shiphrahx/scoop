@@ -2,7 +2,7 @@
 
 // Body: the things the scale doesn't know.
 //
-// Weight is one number about a body and a bad one on its own — it can't tell
+// Weight is one number about a body and a bad one on its own, it can't tell
 // water from fat, and it can't tell where the fat is. The tape can do both, so
 // this tab is where a stalled week stops looking like failure.
 

@@ -3,7 +3,7 @@
 // The dashboard's four groups, one on screen at a time.
 //
 // A panel mounts the first time its tab is opened and then stays mounted, just
-// hidden — so switching back doesn't rebuild a chart or lose a chip selection,
+// hidden, so switching back doesn't rebuild a chart or lose a chip selection,
 // but arriving on Progress doesn't pay for all four either. That mattered: the
 // charts are Recharts-backed, and mounting every tab up front meant loading the
 // library and laying out four tabs' worth of charts into hidden DOM before the
@@ -64,8 +64,8 @@ export default function Tabs({ tabs }: { tabs: Tab[] }) {
           id={`${base}-panel-${t.key}`}
           aria-labelledby={`${base}-tab-${t.key}`}
           hidden={active !== t.key}
-          // The attribute alone loses to a `flex` class — Tailwind's reset
-          // matches [hidden] at zero specificity — so the class does the hiding
+          // The attribute alone loses to a `flex` class, Tailwind's reset
+          // matches [hidden] at zero specificity, so the class does the hiding
           // and the attribute stays for the accessibility tree.
           className={active === t.key ? "flex flex-col gap-5" : "hidden"}
         >

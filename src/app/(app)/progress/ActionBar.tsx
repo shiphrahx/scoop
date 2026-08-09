@@ -2,7 +2,7 @@
 
 // The two things you can *do* on this page, on one row at the top.
 //
-// Both used to be tall cards — a full stepper panel and a gradient banner —
+// Both used to be tall cards, a full stepper panel and a gradient banner,
 // which is a screen of vertical space spent on two taps. The stepper now lives
 // in a sheet behind the first button, so the dashboard starts at the top of the
 // page.

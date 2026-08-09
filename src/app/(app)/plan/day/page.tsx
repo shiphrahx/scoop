@@ -69,7 +69,7 @@ export default async function PlanDayPage({
       </nav>
 
       {/* The plan itself — high-day toggle, build button, drink logger, meal
-          list — depends on the day's heavier reads, so it streams in under the
+          list, depends on the day's heavier reads, so it streams in under the
           header and day navigation, which are ready immediately. */}
       <Suspense
         key={date}

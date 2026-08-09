@@ -4,7 +4,7 @@ import { SkeletonBlock } from "@/components/Skeleton";
 
 // The coach headline + detail, streamed on its own. Computing the weekly review
 // is the slowest data path on Home (a batch of reads plus a 28-day intake scan),
-// and all it feeds is these two lines — so it renders behind its own Suspense
+// and all it feeds is these two lines, so it renders behind its own Suspense
 // boundary while the calorie ring, which needs none of it, paints immediately.
 export async function CoachText() {
   const { review } = await getCoachData();
@@ -33,7 +33,7 @@ export function CoachTextSkeleton() {
 // The day the hold ends, this slot stops being a banner and becomes the whole
 // screen: the review of what the fortnight measured is the only thing worth
 // doing on that visit, and it has to be seen before the first deficit starts.
-// Streamed rather than gating the page, so Home still paints at once — the
+// Streamed rather than gating the page, so Home still paints at once, the
 // takeover arrives with the coach data a moment later, and no other screen has
 // to wait on the slowest query in the app.
 export async function CalibrationSlot() {

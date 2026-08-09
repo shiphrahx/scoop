@@ -40,7 +40,7 @@ export default function MatchItems({
 }: {
   items: ImportedItem[];
   // Optional per-item macro estimate (aligned by index) used when Open Food
-  // Facts has no match — e.g. the vision model's guess from a screenshot (#5).
+  // Facts has no match, e.g. the vision model's guess from a screenshot (#5).
   fallbacks?: (OffCandidate | null)[];
   onSaved: () => void;
   onCancel: () => void;
@@ -88,7 +88,7 @@ export default function MatchItems({
 
   // Every item finished searching and none found a match. Usually the food
   // database is unreachable (a stalled request that timed out), not that every
-  // item is genuinely unknown — flag it so the user isn't left guessing.
+  // item is genuinely unknown, flag it so the user isn't left guessing.
   const searchUnavailable =
     rows.length > 0 &&
     rows.every((r) => !r.loading && r.candidates.length === 0);
@@ -124,7 +124,7 @@ export default function MatchItems({
 
   // Hunt for a product by a query the user types inside the row, when the
   // offered matches aren't right. Searches a WIDER list than the auto-match and
-  // replaces the candidate options in place, leaving the item's own name alone —
+  // replaces the candidate options in place, leaving the item's own name alone,
   // repeatable until they find the product they meant. Whatever they then pick
   // supplies the saved name and macros.
   async function searchMore(i: number, rawQuery: string) {

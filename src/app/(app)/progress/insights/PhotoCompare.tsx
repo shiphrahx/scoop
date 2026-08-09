@@ -68,7 +68,7 @@ export default function PhotoCompare({ pairs }: { pairs: PhotoPair[] }) {
             alt={`First ${ANGLE_LABEL[pair.angle].toLowerCase()} photo, ${shortDate(pair.start.date)}`}
             className="block h-full max-w-none object-contain object-left"
             // Sized back up to the FULL card width, so the two bodies stay at
-            // the same scale as the wipe moves — otherwise the older photo
+            // the same scale as the wipe moves, otherwise the older photo
             // squashes and the comparison is worthless.
             style={{ width: `${(100 / Math.max(wipe, 1)) * 100}%` }}
           />

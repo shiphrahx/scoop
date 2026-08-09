@@ -57,8 +57,8 @@ export function ApplyTargetsButton({
 // Connect (link out to Fitbit) or pull the latest data.
 //
 // `connected` only says a token row exists, which is not the same as it working.
-// A stored token the provider has since rejected cannot be renewed by syncing —
-// only a fresh grant replaces it — so when a sync reports that, the button turns
+// A stored token the provider has since rejected cannot be renewed by syncing,
+// only a fresh grant replaces it, so when a sync reports that, the button turns
 // into the way to do it. Otherwise the advice to "connect again" pointed at a
 // link that, by definition, was not on screen.
 export function FitbitButton({ connected }: { connected: boolean }) {

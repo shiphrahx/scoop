@@ -8,8 +8,8 @@ import { isFoodAllowed } from "@/lib/ai";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_MEAL_SLOTS, type MealPick } from "@/lib/types";
 
-// "Plan this meal": choose the foods you fancy for ONE meal — from the pantry,
-// by search, or by scanning — and save them. No grams here: "Build my day" on
+// "Plan this meal": choose the foods you fancy for ONE meal, from the pantry,
+// by search, or by scanning, and save them. No grams here: "Build my day" on
 // the plan screen portions every picked meal together to hit the day's macros.
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -114,7 +114,7 @@ export default async function PlanMealPage({
 
       {/* Keyed on the meal being planned. Two URLs that differ only by their
           query (?slot=Lunch vs ?slot=Snack) are the SAME segment to the router,
-          which deliberately keeps client state across them — so without a key
+          which deliberately keeps client state across them, so without a key
           the picker opens on snack still holding lunch's foods, and saving
           writes them into snack. The key makes each meal its own component. */}
       <MealPicker

@@ -1,6 +1,6 @@
 import { SkeletonBlock, SkeletonCard } from "@/components/Skeleton";
 
-// Shaped like the Pantry — back link, title, add button, then the item list.
+// Shaped like the Pantry, back link, title, add button, then the item list.
 export default function PantryLoading() {
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-5 px-5 pt-6 pb-6 lg:px-8">

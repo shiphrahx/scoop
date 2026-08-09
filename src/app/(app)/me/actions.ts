@@ -23,7 +23,7 @@ export async function saveApiKey(key: string) {
     throw new Error("That doesn't look like an Anthropic key (starts sk-ant-).");
   }
   const { supabase, user } = await requireUser();
-  // Store encrypted — a DB dump then yields ciphertext, not a live billable key.
+  // Store encrypted, a DB dump then yields ciphertext, not a live billable key.
   const { error } = await supabase
     .from("users")
     .update({
@@ -133,7 +133,7 @@ export async function saveGoals(input: GoalsInput) {
       // unrelated preference quietly recomputes the user onto a different plan.
       // Body fat picks the resting-rate equation, goal weight caps the protein
       // basis, and the calibration is the correction the weekly review has spent
-      // weeks measuring — recomputing without it throws all of that away and
+      // weeks measuring, recomputing without it throws all of that away and
       // drops the user back onto the textbook's guess.
       bodyFatPct: p.body_fat_pct,
       goalWeightKg: p.goal_weight_kg,
@@ -144,7 +144,7 @@ export async function saveGoals(input: GoalsInput) {
       : dailyTarget({ ...macroInput, pace: input.goal_pace });
     // A profile edit recomputes the week already in force, part-way through it.
     // When that actually moves the calories, the two-week adaptation clock starts
-    // today — the days before it were spent on a different target. When the
+    // today, the days before it were spent on a different target. When the
     // number comes out the same, nothing restarts: keep the date the run began,
     // or every visit to Settings would push the next review back.
     const movedKcal =
@@ -250,7 +250,7 @@ export interface CyclingInput {
 }
 
 // Save the user's calorie-cycling ("high days") settings. This never touches
-// the weekly calorie total — it only changes how the app spreads it across the
+// the weekly calorie total, it only changes how the app spreads it across the
 // week (see src/lib/highday.ts). The user sets only the master switch and (within
 // a safe range) how many high days a week; the carb amount is CALCULATED, never
 // entered. A null count means "use the recommendation for my goal", so a later
@@ -290,7 +290,7 @@ export async function saveCycling(input: CyclingInput) {
 //
 // The learned tdee_calibration is deliberately KEPT. It is a measured correction
 // to the formula's guess, not a stale target, and the review folds new
-// measurements into it as they land — throwing it away would drop the user back
+// measurements into it as they land, throwing it away would drop the user back
 // onto the textbook's number, which is exactly what calibration exists to avoid.
 export async function restartCalibration() {
   const { supabase, user } = await requireUser();
@@ -361,7 +361,7 @@ export async function restartCalibration() {
   const now = new Date();
 
   // The baseline the progress screen shows as "what we're calibrating from" is
-  // the raw formula, same as onboarding stores — recomputed here so it describes
+  // the raw formula, same as onboarding stores, recomputed here so it describes
   // today's body rather than the one that signed up.
   const estimatedMaintenance = Math.round(
     tdee({ ...macroInput, tdeeCalibration: undefined }),
@@ -379,7 +379,7 @@ export async function restartCalibration() {
 
   // This week's target becomes the hold's anchor: maintenance, phase
   // "calibration". getCurrentTargets pins the whole run to it (see
-  // calibrationAnchor), so it must be written for the current week — an older
+  // calibrationAnchor), so it must be written for the current week, an older
   // calibration row from a previous run is not the one in force.
   const { error: targetError } = await supabase.from("daily_targets").upsert(
     {

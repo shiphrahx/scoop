@@ -18,7 +18,7 @@ function sizesOf(item: PantryItem) {
   return item.unit_options ?? [];
 }
 
-// "6 bagels per pack (71 g each)" for a countable item — how the pantry row
+// "6 bagels per pack (71 g each)" for a countable item, how the pantry row
 // shows a pack that's split into portions. Only called when both are known.
 function packLabel(item: PantryItem): string {
   const n = Math.round((item.pack_size_g ?? 0) / (item.unit_g ?? 1));
@@ -220,7 +220,7 @@ function PantryRow({
 }
 
 // A pill on each row showing its shelf; changing it re-files the item in one
-// tap. Only lists shelves that already exist — inventing a new one is done in
+// tap. Only lists shelves that already exist, inventing a new one is done in
 // the edit form, which is where the free-text box lives.
 function ShelfChip({
   item,

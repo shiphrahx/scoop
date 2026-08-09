@@ -13,7 +13,7 @@ import {
 import { DEFAULT_MEAL_SLOTS, type FavouriteMeal } from "@/lib/types";
 import { normalizePrefs } from "@/lib/nutrients";
 
-// The day's actual plan — high-day toggle, build button, drink logger and the
+// The day's actual plan, high-day toggle, build button, drink logger and the
 // meal list. Fetched here so the page's header and day navigation paint
 // immediately and this streams in behind a Suspense boundary; getHighDayStatus
 // (targets + latest weight + high days) plus the plan and the day's food are the
@@ -39,7 +39,7 @@ export default async function DayBody({
       .order("created_at", { ascending: false }),
   ]);
   const favourites = (favData as FavouriteMeal[]) ?? [];
-  // The ring and the plan compare against THIS day's target — the high or low
+  // The ring and the plan compare against THIS day's target, the high or low
   // day when cycling is on, the flat base when it's off.
   const target = highDay.target;
   // Macros left today, so the drink logger can default its carbs-vs-fat booking
@@ -57,7 +57,7 @@ export default async function DayBody({
   }));
 
   // Meals with picks waiting (or already solved): they decide whether the big
-  // button reads "Build my day" or "Rebalance my day" — and whether it shows.
+  // button reads "Build my day" or "Rebalance my day", and whether it shows.
   const pickedMeals = plan.filter((m) => m.picks.length > 0 && !m.logged_food_id);
   const anyUnbuilt = pickedMeals.some((m) => m.portions.length === 0);
 
@@ -88,7 +88,7 @@ export default async function DayBody({
       />
 
       {/* Keyed on the day. ?date=A and ?date=B are one segment to the router,
-          which keeps client state across them — so foods half-added to one day's
+          which keeps client state across them, so foods half-added to one day's
           empty slot would still be sitting there on the next day's screen. */}
       <DayPlan
         key={date}

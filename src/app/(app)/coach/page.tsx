@@ -10,7 +10,7 @@ export default function CoachPage() {
       <h1 className="text-3xl font-semibold">The Coach</h1>
 
       {/* The review and activity come from the weekly review — the slowest read
-          in the app — so they stream in while the title and the link below are
+          in the app, so they stream in while the title and the link below are
           up straight away. */}
       <Suspense
         fallback={

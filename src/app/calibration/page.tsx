@@ -13,7 +13,7 @@ export default async function CalibrationPage() {
   if (!user) redirect("/login");
   if (!profile?.onboarded_at) redirect("/onboarding");
 
-  // Null means there is no review pending — the hold is still running, or the
+  // Null means there is no review pending, the hold is still running, or the
   // deficit has already been started. Either way there is nothing to show.
   const wrap = await getCalibrationWrap();
   if (!wrap) redirect("/");

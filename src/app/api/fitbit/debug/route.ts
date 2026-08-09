@@ -11,20 +11,20 @@ import {
   type FitbitTokens,
 } from "@/lib/fitbit";
 
-// GET /api/fitbit/debug — diagnostics for a broken sync. Signed-in only, reads
+// GET /api/fitbit/debug, diagnostics for a broken sync. Signed-in only, reads
 // the caller's OWN token, refreshes if stale, then returns the raw provider
 // response for yesterday alongside what getDay parses out of it. This is what
 // tells us whether the connection, the endpoints, or the value nesting is the
 // problem when the dashboard charts come back empty.
 export async function GET(request: Request) {
   const { supabase, user } = await requireUser();
-  // Which origin actually served this — so a stale localhost vs the Vercel
+  // Which origin actually served this, so a stale localhost vs the Vercel
   // deploy can't be confused when diagnosing.
   const host = request.headers.get("host");
 
   // Which provider is live and whether it has what it needs. Reported BEFORE the
   // token lookup, because a deployment missing its credentials cannot connect in
-  // the first place — bailing out with "not connected" would hide the only thing
+  // the first place, bailing out with "not connected" would hide the only thing
   // worth knowing. `missing` lists variable names, never values.
   const config = {
     provider: activeProvider(),
@@ -79,7 +79,7 @@ export async function GET(request: Request) {
     }
   }
 
-  // Yesterday — a fully-elapsed day is likelier to hold data than a partial one.
+  // Yesterday, a fully-elapsed day is likelier to hold data than a partial one.
   const date = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
 
   const raw = await probeDay(accessToken, date).catch((e) => ({

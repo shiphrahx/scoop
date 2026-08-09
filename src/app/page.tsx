@@ -25,7 +25,7 @@ export const metadata: Metadata = {
 };
 
 // The worked example below is the only monospaced text in the product, so the
-// face loads here rather than in the root layout — the signed-in screens should
+// face loads here rather than in the root layout, the signed-in screens should
 // not preload a font they never draw with. Applied per element (the two spots
 // that use `font-mono`) so nothing has to wrap the page in an extra div.
 const geistMono = Geist_Mono({
@@ -33,7 +33,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Public front door — for people who are not signed in yet.
+// Public front door, for people who are not signed in yet.
 //
 // Anyone with a session is sent to /dashboard before this ever renders; the proxy
 // does it (see lib/supabase/middleware.ts), because only there can an expired

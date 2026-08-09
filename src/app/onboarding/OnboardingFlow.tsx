@@ -425,7 +425,7 @@ export default function OnboardingFlow() {
   );
 }
 
-// First thing a brand-new user sees — a plain-words pitch, then one button in.
+// First thing a brand-new user sees, a plain-words pitch, then one button in.
 function Welcome({ onStart }: { onStart: () => void }) {
   const points: { icon: LucideIcon; text: string }[] = [
     {

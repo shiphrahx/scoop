@@ -31,7 +31,7 @@ import { addDaysISO } from "@/lib/time";
 // show. The correlations read months; these are just context for the pattern.
 const RAW_CHART_DAYS = 30;
 
-// The whole insights body — the ActionBar and the four chart tabs — fetched and
+// The whole insights body, the ActionBar and the four chart tabs, fetched and
 // rendered here so the page can stream it. This is the heavy part of Progress
 // (getInsightsData is ~a dozen reads and the tabs draw charts), so the page
 // header paints immediately and this fills in behind a Suspense boundary.
@@ -69,7 +69,7 @@ export default async function Insights() {
 
   // The target the app is actually holding the user to, resolved once in the
   // query layer. Picking this week's row out of the raw history instead meant
-  // the scorecard could grade against a row the app itself was overriding — a
+  // the scorecard could grade against a row the app itself was overriding, a
   // week with no row of its own scored against nothing, and a calibration week
   // scored against a drifted number rather than the pinned anchor.
   const currentTarget = data.currentTarget;

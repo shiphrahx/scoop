@@ -18,7 +18,7 @@ import type { MealSuggestion } from "@/lib/types";
 // diet and the macros they have left today, optionally built around a chosen
 // carb + protein.
 //
-// This and logSuggestion below serve PlanMeal, which is parked — see the note at
+// This and logSuggestion below serve PlanMeal, which is parked, see the note at
 // the top of ../PlanMeal.tsx. Kept whole so the feature can be switched back on
 // by giving it a route, not rebuilt.
 export async function getSuggestions(
@@ -52,7 +52,7 @@ export async function getSuggestions(
   )
     .filter((p) => !violatesDiet(p.name, profile.diet_type))
     .map((p) => {
-      // Stock caps a portion at what the user actually has — a pack the app
+      // Stock caps a portion at what the user actually has, a pack the app
       // can't exceed. Pack size × packs; left undefined (no cap) when unknown.
       const pack = p.pack_size_g != null ? Number(p.pack_size_g) : null;
       const qty = p.quantity != null ? Math.max(1, Number(p.quantity)) : 1;

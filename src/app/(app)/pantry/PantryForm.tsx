@@ -98,7 +98,7 @@ export default function PantryForm({
   }
 
   // Editing the name by hand drops a previous fresh-food pick so the search runs
-  // again — the item is no longer "the banana we filled in".
+  // again, the item is no longer "the banana we filled in".
   function onNameChange(value: string) {
     set("name", value);
     if (picked) clearFresh();
@@ -118,7 +118,7 @@ export default function PantryForm({
     setFreshId(food.id);
     setSizes(food.sizes);
     setSelectedSize(defaultSize(food.sizes)?.label ?? "");
-    // A fresh food is counted by size, not split from a pack — clear those.
+    // A fresh food is counted by size, not split from a pack, clear those.
     setPack("");
     setPortions("");
     setUnitLabel("");

@@ -8,7 +8,7 @@ import { startDeficit } from "./actions";
 
 // The end of calibration, shown as what it is: the first thing the user
 // achieved. A fortnight of logging bought a maintenance figure measured from
-// their own body, and every target from here is built on it — so the numbers get
+// their own body, and every target from here is built on it, so the numbers get
 // a screen each rather than a line on Home.
 //
 // One finding per card, tapped through in order, ending on the new target and
@@ -36,7 +36,7 @@ interface Card {
   // Strictly about THIS user: their numbers, their fortnight, what happens to
   // them. Never a general statement about bodies or dieting.
   body: string;
-  // The general point behind it — true of everyone, not measured from anything
+  // The general point behind it, true of everyone, not measured from anything
   // this user did. Kept in its own slot because mixing the two into one
   // paragraph is what made the screen read as a leaflet: the reader could not
   // tell which sentences were about them. Rendered visibly apart, and labelled.
@@ -50,7 +50,7 @@ interface Card {
 const GRADS = ["var(--grad-cool)", "var(--grad-primary)", "var(--grad-indigo)", "var(--grad-warm)"];
 
 // How the review is being watched: live, at the moment the hold ends and the
-// deficit is waiting to start — or replayed later from the history, when the
+// deficit is waiting to start, or replayed later from the history, when the
 // deficit has long since begun and there is nothing left to press.
 export interface ReviewOptions {
   replay?: boolean;
@@ -278,7 +278,7 @@ export default function CalibrationReview({
   wrap: CalibrationWrap;
   name: string | null;
   // A review being re-watched from the history: same findings, but nothing to
-  // start — that deficit began the day it was filed.
+  // start, that deficit began the day it was filed.
   replay?: boolean;
   endedAt?: string | null;
 }) {
@@ -380,7 +380,7 @@ export default function CalibrationReview({
           {card.note && (
             <p className="max-w-prose rounded-2xl bg-black/15 p-3 text-sm leading-relaxed text-white/75">
               {/* Labelled so it reads as background rather than as another fact
-                  about the reader — the point of keeping the two apart. */}
+                  about the reader, the point of keeping the two apart. */}
               <span className="font-semibold uppercase tracking-wide">
                 Why this works:{" "}
               </span>
@@ -400,7 +400,7 @@ export default function CalibrationReview({
       )}
 
       {/* Full width on a phone, thumb-sized. On a laptop the controls sit under
-          the left column at a normal button width — a metre-wide Next button is
+          the left column at a normal button width, a metre-wide Next button is
           not a bigger target, it is a stretched one. */}
       <div className="mx-auto flex w-full max-w-5xl items-center gap-3 pb-2 lg:max-w-md lg:self-start">
         {i > 0 && (
@@ -444,7 +444,7 @@ export default function CalibrationReview({
 //
 // Deliberately not Recharts: this is one static line on a screen a user sees
 // once, and pulling a charting library into it would cost more to load than the
-// whole review. Also draws the truth of the shape — the curve flattens, because
+// whole review. Also draws the truth of the shape, the curve flattens, because
 // a lighter body burns less at the same target.
 export function ProjectionCurve({ points }: { points: ProjectionPoint[] }) {
   const W = 320;

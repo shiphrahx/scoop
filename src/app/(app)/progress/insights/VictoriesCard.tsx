@@ -44,7 +44,7 @@ export default function VictoriesCard({
   }
 
   // This card carries the "add a win" form, so unlike an insight it renders
-  // whether or not there's anything in the list — otherwise there'd be nowhere
+  // whether or not there's anything in the list, otherwise there'd be nowhere
   // to write the first one down.
   return (
     <CompactCard

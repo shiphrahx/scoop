@@ -1,6 +1,6 @@
 import { SkeletonBlock, SkeletonCard } from "@/components/Skeleton";
 
-// The insights body placeholder — action row, KPI tiles, tab strip, card grid —
+// The insights body placeholder, action row, KPI tiles, tab strip, card grid,
 // shown while the real ActionBar + tabs stream in. Shared by the page's Suspense
 // fallback and the route's loading.tsx so both match the real layout and nothing
 // jumps under the user's thumb when the content arrives.

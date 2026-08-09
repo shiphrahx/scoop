@@ -7,13 +7,13 @@ import { getSuggestions, logSuggestion } from "./actions";
 
 // Build a meal by tapping: pick a carb → pick a protein → get dishes that use
 // your pantry, fit your diet, and come with exact portions for today's macros.
-// The carb/protein steps are optional shortcuts — you can just tap Suggest.
+// The carb/protein steps are optional shortcuts, you can just tap Suggest.
 //
 // PARKED, NOT DEAD. Nothing renders this today. It used to sit on the /plan hub,
 // which was removed once its other contents (favourites, recipes, the day plan)
 // earned their own menu entries and the hub was left as a page of links. The
 // feature works and is deliberately kept whole, along with getSuggestions and
-// logSuggestion in ./actions, until we decide where it belongs — give it a route
+// logSuggestion in ./actions, until we decide where it belongs, give it a route
 // and a nav item and it is live again. Don't delete it as unused code.
 export default function PlanMeal({ pantry }: { pantry: string[] }) {
   const [carb, setCarb] = useState<string | null>(null);

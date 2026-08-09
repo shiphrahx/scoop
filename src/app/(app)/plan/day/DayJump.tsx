@@ -7,7 +7,7 @@ import { ChevronDown } from "lucide-react";
 // The day heading in the nav, tappable to jump straight to any date. Tapping it
 // opens the browser's native date picker (seeded to the day being viewed); a
 // pick navigates to that day. A hidden date input drives it so we get the OS
-// picker for free — no calendar to build or style.
+// picker for free, no calendar to build or style.
 export default function DayJump({
   date,
   today,

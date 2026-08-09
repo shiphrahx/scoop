@@ -10,8 +10,8 @@ import {
   weeklyDeficitKcal,
 } from "@/lib/highday";
 
-// Refeed days. The user sets only two things: a master toggle and — within a
-// safe range — how many refeed days a week (defaulting to the evidence-based 2).
+// Refeed days. The user sets only two things: a master toggle and, within a
+// safe range, how many refeed days a week (defaulting to the evidence-based 2).
 // The carbs are CALCULATED, never typed: a refeed raises that day up to
 // maintenance with extra carbs, and it's FREE (no other day is cut). The live
 // preview shows the uplift and is honest that refeed weeks lose a little less.
@@ -26,10 +26,10 @@ export default function CyclingSettings({
   recommended: number;
   // The flat deficit target this week. Null before onboarding sets one.
   base: { kcal: number } | null;
-  // The user's maintenance estimate — the ceiling a refeed reaches. Null until
+  // The user's maintenance estimate, the ceiling a refeed reaches. Null until
   // it's confidently known, in which case refeeds can't be sized yet.
   maintenanceKcal?: number | null;
-  // Refeeds are locked during the calibration hold — no deficit yet. Show why
+  // Refeeds are locked during the calibration hold, no deficit yet. Show why
   // rather than hiding it.
   locked?: boolean;
 }) {

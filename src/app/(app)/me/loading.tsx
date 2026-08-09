@@ -1,6 +1,6 @@
 import { SkeletonBlock, SkeletonCard } from "@/components/Skeleton";
 
-// Shaped like the Me page — avatar, name, then a stack of settings cards — so
+// Shaped like the Me page, avatar, name, then a stack of settings cards, so
 // the tap swaps to something the right shape while the profile loads.
 export default function MeLoading() {
   return (

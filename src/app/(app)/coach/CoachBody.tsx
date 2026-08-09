@@ -3,7 +3,7 @@ import { ArrowRight, Footprints, Moon, Flame } from "lucide-react";
 import { getCoachData } from "@/lib/queries";
 import { ApplyTargetsButton } from "./Controls";
 
-// The weekly review and the recent-activity list — everything on the Coach page
+// The weekly review and the recent-activity list, everything on the Coach page
 // that comes from getCoachData (the review is the slowest read in the app). It's
 // rendered here so the page title and the static footer link paint immediately
 // and this streams in behind a Suspense boundary.

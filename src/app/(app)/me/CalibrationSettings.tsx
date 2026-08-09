@@ -18,7 +18,7 @@ export interface PastReview {
 // Restarting the maintenance-first calibration hold.
 //
 // Calibration is how the app learns what this user actually burns, and that
-// knowledge goes stale — someone who stopped logging for months comes back a
+// knowledge goes stale, someone who stopped logging for months comes back a
 // different weight with a target computed for the old one. Re-onboarding would
 // wipe their history, so this reopens the window instead: eat at maintenance
 // for a fortnight while the app re-measures, then the deficit reopens modestly.

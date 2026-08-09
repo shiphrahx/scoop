@@ -3,7 +3,7 @@
 // Drivers: which habits actually move this person's scale.
 //
 // Every card here is a weekly paired comparison and nothing cleverer, so every
-// card carries the same warning. The value isn't the correlation coefficient —
+// card carries the same warning. The value isn't the correlation coefficient,
 // it's the contrast line underneath it ("your best weeks slept 7.8 h, your worst
 // 6.4 h"), which is a thing a person can go and do something about.
 

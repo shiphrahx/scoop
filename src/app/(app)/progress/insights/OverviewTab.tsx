@@ -2,10 +2,10 @@
 
 // Overview: the answer to "how is this going", in one screen.
 //
-// Four figures across the top, one chart under them, then compact cards — the
+// Four figures across the top, one chart under them, then compact cards, the
 // ones with data first, then quiet dashed ones naming what the missing data
-// would buy. Everything deeper — the bands behind the rate, the window behind
-// the date, the weigh-in log — is a tap into a drawer, because a dashboard that
+// would buy. Everything deeper, the bands behind the rate, the window behind
+// the date, the weigh-in log, is a tap into a drawer, because a dashboard that
 // shows all of it at once is a page nobody scrolls twice.
 
 import { useMemo, useState } from "react";
@@ -260,7 +260,7 @@ export default function OverviewTab({
 }
 
 // The one chart the page leads with. The trend itself is always computed over
-// the FULL history; the range only decides how much of it is on screen —
+// the FULL history; the range only decides how much of it is on screen,
 // recomputing per range would give the "week" view a line that starts from
 // scratch every Monday.
 function TrendCard({ today, trend }: { today: string; trend: TrendPoint[] }) {
@@ -426,7 +426,7 @@ function ScorecardDetail({ scorecard }: { scorecard: WeekScorecard }) {
 }
 
 // Milestones carry an add form, so unlike an insight this card renders whether
-// or not there's anything on the board yet — otherwise there'd be nowhere to
+// or not there's anything on the board yet, otherwise there'd be nowhere to
 // write down the first one.
 function MilestonesCard({ board }: { board: MilestoneBoard }) {
   const empty = board.reached.length === 0 && board.next == null;

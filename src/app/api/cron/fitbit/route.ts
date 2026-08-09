@@ -5,7 +5,7 @@ import { logError } from "@/lib/log";
 import { refreshTokens, type FitbitTokens } from "@/lib/fitbit";
 import { syncActivityDays } from "@/lib/activity-sync";
 
-// GET /api/cron/fitbit — scheduled pull of the last 7 days of Fitbit data for
+// GET /api/cron/fitbit, scheduled pull of the last 7 days of Fitbit data for
 // every connected user, so activity stays fresh without anyone opening the app.
 // No user session; authenticated with CRON_SECRET (Vercel Cron sends it as a
 // Bearer token). Uses the service-role client to read tokens and write activity.
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
       await syncActivityDays(supabase, t.user_id, accessToken);
       synced++;
     } catch (err) {
-      // One user's failure shouldn't stop the rest — but log it so a broken
+      // One user's failure shouldn't stop the rest, but log it so a broken
       // sync (revoked token, Fitbit outage) is visible rather than silent.
       logError(`cron fitbit sync for user ${t.user_id}`, err);
       continue;

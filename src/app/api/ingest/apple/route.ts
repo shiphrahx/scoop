@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { hashToken } from "@/lib/crypto";
 import { logError } from "@/lib/log";
 
-// POST /api/ingest/apple — the "Health Auto Export" iOS app posts Apple Watch
+// POST /api/ingest/apple, the "Health Auto Export" iOS app posts Apple Watch
 // health data here on a schedule. There's no Supabase session, so it proves who
 // it is with a per-user token (query ?token= or Authorization: Bearer). We
 // resolve the user with the service-role client and upsert into `activity`.
@@ -17,7 +17,7 @@ interface Metric {
   data?: Array<Record<string, unknown>>;
 }
 
-// A date can arrive as "2026-07-05 00:00:00 +0000" — keep the day part only.
+// A date can arrive as "2026-07-05 00:00:00 +0000", keep the day part only.
 function dayOf(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const match = raw.match(/^\d{4}-\d{2}-\d{2}/);
@@ -29,7 +29,7 @@ function num(v: unknown): number | null {
 }
 
 export async function POST(request: NextRequest) {
-  // Prefer the Authorization header — a token in the query string leaks into
+  // Prefer the Authorization header, a token in the query string leaks into
   // access logs, proxies and Referer headers. The ?token= form stays supported
   // for Health Auto Export configs that can't set a header.
   const token =
