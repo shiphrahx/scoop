@@ -8,9 +8,8 @@ vi.mock("@/lib/supabase/server", async () => {
 });
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
-const { setMealPicks, buildMyDay, setMealPortions, applyDayFix } = await import(
-  "@/app/(app)/plan/day/actions"
-);
+const { setMealPicks, buildMyDay, setMealPortions, applyDayFix, applyDaySwap } =
+  await import("@/app/(app)/plan/day/actions");
 const { computeDayFix } = await import("@/lib/mealplan");
 
 const today = () => {
@@ -762,6 +761,103 @@ describe("buildMyDay", () => {
     // And a big overshoot is still flagged even when the calories land.
     const fatty = [{ ...meals[0], fat_g: 60 }];
     expect(computeDayFix(fatty, budget)).toBeTruthy();
+  });
+
+  it("offers a pantry swap when the picks can't reach the day, and applies it", async () => {
+    // The picked rice has 77 g left in the pack, so the day's carbs can't grow
+    // and the plan lands hundreds of calories short. There's a full bag of pasta
+    // in the pantry: the build must say so, and applyDaySwap must trade the one
+    // food and re-portion around it.
+    const { db } = installFakeSupabase({
+      db: {
+        users: [profile()],
+        daily_targets: targets(),
+        food_logs: [],
+        pantry_items: [
+          { ...pantryRow("White Rice", 130, 2.7, 28, 0.3), pack_size_g: 77, quantity: 1 },
+          { ...pantryRow("Pasta", 371, 13, 71, 1.5), pack_size_g: 500, quantity: 1 },
+          pantryRow("Chicken Breast", 165, 31, 0, 3.6),
+        ],
+        planned_meals: [
+          {
+            id: "meal-1",
+            user_id: "user-1",
+            date: today(),
+            slot: "Dinner",
+            origin: "ai",
+            name: "",
+            items: [],
+            picks: [chickenPick(), pick("White Rice", 130, 2.7, 28, 0.3)],
+            portions: [],
+            swaps: [],
+            why: null,
+            kcal: 0,
+            protein_g: 0,
+            carbs_g: 0,
+            fat_g: 0,
+            logged_food_id: null,
+          },
+        ],
+      },
+    });
+
+    const first = await buildMyDay();
+    expect(first.fix).toBeNull();
+    expect(first.swap).toBeTruthy();
+    expect(first.swap!.slot).toBe("Dinner");
+    expect(first.swap!.from).toBe("White Rice");
+    expect(first.swap!.to).toBe("Pasta");
+
+    const second = await applyDaySwap(first.swap!);
+    const picks = db.planned_meals[0].picks as MealPick[];
+    expect(picks.map((p) => p.name)).toEqual(["Chicken Breast", "Pasta"]);
+    const portions = db.planned_meals[0].portions as { name: string }[];
+    expect(portions.some((p) => p.name === "Pasta")).toBe(true);
+    expect(portions.some((p) => p.name === "White Rice")).toBe(false);
+    // And the swapped day really is closer to the target than the picked one.
+    expect(Math.abs(second.landed.kcal - second.budget.kcal)).toBeLessThan(
+      Math.abs(first.landed.kcal - first.budget.kcal),
+    );
+  });
+
+  it("offers no swap when the picks already land the day", async () => {
+    const { db } = installFakeSupabase({
+      db: {
+        users: [profile()],
+        daily_targets: targets(),
+        food_logs: [],
+        pantry_items: [
+          pantryRow("Chicken Breast", 165, 31, 0, 3.6),
+          pantryRow("Pasta", 371, 13, 71, 1.5),
+          pantryRow("Olive Oil", 900, 0, 0, 100),
+          pantryRow("Bagel", 264, 10, 49, 2),
+        ],
+        planned_meals: [
+          {
+            id: "meal-1",
+            user_id: "user-1",
+            date: today(),
+            slot: "Dinner",
+            origin: "ai",
+            name: "",
+            items: [],
+            picks: [pastaPick(), chickenPick(), oilPick()],
+            portions: [],
+            swaps: [],
+            why: null,
+            kcal: 0,
+            protein_g: 0,
+            carbs_g: 0,
+            fat_g: 0,
+            logged_food_id: null,
+          },
+        ],
+      },
+    });
+
+    const r = await buildMyDay();
+    expect(r.swap).toBeNull();
+    void db;
   });
 
   it("sizes meals by the profile's slot weights", async () => {

@@ -10,6 +10,7 @@ import {
   portionGrams,
   type PantryFood,
 } from "@/lib/mealplan";
+import { computeDaySwap } from "@/lib/mealswap";
 import { searchProducts } from "@/lib/off";
 import { macrosPer100gSchema, parseOrThrow, portionGramsSchema } from "@/lib/validate";
 import {
@@ -628,11 +629,13 @@ export async function buildMyDay(date?: string) {
     fat_g: Math.max(0, Math.round(targets.fat_g - consumed.fat_g - fixed.fat_g)),
   };
 
+  const solverSlots = picked.map((p) => ({
+    slot: p.slot,
+    foods: p.picks.map((pick) => pickToFood(pick, pantry)),
+  }));
+
   const meals = planPickedDay({
-    slots: picked.map((p) => ({
-      slot: p.slot,
-      foods: p.picks.map((pick) => pickToFood(pick, pantry)),
-    })),
+    slots: solverSlots,
     budget,
     weights: profile.slot_weights ?? undefined,
   });
@@ -715,6 +718,21 @@ export async function buildMyDay(date?: string) {
   // user, the app won't drop a picked food on its own, but it can ask.
   const fix = computeDayFix(meals, budget);
 
+  // A day that isn't over its ceilings can still be a poor plan: the picked rice
+  // has 77 g left in the pack, so the carbs can't grow and the day sits 300
+  // under, while there's a bag of pasta in the pantry. Look for the one trade
+  // that would land it, and offer that too. Skipped when a fix is already on
+  // offer, one prompt at a time, and the overshoot is the more urgent of the
+  // two.
+  const swap = fix
+    ? null
+    : computeDaySwap({
+        slots: solverSlots,
+        budget,
+        weights: profile.slot_weights ?? undefined,
+        pantry,
+      });
+
   // Where the picked meals landed against what was left of the day. A rebalance
   // that moves nothing is a real answer, but "nothing moved" alone gives the user
   // no way to tell a day that already fits from a button that did nothing, so it
@@ -734,9 +752,81 @@ export async function buildMyDay(date?: string) {
     moves: moves.slice(0, 4),
     held: [...new Set(held)],
     fix,
+    swap,
     landed,
     budget,
   };
+}
+
+// Apply the swap a build offered: put the pantry food in place of the picked one
+// in that meal, then rebalance. Only the named food in the named slot moves;
+// every other pick, and every hand-set amount, is left exactly as it was.
+export async function applyDaySwap(
+  swap: { slot: string; from: string; to: string },
+  date?: string,
+) {
+  const { supabase } = await requireUser();
+  const day = await resolveDate(date);
+
+  const plan = await getPlanForDate(day);
+  const meal = plan.find((m) => m.slot === swap.slot && !m.logged_food_id);
+  if (!meal) throw new Error("That meal isn't in your plan any more.");
+  const idx = meal.picks.findIndex((p) => normName(p.name) === normName(swap.from));
+  if (idx < 0) throw new Error(`${swap.from} isn't in that meal any more.`);
+
+  // The food comes from the pantry as it stands NOW, not from the numbers the
+  // suggestion was built with: the pantry is the source of truth for macros and
+  // for what's in stock, and it may have changed since the build.
+  const { data } = await supabase
+    .from("pantry_items")
+    .select(
+      "name, off_barcode, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, satfat_100g, sodium_mg_100g, pack_size_g, unit_g, unit_label, unit_options",
+    )
+    .eq("name", swap.to)
+    .limit(1)
+    .maybeSingle();
+  const row = data as {
+    name: string;
+    off_barcode: string | null;
+    kcal_100g: number;
+    protein_100g: number;
+    carbs_100g: number;
+    fat_100g: number;
+    fiber_100g: number | null;
+    sugar_100g: number | null;
+    satfat_100g: number | null;
+    sodium_mg_100g: number | null;
+    pack_size_g: number | null;
+    unit_g: number | null;
+    unit_label: string | null;
+    unit_options: UnitOption[] | null;
+  } | null;
+  if (!row) throw new Error(`${swap.to} isn't in your pantry any more.`);
+
+  // A swapped-in food is never pinned: the whole point is to let the solve size
+  // it against the rest of the day.
+  const pick: MealPick = {
+    name: row.name,
+    source: "pantry",
+    off_barcode: row.off_barcode,
+    kcal_100g: Number(row.kcal_100g),
+    protein_100g: Number(row.protein_100g),
+    carbs_100g: Number(row.carbs_100g),
+    fat_100g: Number(row.fat_100g),
+    fiber_100g: Number(row.fiber_100g ?? 0),
+    sugar_100g: Number(row.sugar_100g ?? 0),
+    satfat_100g: Number(row.satfat_100g ?? 0),
+    sodium_mg_100g: Number(row.sodium_mg_100g ?? 0),
+    pack_size_g: row.pack_size_g != null ? Number(row.pack_size_g) : null,
+    unit_g: row.unit_g != null ? Number(row.unit_g) : null,
+    unit_label: row.unit_label,
+    unit_options: row.unit_options ?? null,
+    pinned_g: null,
+  };
+
+  const picks = meal.picks.map((p, i) => (i === idx ? pick : p));
+  await setMealPicks(swap.slot, picks, day);
+  return buildMyDay(day);
 }
 
 // Apply the fix a rebalance offered: drop the named foods from their meals (the
