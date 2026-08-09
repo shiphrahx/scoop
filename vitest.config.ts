@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 // tsconfig so tests import the same way the app does.
 export default defineConfig({
   // JSX for the component tests (the ones that drive the meal-building UI the
-  // way a user does). esbuild compiles it with React's automatic runtime —
+  // way a user does). esbuild compiles it with React's automatic runtime,
   // @vitejs/plugin-react is built against a newer vite than vitest ships, and
   // the tests need no fast-refresh.
   esbuild: { jsx: "automatic" },
@@ -27,7 +27,7 @@ export default defineConfig({
       // A ratchet, not a target: set just under where we are today, so coverage
       // can only go up. Raise it when you add tests. Lower it only when the
       // denominator genuinely changed (new code landing with its own untested
-      // branches) — never to get a red build through.
+      // branches), never to get a red build through.
       thresholds: {
         lines: 82,
         functions: 87,

@@ -18,14 +18,14 @@ const per100g = z
   .number()
   .finite()
   .min(0, "can't be negative")
-  .max(100, "is over 100 g per 100 g, which isn't possible — the value looks wrong");
+  .max(100, "is over 100 g per 100 g, which isn't possible. The value looks wrong");
 
 // Calories per 100 g. Pure fat is 900; a little headroom over that, and no more.
 const kcalPer100g = z
   .number()
   .finite()
   .min(0, "can't be negative")
-  .max(1000, "is more calories than any food has per 100 g — the value looks wrong");
+  .max(1000, "is more calories than any food has per 100 g. The value looks wrong");
 
 export const macrosPer100gSchema = z.object({
   kcal_100g: kcalPer100g,
