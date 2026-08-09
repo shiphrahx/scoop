@@ -190,6 +190,25 @@ describe("calibrationWrap", () => {
     expect(calibrationWrap(fortnight({ restingRateKcal: null })).activeShare).toBeNull();
   });
 
+  it("separates the deficit from what changes on the plate", () => {
+    // Held at 2400, measured burn 2600, new target 2000: a 600 kcal deficit, but
+    // only 400 kcal less food than the fortnight they just ate.
+    const w = calibrationWrap(
+      fortnight({
+        holdTargetKcal: 2400,
+        maintenanceKcal: 2600,
+        newTarget: macros({ kcal: 2000 }),
+      }),
+    );
+    expect(w.deficitKcal).toBe(600);
+    expect(w.changeFromHoldKcal).toBe(400);
+  });
+
+  it("reports no change on the plate when the target matches the hold", () => {
+    const w = calibrationWrap(fortnight({ newTarget: macros({ kcal: 2400 }) }));
+    expect(w.changeFromHoldKcal).toBe(0);
+  });
+
   it("states the deficit and the loss it should produce each week", () => {
     const w = calibrationWrap(fortnight());
     expect(w.deficitKcal).toBe(400);

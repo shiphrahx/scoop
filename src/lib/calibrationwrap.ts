@@ -101,7 +101,13 @@ export interface CalibrationWrap {
 
   // --- What happens next
   newTarget: Macros;
-  deficitKcal: number; // maintenance − new target
+  // Two different numbers, both true, and showing only the first is what made
+  // the screen read as wrong: the deficit is measured against the burn, but what
+  // changes on the user's plate is measured against the calories they were told
+  // to eat during the hold. Someone held at 1700 who turns out to burn 1810 and
+  // is now given 1378 sees a "231 kcal cut" that takes 322 off their day.
+  deficitKcal: number; // measured maintenance − new target
+  changeFromHoldKcal: number; // hold target − new target (+ = eating less)
   expectedLossKgPerWeek: number | null;
   // Whether that rate sits inside the healthy band for this body (see
   // healthyLossBand). The band is a fraction of bodyweight, so it needs a weight.
@@ -269,6 +275,7 @@ export function calibrationWrap(input: WrapInput): CalibrationWrap {
     weightChangeKg: window.weightChangeKg,
     newTarget: input.newTarget,
     deficitKcal,
+    changeFromHoldKcal: Math.round(input.holdTargetKcal - input.newTarget.kcal),
     expectedLossKgPerWeek,
     inHealthyBand,
     projection,

@@ -31,6 +31,7 @@ const wrap = (over: Partial<CalibrationWrap> = {}): CalibrationWrap => ({
   weightChangeKg: 0.1,
   newTarget: { kcal: 2000, protein_g: 150, carbs_g: 200, fat_g: 60 },
   deficitKcal: 400,
+  changeFromHoldKcal: 400,
   expectedLossKgPerWeek: 0.36,
   inHealthyBand: true,
   projection: {
