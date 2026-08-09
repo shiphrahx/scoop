@@ -416,7 +416,7 @@ export async function clearPantry() {
 export async function importPantryUrl(url: string): Promise<ParsedProduct> {
   const { user } = await requireUser();
   if (!rateLimit(`pantry-url:${user.id}`, 10, 60_000)) {
-    throw new Error("Too many imports — give it a minute and try again.");
+    throw new Error("Too many imports. Give it a minute and try again.");
   }
   return parseProductFromUrl(url);
 }

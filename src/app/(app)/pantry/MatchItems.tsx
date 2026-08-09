@@ -177,7 +177,7 @@ export default function MatchItems({
 
       {searchUnavailable && (
         <p className="rounded-2xl bg-amber-50 px-4 py-3 text-center text-sm font-medium text-amber-700">
-          No matches found. The food database may be busy or offline — you can
+          No matches found. The food database may be busy or offline, you can
           add these items now and set macros later, or try again in a moment.
         </p>
       )}
@@ -246,7 +246,7 @@ export default function MatchItems({
                         r.chosen.kcal_100g,
                       )} kcal/100g`
                     ) : (
-                      "No match — will add without macros"
+                      "No match, will add without macros"
                     )}
                   </span>
                 </span>
@@ -280,7 +280,7 @@ export default function MatchItems({
               <div className="flex flex-col gap-1.5 px-4 pb-3">
                 {r.candidates.length === 0 && !r.searching && (
                   <p className="px-1 py-1 text-xs text-[var(--muted)]">
-                    No products found — try a different search below.
+                    No products found, try a different search below.
                   </p>
                 )}
                 {r.candidates.map((c, ci) => (
@@ -317,7 +317,7 @@ export default function MatchItems({
                       : { background: "var(--fill-soft)" }
                   }
                 >
-                  None of these — add without macros
+                  None of these, add without macros
                 </button>
 
                 {/* Not the right product? Type anything and search a wider list,

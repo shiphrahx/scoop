@@ -375,7 +375,7 @@ function EditRow({
       {hasSizes ? (
         <p className="text-xs text-[var(--muted)]">
           Sizes ({sizesOf(item).map((s) => s.label).join(", ")}) are set on the
-          item — pick the one you have from the size chip on the row.
+          item, pick the one you have from the size chip on the row.
         </p>
       ) : (
         <>
