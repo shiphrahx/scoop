@@ -312,12 +312,19 @@ export default function CalibrationReview({
   }
 
   return (
+    // A phone-shaped card deck full-bleed on a phone, and a centred two-column
+    // spread on a laptop. Stretched across a wide window it was one small
+    // paragraph adrift on the left with a full-width button under it: the layout
+    // has to hold the content together as the window grows, not spread it out.
     <main
-      className="flex min-h-dvh flex-col gap-6 p-6 text-white"
+      className="flex min-h-dvh flex-col gap-6 p-6 text-white lg:justify-center lg:p-12"
       style={{ background: card.grad }}
     >
       {/* Where you are in the review. */}
-      <div className="flex items-center gap-1.5 pt-2" aria-hidden>
+      <div
+        className="mx-auto flex w-full max-w-5xl items-center gap-1.5 pt-2"
+        aria-hidden
+      >
         {cards.map((c, n) => (
           <span
             key={c.key}
@@ -327,49 +334,69 @@ export default function CalibrationReview({
         ))}
       </div>
 
-      <section className="flex flex-1 flex-col justify-center gap-4">
-        <p className="text-sm font-semibold uppercase tracking-wide text-white/80">
-          {card.kicker}
-        </p>
-        <h1 className="text-6xl font-bold leading-none tracking-tight">{card.value}</h1>
-        {card.unit && <p className="-mt-2 text-xl font-semibold text-white/90">{card.unit}</p>}
-
-        {card.target && (
-          <ul className="flex flex-wrap gap-2 pt-1">
-            {[
-              ["Protein", card.target.protein_g],
-              ["Carbs", card.target.carbs_g],
-              ["Fat", card.target.fat_g],
-            ].map(([label, grams]) => (
-              <li
-                key={label as string}
-                className="rounded-2xl bg-white/20 px-3 py-2 text-sm font-semibold"
-              >
-                {label} {Math.round(grams as number)} g
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {card.chart && card.chart.length > 1 && <ProjectionCurve points={card.chart} />}
-
-        <p className="max-w-prose text-lg leading-relaxed text-white">{card.body}</p>
-
-        {card.note && (
-          <p className="max-w-prose rounded-2xl bg-black/15 p-3 text-sm leading-relaxed text-white/75">
-            <span className="font-semibold uppercase tracking-wide">Why: </span>
-            {card.note}
+      <section className="mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center gap-4 lg:flex-none lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:items-center lg:gap-14 lg:py-8">
+        {/* The finding: kicker, the number itself, what it is. */}
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-semibold uppercase tracking-wide text-white/80">
+            {card.kicker}
           </p>
-        )}
+          <h1 className="text-6xl font-bold leading-none tracking-tight lg:text-8xl">
+            {card.value}
+          </h1>
+          {card.unit && (
+            <p className="-mt-1 text-xl font-semibold text-white/90 lg:text-2xl">
+              {card.unit}
+            </p>
+          )}
+
+          {card.target && (
+            <ul className="flex flex-wrap gap-2 pt-1">
+              {[
+                ["Protein", card.target.protein_g],
+                ["Carbs", card.target.carbs_g],
+                ["Fat", card.target.fat_g],
+              ].map(([label, grams]) => (
+                <li
+                  key={label as string}
+                  className="rounded-2xl bg-white/20 px-3 py-2 text-sm font-semibold"
+                >
+                  {label} {Math.round(grams as number)} g
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* What it means, and the general point behind it. */}
+        <div className="flex flex-col gap-4">
+          {card.chart && card.chart.length > 1 && <ProjectionCurve points={card.chart} />}
+
+          <p className="max-w-prose text-lg leading-relaxed text-white lg:text-xl">
+            {card.body}
+          </p>
+
+          {card.note && (
+            <p className="max-w-prose rounded-2xl bg-black/15 p-3 text-sm leading-relaxed text-white/75">
+              <span className="font-semibold uppercase tracking-wide">Why: </span>
+              {card.note}
+            </p>
+          )}
+        </div>
       </section>
 
       {err && (
-        <p className="rounded-2xl bg-white/20 p-3 text-sm font-medium" role="alert">
+        <p
+          className="mx-auto w-full max-w-5xl rounded-2xl bg-white/20 p-3 text-sm font-medium"
+          role="alert"
+        >
           {err}
         </p>
       )}
 
-      <div className="flex items-center gap-3 pb-2">
+      {/* Full width on a phone, thumb-sized. On a laptop the controls sit under
+          the left column at a normal button width — a metre-wide Next button is
+          not a bigger target, it is a stretched one. */}
+      <div className="mx-auto flex w-full max-w-5xl items-center gap-3 pb-2 lg:max-w-md lg:self-start">
         {i > 0 && (
           <button
             onClick={() => setI((n) => n - 1)}
