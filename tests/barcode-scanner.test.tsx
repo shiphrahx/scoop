@@ -3,74 +3,118 @@ import { useState } from "react";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BarcodeFormat, DecodeHintType } from "@zxing/library";
+import type { CameraCapabilities } from "@/lib/barcode/camera";
+import type { ScannerOptions } from "@/lib/barcode/scan";
 
-// zxing owns the camera; stub it so the component's request is observable
-// without a real MediaStream.
-const decodeFromConstraints = vi.fn();
-const stop = vi.fn();
-const readerArgs = vi.fn();
-vi.mock("@zxing/browser", () => ({
-  BrowserMultiFormatReader: class {
-    decodeFromConstraints = decodeFromConstraints;
-    constructor(hints?: unknown, options?: unknown) {
-      readerArgs(hints, options);
-    }
+// The frame loop needs a canvas and a real video, neither of which jsdom has.
+// It is covered on its own in barcode-scan.test.ts; here we only care that the
+// component wires it up and drives the camera correctly.
+const startScanner = vi.fn();
+const stopScanner = vi.fn();
+vi.mock("@/lib/barcode/scan", () => ({
+  startScanner: (options: ScannerOptions) => {
+    startScanner(options);
+    return { stop: stopScanner };
   },
 }));
 
 const { default: BarcodeScanner } = await import("@/components/BarcodeScanner");
 
-type DecodeCallback = (
-  result: { getText: () => string } | null,
-  err: unknown,
-  ctrl: { stop: () => void },
-) => void;
+// The stream the browser hands back, and a record of what it was asked to do.
+const applied: Record<string, unknown>[] = [];
+const stopTrack = vi.fn();
+const getUserMedia = vi.fn();
 
-// The video constraints from the most recent open.
-const videoConstraints = () =>
-  decodeFromConstraints.mock.calls[0][0].video as MediaTrackConstraints;
+const ANDROID: CameraCapabilities = {
+  focusMode: ["continuous", "single-shot"],
+  torch: true,
+  zoom: { min: 1, max: 8 },
+  pointsOfInterest: true,
+};
 
-const lastCallback = () => decodeFromConstraints.mock.calls[0][2] as DecodeCallback;
+function fakeStream(capabilities: CameraCapabilities = ANDROID) {
+  const track = {
+    kind: "video",
+    stop: stopTrack,
+    getCapabilities: () => capabilities,
+    applyConstraints: (constraints: { advanced?: Record<string, unknown>[] }) => {
+      applied.push(...(constraints.advanced ?? []));
+      return Promise.resolve();
+    },
+  };
+  return {
+    getVideoTracks: () => [track],
+    getTracks: () => [track],
+  } as unknown as MediaStream;
+}
 
-const hints = () => readerArgs.mock.calls[0][0] as Map<DecodeHintType, unknown>;
-const readerOptions = () =>
-  readerArgs.mock.calls[0][1] as { delayBetweenScanAttempts?: number };
+// A 1080p stream shown full bleed on a portrait phone.
+const FRAME_BOX = { left: 0, top: 0, width: 390, height: 844 };
+const GUIDE_BOX = { left: 23, top: 334, width: 343, height: 176 };
+
+function boxFor(element: Element): DOMRect {
+  const box = element.tagName === "VIDEO" ? FRAME_BOX : GUIDE_BOX;
+  return {
+    ...box,
+    right: box.left + box.width,
+    bottom: box.top + box.height,
+    x: box.left,
+    y: box.top,
+    toJSON: () => box,
+  } as DOMRect;
+}
 
 beforeEach(() => {
-  decodeFromConstraints.mockReset();
-  stop.mockReset();
-  readerArgs.mockReset();
-  decodeFromConstraints.mockResolvedValue({ stop });
+  applied.length = 0;
+  startScanner.mockReset();
+  stopScanner.mockReset();
+  stopTrack.mockReset();
+  getUserMedia.mockReset();
+  getUserMedia.mockResolvedValue(fakeStream());
+
+  Object.defineProperty(navigator, "mediaDevices", {
+    configurable: true,
+    value: { getUserMedia },
+  });
+  // jsdom implements none of these.
+  HTMLMediaElement.prototype.play = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(HTMLMediaElement.prototype, "srcObject", {
+    configurable: true,
+    writable: true,
+    value: null,
+  });
+  Object.defineProperty(HTMLVideoElement.prototype, "videoWidth", {
+    configurable: true,
+    value: 1920,
+  });
+  Object.defineProperty(HTMLVideoElement.prototype, "videoHeight", {
+    configurable: true,
+    value: 1080,
+  });
+  Element.prototype.getBoundingClientRect = function () {
+    return boxFor(this);
+  };
 });
 
 afterEach(cleanup);
 
-describe("BarcodeScanner", () => {
-  // The reported symptom: a picture too soft to read a barcode from. Asking only
-  // for facingMode leaves the browser on its default capture size (~640x480 on a
-  // phone), at which the thin bars blur together.
-  it("asks for a high-resolution stream, not the browser default", async () => {
-    await act(async () => {
-      render(<BarcodeScanner onDetected={vi.fn()} onClose={vi.fn()} />);
-    });
-
-    const video = videoConstraints();
-    expect(video.width).toEqual({ ideal: 1920 });
-    expect(video.height).toEqual({ ideal: 1080 });
+async function open(props: Partial<Parameters<typeof BarcodeScanner>[0]> = {}) {
+  await act(async () => {
+    render(<BarcodeScanner onDetected={vi.fn()} onClose={vi.fn()} {...props} />);
   });
+}
 
-  // ideal, never exact: a camera that cannot manage 1080p has to fall back
-  // rather than fail to open.
-  it("makes every camera preference an ideal so a weaker camera still opens", async () => {
-    await act(async () => {
-      render(<BarcodeScanner onDetected={vi.fn()} onClose={vi.fn()} />);
-    });
+const scannerOptions = () => startScanner.mock.calls[0][0] as ScannerOptions;
 
-    const video = videoConstraints() as Record<string, unknown>;
-    for (const key of ["facingMode", "width", "height"]) {
-      expect(Object.keys(video[key] as object)).toEqual(["ideal"]);
-    }
+describe("BarcodeScanner", () => {
+  // At the browser's default capture size, around 640x480 on a phone, the thin
+  // bars of a barcode land in the same pixel as their neighbours.
+  it("asks for the back camera at a size the bars survive", async () => {
+    await open();
+
+    const video = getUserMedia.mock.calls[0][0].video as MediaTrackConstraints;
+    expect(video.facingMode).toEqual({ ideal: "environment" });
+    expect(video.width).toEqual({ ideal: 1920 });
   });
 
   // Callers pass a plain function declared in their own render, so its identity
@@ -92,71 +136,156 @@ describe("BarcodeScanner", () => {
     await act(async () => {
       render(<Parent />);
     });
-    expect(decodeFromConstraints).toHaveBeenCalledTimes(1);
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
 
     await userEvent.click(screen.getByRole("button", { name: /bump/i }));
     await userEvent.click(screen.getByRole("button", { name: /bump/i }));
 
-    expect(decodeFromConstraints).toHaveBeenCalledTimes(1);
-    expect(stop).not.toHaveBeenCalled();
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+    expect(stopScanner).not.toHaveBeenCalled();
   });
 
-  // Holding the callback in a ref must not staple the scanner to the first one
-  // it was given, a scan reports to whichever callback is current.
   it("reports a scan to the latest callback", async () => {
     const first = vi.fn();
     const second = vi.fn();
 
-    const { rerender } = render(
-      <BarcodeScanner onDetected={first} onClose={vi.fn()} />,
-    );
+    const { rerender } = render(<BarcodeScanner onDetected={first} onClose={vi.fn()} />);
     await act(async () => {});
     rerender(<BarcodeScanner onDetected={second} onClose={vi.fn()} />);
 
-    const ctrl = { stop: vi.fn() };
-    act(() => {
-      lastCallback()({ getText: () => "5000112637922" }, null, ctrl);
-    });
+    act(() => scannerOptions().onDetected("5000112637922"));
 
     expect(second).toHaveBeenCalledWith("5000112637922");
     expect(first).not.toHaveBeenCalled();
-    // And the camera is released as soon as a code is read.
-    expect(ctrl.stop).toHaveBeenCalled();
   });
 
-  // A food packet only ever carries a retail 1D symbology. Hunting QR, Aztec,
-  // PDF417 and Data Matrix on every attempt spends the decode budget on things
-  // that cannot be there, and it's that budget which pays for TRY_HARDER, the
-  // slower pass that copes with the soft picture a phone actually produces.
-  it("looks only for the barcodes that appear on food packaging, and tries hard", async () => {
-    await act(async () => {
-      render(<BarcodeScanner onDetected={vi.fn()} onClose={vi.fn()} />);
-    });
+  // The component owns getUserMedia now, so it owns releasing it. A live camera
+  // left running behind a closed overlay keeps the phone's light on and its
+  // battery draining.
+  it("releases the camera when the overlay goes away", async () => {
+    const { unmount } = render(<BarcodeScanner onDetected={vi.fn()} onClose={vi.fn()} />);
+    await act(async () => {});
 
-    const formats = hints().get(DecodeHintType.POSSIBLE_FORMATS) as BarcodeFormat[];
-    expect(formats).toContain(BarcodeFormat.EAN_13);
-    expect(formats).toContain(BarcodeFormat.UPC_A);
-    expect(formats).not.toContain(BarcodeFormat.QR_CODE);
-    expect(hints().get(DecodeHintType.TRY_HARDER)).toBe(true);
+    unmount();
+
+    expect(stopScanner).toHaveBeenCalled();
+    expect(stopTrack).toHaveBeenCalled();
   });
 
-  // zxing's default is 500ms, so autofocus is only judged twice a second and the
-  // brief moment a hand-held phone is sharp is usually missed entirely.
-  it("samples far more often than the zxing default", async () => {
-    await act(async () => {
-      render(<BarcodeScanner onDetected={vi.fn()} onClose={vi.fn()} />);
+  describe("the picture it asks the camera for", () => {
+    it("keeps the camera focusing rather than letting it lock once", async () => {
+      await open();
+      expect(applied).toContainEqual({ focusMode: "continuous" });
     });
 
-    expect(readerOptions().delayBetweenScanAttempts).toBeLessThan(500);
+    // Filling the guide from a hand's width away is inside the minimum focus
+    // distance of a phone's main camera. Zooming fills it from arm's length,
+    // where the camera can actually focus.
+    it("zooms in so the barcode fills the guide from a focusable distance", async () => {
+      await open();
+      expect(applied).toContainEqual({ zoom: 2 });
+    });
+
+    it("asks for no zoom of a camera that has none", async () => {
+      getUserMedia.mockResolvedValue(fakeStream({ focusMode: ["continuous"] }));
+      await open();
+
+      expect(applied.some((constraint) => "zoom" in constraint)).toBe(false);
+    });
+  });
+
+  describe("the crop it decodes", () => {
+    // object-cover hides roughly three quarters of a 16:9 frame's width on a
+    // portrait phone. Decoding the whole frame spent most of every attempt on
+    // pixels the user could not see.
+    it("reads the guide, not the whole frame", async () => {
+      await open();
+
+      const rect = scannerOptions().aim()!;
+      expect(rect).not.toBeNull();
+      expect(rect.width * rect.height).toBeLessThan(1920 * 1080 * 0.25);
+      expect(rect.x).toBeGreaterThan(0);
+      expect(rect.x + rect.width).toBeLessThanOrEqual(1920);
+    });
+
+    it("centres the crop where the guide is", async () => {
+      await open();
+
+      const rect = scannerOptions().aim()!;
+      expect(Math.abs(rect.x + rect.width / 2 - 960)).toBeLessThan(5);
+      expect(Math.abs(rect.y + rect.height / 2 - 540)).toBeLessThan(5);
+    });
+  });
+
+  describe("the light", () => {
+    it("offers the light when the camera has one", async () => {
+      await open();
+      expect(screen.getByRole("button", { name: /turn on the light/i })).toBeTruthy();
+    });
+
+    it("offers nothing when the camera has none", async () => {
+      getUserMedia.mockResolvedValue(fakeStream({ focusMode: ["continuous"] }));
+      await open();
+
+      expect(screen.queryByRole("button", { name: /light/i })).toBeNull();
+    });
+
+    // A dim kitchen is where this fails worst: the sensor holds the shutter open
+    // and hand shake smears the bars.
+    it("turns itself on when the picture stays dark", async () => {
+      await open();
+
+      await act(async () => {
+        for (let i = 0; i < 20; i++) {
+          scannerOptions().onReading!({ sharpness: 10, brightness: 20 });
+        }
+      });
+
+      expect(applied).toContainEqual({ torch: true });
+      expect(screen.getByRole("button", { name: /turn off the light/i })).toBeTruthy();
+    });
+
+    it("leaves it alone in a well lit room", async () => {
+      await open();
+
+      await act(async () => {
+        for (let i = 0; i < 20; i++) {
+          scannerOptions().onReading!({ sharpness: 10, brightness: 190 });
+        }
+      });
+
+      expect(applied).not.toContainEqual({ torch: true });
+    });
+
+    it("lets the user turn it on themselves", async () => {
+      await open();
+      await userEvent.click(screen.getByRole("button", { name: /turn on the light/i }));
+
+      expect(applied).toContainEqual({ torch: true });
+    });
+  });
+
+  // The old tap handler asked for a fresh focus pass but never said where to
+  // look, so the camera was as free to settle on the background as on the pack.
+  it("tells the camera where to focus when the preview is tapped", async () => {
+    const { container } = render(<BarcodeScanner onDetected={vi.fn()} onClose={vi.fn()} />);
+    await act(async () => {});
+
+    await userEvent.click(container.querySelector("video")!);
+
+    const focus = applied.find((constraint) => "pointsOfInterest" in constraint);
+    expect(focus).toBeTruthy();
+    const [point] = focus!.pointsOfInterest as { x: number; y: number }[];
+    expect(point.x).toBeGreaterThan(0);
+    expect(point.x).toBeLessThan(1);
+    expect(focus!.focusMode).toBe("single-shot");
   });
 
   // A crease across the bars or a curved tin can defeat any camera. The digits
   // are printed underneath for exactly that reason.
   it("accepts the number typed by hand when the camera can't read it", async () => {
     const onDetected = vi.fn();
-    await act(async () => {
-      render(<BarcodeScanner onDetected={onDetected} onClose={vi.fn()} />);
-    });
+    await open({ onDetected });
 
     await userEvent.click(screen.getByRole("button", { name: /type the number/i }));
     await userEvent.type(screen.getByLabelText(/barcode number/i), "8720182355560");
@@ -165,31 +294,32 @@ describe("BarcodeScanner", () => {
     expect(onDetected).toHaveBeenCalledWith("8720182355560");
   });
 
-  // Too few digits is a mistyped code, not a product, sending it would just
-  // return "not found" and read as the scanner being broken again.
   it("won't look up a number too short to be a barcode", async () => {
     const onDetected = vi.fn();
-    await act(async () => {
-      render(<BarcodeScanner onDetected={onDetected} onClose={vi.fn()} />);
-    });
+    await open({ onDetected });
 
     await userEvent.click(screen.getByRole("button", { name: /type the number/i }));
     await userEvent.type(screen.getByLabelText(/barcode number/i), "87201");
 
-    expect(screen.getByRole("button", { name: /find it/i })).toHaveProperty(
-      "disabled",
-      true,
-    );
+    expect(screen.getByRole("button", { name: /find it/i })).toHaveProperty("disabled", true);
     expect(onDetected).not.toHaveBeenCalled();
   });
 
-  it("explains itself when the camera cannot be opened", async () => {
-    decodeFromConstraints.mockRejectedValue(new Error("NotAllowedError"));
+  describe("when the camera will not open", () => {
+    it("says how to put it right when permission was refused", async () => {
+      getUserMedia.mockRejectedValue(
+        Object.assign(new Error("denied"), { name: "NotAllowedError" }),
+      );
+      await open();
 
-    await act(async () => {
-      render(<BarcodeScanner onDetected={vi.fn()} onClose={vi.fn()} />);
+      expect(screen.getByText(/browser settings/i)).toBeTruthy();
     });
 
-    expect(screen.getByText(/check it has permission/i)).toBeTruthy();
+    it("explains itself for any other failure", async () => {
+      getUserMedia.mockRejectedValue(new Error("NotReadableError"));
+      await open();
+
+      expect(screen.getByText(/check permissions/i)).toBeTruthy();
+    });
   });
 });
