@@ -214,15 +214,15 @@ export function buildCards(
     // food, and judge whether the new one is plausible.
     const already =
       w.holdLossKgPerWeek != null && w.holdLossKgPerWeek > 0.05
-        ? ` You were already losing about ${w.holdLossKgPerWeek.toFixed(2)} kg a week during calibration, on more food than this.`
+        ? ` You were already losing about ${w.holdLossKgPerWeek.toFixed(2)} kg a week during calibration, on more food than this — so this should be a change you can actually see.`
         : "";
     const goal =
       w.projection?.goalDate != null && w.projection.goalWeeks != null
-        ? ` Your goal weight is about ${w.projection.goalWeeks} weeks away at this rate — around ${longDate(w.projection.goalDate)}.`
+        ? ` Keep to it and your goal weight is about ${w.projection.goalWeeks} weeks away, somewhere around ${longDate(w.projection.goalDate)}.`
         : "";
     const band =
       w.inHealthyBand === false
-        ? ` This is a cautious rate for your size, chosen on purpose.`
+        ? ` It is a gentle pace for your size, and that is on purpose.`
         : "";
     cards.push({
       key: "expect",
@@ -230,10 +230,10 @@ export function buildCards(
       value: w.expectedLossKgPerWeek.toFixed(2),
       unit: "kg a week",
       chart: w.projection?.points,
-      body: `That is what ${kcal(w.newTarget.kcal)} kcal a day works out to for you.${already}${goal}${band}`,
+      body: `That is what ${kcal(w.newTarget.kcal)} kcal a day should give you.${already}${goal}${band}`,
       note:
-        `The line flattens because a lighter body burns less: the same target is a smaller deficit every month. ` +
-        `Any single week can land a few hundred grams either side of this — the trend across weeks is the real answer.`,
+        `The line flattens because a lighter body burns less — the same target slowly becomes a smaller deficit. ` +
+        `Individual weeks will bounce a few hundred grams either way, so give the trend a fortnight before reading anything into it.`,
     });
   }
 

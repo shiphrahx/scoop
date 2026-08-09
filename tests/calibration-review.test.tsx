@@ -125,7 +125,7 @@ describe("calibration review", () => {
 
     expect(screen.getByRole("heading", { name: "0.36" })).toBeTruthy();
     expect(screen.getByText(/29 November 2026/)).toBeTruthy();
-    expect(screen.getByText(/about 16 weeks away/i)).toBeTruthy();
+    expect(screen.getByText(/goal weight is about 16 weeks away/i)).toBeTruthy();
     // Checkable against the rate they were already losing at, on more food.
     expect(screen.getByText(/already losing about 0.10 kg a week/i)).toBeTruthy();
     // The curve is drawn, and says what it is for a screen reader.
