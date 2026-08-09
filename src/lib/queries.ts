@@ -12,6 +12,7 @@ import {
   calibrationComplete,
   calibrationDaysRemaining,
   deficitPerDay,
+  graduationCalibration,
   inCalibration as computeInCalibration,
   nextPhase,
   observeTdee,
@@ -20,7 +21,6 @@ import {
   stepsFalling,
   tdee,
   trendChange,
-  updateCalibration,
   weeklyReview,
   type Adherence,
   type DailyIntake,
@@ -783,7 +783,7 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
   const graduating = prevPhase === "calibration" && phase !== "calibration";
   const calibrationForTarget =
     graduating && observed && predictedTdee != null && predictedTdee > 0
-      ? updateCalibration(calibration, observed.kcalPerDay, predictedTdee)
+      ? graduationCalibration(calibration, observed.kcalPerDay, predictedTdee)
       : calibration;
   const maintenanceKcal =
     predictedTdee != null ? Math.round(predictedTdee * calibrationForTarget) : null;
