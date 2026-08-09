@@ -189,10 +189,10 @@ export function buildCards(
     burn != null ? `${kcal(w.deficitKcal)} kcal below the ${kcal(burn)} kcal you burn` : null;
   const versusPlate =
     w.changeFromHoldKcal > 0
-      ? `${kcal(w.changeFromHoldKcal)} kcal less food than the ${kcal(w.holdTargetKcal)} you have been eating`
+      ? `${kcal(w.changeFromHoldKcal)} kcal less food than the ${kcal(w.holdTargetKcal)} you have been used to`
       : w.changeFromHoldKcal < 0
-        ? `${kcal(-w.changeFromHoldKcal)} kcal MORE food than the ${kcal(w.holdTargetKcal)} you have been eating`
-        : `the same amount of food you have been eating`;
+        ? `${kcal(-w.changeFromHoldKcal)} kcal more food than the ${kcal(w.holdTargetKcal)} you have been used to`
+        : `the same amount of food you are already used to`;
   cards.push({
     key: "target",
     kicker: replay ? "The target it set" : "What you eat from today",
@@ -201,10 +201,11 @@ export function buildCards(
     target: t,
     body:
       (versusBurn ? `That is ${versusBurn}, and ${versusPlate}. ` : `That is ${versusPlate}. `) +
-      `Protein is set at ${Math.round(t.protein_g)} g — deliberately high, so what you lose is fat rather than muscle.`,
+      `Protein stays high at ${Math.round(t.protein_g)} g — that is what keeps the weight coming off as fat ` +
+      `rather than the muscle you want to hold on to.`,
     note:
-      `A first deficit is held to 300–500 kcal a day: enough to show on the scale inside a fortnight, ` +
-      `small enough to live with for months. Faster cuts are earned later from real results, not chosen at the start.`,
+      `A first deficit is kept between 300 and 500 kcal a day: enough to show up on the scale within a fortnight, ` +
+      `gentle enough to live with for months. Anything faster comes later, and only if your own results say you can take it.`,
   });
 
   if (w.expectedLossKgPerWeek != null) {
