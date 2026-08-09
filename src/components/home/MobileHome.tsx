@@ -72,7 +72,7 @@ export default function MobileHome({
             <p className="truncate text-sm text-white/80">
               {planPrompt.hasPlan
                 ? "Pick up where you left off"
-                : "Nothing logged yet — plan your meals"}
+                : "Nothing logged yet. Plan your meals"}
             </p>
           </div>
           <ChevronRight size={22} className="ml-auto shrink-0 text-white/80" />
@@ -180,7 +180,7 @@ export function CalibrationDone({ days }: { days: number }) {
         </h1>
         <p className="text-white/90">
           What you burn, where it goes, and the target that starts your weight
-          loss — all of it measured from you, not guessed.
+          loss, all of it measured from you rather than guessed.
         </p>
       </div>
       {/* Same centred column as the text above it, so on a laptop the button
@@ -212,12 +212,12 @@ export function CalibrationBanner({ daysRemaining }: { daysRemaining: number }) 
         <p className="font-semibold">
           Calibrating
           {daysRemaining > 0
-            ? ` — about ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} to go`
-            : " — almost done"}
+            ? `, about ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} to go`
+            : ", almost done"}
         </p>
         <p className="text-sm text-white/80">
           Eating at maintenance while your targets are calibrated. Log food and
-          weight daily — no deficit yet.
+          weight daily. No deficit yet.
         </p>
       </div>
     </section>
