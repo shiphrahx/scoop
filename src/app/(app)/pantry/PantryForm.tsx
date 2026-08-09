@@ -209,7 +209,7 @@ export default function PantryForm({
         p.pack_size_g ? `Found: ${p.name} (${p.pack_size_g} g)` : `Found: ${p.name}`,
       );
     } catch {
-      setNote("Lookup failed. Enter it by hand.");
+      setNote("Couldn't find that barcode. Enter it by hand.");
     }
   }
 

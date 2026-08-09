@@ -148,7 +148,7 @@ export default function MealPicker({
       );
       setPantryOffer(chosen);
     } catch {
-      setScanNote("Lookup failed. Try the search instead.");
+      setScanNote("Couldn't find that barcode. Try the search instead.");
     }
   }
 

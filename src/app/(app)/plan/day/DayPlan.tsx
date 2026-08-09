@@ -159,7 +159,7 @@ export default function DayPlan({
       try {
         await fn();
       } catch (e) {
-        setErr(e instanceof Error ? e.message : "Something went wrong.");
+        setErr(e instanceof Error ? e.message : "That didn't work. Try again.");
       }
     });
   }
@@ -509,7 +509,7 @@ function FoodSearchBox({
       onPick(c, seedGrams(c, null));
       setScanNote(`Added ${p.name}.`);
     } catch {
-      setScanNote("Lookup failed. Search or enter the macros instead.");
+      setScanNote("Couldn't find that barcode. Search for it, or type the macros in.");
     }
   }
 
