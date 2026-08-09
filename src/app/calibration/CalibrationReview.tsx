@@ -78,12 +78,15 @@ export function buildCards(
         ? `${name}, calibration is complete`
         : "Calibration is complete",
     value: String(w.days),
-    unit: w.days === 1 ? "day" : "days",
+    unit: w.days === 1 ? "day measured" : "days measured",
     body:
-      `You ate at maintenance for ${w.days} day${w.days === 1 ? "" : "s"} while the app watched what happened. ` +
-      `Food was logged on ${w.loggedDays} of them and you weighed in ${w.weighInDays} time${
+      `You ate ${kcal(w.holdTargetKcal)} kcal a day for ${w.days} day${w.days === 1 ? "" : "s"}, ` +
+      `logged your food on ${w.loggedDays} of them and weighed in ${w.weighInDays} time${
         w.weighInDays === 1 ? "" : "s"
-      }. That is the data everything below is built on.`,
+      }. Every number that follows was measured from that.`,
+    note:
+      `A fortnight is the shortest run that shows real change on the scale. Below that, ` +
+      `what you see is mostly water moving in and out.`,
   });
 
   if (w.measuredMaintenanceKcal != null) {
@@ -92,39 +95,47 @@ export function buildCards(
       delta == null || w.predictedMaintenanceKcal == null
         ? ""
         : Math.abs(delta) < 50
-          ? ` The standard formula predicted ${kcal(w.predictedMaintenanceKcal)}, so your body runs close to average for your size.`
+          ? ` A textbook formula for your age, height and weight predicted ${kcal(w.predictedMaintenanceKcal)} — close, in your case.`
           : delta > 0
-            ? ` The standard formula predicted ${kcal(w.predictedMaintenanceKcal)} — you burn about ${kcal(delta)} kcal a day more than an estimate would have given you.`
-            : ` The standard formula predicted ${kcal(w.predictedMaintenanceKcal)} — you burn about ${kcal(-delta)} kcal a day less than an estimate would have given you.`;
+            ? ` A textbook formula for your age, height and weight predicted ${kcal(w.predictedMaintenanceKcal)}. You burn ${kcal(delta)} kcal a day more than that.`
+            : ` A textbook formula for your age, height and weight predicted ${kcal(w.predictedMaintenanceKcal)}. You burn ${kcal(-delta)} kcal a day less than that.`;
     cards.push({
       key: "burn",
-      kicker: "What your body actually burns",
+      kicker: "What you burn",
       value: kcal(w.measuredMaintenanceKcal),
       unit: "kcal a day",
       body:
-        `Measured from what you ate against what the scale did, not from a formula.${versus}` +
-        ` This is the number your targets are built from now.`,
+        `Eat this much and your weight holds. It is your own figure: worked out from the food you logged ` +
+        `against what your weight trend did over ${w.days} days.${versus}`,
+      note:
+        `Formulas are averages of large groups. Any one person can sit 300–400 kcal either side of them, ` +
+        `which is the entire reason for spending a fortnight measuring instead of estimating.`,
     });
   }
 
   if (w.activeShare != null) {
-    const restingPct = Math.round((1 - w.activeShare) * 100);
+    const burn = w.measuredMaintenanceKcal ?? w.newTarget.kcal + w.deficitKcal;
+    const restingKcal = Math.round(burn * (1 - w.activeShare));
+    const movingKcal = Math.round(burn * w.activeShare);
     const steps =
       w.meanStepsPerDay != null
-        ? ` You averaged ${kcal(w.meanStepsPerDay)} steps a day.`
+        ? ` You walked ${kcal(w.meanStepsPerDay)} steps a day on average.`
         : "";
     const sleep =
       w.meanSleepHours != null
-        ? ` Sleep averaged ${w.meanSleepHours.toFixed(1)} hours a night.`
+        ? ` You slept ${w.meanSleepHours.toFixed(1)} hours a night.`
         : "";
     cards.push({
       key: "split",
-      kicker: "Where that energy goes",
-      value: `${Math.round(w.activeShare * 100)}%`,
-      unit: "of it is movement",
+      kicker: "Where it goes",
+      value: `${kcal(movingKcal)}`,
+      unit: "kcal a day from moving",
       body:
-        `About ${restingPct}% of your burn happens lying still — heart, brain, organs. ` +
-        `The rest is you moving.${steps}${sleep}`,
+        `${kcal(restingKcal)} kcal of your day goes on simply being alive — heart, brain, organs, at rest. ` +
+        `The other ${kcal(movingKcal)} is you moving.${steps}${sleep}`,
+      note:
+        `Walking, standing and fidgeting usually add up to more than formal exercise does. ` +
+        `Losing that movement is the most common reason a deficit stops working.`,
     });
   }
 
