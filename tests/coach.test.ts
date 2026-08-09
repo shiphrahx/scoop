@@ -31,6 +31,7 @@ import {
   type ObservedTdee,
   proteinBasisKg,
   tdeeFromEnergyBalance,
+  trustedTdee,
   graduationCalibration,
   updateCalibration,
   restingRate,
@@ -650,6 +651,63 @@ describe("observeTdee", () => {
     const kgs = Array.from({ length: 28 }, (_, i) => 90 - i * 0.03);
     const stale = intake(28, 9999, 400); // a year later
     expect(observeTdee(weighIns(kgs), stale)).toBeNull();
+  });
+});
+
+describe("trustedTdee", () => {
+  const measured = (kcalPerDay: number, meanIntakeKcal: number): ObservedTdee => ({
+    kcalPerDay,
+    days: 14,
+    loggedDays: 14,
+    meanIntakeKcal,
+    trendDeltaKg: 1,
+  });
+
+  it("stands behind a measurement taken on a log that matches the plan", () => {
+    const o = measured(2300, 2000);
+    const t = trustedTdee(o, { targetKcal: 2000, restingRateKcal: 1500 });
+    expect(t.observed).toBe(o);
+    expect(t.doubt).toBeNull();
+  });
+
+  it("sets aside a burn measured off a log far below the target", () => {
+    // The reported case: a 1,720 kcal target, 898 kcal logged, 0.54 kg a week
+    // lost. The arithmetic says a burn of ~1,490, and the whole gap between the
+    // plan and the log is sitting inside it. Acting on that cuts a user who is
+    // already losing at a healthy rate down to their resting rate.
+    const o = measured(1492, 898);
+    const t = trustedTdee(o, { targetKcal: 1720, restingRateKcal: 1378 });
+    expect(t.observed).toBeNull();
+    expect(t.doubt).toBe("intake_shortfall");
+  });
+
+  it("allows the ordinary slack between a plan and a real week", () => {
+    // 10% under a 2,000 kcal target is a normal week, not a broken log.
+    const t = trustedTdee(measured(2200, 1800), { targetKcal: 2000, restingRateKcal: 1500 });
+    expect(t.doubt).toBeNull();
+    expect(t.observed).not.toBeNull();
+  });
+
+  it("refuses a burn at or below resting metabolism", () => {
+    // Nobody who gets out of bed burns their RMR. A measurement that says so is
+    // measuring the food log.
+    const t = trustedTdee(measured(1450, 1400), { targetKcal: 1400, restingRateKcal: 1400 });
+    expect(t.observed).toBeNull();
+    expect(t.doubt).toBe("burn_below_resting");
+  });
+
+  it("separates nothing measured from something set aside", () => {
+    // The screens say different things about the two, so they cannot share a
+    // representation: null with no doubt is a thin log, null with a doubt is a
+    // measurement the app made and refused.
+    const t = trustedTdee(null, { targetKcal: 2000, restingRateKcal: 1500 });
+    expect(t.observed).toBeNull();
+    expect(t.doubt).toBeNull();
+  });
+
+  it("judges nothing it has no yardstick for", () => {
+    const o = measured(1200, 400);
+    expect(trustedTdee(o, {}).observed).toBe(o);
   });
 });
 
@@ -1370,6 +1428,108 @@ describe("weeklyReview calibration phase", () => {
     const cut = 2500 - r.macros.kcal;
     expect(cut).toBeGreaterThanOrEqual(OPENING_DEFICIT_MIN_KCAL);
     expect(cut).toBeLessThanOrEqual(OPENING_DEFICIT_MAX_KCAL);
+  });
+
+  // Leaving calibration with the fortnight's measurement set aside. The formula
+  // is back to guessing, so the scale decides.
+  describe("with no burn worth trusting", () => {
+    // The reported case, in the shape weeklyReview sees it: held at 1,720 kcal,
+    // losing 0.54 kg a week off a 75 kg body, and a food log that came to 898.
+    const held: Macros = { kcal: 1720, protein_g: 130, carbs_g: 170, fat_g: 55 };
+    const losing: TrendChange = {
+      nowKg: 75,
+      thenKg: 75.54,
+      changeKg: 0.54,
+      changePct: 0.54 / 75.54,
+      spanDays: 7,
+    };
+    const flat: TrendChange = {
+      nowKg: 75,
+      thenKg: 75,
+      changeKg: 0,
+      changePct: 0,
+      spanDays: 7,
+    };
+
+    it("keeps a target the scale says is already working", () => {
+      const r = weeklyReview({
+        sex: "female",
+        trend: losing,
+        waistDeltaCm: null,
+        current: held,
+        phase: "deficit",
+        prevPhase: "calibration",
+        maintenanceKcal: 1492, // the formula times a correction built on the bad log
+        deficitKcal: openingDeficitKcal(500),
+        weightKg: 75,
+        restingRateKcal: 1378,
+        measurementDoubt: "intake_shortfall",
+      });
+      // The bug this exists to stop: 1,378 kcal, a 342 kcal cut, and a promise of
+      // 0.10 kg a week to someone already losing 0.54 on more food.
+      expect(r.macros.kcal).toBe(1720);
+      expect(r.headline).toMatch(/held/i);
+      expect(r.detail).toMatch(/food log/i);
+      // The phase still moves, or the user is stuck in a hold that cannot end.
+      expect(r.changed).toBe(true);
+    });
+
+    it("cuts from the calories the user was asked to eat when the scale is flat", () => {
+      const r = weeklyReview({
+        sex: "female",
+        trend: flat,
+        waistDeltaCm: null,
+        current: held,
+        phase: "deficit",
+        prevPhase: "calibration",
+        maintenanceKcal: 1492,
+        deficitKcal: openingDeficitKcal(500),
+        weightKg: 75,
+        restingRateKcal: 1200,
+        measurementDoubt: "intake_shortfall",
+      });
+      // Flat on 1,720 means 1,720 is maintenance, whatever the log says, so the
+      // cut opens from there and not from a measured figure.
+      expect(r.macros.kcal).toBeLessThan(1720);
+      expect(r.macros.kcal).toBeGreaterThan(1720 - OPENING_DEFICIT_MAX_KCAL - 1);
+      expect(r.changed).toBe(true);
+    });
+
+    it("holds and asks for weigh-ins when there is no trend either", () => {
+      const r = weeklyReview({
+        sex: "female",
+        trend: null,
+        waistDeltaCm: null,
+        current: held,
+        phase: "deficit",
+        prevPhase: "calibration",
+        maintenanceKcal: 1492,
+        deficitKcal: openingDeficitKcal(500),
+        weightKg: 75,
+        restingRateKcal: 1378,
+        measurementDoubt: "intake_shortfall",
+      });
+      expect(r.macros.kcal).toBe(1720);
+      expect(r.detail).toMatch(/weigh in/i);
+    });
+
+    it("leaves the trusted graduation alone", () => {
+      const r = weeklyReview({
+        sex: "female",
+        trend: losing,
+        waistDeltaCm: null,
+        current: held,
+        phase: "deficit",
+        prevPhase: "calibration",
+        maintenanceKcal: 2200,
+        deficitKcal: openingDeficitKcal(500),
+        weightKg: 75,
+        restingRateKcal: 1378,
+        measurementDoubt: null,
+      });
+      expect(r.macros.kcal).toBeLessThan(2200);
+      expect(r.detail).toMatch(/measured maintenance/i);
+    });
   });
 });
 
