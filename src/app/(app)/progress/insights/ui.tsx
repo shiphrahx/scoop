@@ -215,7 +215,7 @@ function LockedCard({ item }: { item: LockedInsight }) {
 export function NeedsMoreData({ what }: { what: string }) {
   return (
     <div className="rounded-2xl border border-dashed border-[var(--border)] px-4 py-5 text-center">
-      <p className="text-sm text-[var(--muted)]">Needs more data — {what}</p>
+      <p className="text-sm text-[var(--muted)]">Needs more data, {what}</p>
     </div>
   );
 }
@@ -226,7 +226,7 @@ export function NeedsMoreData({ what }: { what: string }) {
 export function PatternNote({ weeks }: { weeks: number }) {
   return (
     <p className="text-xs text-[var(--muted)]">
-      Patterns, not proof — {weeks} week{weeks === 1 ? "" : "s"} compared.
+      Patterns, not proof, {weeks} week{weeks === 1 ? "" : "s"} compared.
     </p>
   );
 }

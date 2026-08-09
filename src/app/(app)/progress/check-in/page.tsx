@@ -31,7 +31,7 @@ export default async function CheckInPage() {
       </div>
 
       <p className="text-[var(--muted)]">
-        Take your measurements once a week. Everything here is optional — fill in
+        Take your measurements once a week. Everything here is optional. Fill in
         what you measured. It feeds your trends and the Coach.
       </p>
 

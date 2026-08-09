@@ -180,7 +180,7 @@ describe("progress dashboard — KPI row", () => {
 
     const sheet = screen.getByRole("dialog");
     expect(within(sheet).getByText(/within the healthy band/i)).toBeTruthy();
-    expect(within(sheet).getByText("0.42–0.84 kg")).toBeTruthy();
+    expect(within(sheet).getByText("0.42 to 0.84 kg")).toBeTruthy();
   });
 });
 

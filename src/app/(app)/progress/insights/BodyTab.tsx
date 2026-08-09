@@ -190,7 +190,7 @@ function WaistDetail({ whtr }: { whtr: WaistToHeight }) {
       </div>
       <div className="flex justify-between text-[11px] text-[var(--muted)]">
         <span>0.30</span>
-        <span>healthy 0.40–0.50</span>
+        <span>healthy 0.40 to 0.50</span>
         <span>0.70</span>
       </div>
       <p className="text-sm text-[var(--muted)]">{BAND[whtr.band].note}</p>
@@ -255,9 +255,9 @@ function MeasurementsCard({ measurements }: { measurements: MeasurementRow[] }) 
     >
       <Hero
         size="sm"
-        value={latest ? fmt(latest.value) : "—"}
+        value={latest ? fmt(latest.value) : "None yet"}
         unit={latest ? "cm" : undefined}
-        label={change != null ? `${label} — ${signed(change)} cm since the first` : label}
+        label={change != null ? `${label}, ${signed(change)} cm since the first` : label}
         tone={change != null && change < 0 ? "good" : "cool"}
       />
     </CompactCard>

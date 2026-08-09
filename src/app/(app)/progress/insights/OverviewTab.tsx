@@ -73,7 +73,7 @@ const VERDICT: Record<LossRate["verdict"], { text: string; tone: "good" | "warn"
     tone: "good",
   },
   slow: {
-    text: "Below your healthy band. Acceptable if intended — the Coach will adjust the target if it stays here.",
+    text: "Below your healthy band. Acceptable if intended. The Coach will adjust the target if it stays here.",
     tone: "warn",
   },
   fast: {
@@ -88,7 +88,7 @@ const VERDICT: Record<LossRate["verdict"], { text: string; tone: "good" | "warn"
 
 const CONFIDENCE: Record<GoalProjection["confidence"], string> = {
   high: "The trend has been steady, so this window is a reliable estimate.",
-  medium: "The trend varies somewhat — treat this as an approximate window.",
+  medium: "The trend varies somewhat, so treat this as an approximate window.",
   low: "The trend is noisy, so this window is wide. It will narrow as you log more.",
 };
 
@@ -223,7 +223,7 @@ export default function OverviewTab({
           </div>
           <p className="text-sm text-[var(--muted)]">
             Your trend weight has moved {fmt(Math.abs(plateau.changeKg), 2)} kg in{" "}
-            {plateau.weeks} weeks. This is usually not a reason to cut further — a long
+            {plateau.weeks} weeks. This is usually not a reason to cut further. A long
             deficit lowers what you burn, and the appropriate response is a diet break
             or a fresh maintenance measurement.
           </p>
@@ -311,11 +311,11 @@ function RateDetail({ rate }: { rate: LossRate }) {
         stats={[
           {
             label: "Healthy for you",
-            value: `${fmt(rate.bandMinKg, 2)}–${fmt(rate.bandMaxKg, 2)} kg`,
+            value: `${fmt(rate.bandMinKg, 2)} to ${fmt(rate.bandMaxKg, 2)} kg`,
           },
           {
             label: "As a %",
-            value: `${fmt(rate.bandMinPct, 2)}–${fmt(rate.bandMaxPct, 2)}%`,
+            value: `${fmt(rate.bandMinPct, 2)} to ${fmt(rate.bandMaxPct, 2)}%`,
           },
         ]}
       />
@@ -329,7 +329,7 @@ function ProjectionDetail({ projection }: { projection: GoalProjection }) {
       <Hero
         value={
           projection.latest
-            ? `${longDate(projection.earliest)} – ${longDate(projection.latest)}`
+            ? `${longDate(projection.earliest)} to ${longDate(projection.latest)}`
             : `${longDate(projection.earliest)} or later`
         }
         label={`around ${projection.weeksMid} weeks at this rate`}
@@ -354,7 +354,7 @@ function JourneyDetail({ progress }: { progress: GoalProgress }) {
         unit="%"
         label={
           progress.reached
-            ? "of the way there — goal reached"
+            ? "of the way there, goal reached"
             : "of the way to your goal"
         }
         tone={progress.reached ? "good" : "cool"}
@@ -440,7 +440,7 @@ function MilestonesCard({ board }: { board: MilestoneBoard }) {
       {board.next ? (
         <Hero
           size="sm"
-          value={board.toNextKg != null ? fmt(board.toNextKg) : "—"}
+          value={board.toNextKg != null ? fmt(board.toNextKg) : "None left"}
           unit={board.toNextKg != null ? "kg" : undefined}
           label={`to ${board.next.label}`}
         />
@@ -448,7 +448,7 @@ function MilestonesCard({ board }: { board: MilestoneBoard }) {
         <Hero
           size="sm"
           value={`${board.reached.length}`}
-          label={empty ? "none yet — add your own" : "all reached"}
+          label={empty ? "none yet, add your own" : "all reached"}
           tone={empty ? "cool" : "good"}
         />
       )}
@@ -486,7 +486,7 @@ function MilestonesDetail({ board }: { board: MilestoneBoard }) {
             <p className="text-sm text-[var(--foreground)]">
               Next up: <span className="font-semibold">{board.next.label}</span>
               {board.toNextKg != null ? (
-                <span className="text-[var(--muted)]"> — {fmt(board.toNextKg)} kg to go</span>
+                <span className="text-[var(--muted)]">, {fmt(board.toNextKg)} kg to go</span>
               ) : null}
             </p>
           ) : (

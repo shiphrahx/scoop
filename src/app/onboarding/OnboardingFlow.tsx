@@ -199,7 +199,7 @@ export default function OnboardingFlow() {
       {current === "allergies" && (
         <Chips
           title="Any allergies?"
-          hint="Tap all that apply — or none. Add your own if yours is missing."
+          hint="Tap all that apply, or none. Add your own if yours is missing."
           options={ALLERGENS}
           selected={state.allergies}
           customPlaceholder="e.g. Kiwi"
@@ -227,7 +227,7 @@ export default function OnboardingFlow() {
       {current === "activity" && (
         <Choice
           title="How active are you?"
-          hint="Think about a normal week — exercise plus your job."
+          hint="Think about a normal week, exercise plus your job."
           options={[
             {
               value: "sedentary",
@@ -239,19 +239,19 @@ export default function OnboardingFlow() {
               value: "light",
               label: "Lightly active",
               icon: Footprints,
-              desc: "Light exercise 1–3 days a week",
+              desc: "Light exercise 1 to 3 days a week",
             },
             {
               value: "moderate",
               label: "Active",
               icon: Bike,
-              desc: "Moderate exercise 3–5 days a week",
+              desc: "Moderate exercise 3 to 5 days a week",
             },
             {
               value: "active",
               label: "Very active",
               icon: Dumbbell,
-              desc: "Hard exercise 6–7 days a week",
+              desc: "Hard exercise 6 to 7 days a week",
             },
             {
               value: "very_active",
@@ -430,7 +430,7 @@ function Welcome({ onStart }: { onStart: () => void }) {
   const points: { icon: LucideIcon; text: string }[] = [
     {
       icon: Utensils,
-      text: "We tell you the portion to eat — no searching for food.",
+      text: "We tell you the portion to eat, no searching for food.",
     },
     {
       icon: ScanBarcode,
@@ -456,7 +456,7 @@ function Welcome({ onStart }: { onStart: () => void }) {
         </span>
         <h1 className="text-3xl font-semibold">Welcome to Scoop</h1>
         <p className="max-w-xs text-[var(--muted)]">
-          Setting up your plan takes about a minute — mostly tapping.
+          Setting up your plan takes about a minute, mostly tapping.
         </p>
         <ul className="mt-2 flex w-full flex-col gap-3 text-left">
           {points.map((p) => {
@@ -598,7 +598,7 @@ function Chips({
               addCustom();
             }
           }}
-          placeholder={`Other — ${customPlaceholder}`}
+          placeholder={`Other, ${customPlaceholder}`}
           className="sc-input flex-1 rounded-full"
         />
         <button
@@ -879,7 +879,7 @@ function BodyFatStep({
     <section className="flex flex-1 flex-col">
       <h1 className="text-2xl font-semibold">Body-fat % (optional)</h1>
       <p className="mb-6 mt-1 text-sm text-[var(--muted)]">
-        Not required — skip and we&apos;ll estimate it from your height and
+        Not required, skip and we&apos;ll estimate it from your height and
         weight. If you know it (smart scale, calipers, DEXA), telling us makes
         your calorie target more accurate.
       </p>
@@ -917,7 +917,7 @@ function BodyFatStep({
           onClick={onSkip}
           className="py-2 text-sm font-medium text-[var(--muted)] transition active:scale-95"
         >
-          I don&apos;t know — estimate it for me
+          I don&apos;t know, estimate it for me
         </button>
       </div>
     </section>
@@ -971,7 +971,7 @@ function CalibrationStep({
           className="flex items-center justify-center gap-2 py-2 text-sm font-medium text-[var(--muted)] transition active:scale-95"
         >
           <Rocket size={15} />
-          I&apos;ve dieted before — start losing now
+          I&apos;ve dieted before, start losing now
         </button>
       </div>
     </section>

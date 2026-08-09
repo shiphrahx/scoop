@@ -149,7 +149,7 @@ export default function AdherenceTab({
                 {pattern.pattern === "even"
                   ? "Your weekend intake matches your weekday intake."
                   : pattern.pattern === "bigger-weekends"
-                    ? `Weekends run ${fmt(pattern.differenceKcal, 0)} kcal a day higher — about ${fmt(pattern.weeklyCostKcal, 0)} kcal a week, which is most of a day's deficit.`
+                    ? `Weekends run ${fmt(pattern.differenceKcal, 0)} kcal a day higher, about ${fmt(pattern.weeklyCostKcal, 0)} kcal a week, which is most of a day's deficit.`
                     : `Weekdays run ${fmt(Math.abs(pattern.differenceKcal), 0)} kcal a day higher than your weekends.`}
               </p>
             </>
