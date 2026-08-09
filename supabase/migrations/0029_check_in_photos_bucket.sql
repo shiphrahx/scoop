@@ -1,7 +1,7 @@
 -- Scoop: private storage bucket for progress photos.
 --
 -- Progress photos are sensitive and private by default. The bucket is NOT
--- public, so files are never reachable by URL — the app serves each one through
+-- public, so files are never reachable by URL, the app serves each one through
 -- a short-lived signed URL it mints server-side. Every object is stored under a
 -- top-level folder named for the owner's user id, and the policies below only
 -- let a user touch objects in their own folder.
@@ -13,7 +13,7 @@ values ('check-in-photos', 'check-in-photos', false)
 on conflict (id) do update set public = false;
 
 -- Path layout: <user_id>/<check_in_id>/<file>. (storage.foldername(name))[1] is
--- the first path segment — the owner's id — so a user only ever sees or writes
+-- the first path segment, the owner's id, so a user only ever sees or writes
 -- their own files.
 drop policy if exists "own check-in photos read" on storage.objects;
 create policy "own check-in photos read" on storage.objects

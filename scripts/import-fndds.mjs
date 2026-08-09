@@ -3,7 +3,7 @@
 //
 // Why this exists: Open Food Facts is a database of *packaged products*. It
 // answers "chocolate cake" with a Waitrose cake at 393 kcal/100g and no serving
-// size at all — every hit we probed came back `serving=none`. Scoop's whole
+// size at all, every hit we probed came back `serving=none`. Scoop's whole
 // promise is telling you the portion, so a source with per-portion gram weights
 // is not a nice-to-have. FNDDS has them, because it exists to convert what
 // survey respondents SAY they ate ("a slice of cake") into grams.
@@ -77,7 +77,7 @@ async function* readCsv(name) {
 
 // --- Nutrients --------------------------------------------------------------
 // The `nutrient_id` column in this bundle carries USDA's *nutrient number*, not
-// the FoodData Central nutrient id — 208 rather than 1008. Reading it as an id
+// the FoodData Central nutrient id, 208 rather than 1008. Reading it as an id
 // silently matches nothing, so these are the numbers.
 const NUTRIENTS = {
   208: "kcal",
@@ -97,14 +97,14 @@ const VOLUME_OR_GEOMETRY =
   /\b(cups?|fl oz|oz|ounces?|tbsp|tablespoons?|teaspoons?|tsp|cubic inch|surface inch|inch|grams?|ml|quarts?|pints?|gallons?|lbs?|dash|drop|guideline amount)\b/i;
 
 // Wordings that mean "smaller than usual" / "bigger than usual". Only used to
-// decide whether a weight is a candidate at all — the actual small/medium/large
+// decide whether a weight is a candidate at all, the actual small/medium/large
 // labelling is done by weight below, because FNDDS wordings are compound
 // ("1 regular or small piece/slice, 2+ layer cake") and ranking them by wording
 // produced a chocolate cake whose "small" outweighed its "large".
 const COUNTABLE =
   /\b(small|thin|mini|miniature|bite size|slider|large|thick|jumbo|medium|regular|piece|slice|whole|each|item|serving|sandwich|egg|link|patty|cupcake|bar|roll|taco|wrap|bag|container|package|cookie|muffin|stick|wedge|ball|cake|scoop|fillet|breast|thigh|drumstick|chop|steak|burger|square|pancake|waffle|donut|doughnut|biscuit|bun|bagel|tortilla|pie|pizza|samosa|dumpling|spring roll)\b/i;
 
-// FNDDS records the typical portion under this label — what a respondent gets
+// FNDDS records the typical portion under this label, what a respondent gets
 // when they said "a cake" without saying how much. It's the best anchor we have
 // for "medium", so it wins that slot outright.
 const TYPICAL = "quantity not specified";
@@ -115,7 +115,7 @@ const DISTINCT_RATIO = 1.15;
 
 // FNDDS lists bite-size and cocktail portions alongside real ones: a 5 g
 // chocolate chip cookie, a 30 g sliver of bakery cake. As a tappable "small"
-// those mislead — nobody eats a twelfth of a slice — so a small has to be at
+// those mislead, nobody eats a twelfth of a slice, so a small has to be at
 // least this fraction of the typical portion to earn the chip.
 const SMALL_FLOOR = 0.35;
 // Likewise a "large" that is several times the typical portion is a sharing
@@ -221,11 +221,11 @@ async function main() {
   lines.push(
     `-- Scoop: the shared food reference, seeded from USDA FNDDS ${new Date().toISOString().slice(0, 10)}.`,
     "--",
-    "-- GENERATED FILE — do not hand-edit. Regenerate with:",
+    "-- GENERATED FILE, do not hand-edit. Regenerate with:",
     "--   node scripts/import-fndds.mjs <unzipped FoodData_Central_survey_food_csv_* folder>",
     "--",
     "-- Why: Open Food Facts is a database of packaged products and carries no",
-    "-- serving size for the things people actually ask about — a slice of cake, a",
+    "-- serving size for the things people actually ask about, a slice of cake, a",
     "-- cookie, a portion of chips. FNDDS is the food list the US codes its national",
     "-- diet survey against, so every food comes with the gram weight of a real",
     "-- portion. That gram weight is the whole point: it is what lets one tap add",
@@ -233,7 +233,7 @@ async function main() {
     "--",
     "-- Caveat worth knowing when reading these rows: FNDDS is American. Its names",
     "-- are US ones ('Cookie, chocolate chip'), and British-only foods (flapjack,",
-    "-- digestive) are simply absent — those are seeded by hand in 0032, which runs",
+    "-- digestive) are simply absent, those are seeded by hand in 0032, which runs",
     "-- first and therefore wins any name collision. UK wording is bridged by the",
     "-- alias table in 0034.",
     "--",
@@ -250,7 +250,7 @@ async function main() {
     "",
   );
 
-  // Foods, in batches — one giant VALUES list is slower to plan and unreadable
+  // Foods, in batches, one giant VALUES list is slower to plan and unreadable
   // in a diff.
   const BATCH = 200;
   for (let i = 0; i < foods.length; i += BATCH) {

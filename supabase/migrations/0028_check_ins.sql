@@ -5,7 +5,7 @@
 -- A check-in is one row per user per week (unique on week_start), so the app can
 -- ask "has this week's check-in been done?" and show a prompt or a done state.
 -- Photos live in their own table, each pointing at a file in a PRIVATE storage
--- bucket (see 0029) — never a public URL.
+-- bucket (see 0029), never a public URL.
 --
 -- The legacy `measurements` table is LEFT IN PLACE (nothing is dropped) and its
 -- history is copied forward below, so no past reading is lost. New readings are

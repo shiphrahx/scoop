@@ -2,14 +2,14 @@
 --
 -- Research is clear that the WEEKLY calorie total drives fat loss; how it's
 -- spread across the days mostly helps adherence and fuels workouts. So this
--- feature NEVER changes the weekly total — it only redistributes it into a few
+-- feature NEVER changes the weekly total, it only redistributes it into a few
 -- higher-intake days (mostly extra carbs) and the rest a little lower. Off by
 -- default: with it off the app behaves exactly as before (a flat daily target).
 --
 -- On the user (settings):
 --   cycling_enabled           master switch, off by default.
 --   high_days_per_week        how many high days a week the user wants. NULL
---                             means "use the recommended count for my goal" —
+--                             means "use the recommended count for my goal",
 --                             the app derives it (see src/lib/highday.ts) so a
 --                             goal change re-recommends without silently
 --                             overwriting a number the user set by hand.
@@ -36,7 +36,7 @@ create table if not exists public.high_days (
   date       date not null,
   week_start date not null,
   created_at timestamptz not null default now(),
-  -- A day is either high or it isn't — never two rows for the same date.
+  -- A day is either high or it isn't, never two rows for the same date.
   unique (user_id, date)
 );
 

@@ -1,7 +1,7 @@
 -- Scoop: record which phase each weekly target belongs to.
 --
 -- The weekly review used to know only one state: deficit. That made it a
--- one-way ratchet — stall, cut 7%, stall, cut 7%, hit the floor, hold there
+-- one-way ratchet, stall, cut 7%, stall, cut 7%, hit the floor, hold there
 -- indefinitely. Nothing but a too-fast loss ever moved a target upwards, and
 -- reaching the goal weight did nothing at all.
 --

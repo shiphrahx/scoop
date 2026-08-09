@@ -1,7 +1,7 @@
 -- Scoop: log alcoholic drinks.
 --
 -- Alcohol is 7 kcal/g and is neither protein, carb nor fat. Scoop tracks only
--- protein/carbs/fat, so — like every IIFYM tracker — a drink's alcohol calories
+-- protein/carbs/fat, so, like every IIFYM tracker, a drink's alcohol calories
 -- are booked against carbs OR fat (the user's choice per drink, based on what
 -- they have left that day), while any REAL drink carbs (beer sugars, wine
 -- residual sugar, mixers) are added as actual carbs on top. The daily calorie

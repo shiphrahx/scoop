@@ -1,7 +1,7 @@
 -- Scoop: stop storing the Apple ingest token in the clear.
 --   apple_ingest_token       now holds the ENCRYPTED token (for re-display in
 --                            Settings), not the raw value.
---   apple_ingest_token_hash  sha256 of the raw token — what the ingest endpoint
+--   apple_ingest_token_hash  sha256 of the raw token, what the ingest endpoint
 --                            looks up by, since the encrypted column uses a
 --                            random IV and can't be matched on directly.
 -- Run in the Supabase SQL Editor (or via the CLI) after 0011.

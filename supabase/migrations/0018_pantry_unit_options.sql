@@ -1,6 +1,6 @@
 -- Scoop: multiple named sizes on a pantry item. 0015 gave a pantry item ONE
 -- countable unit (unit_g + unit_label). A fresh food comes in several sizes at
--- once — a banana is small OR medium OR large — so we store the whole set here
+-- once, a banana is small OR medium OR large, so we store the whole set here
 -- and keep unit_g/unit_label as the size the user currently has selected (so
 -- the plan and log code, which reads those two, keeps working unchanged).
 --

@@ -1,5 +1,5 @@
--- Scoop: favourite meals. A whole meal the user liked — its foods and their
--- amounts — saved under a name so they can drop the same meal back into any slot
+-- Scoop: favourite meals. A whole meal the user liked, its foods and their
+-- amounts, saved under a name so they can drop the same meal back into any slot
 -- with one tap, instead of rebuilding it food by food.
 --
 -- This is NOT the existing `favourites` table: that holds single "my usual"

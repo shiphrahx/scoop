@@ -1,4 +1,4 @@
--- Scoop: countable units on pantry items. Some foods make no sense weighed —
+-- Scoop: countable units on pantry items. Some foods make no sense weighed,
 -- a bagel, an egg, a scoop of protein. Macros stay per 100 g (as everywhere);
 -- these two columns let a food be COUNTED instead of weighed.
 --
