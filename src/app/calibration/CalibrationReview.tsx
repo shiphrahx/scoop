@@ -245,16 +245,22 @@ export function buildCards(
           kicker: "That was your calibration",
           value: "Done",
           body:
-            `These are the findings exactly as they were shown to you when this deficit started. ` +
-            `They are kept as they were — your targets have moved on since, and are reviewed against your results every week.`,
+            `You are seeing these findings exactly as they were on the day, ${
+              endedAt ? longDate(endedAt.slice(0, 10)) : "when this deficit started"
+            }. ` +
+            `Your targets have moved since — they are reviewed against your results every week.`,
         }
       : {
           key: "start",
           kicker: "Ready",
           value: "Start now",
           body:
-            `Your new target applies from today. It is held for two weeks before any adjustment — that is how long the body takes to show a real response rather than a change in water weight. ` +
-            `After that your results are reviewed every week, and nothing changes without you agreeing to it.`,
+            `Tap start and today's target becomes ${kcal(w.newTarget.kcal)} kcal. ` +
+            `You can find this review again in Settings whenever you want it.`,
+          note:
+            `The new target is held for two weeks before anything is adjusted: the first week on new calories ` +
+            `is mostly water, so judging it sooner means reacting to noise. After that it is reviewed weekly, ` +
+            `and you are asked before any change.`,
         },
   );
 
