@@ -403,7 +403,9 @@ export async function getAppleIngestToken(): Promise<string | null> {
 // writes is computed from the same rules the page showed.
 export interface CoachData {
   review: WeeklyReview;
-  current: Macros | null;
+  // The target in force, with the week and phase it belongs to — the apply
+  // action needs both to decide which week it is writing.
+  current: DailyTargets | null;
   // Movement of the smoothed trend weight over the last week, and where that
   // trend sits today. Null when there aren't enough weigh-ins to span a week.
   trend: TrendChange | null;
@@ -423,6 +425,9 @@ export interface CoachData {
   // shown on the progress screen before any measurement exists.
   calibrationActive: boolean;
   calibrationDaysRemaining: number;
+  // Whether applying this review changes THIS week's target rather than next
+  // week's. True only for the calibration→deficit graduation: see applyReview.
+  takesEffectNow: boolean;
   estimatedMaintenanceKcal: number | null;
   // The formula's maintenance estimate with NO calibration applied. The
   // correction is the ratio of the measurement to this raw prediction — measure
@@ -744,6 +749,14 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
     phase,
     calibrationActive: phase === "calibration",
     calibrationDaysRemaining: calDaysRemaining,
+    // The calibration hold ends on its own timestamp, part-way through a week —
+    // not on a Monday. Writing its first deficit as NEXT week's target left the
+    // user eating maintenance for up to six more days after being told the cut
+    // had started, and left this week's row still phase "calibration", so every
+    // reload re-proposed the same transition off a maintenance estimate that had
+    // moved in the meantime — each apply landing lower than the last. The
+    // graduating target belongs to the week in force.
+    takesEffectNow: review.changed && prevPhase === "calibration" && phase !== "calibration",
     estimatedMaintenanceKcal:
       profile?.estimated_maintenance_kcal != null
         ? Number(profile.estimated_maintenance_kcal)
