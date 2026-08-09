@@ -1160,6 +1160,10 @@ export interface WeeklyReviewInput {
   // hold at maintenance without back-deriving it from the target in force,
   // which compounds every week.
   maintenanceKcal?: number | null;
+  // Why the measured burn was set aside, when it was (see trustedTdee). Non-null
+  // means every maintenance figure here is a formula's guess, so leaving
+  // calibration reads the scale instead. Null = no doubt, or nothing measured.
+  measurementDoubt?: MeasurementDoubt | null;
 }
 
 export interface WeeklyReview {
@@ -1192,6 +1196,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
     weightKg,
     calibrationDaysRemaining,
     maintenanceKcal,
+    measurementDoubt,
   } = input;
 
   // A weight to build recomputed macros from: the trend when we have one, else
@@ -1227,6 +1232,73 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
             } to go. Keep logging your food and weight each day.`
           : `Calibration is nearly done, still at about ${target} kcal. Keep logging your food and weight so your deficit comes from what your body actually did, not an estimate.`,
     };
+  }
+
+  // Leaving calibration with no burn we are willing to trust.
+  //
+  // The fortnight's measurement was set aside (see trustedTdee), so every
+  // maintenance figure available here is the formula's guess again, and cutting
+  // from a guess is exactly what the hold existed to avoid. But the hold did
+  // produce one honest measurement whatever the food log said: the scale. It is
+  // read against the calories the user was ASKED to eat, which is the only
+  // intake figure not in question.
+  //
+  //   - Already losing at a healthy rate on the hold target: that target works.
+  //     Keep it. Cutting further on a burn figure built out of a short log is how
+  //     someone losing 0.5 kg a week gets told to eat 340 kcal less and expect
+  //     0.1 kg a week.
+  //   - Scale flat or rising on the hold target: then those calories ARE this
+  //     user's maintenance, whatever the log says, so open the modest cut from
+  //     them.
+  //   - No trend to read: hold and ask for weigh-ins. The weekly review picks it
+  //     up once there are two weeks of them.
+  //
+  // Either way the phase moves off calibration, so the user is not held in a
+  // hold that can no longer end.
+  if (
+    phase === "deficit" &&
+    prevPhase === "calibration" &&
+    measurementDoubt != null &&
+    macroWeightKg != null
+  ) {
+    const held = Math.round(current.kcal);
+    const rate = trend?.changePct ?? null;
+    const losingWell = rate != null && rate >= healthyLossBand(sex, bodyFatPct).min;
+    const lost = trend != null ? `${Math.abs(trend.changeKg).toFixed(1)} kg` : null;
+
+    if (losingWell || rate == null) {
+      return {
+        macros: current,
+        changed: true,
+        changeKg: trend?.changeKg ?? null,
+        changePct: trend?.changePct ?? null,
+        headline: "Calibration complete, target held",
+        detail: losingWell
+          ? `Your food log came to well under the ${held} kcal you were asked to eat, so it can't be used to measure what you burn. Your weight can: it fell about ${lost} a week on those calories, which is a healthy rate. Your target stays at ${held} kcal because it is already working. Log everything you eat and the next review can measure your burn properly.`
+          : `Your food log came to well under the ${held} kcal you were asked to eat, so it can't be used to measure what you burn, and there aren't enough weigh-ins to read your weight instead. Your target stays at ${held} kcal for now. Weigh in most days and log everything you eat, and the next review has something to work from.`,
+      };
+    }
+
+    if (deficitKcal != null && deficitKcal > 0) {
+      const floorK = kcalFloor(sex, restingRateKcal);
+      const wantedKcal = Math.max(Math.round(held - deficitKcal), floorK);
+      const macros = macrosForKcal(wantedKcal, macroWeightKg, diet, heightCm, goalWeightKg);
+      const cut = held - macros.kcal;
+      const easedNote =
+        macros.kcal > wantedKcal
+          ? " The deficit was eased back a little to keep your carbs above their minimum."
+          : "";
+      return {
+        macros,
+        changed: true,
+        changeKg: trend?.changeKg ?? null,
+        changePct: trend?.changePct ?? null,
+        headline: "Calibration complete, deficit starting",
+        detail: `Your food log came to well under the ${held} kcal you were asked to eat, so it can't be used to measure what you burn. Your weight can: it ${
+          trend != null && trend.changeKg < -0.1 ? `rose by about ${lost} a week` : "barely moved"
+        } on those calories, which puts your maintenance at ${held} kcal or above. Your target is ${macros.kcal} kcal: a ${cut} kcal a day deficit from there.${easedNote} It holds for two weeks before anything is adjusted.`,
+      };
+    }
   }
 
   // Leaving calibration (or a diet break) for the deficit: open the cut fresh
