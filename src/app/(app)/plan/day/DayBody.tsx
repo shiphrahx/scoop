@@ -7,6 +7,7 @@ import {
   getProfile,
   getConsumedForDate,
   getHighDayStatus,
+  getLoggedExtrasForDate,
   getPlanForDate,
 } from "@/lib/queries";
 import { DEFAULT_MEAL_SLOTS, type FavouriteMeal } from "@/lib/types";
@@ -25,11 +26,13 @@ export default async function DayBody({
   today: string;
 }) {
   const supabase = await createClient();
-  const [profile, highDay, plan, consumed, { data: favData }] = await Promise.all([
+  const [profile, highDay, plan, consumed, extras, { data: favData }] =
+    await Promise.all([
     getProfile(),
     getHighDayStatus(date),
     getPlanForDate(date),
     getConsumedForDate(date),
+    getLoggedExtrasForDate(date),
     supabase
       .from("favourite_meals")
       .select("id, name, items, kcal, protein_g, carbs_g, fat_g")
@@ -90,6 +93,7 @@ export default async function DayBody({
       <DayPlan
         key={date}
         slots={slots}
+        extras={extras}
         target={target}
         prefs={prefs}
         date={date}

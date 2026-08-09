@@ -1148,6 +1148,29 @@ export async function removePlannedMeal(id: string) {
   revalidate();
 }
 
+// Delete a food log the user logged straight into the day — a drink, a serving
+// out of a batch. Any slot still pointing at it is unmarked in the same breath:
+// a meal flagged as eaten whose log has gone would show as done while
+// contributing nothing to the day's totals.
+export async function removeFoodLog(id: string) {
+  const { supabase, user } = await requireUser();
+
+  const { error } = await supabase
+    .from("food_logs")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) throw new Error(error.message);
+
+  await supabase
+    .from("planned_meals")
+    .update({ logged_food_id: null })
+    .eq("logged_food_id", id)
+    .eq("user_id", user.id);
+
+  revalidate();
+}
+
 // Log a planned meal to the day's food and mark the slot done. When the meal is
 // on another calendar day, stamp the log at that day's local midnight so it
 // counts toward that day's totals, not now's.

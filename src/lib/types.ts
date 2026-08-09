@@ -103,6 +103,16 @@ export interface DailyTargets extends Macros {
   phase?: import("@/lib/coach").Phase;
 }
 
+// One row of the food diary, as the day screen shows it back. `source` says
+// where it came from ('alcohol' for a drink, 'batch' for a serving out of a
+// pot, and so on).
+export interface LoggedFood extends Macros {
+  id: string;
+  name: string;
+  source: string;
+  logged_at: string;
+}
+
 // A saved "my usual" item — logged to today's food with one tap.
 export interface Favourite extends Macros {
   id: string;

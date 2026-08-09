@@ -9,6 +9,7 @@ vi.mock("@/lib/supabase/server", async () => {
 const {
   getCurrentTargets,
   getTimezone,
+  getLoggedExtrasForDate,
   getTodayConsumed,
   hasApiKey,
   hasTrackedToday,
@@ -38,6 +39,66 @@ const log = (loggedAt: string, kcal: number): Row => ({
   sugar_g: 1,
   satfat_g: 1,
   sodium_mg: 100,
+});
+
+describe("getLoggedExtrasForDate", () => {
+  const drink = (id: string, name: string): Row => ({
+    ...log("2026-07-14T12:00:00Z", 210),
+    id,
+    name,
+    source: "alcohol",
+  });
+
+  it("returns the drink logged on that day", async () => {
+    installFakeSupabase({
+      db: {
+        users: [profile("UTC")],
+        food_logs: [drink("log-1", "Pint of lager")],
+        planned_meals: [],
+      },
+    });
+
+    const extras = await getLoggedExtrasForDate("2026-07-14");
+    expect(extras.map((e) => e.name)).toEqual(["Pint of lager"]);
+    expect(extras[0].kcal).toBe(210);
+  });
+
+  it("leaves out a log a planned meal already shows", async () => {
+    // Eating a planned meal writes a food log and points the meal at it. That
+    // one is on screen under its slot — listing it here would show it twice and
+    // count it twice in the day's total.
+    installFakeSupabase({
+      db: {
+        users: [profile("UTC")],
+        food_logs: [
+          drink("log-1", "Pint of lager"),
+          { ...log("2026-07-14T13:00:00Z", 600), id: "log-2", name: "Lunch", source: "manual" },
+        ],
+        planned_meals: [
+          { user_id: "user-1", date: "2026-07-14", logged_food_id: "log-2" },
+        ],
+      },
+    });
+
+    const extras = await getLoggedExtrasForDate("2026-07-14");
+    expect(extras.map((e) => e.id)).toEqual(["log-1"]);
+  });
+
+  it("stays inside the day the user is looking at", async () => {
+    installFakeSupabase({
+      db: {
+        users: [profile("UTC")],
+        food_logs: [
+          drink("log-1", "Pint of lager"),
+          { ...drink("log-2", "Glass of wine"), logged_at: "2026-07-15T12:00:00Z" },
+        ],
+        planned_meals: [],
+      },
+    });
+
+    const extras = await getLoggedExtrasForDate("2026-07-14");
+    expect(extras.map((e) => e.id)).toEqual(["log-1"]);
+  });
 });
 
 describe("getTimezone", () => {
