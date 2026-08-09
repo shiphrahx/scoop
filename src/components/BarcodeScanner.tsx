@@ -144,7 +144,7 @@ export default function BarcodeScanner({
         if (capabilitiesOf(videoTrack(videoRef.current)).torch) setTorchOn(false);
       })
       .catch(() => {
-        if (!cancelled) setError("Can't open the camera. Check permissions.");
+        if (!cancelled) setError("Can't open the camera. Check it has permission.");
       });
 
     return () => {

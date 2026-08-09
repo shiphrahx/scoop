@@ -89,7 +89,7 @@ describe("progress dashboard, locked insights", () => {
     expect(screen.getByText("Sticking to the plan")).toBeTruthy();
     expect(screen.getByText("High days")).toBeTruthy();
 
-    expect(screen.getByText(/weeks with more sleep are weeks with more loss/i))
+    expect(screen.getByText(/weeks you sleep more are the weeks you lose more/i))
       .toBeTruthy();
     expect(screen.getByText(/four weeks of logging against a target/i)).toBeTruthy();
     expect(screen.getByText(/turn calorie cycling on/i)).toBeTruthy();
@@ -118,7 +118,7 @@ describe("progress dashboard, locked insights", () => {
     expect(screen.getByText("7.8")).toBeTruthy();
     expect(screen.getByText(/6.4 h on your worst/)).toBeTruthy();
     // And the sleep card is no longer pitching itself.
-    expect(screen.queryByText(/weeks with more sleep are weeks with more loss/i))
+    expect(screen.queryByText(/weeks you sleep more are the weeks you lose more/i))
       .toBeNull();
     // The three that still have no data keep their place.
     expect(screen.getByText("Movement and weight loss")).toBeTruthy();
@@ -174,12 +174,12 @@ describe("progress dashboard, KPI row", () => {
       />,
     );
 
-    expect(screen.queryByText(/within the healthy band/i)).toBeNull();
+    expect(screen.queryByText(/right in the healthy range/i)).toBeNull();
 
     await user.click(screen.getByRole("button", { name: /Per week/ }));
 
     const sheet = screen.getByRole("dialog");
-    expect(within(sheet).getByText(/within the healthy band/i)).toBeTruthy();
+    expect(within(sheet).getByText(/right in the healthy range/i)).toBeTruthy();
     expect(within(sheet).getByText("0.42 to 0.84 kg")).toBeTruthy();
   });
 });

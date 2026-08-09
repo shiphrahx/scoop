@@ -76,7 +76,7 @@ export function FitbitButton({ connected }: { connected: boolean }) {
       setMsg(res.message);
       setReconnect(Boolean(res.reconnect));
     } catch {
-      setMsg("Sync failed. Try again shortly.");
+      setMsg("That sync didn't go through. Try again in a minute.");
     } finally {
       setSyncing(false);
     }

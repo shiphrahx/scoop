@@ -69,27 +69,27 @@ const shortDate = (iso: string) =>
 
 const VERDICT: Record<LossRate["verdict"], { text: string; tone: "good" | "warn" }> = {
   "on-track": {
-    text: "Within the healthy band for your body.",
+    text: "Right in the healthy range for your body.",
     tone: "good",
   },
   slow: {
-    text: "Below your healthy band. Acceptable if intended. The Coach will adjust the target if it stays here.",
+    text: "Slower than your healthy range. Fine if that's deliberate. If it stays here, the Coach will adjust your target.",
     tone: "warn",
   },
   fast: {
-    text: "Above your healthy band. Losing at this rate costs muscle as well as fat.",
+    text: "Faster than your healthy range. At this rate you lose muscle along with the fat.",
     tone: "warn",
   },
   gaining: {
-    text: "The trend has risen over the last week.",
+    text: "Your trend has gone up over the last week.",
     tone: "warn",
   },
 };
 
 const CONFIDENCE: Record<GoalProjection["confidence"], string> = {
-  high: "The trend has been steady, so this window is a reliable estimate.",
-  medium: "The trend varies somewhat, so treat this as an approximate window.",
-  low: "The trend is noisy, so this window is wide. It will narrow as you log more.",
+  high: "Your trend has been steady, so this window is a reliable estimate.",
+  medium: "Your trend moves around a bit, so treat this as a rough window.",
+  low: "Your trend is noisy, so this window is wide. It narrows as you log more.",
 };
 
 export default function OverviewTab({
@@ -125,19 +125,19 @@ export default function OverviewTab({
   if (trend.length === 0) {
     locked.push({
       title: "Weight trend",
-      why: "Your real weight line, with the daily water noise smoothed out. Weigh in on four separate days.",
+      why: "Your real weight line, with the day to day water noise smoothed out. Weigh in on four separate days to see it.",
     });
   }
   if (rate == null) {
     locked.push({
       title: "Rate of loss",
-      why: "How fast you're losing, against the healthy band for your body. Needs a week of weigh-ins.",
+      why: "How fast you're losing, against the healthy range for your body. Weigh in for a week to see it.",
     });
   }
   if (projection == null) {
     locked.push({
       title: "Goal date",
-      why: "The date you're on course to hit your goal. Needs three weeks of weigh-ins on a falling trend, plus a goal weight.",
+      why: "The date you're on course to hit your goal. Needs a goal weight, and three weeks of weigh-ins on a falling trend.",
     });
   }
   if (progress == null) {
@@ -149,7 +149,7 @@ export default function OverviewTab({
   if (!hasTarget) {
     locked.push({
       title: "This week",
-      why: "The days you hit calories and protein this week. Finish onboarding so the Coach sets a target.",
+      why: "The days you hit your calories and your protein this week. Finish onboarding and the Coach sets you a target.",
     });
   }
 

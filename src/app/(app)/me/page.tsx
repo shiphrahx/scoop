@@ -29,15 +29,15 @@ import {
 // Turn the ?fitbit= result of the OAuth round-trip into a one-line banner.
 const FITBIT_NOTES: Record<string, string> = {
   connected: "Fitbit connected. Tap sync to pull your data.",
-  denied: "Fitbit connection was cancelled.",
-  error: "Something went wrong connecting Fitbit. Try again.",
+  denied: "You cancelled the Fitbit connection.",
+  error: "That didn't connect to Fitbit. Try again.",
   // Distinct from `error`: the grant itself worked, it just came back without
   // permission to refresh in the background, which would have stopped syncing
   // within the hour. Saying so beats storing it and failing later.
-  offline: "That connection did not include background access, so it would stop working within the hour. Connect again and approve every permission.",
+  offline: "That connection came through without background access, so it would stop working within the hour. Connect again and say yes to every permission.",
   // Nothing the user can act on, it names the real problem so it isn't mistaken
   // for a connection of theirs that went wrong.
-  config: "Device syncing is not set up on this deployment yet.",
+  config: "Device syncing isn't set up on this deployment yet.",
 };
 
 export default async function MePage({

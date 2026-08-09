@@ -55,7 +55,7 @@ export default async function PantryPage() {
             <Package size={30} />
           </span>
           <div className="flex flex-col gap-1">
-            <p className="text-lg font-semibold">Your pantry is empty</p>
+            <p className="text-lg font-semibold">Nothing in your pantry yet</p>
             <p className="text-sm text-[var(--muted)]">
               Add what you have so we can plan meals and log faster.
             </p>

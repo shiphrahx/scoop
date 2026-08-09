@@ -31,7 +31,7 @@ export default function PlanMeal({ pantry }: { pantry: string[] }) {
       const found = await getSuggestions(carb, protein);
       setMeals(found);
       setLogged(new Set());
-      setNote(found.length ? null : "No dishes fit right now. Add pantry items.");
+      setNote(found.length ? null : "Nothing in your pantry fits right now. Add a few more items.");
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't get ideas.");
     } finally {

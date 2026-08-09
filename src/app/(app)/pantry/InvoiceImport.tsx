@@ -29,7 +29,7 @@ export default function InvoiceImport() {
       }
       const found = parseInvoiceLines(lines);
       if (found.length === 0) {
-        setNote("Couldn't read items from that PDF.");
+        setNote("Couldn't find any items in that PDF.");
         return;
       }
       setNote(null);

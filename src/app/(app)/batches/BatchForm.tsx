@@ -71,7 +71,7 @@ export default function BatchForm() {
       setDraft({ ...emptyPack, name: p.name, grams: "100", ...scale(p, 100) });
       setNote(`Found: ${p.name}. Set the pack weight.`);
     } catch {
-      setNote("Lookup failed. Enter it by hand.");
+      setNote("Couldn't find that barcode. Enter it by hand.");
     }
   }
 

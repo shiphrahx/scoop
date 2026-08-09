@@ -102,12 +102,12 @@ export default function DriversTab({
   if (!deviceConnected) {
     locked.push({
       title: "Sleep and weight loss",
-      why: "Whether weeks with more sleep are weeks with more loss. Needs a wearable.",
+      why: "Whether the weeks you sleep more are the weeks you lose more. Needs a wearable.",
       connect: true,
     });
     locked.push({
       title: "Movement and weight loss",
-      why: "Whether weeks with more movement are weeks with more loss. Needs a wearable.",
+      why: "Whether the weeks you move more are the weeks you lose more. Needs a wearable.",
       connect: true,
     });
   } else {
@@ -127,7 +127,7 @@ export default function DriversTab({
   if (adherence == null) {
     locked.push({
       title: "Sticking to the plan",
-      why: "See how much your losses depend on hitting the target. Four weeks of logging against a target unlocks it.",
+      why: "How much your losses depend on hitting the target. Four weeks of logging against a target unlocks it.",
     });
   }
   if (!cyclingEnabled) {
@@ -236,7 +236,7 @@ export default function DriversTab({
               />
               <p className="text-sm text-[var(--muted)]">
                 {highDay.verdict === "no-difference"
-                  ? "No meaningful difference, which is expected: high days don't change your weekly calorie total. Keep them if they make the week easier to follow."
+                  ? "No real difference, which is what you'd expect: high days don't change your weekly total. Keep them if they make the week easier to follow."
                   : highDay.verdict === "better"
                     ? `You lost ${fmt(highDay.differenceKg, 2)} kg/week more in weeks with high days.`
                     : `You lost ${fmt(Math.abs(highDay.differenceKg), 2)} kg/week less in weeks with high days. Check that a high day hasn't turned into an extra day above target.`}

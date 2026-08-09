@@ -190,6 +190,6 @@ describe("BarcodeScanner", () => {
       render(<BarcodeScanner onDetected={vi.fn()} onClose={vi.fn()} />);
     });
 
-    expect(screen.getByText(/check permissions/i)).toBeTruthy();
+    expect(screen.getByText(/check it has permission/i)).toBeTruthy();
   });
 });
