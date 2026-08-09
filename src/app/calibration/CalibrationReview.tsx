@@ -80,13 +80,13 @@ export function buildCards(
     value: String(w.days),
     unit: w.days === 1 ? "day measured" : "days measured",
     body:
-      `You ate ${kcal(w.holdTargetKcal)} kcal a day for ${w.days} day${w.days === 1 ? "" : "s"}, ` +
-      `logged your food on ${w.loggedDays} of them and weighed in ${w.weighInDays} time${
+      `For ${w.days} day${w.days === 1 ? "" : "s"} you ate ${kcal(w.holdTargetKcal)} kcal a day, ` +
+      `logged your food on ${w.loggedDays} of them and stepped on the scale ${w.weighInDays} time${
         w.weighInDays === 1 ? "" : "s"
-      }. Every number that follows was measured from that.`,
+      }. That is what made everything below possible — none of it is guesswork.`,
     note:
-      `A fortnight is the shortest run that shows real change on the scale. Below that, ` +
-      `what you see is mostly water moving in and out.`,
+      `A fortnight is the shortest run that shows real change on the scale. Anything less and you are ` +
+      `mostly watching water move in and out.`,
   });
 
   if (w.measuredMaintenanceKcal != null) {
