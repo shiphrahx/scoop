@@ -157,25 +157,25 @@ export function buildCards(
           ? `lost over ${w.days} days`
           : `gained over ${w.days} days`,
       body: steady
-        ? `You averaged ${kcal(w.meanIntakeKcal)} kcal a day and your trend weight stayed where it was. ` +
-          `That is what maintenance looks like, and it is the strongest evidence the burn above is right.`
+        ? `You ate ${kcal(w.meanIntakeKcal)} kcal a day and the scale barely moved. ` +
+          `That is exactly what maintenance is meant to look like, and it is the best evidence there is that the number above is yours.`
         : w.weightChangeKg > 0
           ? // The case that reads as a contradiction unless it's spelled out: they
             // were told they were eating at maintenance, and lost weight anyway.
-            `You averaged ${kcal(w.meanIntakeKcal)} kcal a day and still lost weight${rate ? `, about ${rate}` : ""}. ` +
-            `So what was set as your maintenance was already a small deficit` +
+            `You ate ${kcal(w.meanIntakeKcal)} kcal a day and lost weight anyway${rate ? `, around ${rate}` : ""}. ` +
+            `So the calories we called maintenance were already asking a little more of you than they looked` +
             (burn != null
-              ? ` — your real burn is nearer ${kcal(burn)} kcal, and that is the figure your new target was worked out from.`
-              : `, and your new target allows for it.`)
-          : `You averaged ${kcal(w.meanIntakeKcal)} kcal a day and your trend rose ${kg(-w.weightChangeKg)}` +
-            `${rate ? `, about ${rate}` : ""}. ` +
-            `Some of that is food and water sitting in you on weigh-in day` +
+              ? ` — your real burn is closer to ${kcal(burn)} kcal, and that is the figure your new target is built on.`
+              : `, and your new target takes that into account.`)
+          : `You ate ${kcal(w.meanIntakeKcal)} kcal a day and the trend crept up by ${kg(-w.weightChangeKg)}` +
+            `${rate ? `, around ${rate}` : ""}. ` +
+            `Some of that is simply food and water sitting in you on weigh-in day` +
             (burn != null
-              ? `; the rest says your burn is nearer ${kcal(burn)} kcal, which is what your new target was worked out from.`
-              : `, and your new target allows for it.`),
+              ? `; the rest points to a burn closer to ${kcal(burn)} kcal, which is what your new target is built on.`
+              : `, and your new target takes that into account.`),
       note:
-        `Single weigh-ins swing a kilo on water alone, so what is read here is the trend line through all of them, ` +
-        `not the difference between your first morning and your last.`,
+        `One morning's weight can swing a kilo on water alone. What is read here is the line through all your ` +
+        `weigh-ins, not the gap between the first and the last.`,
     });
   }
 
