@@ -109,7 +109,7 @@ export async function logAlcohol(input: AlcoholInput) {
     throw new Error("Enter a volume and an ABV above zero.");
   }
   if (volumeMl > MAX_VOLUME_ML || abvPct > MAX_ABV_PCT) {
-    throw new Error("That looks too big — check the volume and ABV.");
+    throw new Error("That looks too big. Check the volume and ABV.");
   }
   if (!["carbs", "fat", "split"].includes(input.allocation)) {
     throw new Error("Choose whether to count the alcohol as carbs or fat.");
@@ -124,7 +124,7 @@ export async function logAlcohol(input: AlcoholInput) {
   });
   // A single drink over ~2000 kcal is almost certainly a typo, not a pour.
   if (m.kcal > 2000) {
-    throw new Error("That's a lot for one drink — check the numbers.");
+    throw new Error("That's a lot for one drink. Check the numbers.");
   }
 
   const today = await localToday();

@@ -128,7 +128,7 @@ export default function PlanMeal({ pantry }: { pantry: string[] }) {
                     <Check size={16} /> Logged
                   </>
                 ) : (
-                  "I made this — log it"
+                  "I made this"
                 )}
               </button>
             </li>

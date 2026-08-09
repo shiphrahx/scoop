@@ -404,7 +404,7 @@ export async function setMealPicks(slot: string, picks: MealPick[], date?: strin
     .eq("slot", slot)
     .maybeSingle();
   if ((existing as { logged_food_id: string | null } | null)?.logged_food_id) {
-    throw new Error("This meal is already logged — edit it from the plan instead.");
+    throw new Error("This meal is already logged. Edit it from the plan instead.");
   }
 
   if (picks.length === 0) {
@@ -525,7 +525,7 @@ export async function buildMyDay(date?: string) {
     getPlanForDate(day),
   ]);
   if (!profile) throw new Error("Finish onboarding first");
-  if (!targets) throw new Error("No macro target yet — finish onboarding.");
+  if (!targets) throw new Error("No macro target yet. Finish onboarding.");
 
   const picked = plan.filter((p) => p.picks.length > 0 && !p.logged_food_id);
   if (picked.length === 0) {
@@ -670,7 +670,7 @@ export async function buildMyDay(date?: string) {
           // comes back empty when there isn't enough of ANY of its foods left for
           // a serving. Keep the picks and say that, rather than blaming macros.
           portions: [],
-          why: "There isn't enough of any of these foods left for a serving — restock them, or pick something else for this meal.",
+          why: "There isn't enough of any of these foods left for a serving. Restock them, or pick something else for this meal.",
           kcal: 0,
           protein_g: 0,
           carbs_g: 0,

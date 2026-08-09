@@ -397,11 +397,11 @@ function FitVerdict({
     },
     warn: {
       icon: <AlertTriangle size={16} className="shrink-0" />,
-      text: `${list} slightly off — nudge the portions.`,
+      text: `${list} slightly off, nudge the portions.`,
     },
     off: {
       icon: <AlertCircle size={16} className="shrink-0" />,
-      text: `${list} too far off — change the portions.`,
+      text: `${list} too far off, change the portions.`,
     },
   };
 
@@ -1118,7 +1118,7 @@ function ItemPicker({
           </p>
           {mealId && onLog && (
             <button onClick={onLog} disabled={busy} className="sc-btn sc-btn-soft">
-              I ate this — log it
+              I ate this
             </button>
           )}
           <SaveFavourite defaultName={items.map((i) => i.name).join(", ")} items={items} />
@@ -1296,7 +1296,7 @@ function PickedMeal({ meal, date }: { meal: PlannedMeal; date: string }) {
       ) : (
         <p className="flex items-start gap-1.5 text-sm text-[var(--muted)]">
           <Info size={16} className="mt-0.5 shrink-0" />
-          Foods picked — tap <span className="font-semibold">Build my day</span>{" "}
+          Foods picked, tap <span className="font-semibold">Build my day</span>{" "}
           above and we&apos;ll work out the amounts.
         </p>
       )}
@@ -1374,7 +1374,7 @@ function AiMeal({
           disabled={busy}
           className="sc-btn sc-btn-soft flex-1"
         >
-          I ate this — log it
+          I ate this
         </button>
       </div>
 
@@ -1673,7 +1673,7 @@ function AiMealEditor({
         </ul>
       ) : (
         <p className="text-sm text-[var(--muted)]">
-          No ingredients left — saving will clear this meal.
+          No ingredients left, saving will clear this meal.
         </p>
       )}
 

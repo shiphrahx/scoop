@@ -143,7 +143,7 @@ describe("MealPicker", () => {
 
   it("shows the reason when saving fails, and stays put", async () => {
     setMealPicks.mockRejectedValue(
-      new Error("This meal is already logged — edit it from the plan instead."),
+      new Error("This meal is already logged. Edit it from the plan instead."),
     );
     const user = userEvent.setup();
     render(<MealPicker slot="Lunch" groups={groups} initial={[]} />);

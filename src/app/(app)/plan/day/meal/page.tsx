@@ -107,7 +107,7 @@ export default async function PlanMealPage({
         </Link>
         <h1 className="text-3xl font-semibold">Plan {slot.toLowerCase()}</h1>
         <p className="text-sm text-[var(--muted)]">
-          Tap the foods you fancy for this meal — we&apos;ll work out how much of
+          Tap the foods you fancy for this meal, we&apos;ll work out how much of
           each when you build your day.
         </p>
       </div>

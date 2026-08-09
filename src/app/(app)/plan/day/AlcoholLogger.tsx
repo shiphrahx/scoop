@@ -203,7 +203,7 @@ export default function AlcoholLogger({
       )}
 
       <p className="text-xs text-[var(--muted)]">
-        Heads up: alcohol pauses fat burning for a while. No big deal — just
+        Heads up: alcohol pauses fat burning for a while. No big deal, just
         booking the calories so your day stays honest.
       </p>
 

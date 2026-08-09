@@ -30,7 +30,7 @@ export default function BuildDayCard({
   function show(r: Awaited<ReturnType<typeof buildMyDay>>) {
     setFix(r.fix);
     if (r.changed) {
-      setResult(`Rebalanced — ${r.moves.join(", ")}.`);
+      setResult(`Rebalanced, ${r.moves.join(", ")}.`);
     } else if (r.fix) {
       // A stuck day speaks through the fix prompt, not this line.
       setResult(null);
@@ -42,7 +42,7 @@ export default function BuildDayCard({
       // Say where it landed. "Nothing moved" on its own gives no way to tell a
       // day that already fits from a button that did nothing.
       setResult(
-        `Nothing moved — these meals come to ${Math.round(r.landed.kcal)} of ${Math.round(r.budget.kcal)} kcal left today, and this is the closest these picks get.`,
+        `Nothing moved. These meals come to ${Math.round(r.landed.kcal)} of ${Math.round(r.budget.kcal)} kcal left today, and this is the closest these picks get.`,
       );
     }
   }
