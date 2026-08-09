@@ -207,23 +207,31 @@ export function buildCards(
   });
 
   if (w.expectedLossKgPerWeek != null) {
+    // The comparison that makes the prediction checkable rather than a number to
+    // take on faith: they can see the rate they were ALREADY losing at, on more
+    // food, and judge whether the new one is plausible.
+    const already =
+      w.holdLossKgPerWeek != null && w.holdLossKgPerWeek > 0.05
+        ? ` You were already losing about ${w.holdLossKgPerWeek.toFixed(2)} kg a week during calibration, on more food than this.`
+        : "";
     const goal =
       w.projection?.goalDate != null && w.projection.goalWeeks != null
-        ? ` At that rate you reach your goal weight around ${longDate(w.projection.goalDate)} — about ${w.projection.goalWeeks} weeks.`
+        ? ` Your goal weight is about ${w.projection.goalWeeks} weeks away at this rate — around ${longDate(w.projection.goalDate)}.`
         : "";
     const band =
       w.inHealthyBand === false
-        ? " That is a deliberately cautious rate for your body."
+        ? ` This is a cautious rate for your size, chosen on purpose.`
         : "";
     cards.push({
       key: "expect",
-      kicker: "What to expect",
+      kicker: "What should happen now",
       value: w.expectedLossKgPerWeek.toFixed(2),
       unit: "kg a week",
       chart: w.projection?.points,
-      body:
-        `Loss slows as you get lighter — a smaller body burns less, so the same target is a smaller deficit each month.${goal}${band}` +
-        ` Weeks vary by a few hundred grams; the trend is what counts.`,
+      body: `That is what ${kcal(w.newTarget.kcal)} kcal a day works out to for you.${already}${goal}${band}`,
+      note:
+        `The line flattens because a lighter body burns less: the same target is a smaller deficit every month. ` +
+        `Any single week can land a few hundred grams either side of this — the trend across weeks is the real answer.`,
     });
   }
 
