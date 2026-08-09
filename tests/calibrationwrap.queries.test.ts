@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { installFakeSupabase } from "./helpers/fake-supabase";
+import { graduatingUserDb, HOLD_TARGET_KCAL } from "./helpers/calibration";
 
 vi.mock("@/lib/supabase/server", async () => {
   const { supabaseHolder } = await import("./helpers/fake-supabase");
@@ -11,76 +12,12 @@ const { getCalibrationWrap } = await import("@/lib/queries");
 const { localWeekStart } = await import("@/lib/time");
 
 const DAY = 86_400_000;
-const iso = (daysAgo: number) =>
-  new Date(Date.now() - daysAgo * DAY).toISOString().slice(0, 10);
 
 // The review exists for exactly one visit: the hold has ended, the first deficit
 // is worked out, and the user hasn't started it. Get that gate wrong and either
 // the user never sees what their fortnight bought, or they see it again every
 // week for ever.
-
-const MAINTENANCE = 1700;
-
-// A fortnight of eating the hold's target, logged daily, weight flat — the hold
-// has run its full window and the review graduates them into a deficit.
-function graduating(over: Record<string, unknown> = {}) {
-  const weights = Array.from({ length: 28 }, (_, i) => ({
-    user_id: "user-1",
-    date: iso(27 - i),
-    weight_kg: 70,
-  }));
-  const food_logs = Array.from({ length: 28 }, (_, i) => ({
-    user_id: "user-1",
-    logged_at: new Date(Date.now() - (27 - i) * DAY).toISOString(),
-    kcal: MAINTENANCE,
-    protein_g: 130,
-    carbs_g: 170,
-    fat_g: 55,
-  }));
-  const calRow = (daysAgo: number) => ({
-    user_id: "user-1",
-    week_start: localWeekStart("UTC", new Date(Date.now() - daysAgo * DAY)),
-    kcal: MAINTENANCE,
-    protein_g: 130,
-    carbs_g: 170,
-    fat_g: 55,
-    phase: "calibration",
-  });
-  return {
-    users: [
-      {
-        id: "user-1",
-        sex: "female" as const,
-        height_cm: 165,
-        birth_year: 1990,
-        diet_type: "regular",
-        activity_level: "sedentary",
-        goal_pace: "steady",
-        body_fat_pct: null,
-        goal_weight_kg: 65,
-        tdee_calibration: 1,
-        tdee_observed_at: null,
-        calibration_started_at: new Date(Date.now() - 15 * DAY).toISOString(),
-        timezone: "UTC",
-        onboarded_at: new Date(Date.now() - 15 * DAY).toISOString(),
-        ...over,
-      },
-    ],
-    weights,
-    food_logs,
-    measurements: [],
-    activity: Array.from({ length: 14 }, (_, i) => ({
-      user_id: "user-1",
-      date: iso(13 - i),
-      steps: 8000,
-      workout_kcal: 100,
-      sleep_hours: 7.5,
-      source: "fitbit",
-    })),
-    daily_targets: [calRow(14), calRow(7), calRow(0)],
-    fitbit_tokens: [],
-  };
-}
+const graduating = graduatingUserDb;
 
 describe("getCalibrationWrap", () => {
   it("has a review to show the moment the hold ends", async () => {
@@ -90,10 +27,10 @@ describe("getCalibrationWrap", () => {
     expect(wrap).not.toBeNull();
     expect(wrap!.days).toBe(15);
     expect(wrap!.loggedDays).toBeGreaterThan(10);
-    expect(wrap!.holdTargetKcal).toBe(MAINTENANCE);
+    expect(wrap!.holdTargetKcal).toBe(HOLD_TARGET_KCAL);
     // A real deficit, opened from maintenance rather than nudged off the hold.
     expect(wrap!.deficitKcal).toBeGreaterThan(0);
-    expect(wrap!.newTarget.kcal).toBeLessThan(MAINTENANCE);
+    expect(wrap!.newTarget.kcal).toBeLessThan(HOLD_TARGET_KCAL);
   });
 
   it("quotes the maintenance the new target was actually cut from", async () => {
