@@ -66,7 +66,7 @@ describe("calibration review", () => {
     expect(screen.getByRole("heading", { name: "14" })).toBeTruthy();
     expect(screen.getByText(/logged your food on 13 of them/i)).toBeTruthy();
     // The general point is in its own labelled block, not mixed into the above.
-    expect(screen.getByText(/^Why:/)).toBeTruthy();
+    expect(screen.getByText(/^Why this works:/)).toBeTruthy();
   });
 
   it("shows the measured burn against the formula's guess", async () => {

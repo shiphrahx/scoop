@@ -379,7 +379,11 @@ export default function CalibrationReview({
 
           {card.note && (
             <p className="max-w-prose rounded-2xl bg-black/15 p-3 text-sm leading-relaxed text-white/75">
-              <span className="font-semibold uppercase tracking-wide">Why: </span>
+              {/* Labelled so it reads as background rather than as another fact
+                  about the reader — the point of keeping the two apart. */}
+              <span className="font-semibold uppercase tracking-wide">
+                Why this works:{" "}
+              </span>
               {card.note}
             </p>
           )}
