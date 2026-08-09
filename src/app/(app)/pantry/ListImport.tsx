@@ -17,7 +17,7 @@ export default function ListImport() {
   function parse(input: string) {
     const found = parseShoppingList(input);
     if (found.length === 0) {
-      setNote("Nothing to search, type an item or paste a list.");
+      setNote("Nothing to search. Type an item or paste a list.");
       setItems(null);
       return;
     }

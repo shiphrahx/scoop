@@ -58,7 +58,7 @@ export default function InvoiceImport() {
     <section className="flex flex-col gap-3 sc-card p-5">
       <h2 className="text-lg font-semibold">Import an invoice</h2>
       <p className="text-sm text-[var(--muted)]">
-        A PDF from your grocery order, we&apos;ll pull out the items.
+        A PDF from your grocery order. We&apos;ll pull out the items.
       </p>
 
       <input

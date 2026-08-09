@@ -177,7 +177,7 @@ export default function PantryForm({
         if (ref) {
           pickFresh(ref, cookedName(p.name));
           setNote(
-            `${p.name} is dry on the pack, Scoop tracks food cooked, so we've used cooked ${ref.name} values. Pick your cooked serving size.`,
+            `${p.name} is dry on the pack. Scoop tracks food cooked, so we've used cooked ${ref.name} values. Pick your cooked serving size.`,
           );
           return;
         }
