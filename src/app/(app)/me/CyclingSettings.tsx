@@ -95,7 +95,7 @@ export default function CyclingSettings({
         <p className="text-sm text-[var(--muted)]">
           Eat up to maintenance on a couple of chosen days to fuel workouts and
           refill glycogen. This unlocks once you finish calibrating and start your
-          deficit — until then there&apos;s no deficit to take a break from.
+          deficit, until then there&apos;s no deficit to take a break from.
         </p>
       </section>
     );
@@ -106,7 +106,7 @@ export default function CyclingSettings({
       <div className="flex flex-col gap-1">
         <h2 className="text-lg font-semibold">Refeed days</h2>
         <p className="text-sm text-[var(--muted)]">
-          Eat up to maintenance on a few chosen days — extra carbs only, protein
+          Eat up to maintenance on a few chosen days, extra carbs only, protein
           and fat unchanged. They&apos;re free: no other day is cut, so a refeed
           week loses a little less. They&apos;re for adherence and muscle, not
           faster fat loss.
@@ -191,7 +191,7 @@ export default function CyclingSettings({
                   {upliftCarbsG} g carbs
                 </span>{" "}
                 (~{upliftCarbsG * 4} kcal) to reach your ~{maintenanceKcal} kcal
-                maintenance. It&apos;s free — no other day is cut. Protein and fat
+                maintenance. It&apos;s free. No other day is cut. Protein and fat
                 stay the same.
                 {lossWithRefeeds != null && lossFlat != null && lossFlat > 0 && (
                   <>
@@ -200,7 +200,7 @@ export default function CyclingSettings({
                     <span className="font-semibold text-[var(--ink)]">
                       {lossWithRefeeds.toFixed(2)} kg
                     </span>{" "}
-                    this week, versus {lossFlat.toFixed(2)} kg with no refeeds —
+                    this week, versus {lossFlat.toFixed(2)} kg with no refeeds,
                     the trade for easier days.
                   </>
                 )}

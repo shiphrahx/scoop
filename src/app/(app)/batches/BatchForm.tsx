@@ -69,7 +69,7 @@ export default function BatchForm() {
       const p = (await res.json()) as OffProduct;
       setPer100(p);
       setDraft({ ...emptyPack, name: p.name, grams: "100", ...scale(p, 100) });
-      setNote(`Found: ${p.name} — set the pack weight.`);
+      setNote(`Found: ${p.name}. Set the pack weight.`);
     } catch {
       setNote("Lookup failed. Enter it by hand.");
     }

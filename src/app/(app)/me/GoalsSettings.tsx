@@ -34,9 +34,9 @@ const DIET: Option<DietType>[] = [
 
 const ACTIVITY: Option<ActivityLevel>[] = [
   { value: "sedentary", label: "Mostly sitting", icon: Armchair, desc: "Desk job, little or no exercise" },
-  { value: "light", label: "Lightly active", icon: Footprints, desc: "Light exercise 1–3 days a week" },
-  { value: "moderate", label: "Active", icon: Bike, desc: "Moderate exercise 3–5 days a week" },
-  { value: "active", label: "Very active", icon: Dumbbell, desc: "Hard exercise 6–7 days a week" },
+  { value: "light", label: "Lightly active", icon: Footprints, desc: "Light exercise 1 to 3 days a week" },
+  { value: "moderate", label: "Active", icon: Bike, desc: "Moderate exercise 3 to 5 days a week" },
+  { value: "active", label: "Very active", icon: Dumbbell, desc: "Hard exercise 6 to 7 days a week" },
   { value: "very_active", label: "Athlete", icon: Trophy, desc: "Hard training twice a day or a physical job" },
 ];
 

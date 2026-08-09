@@ -129,7 +129,7 @@ export function DevSeed() {
   return (
     <div className="flex flex-col gap-2 rounded-2xl border-2 border-dashed border-[var(--border)] p-3">
       <p className="text-xs text-[var(--muted)]">
-        Dev only — no Fitbit/Apple yet. Fill sample data to try the Coach.
+        Dev only. No Fitbit or Apple data yet. Fill sample data to try the Coach.
       </p>
       <div className="flex gap-2">
         <button
