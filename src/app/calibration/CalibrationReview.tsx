@@ -101,7 +101,7 @@ export function buildCards(
             : ` A textbook formula would have guessed ${kcal(w.predictedMaintenanceKcal)} for someone your age, height and weight. You run ${kcal(-delta)} kcal a day cooler than that.`;
     cards.push({
       key: "burn",
-      kicker: "What you burn",
+      kicker: "What your body burns",
       value: kcal(w.measuredMaintenanceKcal),
       unit: "kcal a day",
       body:
@@ -128,7 +128,7 @@ export function buildCards(
     const habits = steps || sleep ? `${steps}${sleep}.` : "";
     cards.push({
       key: "split",
-      kicker: "Where it goes",
+      kicker: "Where it all goes",
       value: `${kcal(movingKcal)}`,
       unit: "kcal a day from moving",
       body:
@@ -149,7 +149,7 @@ export function buildCards(
     const burn = w.measuredMaintenanceKcal;
     cards.push({
       key: "response",
-      kicker: "What the scale said",
+      kicker: "What the scale did",
       value: steady ? "Held steady" : kg(w.weightChangeKg),
       unit: steady
         ? "on maintenance calories"
@@ -226,7 +226,7 @@ export function buildCards(
         : "";
     cards.push({
       key: "expect",
-      kicker: "What should happen now",
+      kicker: "What happens from here",
       value: w.expectedLossKgPerWeek.toFixed(2),
       unit: "kg a week",
       chart: w.projection?.points,
@@ -254,7 +254,7 @@ export function buildCards(
         }
       : {
           key: "start",
-          kicker: "Ready",
+          kicker: "Ready when you are",
           value: "Start now",
           body:
             `Tap start and today's target becomes ${kcal(w.newTarget.kcal)} kcal. ` +
