@@ -38,8 +38,37 @@ describe("getCalibrationWrap", () => {
     const wrap = await getCalibrationWrap();
     // The deficit, the target and the maintenance behind them have to agree,
     // the screen shows all three on the same card.
-    expect(wrap!.newTarget.kcal + wrap!.deficitKcal).toBeGreaterThan(0);
+    expect(wrap!.newTarget.kcal + wrap!.deficitKcal!).toBeGreaterThan(0);
     expect(wrap!.measuredMaintenanceKcal).not.toBeNull();
+  });
+
+  it("holds the target when the food log came to far less than the plan", async () => {
+    // The reported case, end to end. A fortnight held at 1,720 kcal with a log
+    // averaging 898 and 0.54 kg a week coming off: the energy balance arithmetic
+    // reads a burn of about 1,490, which is barely above this user's resting rate,
+    // and cutting from it lands the target ON that resting rate. The user is told
+    // to eat 340 kcal less and expect a fifth of the loss they were already
+    // getting. Nothing in the numbers is wrong except the log they came from.
+    const db = graduating();
+    const rows = db.food_logs.length;
+    db.food_logs = db.food_logs.map((r) => ({ ...r, kcal: 898 }));
+    db.weights = db.weights.map((r, i) => ({
+      ...r,
+      weight_kg: 75 - i * (0.54 / 7),
+    }));
+    db.daily_targets = db.daily_targets.map((r) => ({ ...r, kcal: 1720 }));
+    expect(db.food_logs).toHaveLength(rows);
+
+    installFakeSupabase({ db });
+    const wrap = await getCalibrationWrap();
+
+    expect(wrap).not.toBeNull();
+    expect(wrap!.measurementDoubt).toBe("intake_shortfall");
+    expect(wrap!.measuredMaintenanceKcal).toBeNull();
+    // The target the user keeps eating, and the rate their own fortnight showed.
+    expect(wrap!.newTarget.kcal).toBe(1720);
+    expect(wrap!.changeFromHoldKcal).toBe(0);
+    expect(wrap!.expectedLossKgPerWeek).toBeGreaterThan(0.4);
   });
 
   it("projects forward to the goal weight", async () => {
