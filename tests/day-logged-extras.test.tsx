@@ -78,7 +78,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe("the day screen — food logged outside the meal slots", () => {
+describe("the day screen, food logged outside the meal slots", () => {
   it("shows a logged drink by name", () => {
     renderDay([drink()]);
     expect(screen.getByText("Pint of lager")).toBeTruthy();

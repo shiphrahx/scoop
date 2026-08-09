@@ -143,7 +143,7 @@ function stallStartedDaysAgo(days: number) {
 }
 
 describe("ensureReviewApplied", () => {
-  it("does NOT auto-apply a target change — a change is only a proposal", async () => {
+  it("does NOT auto-apply a target change, a change is only a proposal", async () => {
     // The app must never move the user's macros without them choosing to. A
     // stall would cut calories; that cut waits for the user to apply it.
     const { db } = installFakeSupabase({ db: stalledUser() });

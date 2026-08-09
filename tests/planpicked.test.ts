@@ -562,7 +562,7 @@ const gramsOf = (plan: PlannedSlot[], name: string) =>
 const gramsIn = (plan: PlannedSlot[], slot: string, name: string) =>
   plan.find((m) => m.slot === slot)?.portions.find((p) => p.name === name)?.grams ?? 0;
 
-describe("planPickedDay — vegetables as fillers", () => {
+describe("planPickedDay, vegetables as fillers", () => {
   // The exact reported bug: veg picked for BOTH lunch and dinner, rice only in
   // lunch. Before the fix all veg landed in dinner (400 g onion to hit dinner's
   // carbs) and lunch's veg were dropped as "couldn't fit".
@@ -601,7 +601,7 @@ describe("planPickedDay — vegetables as fillers", () => {
     expect(gramsIn(plan, "Dinner", "Brown Onions")).toBeLessThanOrEqual(100);
   });
 
-  it("sizes the serving to the vegetable — more of a watery veg than a dense one", () => {
+  it("sizes the serving to the vegetable, more of a watery veg than a dense one", () => {
     const plan = reportedPlan();
     // A courgette (17 kcal/100g) serves larger than an onion (40 kcal/100g): you
     // eat more of the watery veg for the same modest serving.

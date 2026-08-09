@@ -90,7 +90,7 @@ describe("refeeds need a confident maintenance estimate", () => {
   });
 });
 
-describe("dayTarget — free refeed at maintenance", () => {
+describe("dayTarget, free refeed at maintenance", () => {
   it("raises a refeed day up to maintenance with carbs only", () => {
     const day = dayTarget(base, true, cfg());
     // The whole 500 kcal gap becomes carbs: 500 / 4 = 125 g.

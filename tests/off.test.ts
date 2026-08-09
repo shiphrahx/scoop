@@ -202,7 +202,7 @@ function installOff(
 
 const has = (q: string, ...words: string[]) => words.every((w) => q.includes(w));
 
-describe("searchProducts — own-brand & marketing-noise fallback", () => {
+describe("searchProducts, own-brand & marketing-noise fallback", () => {
   it("drops single-letter M&S tokens instead of matching M&M's (red peppers)", async () => {
     installOff((q) => {
       if (has(q, "red peppers")) return { hits: [prod("Red Peppers")] };
@@ -358,7 +358,7 @@ describe("searchProducts — own-brand & marketing-noise fallback", () => {
 // crisp, a "baby" variant); the clean food query surfaces the right one. The
 // matcher must reject the wrong top hit and fall back to the clean food.
 
-describe("searchProducts — real wrong-answer regressions", () => {
+describe("searchProducts, real wrong-answer regressions", () => {
   it("does not accept beef strips for a pork query", async () => {
     installOff((q) => {
       // The noisy branded query lands on beef stir-fry strips.
@@ -479,7 +479,7 @@ describe("searchProducts — real wrong-answer regressions", () => {
 // it fails, we retry the legacy /cgi/search.pl endpoint (which returns products
 // under `products`) so a search-service outage still finds the food.
 
-describe("searchProducts — legacy CGI fallback", () => {
+describe("searchProducts, legacy CGI fallback", () => {
   it("falls back to the CGI search when Search-a-licious is down", async () => {
     fetchMock.mockImplementation(async (url: string) => {
       const u = new URL(url);

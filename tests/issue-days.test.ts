@@ -127,7 +127,7 @@ describe("the reported days, built end to end", () => {
   // Measured by the #28 test and compared against by its control below.
   let chipsWithSpread = 0;
 
-  it("#27 — rice, vegemince, olive oil twice with a banana + powder snack", async () => {
+  it("#27, rice, vegemince, olive oil twice with a banana + powder snack", async () => {
     // The exact report: "A fixed portion of 1 medium basmati rice (cooked) 200 g
     // for lunch and another one for dinner, leaving the user with no macros for
     // the banana snack." The rice row carries that 200 g "medium" preset.
@@ -183,7 +183,7 @@ describe("the reported days, built end to end", () => {
     expect(Math.abs(tot.protein_g - 150)).toBeLessThanOrEqual(15);
   });
 
-  it("#28 — a fat spread picked for dinner on a day with little fat left", async () => {
+  it("#28, a fat spread picked for dinner on a day with little fat left", async () => {
     // The screenshot's dinner, inside a day: chicken, straight cut chips, three
     // veg and flora plant butter spreadable. The spread used to be dropped with
     // "Couldn't fit flora plant butter spreadable" while the chips stayed at
@@ -254,7 +254,7 @@ describe("the reported days, built end to end", () => {
     expect(chipsWithSpread).toBeGreaterThan(0);
   });
 
-  it("#28 — the same dinner WITHOUT the spread, to see what it cost", async () => {
+  it("#28, the same dinner WITHOUT the spread, to see what it cost", async () => {
     const chicken = item("Chicken Breast Fillets", 106, 24, 0, 1.4);
     const chips = item("Straight cut chips", 151, 2.7, 21.7, 4.9);
     const peppers = item("Sweet peppers", 27, 0.9, 6.3, 0.3);

@@ -48,7 +48,7 @@ describe("encryptSecret / decryptSecret", () => {
 
   it("round-trips unicode and empty strings", () => {
     expect(decryptSecret(encryptSecret(""))).toBe("");
-    expect(decryptSecret(encryptSecret("clé—privée 🔐"))).toBe("clé—privée 🔐");
+    expect(decryptSecret(encryptSecret("clé privée 🔐"))).toBe("clé privée 🔐");
   });
 
   it("accepts a hex key as well as base64", () => {

@@ -192,7 +192,7 @@ describe("packs that already come cooked", () => {
 // one of those stops being a portion word: "2 medium cake or cupcake, chocolate
 // with chocolate icing, bakerys". The food's name is already on the line above,
 // so past a sensible length the size stands on its own.
-describe("pantryUnitLabel — long reference names", () => {
+describe("pantryUnitLabel, long reference names", () => {
   it("drops the food name when the pair would be a mouthful", () => {
     expect(
       pantryUnitLabel("Cake or cupcake, chocolate with chocolate icing, bakery", "medium"),

@@ -42,7 +42,7 @@ describe("allocateAlcohol", () => {
     expect(fat_g).toBeCloseTo(90 / 9, 6); // 10
   });
 
-  it("never divides by 7 — carbs booking carries the full calories", () => {
+  it("never divides by 7, carbs booking carries the full calories", () => {
     const kcal = 210;
     const { carbs_g } = allocateAlcohol(kcal, "carbs");
     expect(carbs_g * 4).toBeCloseTo(kcal, 6);

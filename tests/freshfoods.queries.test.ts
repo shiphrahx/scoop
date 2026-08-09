@@ -140,7 +140,7 @@ describe("searchFreshFoods", () => {
 
 // The reference is now thousands of USDA rows, which changes two things: names
 // are comma-inverted and heavily qualified, and they are American.
-describe("searchFreshFoods — a big, American reference", () => {
+describe("searchFreshFoods, a big, American reference", () => {
   const usda = () =>
     installFakeSupabase({
       db: {
@@ -243,7 +243,7 @@ describe("applyAliases", () => {
     expect(applyAliases("", UK)).toBeNull();
   });
 
-  it("matches whole words only — 'chipshop' is not 'chips'", () => {
+  it("matches whole words only, 'chipshop' is not 'chips'", () => {
     expect(applyAliases("chipshop", UK)).toBeNull();
   });
 });

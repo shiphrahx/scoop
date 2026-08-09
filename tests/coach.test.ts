@@ -51,7 +51,7 @@ import {
 // Clinical heuristic: 1 kg of body fat ≈ 7700 kcal (≈ 3500 kcal/lb).
 const KCAL_PER_KG = 7700;
 
-describe("bmr (Mifflin–St Jeor)", () => {
+describe("bmr (Mifflin St Jeor)", () => {
   it("adds 5 for men", () => {
     // 10*80 + 6.25*180 - 5*30 + 5 = 1780
     expect(bmr("male", 80, 180, 30)).toBe(1780);
@@ -63,7 +63,7 @@ describe("bmr (Mifflin–St Jeor)", () => {
   });
 });
 
-describe("bmrKatch (Katch–McArdle)", () => {
+describe("bmrKatch (Katch McArdle)", () => {
   it("computes 370 + 21.6 × lean mass", () => {
     // 80 kg at 20% fat → 64 kg lean → 370 + 21.6*64 = 1752.4
     expect(bmrKatch(80, 20)).toBeCloseTo(1752.4, 5);
@@ -71,7 +71,7 @@ describe("bmrKatch (Katch–McArdle)", () => {
 });
 
 describe("restingRate", () => {
-  it("uses Katch–McArdle when body-fat % is given", () => {
+  it("uses Katch McArdle when body-fat % is given", () => {
     expect(
       restingRate({ sex: "male", weightKg: 80, heightCm: 180, age: 30, bodyFatPct: 20 }),
     ).toBeCloseTo(bmrKatch(80, 20), 5);
@@ -89,7 +89,7 @@ describe("restingRate", () => {
 });
 
 describe("tdee", () => {
-  it("builds from the Katch–McArdle rate when body-fat is known", () => {
+  it("builds from the Katch McArdle rate when body-fat is known", () => {
     const common = { sex: "male", diet: "regular", weightKg: 80, heightCm: 180, age: 30, activity: "moderate" } as const;
     expect(tdee({ ...common, bodyFatPct: 20 })).toBeCloseTo(bmrKatch(80, 20) * 1.3, 5);
   });
@@ -119,7 +119,7 @@ describe("tdee", () => {
     expect(veryActive).toBeLessThan(base * 1.4); // nowhere near the old ×1.9
   });
 
-  it("lands the example user (35F, 64kg, 163cm, no device) at ~1600–1800", () => {
+  it("lands the example user (35F, 64kg, 163cm, no device) at ~1600 to 1800", () => {
     // Regression guard for the reported bug: this profile used to estimate
     // ~2050 kcal (BMR 1322.75 × 1.55). Conservative band must bring it down.
     const maintenance = tdee({
@@ -338,7 +338,7 @@ describe("carb floor eases the deficit", () => {
     expect(t.carbs_g).toBeGreaterThanOrEqual(carbFloorTargetG(110));
   });
 
-  it("keto is exempt — no easing, carbs stay at the ceiling", () => {
+  it("keto is exempt, no easing, carbs stay at the ceiling", () => {
     expect(carbFloorLimits(1000, 90, "keto")).toBe(false);
     expect(effectiveKcalForFloors(1000, 90, "keto")).toBe(1000);
   });
@@ -661,7 +661,7 @@ describe("weightSlopeKgPerDay", () => {
     expect(weightSlopeKgPerDay(pts)).toBeCloseTo(-0.05, 6);
   });
 
-  it("handles ragged spacing — real logging has gaps", () => {
+  it("handles ragged spacing, real logging has gaps", () => {
     const pts = [0, 3, 4, 9, 15, 16, 27].map((i) => ({ date: day(i), kg: 90 - i * 0.05 }));
     expect(weightSlopeKgPerDay(pts)).toBeCloseTo(-0.05, 6);
   });
@@ -1318,7 +1318,7 @@ describe("maintenanceTarget & openingDeficitKcal", () => {
     expect(dailyTarget({ ...input, pace: "steady" }).kcal).toBeLessThan(maint.kcal);
   });
 
-  it("clamps the opening deficit into a modest 300–500 band", () => {
+  it("clamps the opening deficit into a modest 300 to 500 band", () => {
     expect(openingDeficitKcal(825)).toBe(OPENING_DEFICIT_MAX_KCAL); // aggressive → capped
     expect(openingDeficitKcal(200)).toBe(OPENING_DEFICIT_MIN_KCAL); // tiny → floored
     expect(openingDeficitKcal(400)).toBe(400);
@@ -1466,7 +1466,7 @@ describe("weeklyReview cadence gates", () => {
     expect(r.macros.kcal).toBeLessThan(current.kcal);
   });
 
-  it("still holds on the thirteenth day — a part-week is not a week", () => {
+  it("still holds on the thirteenth day, a part-week is not a week", () => {
     // A target written mid-week used to be credited with the whole calendar
     // week, so a Thursday change could be judged after eleven days on it. The
     // wait is physiological: the trend isn't showing fat yet.

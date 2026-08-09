@@ -99,7 +99,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe("meal builder — foods with no barcode", () => {
+describe("meal builder, foods with no barcode", () => {
   it("offers a reference food for a name that has no barcode", async () => {
     const user = userEvent.setup();
     renderEmptySlot();

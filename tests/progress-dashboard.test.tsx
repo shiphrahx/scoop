@@ -78,7 +78,7 @@ const overview = {
   board: emptyBoard,
 };
 
-describe("progress dashboard — locked insights", () => {
+describe("progress dashboard, locked insights", () => {
   it("still shows every insight to a user with no data, saying what it would tell them", () => {
     render(<DriversTab {...drivers} />);
 
@@ -126,7 +126,7 @@ describe("progress dashboard — locked insights", () => {
   });
 });
 
-describe("progress dashboard — KPI row", () => {
+describe("progress dashboard, KPI row", () => {
   it("shows only the figures that have data", () => {
     render(
       <OverviewTab
@@ -184,7 +184,7 @@ describe("progress dashboard — KPI row", () => {
   });
 });
 
-describe("progress dashboard — tabs", () => {
+describe("progress dashboard, tabs", () => {
   it("shows one group at a time and switches between them", async () => {
     const user = userEvent.setup();
     render(

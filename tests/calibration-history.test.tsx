@@ -12,7 +12,7 @@ const CalibrationSettings = (await import("@/app/(app)/me/CalibrationSettings"))
 
 afterEach(cleanup);
 
-describe("calibration settings — past reviews", () => {
+describe("calibration settings, past reviews", () => {
   it("links to each filed review, newest first", () => {
     render(
       <CalibrationSettings

@@ -107,7 +107,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe("meal editor — held amounts", () => {
+describe("meal editor, held amounts", () => {
   // The pick is stored as "tofu" and the build renamed the portion to "Tofu".
   // Matched by exact name the hold would be invisible, and the save below would
   // silently drop it.
