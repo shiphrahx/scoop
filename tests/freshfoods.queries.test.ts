@@ -137,3 +137,136 @@ describe("searchFreshFoods", () => {
     expect(await searchFreshFoods("xyzzy")).toEqual([]);
   });
 });
+
+// The reference is now thousands of USDA rows, which changes two things: names
+// are comma-inverted and heavily qualified, and they are American.
+describe("searchFreshFoods — a big, American reference", () => {
+  const usda = () =>
+    installFakeSupabase({
+      db: {
+        fresh_foods: [
+          food("f-1", "Cake or cupcake, chocolate with chocolate icing, bakery"),
+          food("f-2", "Cake or cupcake, chocolate, dry mix"),
+          food("f-3", "Potato chips"),
+          food("f-4", "French fries, from fresh"),
+          food("f-5", "Cookie, chocolate chip"),
+          food("f-6", "Digestive Biscuit"),
+          food("f-7", "Croissant"),
+        ],
+        fresh_food_sizes: [],
+        food_aliases: [
+          { alias: "chips", term: "french fries" },
+          { alias: "biscuit", term: "cookie" },
+          { alias: "crisps", term: "potato chips" },
+        ],
+      },
+    });
+
+  // A substring search for "chocolate cake" finds nothing in this data — the
+  // words are the wrong way round and split apart. Matching word by word is the
+  // only thing that reaches it.
+  it("matches every word anywhere in the name, not one substring", async () => {
+    usda();
+    const names = (await searchFreshFoods("chocolate cake")).map((f) => f.name);
+    expect(names.length).toBeGreaterThan(0);
+    expect(names[0]).toContain("chocolate");
+    expect(names[0]).toContain("Cake");
+  });
+
+  // "chips" here means french fries. Searched literally it finds Potato chips —
+  // a real hit for the wrong food — so the swap can't wait for a failed search.
+  it("reads a British word as the food a Brit means, even when the literal word hits", async () => {
+    usda();
+    const names = (await searchFreshFoods("chips")).map((f) => f.name);
+    expect(names[0]).toBe("French fries, from fresh");
+    // Crisps are still reachable, just not first.
+    expect(names).toContain("Potato chips");
+  });
+
+  it("swaps the other way too: crisps are potato chips", async () => {
+    usda();
+    expect((await searchFreshFoods("crisps"))[0].name).toBe("Potato chips");
+  });
+
+  // A British food seeded by hand has no alias pointing at it; it must still be
+  // findable by its own name.
+  it("keeps a hand-seeded British food reachable", async () => {
+    usda();
+    expect((await searchFreshFoods("digestive")).map((f) => f.name)).toContain(
+      "Digestive Biscuit",
+    );
+  });
+
+  // Every row returned contains every word searched for, so the winner is the
+  // one carrying the fewest words nobody asked for.
+  it("puts the tightest match first, not the alphabetically first", async () => {
+    usda();
+    expect((await searchFreshFoods("croissant"))[0].name).toBe("Croissant");
+  });
+
+  it("still finds nothing for a word that isn't there", async () => {
+    usda();
+    expect(await searchFreshFoods("xyzzy")).toEqual([]);
+  });
+});
+
+const { applyAliases, rankFreshFood } = await import("@/lib/queries");
+
+const UK = [
+  { alias: "crisps", term: "potato chips" },
+  { alias: "chips", term: "french fries" },
+  { alias: "spring onion", term: "scallion" },
+  { alias: "biscuit", term: "cookie" },
+];
+
+describe("applyAliases", () => {
+  it("swaps a British word for the American one", () => {
+    expect(applyAliases("chips", UK)).toBe("french fries");
+  });
+
+  // The one that bit: "crisps" expands to "potato chips", and a second pass over
+  // that output turned the "chips" rule loose on it — "potato french fries".
+  it("never re-reads what it just wrote", () => {
+    expect(applyAliases("crisps", UK)).toBe("potato chips");
+  });
+
+  it("swaps a multi-word alias whole, not word by word", () => {
+    expect(applyAliases("spring onion", UK)).toBe("scallion");
+  });
+
+  it("leaves the untouched words in place and in order", () => {
+    expect(applyAliases("chocolate biscuit", UK)).toBe("chocolate cookie");
+  });
+
+  it("returns null when no alias applies, so no second search runs", () => {
+    expect(applyAliases("banana", UK)).toBeNull();
+    expect(applyAliases("", UK)).toBeNull();
+  });
+
+  it("matches whole words only — 'chipshop' is not 'chips'", () => {
+    expect(applyAliases("chipshop", UK)).toBeNull();
+  });
+});
+
+describe("rankFreshFood", () => {
+  const best = (query: string, names: string[]) =>
+    [...names].sort((a, b) => rankFreshFood(query, a) - rankFreshFood(query, b))[0];
+
+  it("prefers the exact name", () => {
+    expect(best("croissant", ["Croissant, apple", "Croissant", "Croissant, cheese"]))
+      .toBe("Croissant");
+  });
+
+  it("prefers the name carrying fewest words nobody asked for", () => {
+    expect(
+      best("chocolate cake", [
+        "Cake or cupcake, chocolate with chocolate icing, bakery, ready to eat",
+        "Cake, chocolate",
+      ]),
+    ).toBe("Cake, chocolate");
+  });
+
+  it("prefers a name that opens with what was typed", () => {
+    expect(best("cake", ["Sponge, cake type", "Cake, plain"])).toBe("Cake, plain");
+  });
+});

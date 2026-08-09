@@ -187,3 +187,20 @@ describe("packs that already come cooked", () => {
     expect(isBulkStaple("Bagel")).toBe(false);
   });
 });
+
+// USDA reference foods carry their full descriptive name, and a size glued onto
+// one of those stops being a portion word: "2 medium cake or cupcake, chocolate
+// with chocolate icing, bakerys". The food's name is already on the line above,
+// so past a sensible length the size stands on its own.
+describe("pantryUnitLabel — long reference names", () => {
+  it("drops the food name when the pair would be a mouthful", () => {
+    expect(
+      pantryUnitLabel("Cake or cupcake, chocolate with chocolate icing, bakery", "medium"),
+    ).toBe("medium");
+  });
+
+  it("keeps the food name whenever it still reads as a portion", () => {
+    expect(pantryUnitLabel("Croissant", "medium")).toBe("medium croissant");
+    expect(pantryUnitLabel("Samosa", "large")).toBe("large samosa");
+  });
+});

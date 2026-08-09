@@ -4,8 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { encryptSecret, decryptSecret, hashToken } from "@/lib/crypto";
 import { updateCalibration } from "@/lib/coach";
-import { getCoachData } from "@/lib/queries";
-import { getTimezone } from "@/lib/queries";
+import { getCoachData, getProfile, getTimezone } from "@/lib/queries";
 import { localWeekStart } from "@/lib/time";
 import {
   activeProvider,
@@ -66,20 +65,28 @@ export async function ensureReviewApplied(): Promise<boolean> {
 
 export async function applyReview() {
   const { supabase, user } = await requireUser();
-  const { review, observed, calibration, predictedTdee, phase } = await getCoachData();
+  const { review, observed, calibration, predictedTdee, phase, takesEffectNow } =
+    await getCoachData();
   if (review.macros.kcal <= 0) throw new Error("No target to apply yet.");
 
-  const nextWeek = localWeekStart(await getTimezone(), new Date(Date.now() + 7 * DAY_MS));
+  // Ordinary weekly reviews land on next Monday: the week under review has been
+  // eaten already. The calibration graduation is the exception — its hold ends
+  // mid-week off a timestamp, so its first deficit is written for the week in
+  // force (see takesEffectNow in getCoachData) and the planner moves today.
+  const tz = await getTimezone();
+  const weekStart = takesEffectNow
+    ? localWeekStart(tz, new Date())
+    : localWeekStart(tz, new Date(Date.now() + 7 * DAY_MS));
   // Only the macro numbers come from review.macros — pick them out explicitly.
   // On a HELD review, review.macros IS the current target row, which carries its
-  // own week_start and phase; spreading it would overwrite nextWeek (and drag the
-  // old phase along), silently updating THIS week instead of writing next — so
-  // the held-week chain never advanced. The phase we write is this review's.
+  // own week_start and phase; spreading it would overwrite the week we picked
+  // (and drag the old phase along) — so the held-week chain never advanced. The
+  // phase we write is this review's.
   const m = review.macros;
   const { error } = await supabase.from("daily_targets").upsert(
     {
       user_id: user.id,
-      week_start: nextWeek,
+      week_start: weekStart,
       phase,
       kcal: m.kcal,
       protein_g: m.protein_g,
@@ -97,7 +104,17 @@ export async function applyReview() {
   // Fold this review's measurement into the standing correction. This is the
   // part that makes the coach learn rather than re-guess: next week's target is
   // built on what this user demonstrably burns, and it survives profile edits.
-  if (observed && predictedTdee != null && predictedTdee > 0) {
+  //
+  // Once per review, not once per apply. Each fold moves the correction halfway
+  // to the measurement, so two folds in a day move it three quarters of the way
+  // — and since the graduating target is computed FROM that correction, applying
+  // twice in a week walked the target down step by step off the same fortnight
+  // of data. The measurement itself only changes as new weigh-ins land, so a
+  // second fold inside the week adds no information.
+  const profile = await getProfile();
+  const foldedAt = profile?.tdee_observed_at ? Date.parse(profile.tdee_observed_at) : null;
+  const foldedThisWeek = foldedAt != null && Date.now() - foldedAt < 6 * DAY_MS;
+  if (observed && predictedTdee != null && predictedTdee > 0 && !foldedThisWeek) {
     const next = updateCalibration(calibration, observed.kcalPerDay, predictedTdee);
     await supabase
       .from("users")
@@ -112,6 +129,13 @@ export async function applyReview() {
 
   revalidatePath("/coach");
   revalidatePath("/");
+  // A graduating target changes what the user is meant to eat TODAY, so every
+  // screen built on the in-force target has to be dropped, not just the two the
+  // review used to touch. The planner reading a cached maintenance target is
+  // exactly how "nothing changed" looked from the outside.
+  revalidatePath("/dashboard");
+  revalidatePath("/plan/day");
+  revalidatePath("/progress");
 }
 
 // The outcome of a sync, in words the user can act on.
