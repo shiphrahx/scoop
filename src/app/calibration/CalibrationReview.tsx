@@ -247,10 +247,10 @@ export function buildCards(
           kicker: "That was your calibration",
           value: "Done",
           body:
-            `You are seeing these findings exactly as they were on the day, ${
-              endedAt ? longDate(endedAt.slice(0, 10)) : "when this deficit started"
-            }. ` +
-            `Your targets have moved since — they are reviewed against your results every week.`,
+            `This is your calibration exactly as it was on ${
+              endedAt ? longDate(endedAt.slice(0, 10)) : "the day it finished"
+            }, kept as it was. ` +
+            `Your targets have moved on since then — they are reviewed against your results every week.`,
         }
       : {
           key: "start",
@@ -258,11 +258,11 @@ export function buildCards(
           value: "Start now",
           body:
             `Tap start and today's target becomes ${kcal(w.newTarget.kcal)} kcal. ` +
-            `You can find this review again in Settings whenever you want it.`,
+            `This review is yours to keep — it will be waiting in Settings whenever you want to look back at it.`,
           note:
-            `The new target is held for two weeks before anything is adjusted: the first week on new calories ` +
-            `is mostly water, so judging it sooner means reacting to noise. After that it is reviewed weekly, ` +
-            `and you are asked before any change.`,
+            `Your new target holds for two weeks before anything is adjusted. The first week on new calories is ` +
+            `mostly water, so reading it sooner just means reacting to noise. After that your results are reviewed ` +
+            `every week, and you will always be asked before anything changes.`,
         },
   );
 
