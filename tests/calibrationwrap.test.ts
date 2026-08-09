@@ -275,4 +275,72 @@ describe("calibrationWrap", () => {
     expect(w.newTarget.kcal).toBe(2000);
     expect(w.deficitKcal).toBe(400);
   });
+
+  // A fortnight whose measurement the coach measured and then set aside: the log
+  // came to far less than the plan, so nothing on this screen may be presented
+  // as a reading of the user's body.
+  describe("when the measured burn was set aside", () => {
+    // The reported case: a 1,720 kcal target, a log averaging 898, and 0.54 kg a
+    // week coming off. The coach holds the target, so the wrap has to explain a
+    // screen where nothing was cut.
+    const shortLog = (over: Partial<WrapInput> = {}) => {
+      const start = "2026-07-26";
+      const dates = Array.from({ length: 14 }, (_, i) => day(i, start));
+      return calibrationWrap(
+        fortnight({
+          weighIns: dates.map((date, i) => ({ date, kg: 75 - i * (0.54 / 7) })),
+          intake: dates.map((date) => ({ date, kcal: 898 })),
+          observed: null,
+          measurementDoubt: "intake_shortfall",
+          holdTargetKcal: 1720,
+          maintenanceKcal: 1492,
+          newTarget: macros({ kcal: 1720 }),
+          weightKg: 75,
+          ...over,
+        }),
+      );
+    };
+
+    it("quotes no burn and says why", () => {
+      const w = shortLog();
+      expect(w.measuredMaintenanceKcal).toBeNull();
+      expect(w.measurementDoubt).toBe("intake_shortfall");
+      // Nor a resting/moving split, which would dress the formula's guess up as
+      // something this fortnight measured.
+      expect(w.activeShare).toBeNull();
+    });
+
+    it("names no deficit when the target was held rather than cut", () => {
+      const w = shortLog();
+      expect(w.changeFromHoldKcal).toBe(0);
+      expect(w.deficitKcal).toBeNull();
+    });
+
+    it("predicts the rate the scale already showed, not a slower one", () => {
+      const w = shortLog();
+      // The whole bug in one assertion: a formula maintenance of 1,492 against a
+      // 1,720 target used to come out as a promise of 0.10 kg a week to someone
+      // measurably losing five times that.
+      expect(w.holdLossKgPerWeek).toBeCloseTo(0.54, 1);
+      expect(w.expectedLossKgPerWeek).toBeCloseTo(0.54, 1);
+    });
+
+    it("draws the curve from the rate it promised", () => {
+      const w = shortLog();
+      const [first, second] = w.projection!.points;
+      expect(first.kg).toBe(75);
+      expect(first.kg - second.kg).toBeCloseTo(0.54, 1);
+    });
+
+    it("adds a cut to the observed rate when the target did come down", () => {
+      // Scale flat and the coach cut 300 off the hold target: the rate is the
+      // cut's worth, since the scale had nothing of its own to add.
+      const w = shortLog({
+        weighIns: Array.from({ length: 14 }, (_, i) => ({ date: day(i, "2026-07-26"), kg: 75 })),
+        newTarget: macros({ kcal: 1420 }),
+      });
+      expect(w.deficitKcal).toBe(300);
+      expect(w.expectedLossKgPerWeek).toBeCloseTo((300 * 7) / 7700, 3);
+    });
+  });
 });
