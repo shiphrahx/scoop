@@ -119,23 +119,24 @@ export function buildCards(
     const movingKcal = Math.round(burn * w.activeShare);
     const steps =
       w.meanStepsPerDay != null
-        ? ` You walked ${kcal(w.meanStepsPerDay)} steps a day on average.`
+        ? ` That is ${kcal(w.meanStepsPerDay)} steps on an average day`
         : "";
     const sleep =
       w.meanSleepHours != null
-        ? ` You slept ${w.meanSleepHours.toFixed(1)} hours a night.`
+        ? `${steps ? ", and" : " You slept"} ${w.meanSleepHours.toFixed(1)} hours of sleep a night`
         : "";
+    const habits = steps || sleep ? `${steps}${sleep}.` : "";
     cards.push({
       key: "split",
       kicker: "Where it goes",
       value: `${kcal(movingKcal)}`,
       unit: "kcal a day from moving",
       body:
-        `${kcal(restingKcal)} kcal of your day goes on simply being alive — heart, brain, organs, at rest. ` +
-        `The other ${kcal(movingKcal)} is you moving.${steps}${sleep}`,
+        `Another ${kcal(restingKcal)} kcal goes on simply being alive — heart, lungs, brain, all of it ` +
+        `running while you sit still. The rest is you, up and about. ${habits}`,
       note:
-        `Walking, standing and fidgeting usually add up to more than formal exercise does. ` +
-        `Losing that movement is the most common reason a deficit stops working.`,
+        `Walking, standing and fidgeting usually add up to more than exercise does. When a diet stops working, ` +
+        `this is often the part that quietly shrank.`,
     });
   }
 
