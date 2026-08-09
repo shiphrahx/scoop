@@ -616,6 +616,78 @@ export function observeTdee(
   };
 }
 
+// --- Trusting a measurement -------------------------------------------------
+// observeTdee does the arithmetic. Whether the answer describes the user's BODY
+// is a separate question, and getting it wrong is how a fortnight of patchy
+// logging becomes someone's metabolism.
+//
+// The energy balance identity only holds if the intake term is a full account of
+// what was eaten. Nothing in the app can know that for certain, but two things
+// give a bad log away:
+//
+//   - The plan says 1,700 and the log says 900. Either the user really ate half
+//     their target for a fortnight, in which case the scale would have fallen
+//     about twice as fast as it did, or food is missing from the log. Both
+//     readings make the burn figure worthless.
+//   - The answer lands at or below resting metabolism. Nobody who gets out of
+//     bed burns only their RMR, so a measurement that says so is measuring the
+//     log, not the body.
+//
+// The coverage rule above (MIN_LOG_COVERAGE) does not catch either: it counts
+// DAYS with a log, and a day carrying one logged snack counts as covered.
+//
+// Setting a measurement aside is safe. Without one the coach falls back on the
+// formula and on the scale, which is what it did before any of this existed.
+// Acting on a bad one cuts the user's food on evidence that isn't there.
+
+export type MeasurementDoubt = "intake_shortfall" | "burn_below_resting";
+
+// How far mean logged intake may sit below the target in force before the
+// measurement is treated as a reading of the log rather than of the body. Same
+// 15% as the adherence tolerance: inside it the user ate their plan.
+export const MAX_INTAKE_SHORTFALL = 0.15;
+
+// The lowest multiple of resting metabolism a real daily burn can plausibly be.
+// Even complete bed rest runs around 1.2; 1.1 rejects only the impossible.
+const MIN_TDEE_OVER_RMR = 1.1;
+
+export interface TrustedTdee {
+  // The measurement, when it is safe to build a target on. Null both when there
+  // was never one and when there was one we are setting aside.
+  observed: ObservedTdee | null;
+  // Why it was set aside, so the screens can say so instead of going quiet.
+  // Null when the measurement was fine, and when there was nothing to judge.
+  doubt: MeasurementDoubt | null;
+}
+
+// Decide whether a measured burn is a reading of the user's body.
+//
+// `targetKcal` is the target in force over the window, what the user was asked
+// to eat. On a window that spans a target change this is approximate, which is
+// why the shortfall allowed is wide.
+export function trustedTdee(
+  measured: ObservedTdee | null,
+  input: { targetKcal?: number | null; restingRateKcal?: number | null },
+): TrustedTdee {
+  if (measured == null) return { observed: null, doubt: null };
+
+  const target = input.targetKcal;
+  if (
+    target != null &&
+    target > 0 &&
+    measured.meanIntakeKcal < target * (1 - MAX_INTAKE_SHORTFALL)
+  ) {
+    return { observed: null, doubt: "intake_shortfall" };
+  }
+
+  const rmr = input.restingRateKcal;
+  if (rmr != null && rmr > 0 && measured.kcalPerDay < rmr * MIN_TDEE_OVER_RMR) {
+    return { observed: null, doubt: "burn_below_resting" };
+  }
+
+  return { observed: measured, doubt: null };
+}
+
 // How far the measured burn is allowed to drag the prediction. A measurement
 // built on logged food inherits some of that log's error, so an unbounded
 // factor would let one badly-logged fortnight rewrite the user's metabolism.
@@ -1088,6 +1160,10 @@ export interface WeeklyReviewInput {
   // hold at maintenance without back-deriving it from the target in force,
   // which compounds every week.
   maintenanceKcal?: number | null;
+  // Why the measured burn was set aside, when it was (see trustedTdee). Non-null
+  // means every maintenance figure here is a formula's guess, so leaving
+  // calibration reads the scale instead. Null = no doubt, or nothing measured.
+  measurementDoubt?: MeasurementDoubt | null;
 }
 
 export interface WeeklyReview {
@@ -1120,6 +1196,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
     weightKg,
     calibrationDaysRemaining,
     maintenanceKcal,
+    measurementDoubt,
   } = input;
 
   // A weight to build recomputed macros from: the trend when we have one, else
@@ -1155,6 +1232,73 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
             } to go. Keep logging your food and weight each day.`
           : `Calibration is nearly done, still at about ${target} kcal. Keep logging your food and weight so your deficit comes from what your body actually did, not an estimate.`,
     };
+  }
+
+  // Leaving calibration with no burn we are willing to trust.
+  //
+  // The fortnight's measurement was set aside (see trustedTdee), so every
+  // maintenance figure available here is the formula's guess again, and cutting
+  // from a guess is exactly what the hold existed to avoid. But the hold did
+  // produce one honest measurement whatever the food log said: the scale. It is
+  // read against the calories the user was ASKED to eat, which is the only
+  // intake figure not in question.
+  //
+  //   - Already losing at a healthy rate on the hold target: that target works.
+  //     Keep it. Cutting further on a burn figure built out of a short log is how
+  //     someone losing 0.5 kg a week gets told to eat 340 kcal less and expect
+  //     0.1 kg a week.
+  //   - Scale flat or rising on the hold target: then those calories ARE this
+  //     user's maintenance, whatever the log says, so open the modest cut from
+  //     them.
+  //   - No trend to read: hold and ask for weigh-ins. The weekly review picks it
+  //     up once there are two weeks of them.
+  //
+  // Either way the phase moves off calibration, so the user is not held in a
+  // hold that can no longer end.
+  if (
+    phase === "deficit" &&
+    prevPhase === "calibration" &&
+    measurementDoubt != null &&
+    macroWeightKg != null
+  ) {
+    const held = Math.round(current.kcal);
+    const rate = trend?.changePct ?? null;
+    const losingWell = rate != null && rate >= healthyLossBand(sex, bodyFatPct).min;
+    const lost = trend != null ? `${Math.abs(trend.changeKg).toFixed(1)} kg` : null;
+
+    if (losingWell || rate == null) {
+      return {
+        macros: current,
+        changed: true,
+        changeKg: trend?.changeKg ?? null,
+        changePct: trend?.changePct ?? null,
+        headline: "Calibration complete, target held",
+        detail: losingWell
+          ? `Your food log came to well under the ${held} kcal you were asked to eat, so it can't be used to measure what you burn. Your weight can: it fell about ${lost} a week on those calories, which is a healthy rate. Your target stays at ${held} kcal because it is already working. Log everything you eat and the next review can measure your burn properly.`
+          : `Your food log came to well under the ${held} kcal you were asked to eat, so it can't be used to measure what you burn, and there aren't enough weigh-ins to read your weight instead. Your target stays at ${held} kcal for now. Weigh in most days and log everything you eat, and the next review has something to work from.`,
+      };
+    }
+
+    if (deficitKcal != null && deficitKcal > 0) {
+      const floorK = kcalFloor(sex, restingRateKcal);
+      const wantedKcal = Math.max(Math.round(held - deficitKcal), floorK);
+      const macros = macrosForKcal(wantedKcal, macroWeightKg, diet, heightCm, goalWeightKg);
+      const cut = held - macros.kcal;
+      const easedNote =
+        macros.kcal > wantedKcal
+          ? " The deficit was eased back a little to keep your carbs above their minimum."
+          : "";
+      return {
+        macros,
+        changed: true,
+        changeKg: trend?.changeKg ?? null,
+        changePct: trend?.changePct ?? null,
+        headline: "Calibration complete, deficit starting",
+        detail: `Your food log came to well under the ${held} kcal you were asked to eat, so it can't be used to measure what you burn. Your weight can: it ${
+          trend != null && trend.changeKg < -0.1 ? `rose by about ${lost} a week` : "barely moved"
+        } on those calories, which puts your maintenance at ${held} kcal or above. Your target is ${macros.kcal} kcal: a ${cut} kcal a day deficit from there.${easedNote} It holds for two weeks before anything is adjusted.`,
+      };
+    }
   }
 
   // Leaving calibration (or a diet break) for the deficit: open the cut fresh

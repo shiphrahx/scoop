@@ -26,6 +26,7 @@ const wrap = (over: Partial<CalibrationWrap> = {}): CalibrationWrap => ({
   meanStepsPerDay: 9000,
   meanSleepHours: 7,
   meanIntakeKcal: 2400,
+  measurementDoubt: null,
   holdTargetKcal: 2400,
   adherentDays: 12,
   weightChangeKg: 0.1,
@@ -115,6 +116,69 @@ describe("calibration review", () => {
 
     expect(screen.getByText(/231 kcal below the 1,609 kcal you burn/i)).toBeTruthy();
     expect(screen.getByText(/322 kcal less food than the 1,700/i)).toBeTruthy();
+  });
+
+  // The fortnight where the food log came to far less than the target. Nothing
+  // here may be presented as a measurement of the user's body, and the target it
+  // set did not move.
+  const shortLog = () =>
+    wrap({
+      measuredMaintenanceKcal: null,
+      predictedMaintenanceKcal: null,
+      maintenanceDeltaKcal: null,
+      activeShare: null,
+      measurementDoubt: "intake_shortfall",
+      meanIntakeKcal: 898,
+      holdTargetKcal: 1720,
+      newTarget: { kcal: 1720, protein_g: 130, carbs_g: 170, fat_g: 55 },
+      deficitKcal: null,
+      changeFromHoldKcal: 0,
+      weightChangeKg: 1.16,
+      holdLossKgPerWeek: 0.54,
+      expectedLossKgPerWeek: 0.54,
+    });
+
+  it("never claims the user ate a number it only asked them to eat", async () => {
+    render(<CalibrationReview wrap={shortLog()} name="Sam" />);
+    // The contradiction this screen used to open with: "you ate 1,720" here and
+    // "you ate 898" three cards later, both off the same fortnight.
+    expect(screen.getByText(/your target was 1,720 kcal a day/i)).toBeTruthy();
+    expect(screen.getByText(/food log came to 898 kcal a day, well under that/i)).toBeTruthy();
+    expect(screen.queryByText(/you ate 1,720/i)).toBeNull();
+  });
+
+  it("says why there is no burn figure instead of going quiet", async () => {
+    const user = userEvent.setup();
+    render(<CalibrationReview wrap={shortLog()} name={null} />);
+    await user.click(screen.getByRole("button", { name: /next/i }));
+
+    expect(screen.getByText(/why there's no burn figure/i)).toBeTruthy();
+    expect(screen.getByText(/can't be used to measure your body/i)).toBeTruthy();
+  });
+
+  it("explains a target that was held rather than cut", async () => {
+    const user = userEvent.setup();
+    render(<CalibrationReview wrap={shortLog()} name={null} />);
+    await toEnd(user);
+    await user.click(screen.getByRole("button", { name: /back/i }));
+    await user.click(screen.getByRole("button", { name: /back/i }));
+
+    expect(screen.getByRole("heading", { name: "1,720" })).toBeTruthy();
+    expect(screen.getByText(/the same amount of food you're already used to/i)).toBeTruthy();
+    expect(screen.getByText(/not being cut/i)).toBeTruthy();
+    // And no deficit against a burn the screen has just said it cannot measure.
+    expect(screen.queryByText(/kcal below the/i)).toBeNull();
+  });
+
+  it("promises the rate the fortnight already showed, not a slower one", async () => {
+    const user = userEvent.setup();
+    render(<CalibrationReview wrap={shortLog()} name={null} />);
+    await toEnd(user);
+    await user.click(screen.getByRole("button", { name: /back/i }));
+
+    expect(screen.getByRole("heading", { name: "0.54" })).toBeTruthy();
+    expect(screen.getByText(/not a forecast/i)).toBeTruthy();
+    expect(screen.queryByText(/on more food than this/i)).toBeNull();
   });
 
   it("predicts the weekly loss and when the goal is reached", async () => {

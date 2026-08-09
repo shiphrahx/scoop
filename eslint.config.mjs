@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The v8 HTML report, written by `npm run test:coverage`. Gitignored, but
+    // eslint does not read .gitignore, so without this the SECOND run of
+    // preflight:full lints the report the first run generated and fails on
+    // vendored code nobody wrote.
+    "coverage/**",
   ]),
 ]);
 

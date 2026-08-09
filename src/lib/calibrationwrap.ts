@@ -17,6 +17,7 @@ import {
   healthyLossBand,
   weightSlopeKgPerDay,
   type DailyIntake,
+  type MeasurementDoubt,
   type ObservedTdee,
   type WeighIn,
 } from "@/lib/coach";
@@ -47,6 +48,10 @@ export interface WrapInput {
   // is measured against. Either may be null on a thin log.
   observed: ObservedTdee | null;
   predictedTdeeKcal: number | null;
+  // Set when the app measured a burn and then set it aside (see trustedTdee).
+  // Everything the screen would otherwise say about "your measured maintenance"
+  // is off the table, and the honest source for what happens next is the scale.
+  measurementDoubt?: MeasurementDoubt | null;
   // What the user was told to eat during the hold, and the maintenance estimate
   // the graduating target is built from (measured where possible).
   holdTargetKcal: number;
@@ -86,6 +91,10 @@ export interface CalibrationWrap {
   // --- What we measured
   measuredMaintenanceKcal: number | null; // from intake vs the scale
   predictedMaintenanceKcal: number | null; // formula, uncalibrated
+  // Why there is no measured figure despite a fortnight of data: the log did not
+  // account for the plan, or the arithmetic came out below resting metabolism.
+  // Null when the measurement stood, and when there was never one to make.
+  measurementDoubt: MeasurementDoubt | null;
   maintenanceDeltaKcal: number | null; // measured − predicted (+ = burns more)
   // The share of the burn that isn't resting metabolism: moving, digesting,
   // fidgeting. 0 to 1, null when the resting rate isn't known.
@@ -111,7 +120,10 @@ export interface CalibrationWrap {
   // changes on the user's plate is measured against the calories they were told
   // to eat during the hold. Someone held at 1700 who turns out to burn 1810 and
   // is now given 1378 sees a "231 kcal cut" that takes 322 off their day.
-  deficitKcal: number; // measured maintenance − new target
+  // Null when there is no maintenance figure worth quoting: the measurement was
+  // set aside and the new target was not cut from anything, it was held because
+  // the scale said it already works.
+  deficitKcal: number | null; // measured maintenance − new target
   changeFromHoldKcal: number; // hold target − new target (+ = eating less)
   expectedLossKgPerWeek: number | null;
   // Whether that rate sits inside the healthy band for this body (see
@@ -227,6 +239,9 @@ export function calibrationWrap(input: WrapInput): CalibrationWrap {
   const days = holdDays(input.startedAt, now);
   const window = fortnight(input, days);
 
+  const doubt = input.measurementDoubt ?? null;
+  const trusted = doubt == null;
+
   const measured = input.observed?.kcalPerDay ?? null;
   const predicted =
     input.predictedTdeeKcal != null && input.predictedTdeeKcal > 0
@@ -235,15 +250,54 @@ export function calibrationWrap(input: WrapInput): CalibrationWrap {
 
   // What the burn is made of. The resting rate is the floor of it; everything
   // above is movement, the part the user controls day to day.
+  //
+  // Only from a burn we stand behind. With the measurement set aside the only
+  // figure left is the formula's, and splitting a guess into resting and moving
+  // dresses it up as something this fortnight measured.
   const burn = measured ?? (input.maintenanceKcal > 0 ? input.maintenanceKcal : null);
   const activeShare =
-    burn != null && input.restingRateKcal != null && input.restingRateKcal > 0 && burn > 0
+    trusted &&
+    burn != null &&
+    input.restingRateKcal != null &&
+    input.restingRateKcal > 0 &&
+    burn > 0
       ? Math.max(0, Math.min(1, (burn - input.restingRateKcal) / burn))
       : null;
 
-  const deficitKcal = Math.round(input.maintenanceKcal - input.newTarget.kcal);
-  const expectedLossKgPerWeek =
-    deficitKcal > 0 ? (deficitKcal * 7) / KCAL_PER_KG : null;
+  const changeFromHoldKcal = Math.round(input.holdTargetKcal - input.newTarget.kcal);
+  const holdLossKgPerWeek =
+    window.weightChangeKg != null && days >= 7
+      ? (window.weightChangeKg * 7) / days
+      : null;
+
+  // Where the numbers for "what happens next" come from.
+  //
+  // With a measurement we trust, the deficit is the gap between the burn and the
+  // new target, and the rate follows from it. With the measurement set aside
+  // there is no burn figure to subtract from, and using the formula's guess would
+  // put a number on the screen the target was not built from. So read it the way
+  // the coach did: off the scale.
+  //
+  // The rate the user was ALREADY losing at, plus whatever the new target takes
+  // off the plate on top of it. Hold the target and the answer is simply the rate
+  // they were already losing at, which is the only honest prediction available
+  // and the one their own fortnight supports.
+  const deficitKcal = trusted
+    ? Math.round(input.maintenanceKcal - input.newTarget.kcal)
+    : changeFromHoldKcal > 0
+      ? changeFromHoldKcal
+      : null;
+  const expectedLossKgPerWeek = (() => {
+    if (trusted) {
+      return deficitKcal != null && deficitKcal > 0
+        ? (deficitKcal * 7) / KCAL_PER_KG
+        : null;
+    }
+    const fromScale = holdLossKgPerWeek != null && holdLossKgPerWeek > 0 ? holdLossKgPerWeek : 0;
+    const fromCut = deficitKcal != null ? (deficitKcal * 7) / KCAL_PER_KG : 0;
+    const rate = fromScale + fromCut;
+    return rate > 0 ? rate : null;
+  })();
 
   const band = healthyLossBand(input.sex, input.bodyFatPct);
   const inHealthyBand =
@@ -252,11 +306,20 @@ export function calibrationWrap(input: WrapInput): CalibrationWrap {
         expectedLossKgPerWeek / input.weightKg <= band.max
       : null;
 
+  // The curve has to start from the same rate the card above it promises, so on
+  // the untrusted path maintenance is back-derived from that rate rather than
+  // taken from the formula. The projection still flattens as the body lightens.
+  const projectFromKcal = trusted
+    ? input.maintenanceKcal
+    : expectedLossKgPerWeek != null
+      ? input.newTarget.kcal + (expectedLossKgPerWeek * KCAL_PER_KG) / 7
+      : input.newTarget.kcal;
+
   const projection =
     input.weightKg != null && input.weightKg > 0
       ? projectWeeks({
           startKg: input.weightKg,
-          maintenanceKcal: input.maintenanceKcal,
+          maintenanceKcal: projectFromKcal,
           targetKcal: input.newTarget.kcal,
           goalKg: input.goalWeightKg,
           from: now,
@@ -271,6 +334,7 @@ export function calibrationWrap(input: WrapInput): CalibrationWrap {
     predictedMaintenanceKcal: predicted != null ? Math.round(predicted) : null,
     maintenanceDeltaKcal:
       measured != null && predicted != null ? Math.round(measured - predicted) : null,
+    measurementDoubt: doubt,
     activeShare,
     meanStepsPerDay: window.meanStepsPerDay,
     meanSleepHours: window.meanSleepHours,
@@ -278,13 +342,10 @@ export function calibrationWrap(input: WrapInput): CalibrationWrap {
     holdTargetKcal: Math.round(input.holdTargetKcal),
     adherentDays: window.adherentDays,
     weightChangeKg: window.weightChangeKg,
-    holdLossKgPerWeek:
-      window.weightChangeKg != null && days >= 7
-        ? (window.weightChangeKg * 7) / days
-        : null,
+    holdLossKgPerWeek,
     newTarget: input.newTarget,
     deficitKcal,
-    changeFromHoldKcal: Math.round(input.holdTargetKcal - input.newTarget.kcal),
+    changeFromHoldKcal,
     expectedLossKgPerWeek,
     inHealthyBand,
     projection,
