@@ -864,6 +864,51 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
   };
 });
 
+// One filed calibration review: the findings exactly as the user was shown them
+// when they started that deficit.
+export interface FiledCalibrationReview {
+  id: string;
+  startedAt: string;
+  endedAt: string;
+  days: number;
+  findings: CalibrationWrap;
+}
+
+function toFiledReview(r: Record<string, unknown>): FiledCalibrationReview {
+  return {
+    id: r.id as string,
+    startedAt: r.started_at as string,
+    endedAt: r.ended_at as string,
+    days: Number(r.days ?? 0),
+    findings: r.findings as CalibrationWrap,
+  };
+}
+
+// Every calibration review this user has been shown, newest first. Usually one;
+// more for someone who has restarted calibration after a long break.
+export async function getCalibrationReviews(): Promise<FiledCalibrationReview[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("calibration_reviews")
+    .select("id, started_at, ended_at, days, findings")
+    .order("ended_at", { ascending: false });
+  return ((data as Record<string, unknown>[]) ?? []).map(toFiledReview);
+}
+
+// One filed review by id, for re-watching it. Null when it isn't there — which
+// includes another user's review, since RLS filters it out rather than erroring.
+export async function getCalibrationReview(
+  id: string,
+): Promise<FiledCalibrationReview | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("calibration_reviews")
+    .select("id, started_at, ended_at, days, findings")
+    .eq("id", id)
+    .maybeSingle();
+  return data ? toFiledReview(data as Record<string, unknown>) : null;
+}
+
 // The calibration review, or null when there isn't one to show.
 //
 // There is exactly one moment this returns anything: the hold has ended, a first

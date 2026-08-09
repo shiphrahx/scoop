@@ -14,6 +14,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 const { startDeficit } = await import("@/app/calibration/actions");
+const { getCalibrationReview, getCalibrationReviews } = await import("@/lib/queries");
 
 // Starting the deficit does two things that must not come apart: it writes the
 // target, and it files the review the user was shown. The review cannot be
@@ -50,6 +51,19 @@ describe("startDeficit", () => {
     const findings = row.findings as { newTarget: { kcal: number }; deficitKcal: number };
     expect(findings.deficitKcal).toBeGreaterThan(0);
     expect(findings.newTarget.kcal).toBeLessThan(1700);
+  });
+
+  it("hands the filed review back to be re-watched", async () => {
+    installFakeSupabase({ db: graduatingUserDb() });
+    await run();
+
+    const [filed] = await getCalibrationReviews();
+    expect(filed.days).toBe(15);
+    expect(filed.findings.newTarget.kcal).toBeLessThan(1700);
+
+    const again = await getCalibrationReview(filed.id);
+    expect(again?.findings.newTarget.kcal).toBe(filed.findings.newTarget.kcal);
+    expect(await getCalibrationReview("not-a-review")).toBeNull();
   });
 
   it("files nothing for a user with no review pending", async () => {
