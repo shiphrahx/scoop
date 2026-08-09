@@ -141,19 +141,40 @@ export function buildCards(
 
   if (w.weightChangeKg != null && w.meanIntakeKcal != null) {
     const steady = Math.abs(w.weightChangeKg) < 0.5;
+    const rate =
+      w.holdLossKgPerWeek != null && Math.abs(w.holdLossKgPerWeek) >= 0.05
+        ? `${Math.abs(w.holdLossKgPerWeek).toFixed(2)} kg a week`
+        : null;
+    const burn = w.measuredMaintenanceKcal;
     cards.push({
       key: "response",
-      kicker: "How your weight responded",
-      value: steady ? "Steady" : kg(w.weightChangeKg),
-      unit: steady ? "at maintenance" : w.weightChangeKg > 0 ? "lost" : "gained",
-      body: steady
-        ? `You averaged ${kcal(w.meanIntakeKcal)} kcal a day and your trend weight barely moved. ` +
-          `That is exactly what maintenance looks like, and it is why the measurement above can be trusted.`
+      kicker: "What the scale said",
+      value: steady ? "Held steady" : kg(w.weightChangeKg),
+      unit: steady
+        ? "on maintenance calories"
         : w.weightChangeKg > 0
-          ? `You averaged ${kcal(w.meanIntakeKcal)} kcal a day and still lost weight, so your real burn sits above what you ate. ` +
-            `That has been taken into account.`
-          : `You averaged ${kcal(w.meanIntakeKcal)} kcal a day and the trend rose slightly. ` +
-            `Some of that is water and food weight; the rest is accounted for in the figure above.`,
+          ? `lost over ${w.days} days`
+          : `gained over ${w.days} days`,
+      body: steady
+        ? `You averaged ${kcal(w.meanIntakeKcal)} kcal a day and your trend weight stayed where it was. ` +
+          `That is what maintenance looks like, and it is the strongest evidence the burn above is right.`
+        : w.weightChangeKg > 0
+          ? // The case that reads as a contradiction unless it's spelled out: they
+            // were told they were eating at maintenance, and lost weight anyway.
+            `You averaged ${kcal(w.meanIntakeKcal)} kcal a day and still lost weight${rate ? `, about ${rate}` : ""}. ` +
+            `So what was set as your maintenance was already a small deficit` +
+            (burn != null
+              ? ` — your real burn is nearer ${kcal(burn)} kcal, and that is the figure your new target was worked out from.`
+              : `, and your new target allows for it.`)
+          : `You averaged ${kcal(w.meanIntakeKcal)} kcal a day and your trend rose ${kg(-w.weightChangeKg)}` +
+            `${rate ? `, about ${rate}` : ""}. ` +
+            `Some of that is food and water sitting in you on weigh-in day` +
+            (burn != null
+              ? `; the rest says your burn is nearer ${kcal(burn)} kcal, which is what your new target was worked out from.`
+              : `, and your new target allows for it.`),
+      note:
+        `Single weigh-ins swing a kilo on water alone, so what is read here is the trend line through all of them, ` +
+        `not the difference between your first morning and your last.`,
     });
   }
 
