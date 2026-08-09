@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import type { CalibrationWrap, ProjectionPoint } from "@/lib/calibrationwrap";
 import { startDeficit } from "./actions";
@@ -41,14 +42,34 @@ interface Card {
 
 const GRADS = ["var(--grad-cool)", "var(--grad-primary)", "var(--grad-indigo)", "var(--grad-warm)"];
 
+// How the review is being watched: live, at the moment the hold ends and the
+// deficit is waiting to start — or replayed later from the history, when the
+// deficit has long since begun and there is nothing left to press.
+export interface ReviewOptions {
+  replay?: boolean;
+  // When the review was filed, for the replay's opening line.
+  endedAt?: string | null;
+}
+
 // The findings, in the order they're told: what you did, what we measured, what
 // it means, what happens now.
-export function buildCards(w: CalibrationWrap, name: string | null): Card[] {
+export function buildCards(
+  w: CalibrationWrap,
+  name: string | null,
+  opts: ReviewOptions = {},
+): Card[] {
   const cards: Omit<Card, "grad">[] = [];
+  const { replay = false, endedAt = null } = opts;
 
   cards.push({
     key: "held",
-    kicker: name ? `${name}, calibration is complete` : "Calibration is complete",
+    kicker: replay
+      ? endedAt
+        ? `Calibration review · ${longDate(endedAt.slice(0, 10))}`
+        : "Calibration review"
+      : name
+        ? `${name}, calibration is complete`
+        : "Calibration is complete",
     value: String(w.days),
     unit: w.days === 1 ? "day" : "days",
     body:
@@ -121,7 +142,7 @@ export function buildCards(w: CalibrationWrap, name: string | null): Card[] {
   const t = w.newTarget;
   cards.push({
     key: "target",
-    kicker: "Your target from today",
+    kicker: replay ? "The target it set" : "Your target from today",
     value: kcal(t.kcal),
     unit: "kcal a day",
     target: t,
@@ -152,14 +173,28 @@ export function buildCards(w: CalibrationWrap, name: string | null): Card[] {
     });
   }
 
-  cards.push({
-    key: "start",
-    kicker: "Ready",
-    value: "Start now",
-    body:
-      `Your new target applies from today. It is held for two weeks before any adjustment — that is how long the body takes to show a real response rather than a change in water weight. ` +
-      `After that your results are reviewed every week, and nothing changes without you agreeing to it.`,
-  });
+  // The closing card is the only one that differs between watching and
+  // re-watching: live it is the button that starts the deficit, replayed it is
+  // the way out. Everything above it is the record and reads the same for ever.
+  cards.push(
+    replay
+      ? {
+          key: "end",
+          kicker: "That was your calibration",
+          value: "Done",
+          body:
+            `These are the findings exactly as they were shown to you when this deficit started. ` +
+            `They are kept as they were — your targets have moved on since, and are reviewed against your results every week.`,
+        }
+      : {
+          key: "start",
+          kicker: "Ready",
+          value: "Start now",
+          body:
+            `Your new target applies from today. It is held for two weeks before any adjustment — that is how long the body takes to show a real response rather than a change in water weight. ` +
+            `After that your results are reviewed every week, and nothing changes without you agreeing to it.`,
+        },
+  );
 
   return cards.map((c, i) => ({ ...c, grad: GRADS[i % GRADS.length] }));
 }
@@ -167,11 +202,20 @@ export function buildCards(w: CalibrationWrap, name: string | null): Card[] {
 export default function CalibrationReview({
   wrap,
   name,
+  replay = false,
+  endedAt = null,
 }: {
   wrap: CalibrationWrap;
   name: string | null;
+  // A review being re-watched from the history: same findings, but nothing to
+  // start — that deficit began the day it was filed.
+  replay?: boolean;
+  endedAt?: string | null;
 }) {
-  const cards = useMemo(() => buildCards(wrap, name), [wrap, name]);
+  const cards = useMemo(
+    () => buildCards(wrap, name, { replay, endedAt }),
+    [wrap, name, replay, endedAt],
+  );
   const [i, setI] = useState(0);
   const [busy, startTransition] = useTransition();
   const [err, setErr] = useState<string | null>(null);
@@ -260,7 +304,14 @@ export default function CalibrationReview({
             <ArrowLeft size={20} />
           </button>
         )}
-        {last ? (
+        {last && replay ? (
+          <Link
+            href="/me"
+            className="flex h-14 flex-1 items-center justify-center gap-2 rounded-full bg-white text-lg font-bold text-[var(--ink-teal)] transition active:scale-95"
+          >
+            <Check size={20} /> Done
+          </Link>
+        ) : last ? (
           <button
             onClick={start}
             disabled={busy}

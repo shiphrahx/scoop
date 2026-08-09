@@ -137,6 +137,26 @@ describe("calibration review", () => {
     expect(screen.getByRole("heading", { name: "2,000" })).toBeTruthy();
   });
 
+  it("replays a filed review with nothing left to start", async () => {
+    const user = userEvent.setup();
+    render(
+      <CalibrationReview
+        wrap={wrap()}
+        name="Sam"
+        replay
+        endedAt="2026-08-09T09:00:00.000Z"
+      />,
+    );
+
+    // Dated, and addressed to the past rather than to a decision.
+    expect(screen.getByText(/Calibration review · 9 August 2026/)).toBeTruthy();
+    await toEnd(user);
+
+    expect(screen.queryByRole("button", { name: /start now/i })).toBeNull();
+    expect(screen.getByRole("link", { name: /done/i })).toBeTruthy();
+    expect(startDeficit).not.toHaveBeenCalled();
+  });
+
   it("says so when starting the deficit fails, and does not pretend it worked", async () => {
     // Once, and as an explicit rejection: a persistent async-throwing mock
     // leaves a rejected promise behind between tests that vitest reports as an
