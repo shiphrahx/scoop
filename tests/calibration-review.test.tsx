@@ -90,7 +90,7 @@ describe("calibration review", () => {
     expect(screen.getByText(/Protein 150 g/)).toBeTruthy();
     // Both numbers, because the reader can do the subtraction either way.
     expect(screen.getByText(/400 kcal below the 2,400 kcal you burn/i)).toBeTruthy();
-    expect(screen.getByText(/400 kcal less food than the 2,400 you have been used to/i)).toBeTruthy();
+    expect(screen.getByText(/400 kcal less food than the 2,400 you're used to/i)).toBeTruthy();
   });
 
   it("names the cut against the burn AND against what was being eaten", async () => {

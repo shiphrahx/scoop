@@ -189,10 +189,10 @@ export function buildCards(
     burn != null ? `${kcal(w.deficitKcal)} kcal below the ${kcal(burn)} kcal you burn` : null;
   const versusPlate =
     w.changeFromHoldKcal > 0
-      ? `${kcal(w.changeFromHoldKcal)} kcal less food than the ${kcal(w.holdTargetKcal)} you have been used to`
+      ? `${kcal(w.changeFromHoldKcal)} kcal less food than the ${kcal(w.holdTargetKcal)} you're used to`
       : w.changeFromHoldKcal < 0
-        ? `${kcal(-w.changeFromHoldKcal)} kcal more food than the ${kcal(w.holdTargetKcal)} you have been used to`
-        : `the same amount of food you are already used to`;
+        ? `${kcal(-w.changeFromHoldKcal)} kcal more food than the ${kcal(w.holdTargetKcal)} you're used to`
+        : `the same amount of food you're already used to`;
   cards.push({
     key: "target",
     kicker: replay ? "The target it set" : "What you eat from today",
@@ -249,8 +249,8 @@ export function buildCards(
           body:
             `This is your calibration exactly as it was on ${
               endedAt ? longDate(endedAt.slice(0, 10)) : "the day it finished"
-            }, kept as it was. ` +
-            `Your targets have moved on since then — they are reviewed against your results every week.`,
+            }, kept just as it was. ` +
+            `Your targets have moved on since then — they're reviewed against your results every week.`,
         }
       : {
           key: "start",
