@@ -98,6 +98,11 @@ export interface CalibrationWrap {
   holdTargetKcal: number;
   adherentDays: number;
   weightChangeKg: number | null; // + = lost over the hold
+  // The rate that change came out at, per week. The honest sanity check on the
+  // prediction below: a user already losing at the hold's calories is not about
+  // to lose LESS on fewer of them, and if the two numbers disagree it is the
+  // measurement of their burn that is wrong, not their scale.
+  holdLossKgPerWeek: number | null;
 
   // --- What happens next
   newTarget: Macros;
@@ -273,6 +278,10 @@ export function calibrationWrap(input: WrapInput): CalibrationWrap {
     holdTargetKcal: Math.round(input.holdTargetKcal),
     adherentDays: window.adherentDays,
     weightChangeKg: window.weightChangeKg,
+    holdLossKgPerWeek:
+      window.weightChangeKg != null && days >= 7
+        ? (window.weightChangeKg * 7) / days
+        : null,
     newTarget: input.newTarget,
     deficitKcal,
     changeFromHoldKcal: Math.round(input.holdTargetKcal - input.newTarget.kcal),

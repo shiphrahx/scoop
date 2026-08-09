@@ -178,6 +178,26 @@ describe("calibrationWrap", () => {
     expect(w.weightChangeKg).toBeCloseTo(1.4, 1);
   });
 
+  it("states the rate the hold itself was losing at", () => {
+    const input = fortnight();
+    // 0.1 kg a day off the trend across a fortnight = 0.7 kg a week, at the
+    // hold's own calories. The prediction that follows has to beat this.
+    const w = calibrationWrap({
+      ...input,
+      weighIns: input.weighIns.map((p, i) => ({ ...p, kg: 80 - i * 0.1 })),
+    });
+    expect(w.holdLossKgPerWeek).toBeCloseTo(0.7, 1);
+  });
+
+  it("has no rate for a hold too short to have one", () => {
+    const input = fortnight();
+    const w = calibrationWrap({
+      ...input,
+      startedAt: "2026-08-06T08:00:00.000Z", // three days in
+    });
+    expect(w.holdLossKgPerWeek).toBeNull();
+  });
+
   it("splits the burn into resting and moving", () => {
     const w = calibrationWrap(fortnight());
     // 2400 burned, 1500 of it at rest → 37.5% is movement.
