@@ -2,7 +2,7 @@ name: CI
 
 on:
   # Every branch, not just main. The pre-push hook covers most of this locally,
-  # but it cannot run the RLS suite — that needs a real Postgres, which only
+  # but it cannot run the RLS suite, that needs a real Postgres, which only
   # exists here.
   push:
     branches: ["**"]
@@ -58,7 +58,7 @@ jobs:
         run: npm ci
 
       # The same script the pre-push hook runs: lint, typecheck, tests under the
-      # coverage ratchet (see vitest.config.ts), then a build — nothing else
+      # coverage ratchet (see vitest.config.ts), then a build, nothing else
       # proves the app still compiles, since a type error inside a server
       # component never shows up in the unit tests. One script so that "it
       # passed locally" and "it passed in CI" cannot come to mean different

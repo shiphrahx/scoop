@@ -1,6 +1,6 @@
 @AGENTS.md
 
-# Scoop — Project Guide for Claude Code
+# Scoop, Project Guide for Claude Code
 
 This file tells you (Claude Code) what Scoop is and how to build it.
 Read it fully before writing code. Keep it updated as the app grows.
@@ -25,7 +25,7 @@ Mobile-first. Friendly and simple.
 ## Tech stack (all free tiers)
 
 - **Framework:** Next.js (App Router, TypeScript)
-- **UI:** Tailwind CSS — big rounded tap targets, mobile-first
+- **UI:** Tailwind CSS, big rounded tap targets, mobile-first
 - **PWA:** installable to home screen (manifest + service worker)
 - **Auth + Database:** Supabase (Postgres + Google OAuth built in)
 - **Hosting:** Vercel (supports server code + API routes)
@@ -39,7 +39,7 @@ Do not add paid services. If a feature needs one, stop and flag it.
 
 ## Working rules (important)
 
-- **Commit after every change.** Every single change gets its own commit — even
+- **Commit after every change.** Every single change gets its own commit, even
   tiny ones. Do not batch work into one commit at the end. Small commits are
   fine and expected.
 - **Never mention Claude, AI, or automated authorship** in commit messages, PR
@@ -52,7 +52,7 @@ Do not add paid services. If a feature needs one, stop and flag it.
 
 ## Core principle: less typing, more tapping
 
-Every feature should be reachable in 1–2 taps. When you design a screen, ask:
+Every feature should be reachable in 1 to 2 taps. When you design a screen, ask:
 "could this be a tap instead of typing?" Default to scanning, choosing from
 pictures, and saved favourites over manual text entry.
 
@@ -60,19 +60,19 @@ pictures, and saved favourites over manual text entry.
 
 ## Data model (Supabase tables)
 
-- `users` — id, email, diet_type (regular/vegetarian/vegan), allergies[],
+- `users`, id, email, diet_type (regular/vegetarian/vegan), allergies[],
   dislikes[], goal, height, sex, birth_year, anthropic_api_key (encrypted)
-- `weights` — user_id, date, weight_kg
-- `measurements` — user_id, date, waist, arms, thighs, hips
-- `pantry_items` — user_id, name, off_barcode, quantity, macros
-- `batches` — user_id, name, source_packs[], total_cooked_g, total_macros,
+- `weights`, user_id, date, weight_kg
+- `measurements`, user_id, date, waist, arms, thighs, hips
+- `pantry_items`, user_id, name, off_barcode, quantity, macros
+- `batches`, user_id, name, source_packs[], total_cooked_g, total_macros,
   remaining_g
-- `food_logs` — user_id, datetime, source (batch/barcode/recipe/manual),
+- `food_logs`, user_id, datetime, source (batch/barcode/recipe/manual),
   grams, macros
-- `favourites` — user_id, name, macros (the "my usual" items)
-- `recipes` — user_id, name, source_url, ingredients[], base_macros
-- `daily_targets` — user_id, week_start, kcal, protein, carbs, fat
-- `activity` — user_id, date, steps, workout_kcal, sleep_hours (from Fitbit/Apple)
+- `favourites`, user_id, name, macros (the "my usual" items)
+- `recipes`, user_id, name, source_url, ingredients[], base_macros
+- `daily_targets`, user_id, week_start, kcal, protein, carbs, fat
+- `activity`, user_id, date, steps, workout_kcal, sleep_hours (from Fitbit/Apple)
 
 ---
 
@@ -97,9 +97,9 @@ pictures, and saved favourites over manual text entry.
 
 ---
 
-## The Coach math (no AI needed — use formulas + rules)
+## The Coach math (no AI needed, use formulas + rules)
 
-- **Macro target:** Mifflin–St Jeor BMR + activity (from Fitbit/Apple) = TDEE.
+- **Macro target:** Mifflin St Jeor BMR + activity (from Fitbit/Apple) = TDEE.
   Subtract a deficit for weight loss. Split: high protein, rest carbs/fat.
 - **Weekly adjust rule:** compare this week's avg weight to last week's avg.
   - Losing at a healthy rate → keep macros
@@ -131,25 +131,25 @@ pictures, and saved favourites over manual text entry.
 
 ## Build in phases (walking skeleton first)
 
-**Phase 1 — Skeleton**
+**Phase 1, Skeleton**
 Next.js + Tailwind + Supabase. Google sign-in. Empty home screen with bottom
 nav. Deploy to Vercel. Prove the loop works end to end.
 
-**Phase 2 — Manual tracking**
+**Phase 2, Manual tracking**
 Onboarding (diet + stats). Coach math for macro targets. Manual food log,
 daily weight, weekly measurements. Home shows "macros left today".
 
-**Phase 3 — Easy food input**
+**Phase 3, Easy food input**
 Barcode scan + Open Food Facts. Favourites. Batch cooking. Pantry.
 
-**Phase 4 — The smart parts (AI, bring-your-own-key)**
+**Phase 4, The smart parts (AI, bring-your-own-key)**
 Grocery screenshot → ingredients. Recipe import (URL/screenshot). Plan-a-meal
 suggestions from pantry + diet.
 
-**Phase 5 — Auto data + coaching**
+**Phase 5, Auto data + coaching**
 Fitbit connect. Apple ingest endpoint. Weekly review + macro auto-adjust.
 
-**Phase 6 — Polish**
+**Phase 6, Polish**
 PWA install, Duolingo-style UI pass, onboarding for new public users.
 
 Ship and test each phase before starting the next.

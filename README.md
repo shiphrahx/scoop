@@ -20,7 +20,7 @@
 You want rice with dinner. How many grams fit your macros today? Weigh, type,
 guess. Every meal. Annoying. Most people quit tracking because of it.
 
-Scoop flips it. You don't tell the app what you ate — the app tells you what to
+Scoop flips it. You don't tell the app what you ate, the app tells you what to
 eat. It knows your body, your goal, your pantry, and what you ate today, then
 hands you the portion: *"180g rice with tofu."* You just eat it.
 
@@ -30,35 +30,35 @@ Phone-first. Big buttons. Almost no typing.
 
 - **"How much can I eat?"** → exact portion to hit your macros. No math.
 - **"Too much typing."** → scan a barcode, tap a favourite, snap a photo.
-- **"Cooked a big batch — now what?"** → log it once, track what's left all week.
+- **"Cooked a big batch, now what?"** → log it once, track what's left all week.
 - **"What can I make with what I have?"** → meals from your pantry that fit your diet.
 - **"Am I making progress?"** → watches weight, waist, and activity together, so
   a flat scale with a shrinking waist counts as the win.
 
 ## What it does
 
-- **Tells you the portion** — grams of each food to hit today's macros. The point.
-- **Sets your targets** — from your body stats and activity. No calculators.
-- **Easy food input** — barcode, favourites, saved meals, label photo, or a
+- **Tells you the portion**, grams of each food to hit today's macros. The point.
+- **Sets your targets**, from your body stats and activity. No calculators.
+- **Easy food input**, barcode, favourites, saved meals, label photo, or a
   grocery screenshot the AI reads.
-- **Batch cooking** — log packs + cooked weight; it tracks per-gram macros and
+- **Batch cooking**, log packs + cooked weight; it tracks per-gram macros and
   the leftover.
-- **Pantry** — knows the food you have, filled by barcode and receipt scans.
+- **Pantry**, knows the food you have, filled by barcode and receipt scans.
   Counts things you eat by the piece (bagels, portions), not just by grams, and
   swaps in cooked weights for staples automatically.
-- **Fresh food, no packet** — banana, apple and the like carry known sizes and
+- **Fresh food, no packet**, banana, apple and the like carry known sizes and
   macros, so a piece of fruit is one tap.
-- **Plan a meal** — pick per meal (a carb, a protein from pictures), then it
+- **Plan a meal**, pick per meal (a carb, a protein from pictures), then it
   builds the day from your pantry to fit your diet and remaining macros.
-- **Import a recipe** — paste a URL or screenshot; AI reads it, scales it to your macros.
-- **High days** — the plan can cycle your carbs and hand you a bigger day when
-  the week's numbers earn it — a surplus it calculates, not one you guess.
-- **Log a drink** — alcohol counted properly from the ethanol, booked against
+- **Import a recipe**, paste a URL or screenshot; AI reads it, scales it to your macros.
+- **High days**, the plan can cycle your carbs and hand you a bigger day when
+  the week's numbers earn it, a surplus it calculates, not one you guess.
+- **Log a drink**, alcohol counted properly from the ethanol, booked against
   carbs and fat, so a night out doesn't wreck the week.
-- **One-tap logging** — daily weight; weekly waist / arms / thighs / hips.
-- **The Coach** — weekly review of weight, measurements, activity, and food, then
+- **One-tap logging**, daily weight; weekly waist / arms / thighs / hips.
+- **The Coach**, weekly review of weight, measurements, activity, and food, then
   adjusts your macros and explains why in plain words.
-- **Auto body data** — pulls activity and sleep from Fitbit / Google Health and
+- **Auto body data**, pulls activity and sleep from Fitbit / Google Health and
   Apple Watch.
 
 ## Built with
