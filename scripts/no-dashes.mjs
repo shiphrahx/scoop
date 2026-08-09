@@ -10,7 +10,8 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
-const BANNED = /[—–]/;
+// Written as escapes so this file passes its own check.
+const BANNED = new RegExp("[\u2014\u2013]");
 const SKIP = /\.(png|jpg|jpeg|gif|webp|ico|svg|woff2?|pdf|lock)$/i;
 
 const files = execFileSync("git", ["ls-files"], { encoding: "utf8" })
