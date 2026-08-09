@@ -397,11 +397,11 @@ function FitVerdict({
     },
     warn: {
       icon: <AlertTriangle size={16} className="shrink-0" />,
-      text: `${list} slightly off, nudge the portions.`,
+      text: `${list} ${named.length === 1 ? "is" : "are"} slightly off. Nudge the portions.`,
     },
     off: {
       icon: <AlertCircle size={16} className="shrink-0" />,
-      text: `${list} too far off, change the portions.`,
+      text: `${list} ${named.length === 1 ? "is" : "are"} too far off. Change the portions.`,
     },
   };
 
