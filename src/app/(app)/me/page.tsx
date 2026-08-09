@@ -154,7 +154,7 @@ export default async function MePage({
         </>
       )}
 
-      {/* Devices — moved here from the Coach screen. */}
+      {/* Devices, moved here from the Coach screen. */}
       <section className="flex w-full flex-col gap-4 sc-card p-5">
         <h2 className="text-lg font-semibold">Devices</h2>
 

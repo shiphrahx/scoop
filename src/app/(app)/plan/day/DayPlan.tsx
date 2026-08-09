@@ -173,7 +173,7 @@ export default function DayPlan({
         </div>
       )}
 
-      {/* Logged outside the meal slots — a drink, a serving out of a batch. It
+      {/* Logged outside the meal slots, a drink, a serving out of a batch. It
           counts toward the day above, so it has to be visible and removable
           here; there is nowhere else on this screen it would show up. */}
       {extras.length > 0 && (

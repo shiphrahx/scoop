@@ -408,7 +408,7 @@ function EditRow({
         </>
       )}
 
-      {/* Three tap-sized buttons don't fit one row on a narrow phone — Save ran
+      {/* Three tap-sized buttons don't fit one row on a narrow phone, Save ran
           off the edge of the screen. Cancel and Save share the row; Delete, the
           rare and destructive one, sits under them at its own width, where it
           can't be hit by accident. */}

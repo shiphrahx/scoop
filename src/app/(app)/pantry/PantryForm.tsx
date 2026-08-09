@@ -341,7 +341,7 @@ export default function PantryForm({
         className="sc-input text-lg"
       />
 
-      {/* Fresh whole foods that match the name — tap one to fill its macros and
+      {/* Fresh whole foods that match the name, tap one to fill its macros and
           get its sizes, no typing. */}
       {matches.length > 0 && (
         <ul className="flex flex-wrap gap-2">

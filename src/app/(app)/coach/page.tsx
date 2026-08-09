@@ -9,7 +9,7 @@ export default function CoachPage() {
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-5 pt-8 pb-6 lg:px-8">
       <h1 className="text-3xl font-semibold">The Coach</h1>
 
-      {/* The review and activity come from the weekly review — the slowest read
+      {/* The review and activity come from the weekly review, the slowest read
           in the app, so they stream in while the title and the link below are
           up straight away. */}
       <Suspense

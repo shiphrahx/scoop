@@ -137,7 +137,7 @@ export default function CyclingSettings({
 
       {enabled && (
         <>
-          {/* Refeed days per week — the only number the user sets. */}
+          {/* Refeed days per week, the only number the user sets. */}
           <div className="flex items-center gap-3">
             <div className="min-w-0 flex-1">
               <p className="font-medium">Refeed days per week</p>
@@ -180,7 +180,7 @@ export default function CyclingSettings({
             </button>
           </div>
 
-          {/* Calculated carbs — read-only. The app works these out; the user
+          {/* Calculated carbs, read-only. The app works these out; the user
               never types them. */}
           <div className="rounded-2xl bg-[var(--fill-soft)] p-4">
             <p className="font-medium">We&apos;ll do the carbs for you</p>

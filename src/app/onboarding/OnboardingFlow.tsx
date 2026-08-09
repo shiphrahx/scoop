@@ -153,7 +153,7 @@ export default function OnboardingFlow() {
 
   return (
     <main className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col px-5 pb-8 pt-6">
-      {/* progress — hidden on the welcome intro */}
+      {/* progress, hidden on the welcome intro */}
       {step > 0 && (
         <div className="mb-6 flex items-center gap-3">
           <button
@@ -587,7 +587,7 @@ function Chips({
         ))}
       </div>
 
-      {/* Other — manual entry */}
+      {/* Other, manual entry */}
       <div className="mt-4 flex gap-2">
         <input
           value={custom}

@@ -252,7 +252,7 @@ export default async function LandingPage() {
             })}
           </div>
 
-          {/* Worked example — real numbers so there's nothing to hide. */}
+          {/* Worked example, real numbers so there's nothing to hide. */}
           <div className="sc-card-solid mt-6 p-6 md:p-8">
             <p className="text-sm font-semibold text-[var(--ink-teal)]">
               See it with real numbers

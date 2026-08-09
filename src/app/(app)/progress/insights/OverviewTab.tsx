@@ -198,7 +198,7 @@ export default function OverviewTab({
         ) : null}
       </KpiRow>
 
-      {/* The callout only appears when it's earned — a permanent "you might be
+      {/* The callout only appears when it's earned, a permanent "you might be
           losing fat!" panel would mean nothing the week it's actually true. */}
       {fatLoss?.detected ? (
         <div className="sc-grad-panel flex flex-col gap-2 p-4">

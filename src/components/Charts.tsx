@@ -283,7 +283,7 @@ export function TrendDotsChart({
               return <TooltipCard title={longDate(p.date)} rows={rows} />;
             }}
           />
-          {/* Raw readings: dots only, never joined — a line between two weigh-ins
+          {/* Raw readings: dots only, never joined, a line between two weigh-ins
               four days apart draws a journey the body didn't take. */}
           <Line
             type="monotone"
@@ -359,7 +359,7 @@ export function WeightVsExercise({
             domain={["dataMin - 1", "dataMax + 1"]}
             allowDecimals={false}
           />
-          {/* Crosshair only. The card lives on the bottom panel — syncId fires
+          {/* Crosshair only. The card lives on the bottom panel, syncId fires
               both panels' tooltips at once, so two cards would be identical. */}
           <Tooltip
             cursor={{ stroke: C.teal, strokeWidth: 1, strokeDasharray: "4 4" }}
@@ -377,7 +377,7 @@ export function WeightVsExercise({
         </LineChart>
       </ResponsiveContainer>
 
-      {/* Bottom panel: exercise burn bars — shares the x-axis via syncId */}
+      {/* Bottom panel: exercise burn bars, shares the x-axis via syncId */}
       <ResponsiveContainer width="100%" height={panelH + 18}>
         <BarChart data={merged} syncId="wve" margin={{ ...margin, bottom: 0 }}>
           <defs>
