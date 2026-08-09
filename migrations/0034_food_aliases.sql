@@ -2,7 +2,7 @@
 --
 -- The food reference (0033) is USDA FNDDS, so it names things the American way.
 -- A user here types "crisps" and means what that file calls "Potato chips"; they
--- type "chips" and mean "French fries", which is the dangerous one — searching
+-- type "chips" and mean "French fries", which is the dangerous one, searching
 -- the word literally finds crisps, a real result that is the wrong food. So the
 -- swap has to happen on the way IN, before the search, not as a fallback after
 -- it fails.
@@ -43,7 +43,7 @@ create policy "delete own food_aliases" on public.food_aliases
 -- lemonade) is deliberately absent: guessing wrong hands the user a different
 -- food's macros without telling them, which is worse than no match.
 --
--- Foods with no American equivalent at all — flapjack, digestive, Jaffa cake —
+-- Foods with no American equivalent at all, flapjack, digestive, Jaffa cake,
 -- are not aliases either. Pointing "flapjack" at "granola bar" would look like
 -- it worked and quietly book the wrong numbers. Those are seeded by hand (0032).
 insert into public.food_aliases (alias, term, created_by)

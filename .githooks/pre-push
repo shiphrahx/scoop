@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # Full gate: lint + typecheck + coverage + build (~90s). This is the one that
-# matters, because CI only runs on main and on pull requests — a feature branch
+# matters, because CI only runs on main and on pull requests, a feature branch
 # has no other check between here and the PR.
 #
 # Two things it cannot prove:
@@ -23,7 +23,7 @@ while read -r _local_ref local_sha _remote_ref _remote_sha; do
 done
 [ -n "$work" ] || exit 0
 
-# `next build` only needs these to be defined — it is a compile check, not a
+# `next build` only needs these to be defined, it is a compile check, not a
 # check against real data. A real value already in the environment wins.
 NEXT_PUBLIC_SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL:-https://example.supabase.co}"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="${NEXT_PUBLIC_SUPABASE_ANON_KEY:-build-only-placeholder}"
