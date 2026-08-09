@@ -250,7 +250,7 @@ export function buildCards(
             `This is your calibration as it stood on ${
               endedAt ? longDate(endedAt.slice(0, 10)) : "the day it finished"
             }. ` +
-            `Your targets have moved on since then — they're reviewed against your results every week.`,
+            `Your targets have moved on since then. They're reviewed against your results every week.`,
         }
       : {
           key: "start",
