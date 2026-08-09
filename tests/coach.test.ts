@@ -31,6 +31,7 @@ import {
   type ObservedTdee,
   proteinBasisKg,
   tdeeFromEnergyBalance,
+  graduationCalibration,
   updateCalibration,
   restingRate,
   stepKcal,
@@ -714,6 +715,27 @@ describe("updateCalibration", () => {
   it("keeps the previous factor when a measurement is unusable", () => {
     expect(updateCalibration(0.9, 0, 2400)).toBe(0.9);
     expect(updateCalibration(0.9, 2200, 0)).toBe(0.9);
+  });
+});
+
+describe("graduationCalibration", () => {
+  it("takes the measurement in full, not half-way to it", () => {
+    // Ate 1700 and still lost weight: the measured burn is 1900, well above
+    // both what they ate and the formula's 1600. Half-stepping would report a
+    // maintenance BELOW the intake the user just proved was a deficit.
+    const full = graduationCalibration(1, 1900, 1600);
+    const half = updateCalibration(1, 1900, 1600);
+    expect(1600 * full).toBeGreaterThan(1700);
+    expect(1600 * half).toBeLessThan(1600 * full);
+  });
+
+  it("still refuses to let one fortnight rewrite the metabolism", () => {
+    expect(graduationCalibration(1, 6000, 1600)).toBeLessThanOrEqual(1.25);
+    expect(graduationCalibration(1, 400, 1600)).toBeGreaterThanOrEqual(0.75);
+  });
+
+  it("keeps the previous factor when there is no usable measurement", () => {
+    expect(graduationCalibration(0.9, 0, 1600)).toBe(0.9);
   });
 });
 

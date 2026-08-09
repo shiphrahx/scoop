@@ -627,21 +627,40 @@ const MAX_CALIBRATION = 1.25;
 // odd window doesn't take over.
 const CALIBRATION_STEP = 0.5;
 
+// Except on the way out of calibration, where the whole fortnight existed to
+// take this measurement. Half-stepping there answers the question the hold was
+// asked with an average of the measurement and the guess it was meant to
+// replace: someone who lost weight eating 1700 has a burn well above 1700, and
+// the half-step reported it as below. The bounds still apply, so a badly logged
+// fortnight can move the estimate by a quarter, not by anything it likes.
+const GRADUATION_STEP = 1;
+
 // Fold a fresh measurement into the running calibration factor — the ratio
 // between what the user actually burns and what the formula predicted.
+//
+// `step` is how far to move towards the measurement: the standing half-step for
+// an ordinary weekly review, or GRADUATION_STEP when the calibration hold ends.
 export function updateCalibration(
   previous: number | null | undefined,
   observedKcal: number,
   predictedKcal: number,
+  step: number = CALIBRATION_STEP,
 ): number {
   if (predictedKcal <= 0 || observedKcal <= 0) return previous ?? 1;
   const raw = clamp(observedKcal / predictedKcal, MIN_CALIBRATION, MAX_CALIBRATION);
   const prior = previous != null && previous > 0 ? previous : 1;
-  return clamp(
-    prior + CALIBRATION_STEP * (raw - prior),
-    MIN_CALIBRATION,
-    MAX_CALIBRATION,
-  );
+  return clamp(prior + step * (raw - prior), MIN_CALIBRATION, MAX_CALIBRATION);
+}
+
+// The maintenance to open the first deficit from, when the hold has produced a
+// measurement. Takes the measurement as far as the bounds allow rather than
+// averaging it with the formula.
+export function graduationCalibration(
+  previous: number | null | undefined,
+  observedKcal: number,
+  predictedKcal: number,
+): number {
+  return updateCalibration(previous, observedKcal, predictedKcal, GRADUATION_STEP);
 }
 
 function clamp(value: number, lo: number, hi: number) {
