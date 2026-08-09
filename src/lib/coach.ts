@@ -48,7 +48,7 @@ const PACE_KG_PER_WEEK: Record<GoalPace, number> = {
 
 // Energy in 1 kg of body fat (≈ 3500 kcal/lb). Standard clinical heuristic for
 // turning a target loss rate into a daily calorie deficit.
-const KCAL_PER_KG = 7700;
+export const KCAL_PER_KG = 7700;
 
 // Never prescribe a loss faster than 1% of bodyweight/week — beyond that the
 // deficit starts costing muscle. Caps the requested rate for light people.
