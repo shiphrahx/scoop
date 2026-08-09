@@ -33,7 +33,14 @@ interface Card {
   kicker: string;
   value: string;
   unit?: string;
+  // Strictly about THIS user: their numbers, their fortnight, what happens to
+  // them. Never a general statement about bodies or dieting.
   body: string;
+  // The general point behind it — true of everyone, not measured from anything
+  // this user did. Kept in its own slot because mixing the two into one
+  // paragraph is what made the screen read as a leaflet: the reader could not
+  // tell which sentences were about them. Rendered visibly apart, and labelled.
+  note?: string;
   // The gradient this card wears. Cycled so consecutive cards never repeat.
   grad: string;
   chart?: ProjectionPoint[];
@@ -285,7 +292,14 @@ export default function CalibrationReview({
 
         {card.chart && card.chart.length > 1 && <ProjectionCurve points={card.chart} />}
 
-        <p className="max-w-prose text-white/90">{card.body}</p>
+        <p className="max-w-prose text-lg leading-relaxed text-white">{card.body}</p>
+
+        {card.note && (
+          <p className="max-w-prose rounded-2xl bg-black/15 p-3 text-sm leading-relaxed text-white/75">
+            <span className="font-semibold uppercase tracking-wide">Why: </span>
+            {card.note}
+          </p>
+        )}
       </section>
 
       {err && (
