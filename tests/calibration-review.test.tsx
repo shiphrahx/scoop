@@ -75,7 +75,7 @@ describe("calibration review", () => {
     await user.click(screen.getByRole("button", { name: /next/i }));
 
     expect(screen.getByRole("heading", { name: "2,400" })).toBeTruthy();
-    expect(screen.getByText(/200 kcal a day more/i)).toBeTruthy();
+    expect(screen.getByText(/200 kcal a day warmer than that/i)).toBeTruthy();
   });
 
   it("states the new target with its macros and the cut behind it", async () => {

@@ -95,21 +95,21 @@ export function buildCards(
       delta == null || w.predictedMaintenanceKcal == null
         ? ""
         : Math.abs(delta) < 50
-          ? ` A textbook formula for your age, height and weight predicted ${kcal(w.predictedMaintenanceKcal)} — close, in your case.`
-          : delta > 0
-            ? ` A textbook formula for your age, height and weight predicted ${kcal(w.predictedMaintenanceKcal)}. You burn ${kcal(delta)} kcal a day more than that.`
-            : ` A textbook formula for your age, height and weight predicted ${kcal(w.predictedMaintenanceKcal)}. You burn ${kcal(-delta)} kcal a day less than that.`;
+          ? ` A textbook formula would have guessed ${kcal(w.predictedMaintenanceKcal)} for someone your age, height and weight — close, as it turns out.`
+            : delta > 0
+            ? ` A textbook formula would have guessed ${kcal(w.predictedMaintenanceKcal)} for someone your age, height and weight. You run ${kcal(delta)} kcal a day warmer than that.`
+            : ` A textbook formula would have guessed ${kcal(w.predictedMaintenanceKcal)} for someone your age, height and weight. You run ${kcal(-delta)} kcal a day cooler than that.`;
     cards.push({
       key: "burn",
       kicker: "What you burn",
       value: kcal(w.measuredMaintenanceKcal),
       unit: "kcal a day",
       body:
-        `Eat this much and your weight holds. It is your own figure: worked out from the food you logged ` +
-        `against what your weight trend did over ${w.days} days.${versus}`,
+        `This is the amount that keeps you exactly where you are — no gain, no loss. ` +
+        `It is your figure, not a guess: it came from the food you logged and what your weight did over ${w.days} days.${versus}`,
       note:
-        `Formulas are averages of large groups. Any one person can sit 300–400 kcal either side of them, ` +
-        `which is the entire reason for spending a fortnight measuring instead of estimating.`,
+        `Formulas describe the average of thousands of people. Any one person can sit 300–400 kcal either side of ` +
+        `that average, which is why it was worth spending a fortnight finding yours.`,
     });
   }
 
