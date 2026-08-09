@@ -6,7 +6,7 @@ import { createRouteClient, safeNext, siteOrigin } from "@/lib/supabase/route";
 // This runs on the server on purpose. PKCE writes a code verifier before the
 // browser leaves for Google and reads it back at /auth/callback. Starting the
 // flow from client JS put that verifier in whatever browsing context the button
-// was tapped in — and the trip through Google often ends in a different one:
+// was tapped in, and the trip through Google often ends in a different one:
 // the installed app hands the Google page to the system browser, and an
 // apex/www mismatch changes the host the cookie was scoped to. The verifier was
 // then gone on the way back ("PKCE code verifier not found in storage").

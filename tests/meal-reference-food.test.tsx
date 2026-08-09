@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FoodChoice, PlanItem } from "@/lib/types";
 
-// A one-off food with no barcode and no macros the user could recite — a slice
+// A one-off food with no barcode and no macros the user could recite, a slice
 // of cake, a cookie. Open Food Facts is a database of packaged products, so it
 // answers those with branded also-rans or nothing; the shared reference is the
 // one source that has them, at a portion the user can tap. If the reference
@@ -64,7 +64,7 @@ const cakeSlice: FoodChoice = {
   ],
 };
 
-// A branded packaged product OFF offers for the same word — the noise the
+// A branded packaged product OFF offers for the same word, the noise the
 // reference has to outrank.
 const cakeBar: FoodChoice = {
   ...cakeSlice,
@@ -99,7 +99,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe("meal builder — foods with no barcode", () => {
+describe("meal builder, foods with no barcode", () => {
   it("offers a reference food for a name that has no barcode", async () => {
     const user = userEvent.setup();
     renderEmptySlot();
@@ -149,7 +149,7 @@ describe("meal builder — foods with no barcode", () => {
   });
 
   // Open Food Facts answers "cake" with branded cake bars. Those are still
-  // offered, but under the reference — otherwise the right answer is buried.
+  // offered, but under the reference, otherwise the right answer is buried.
   it("puts reference foods above the web results", async () => {
     searchWeb.mockResolvedValue([cakeBar]);
     const user = userEvent.setup();

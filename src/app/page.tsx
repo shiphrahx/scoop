@@ -25,7 +25,7 @@ export const metadata: Metadata = {
 };
 
 // The worked example below is the only monospaced text in the product, so the
-// face loads here rather than in the root layout — the signed-in screens should
+// face loads here rather than in the root layout, the signed-in screens should
 // not preload a font they never draw with. Applied per element (the two spots
 // that use `font-mono`) so nothing has to wrap the page in an extra div.
 const geistMono = Geist_Mono({
@@ -33,7 +33,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Public front door — for people who are not signed in yet.
+// Public front door, for people who are not signed in yet.
 //
 // Anyone with a session is sent to /dashboard before this ever renders; the proxy
 // does it (see lib/supabase/middleware.ts), because only there can an expired
@@ -150,7 +150,7 @@ export default async function LandingPage() {
                 icon: Target,
                 step: "1",
                 title: "Set your goal",
-                body: "Diet, allergies, height, weight. We do the Mifflin–St Jeor math and set your daily macros.",
+                body: "Diet, allergies, height, weight. We do the Mifflin St Jeor math and set your daily macros.",
               },
               {
                 icon: Package,
@@ -202,7 +202,7 @@ export default async function LandingPage() {
               The maths, in plain words
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-lg text-[var(--muted)]">
-              Every number Scoop gives you comes from a formula you can check —
+              Every number Scoop gives you comes from a formula you can check,
               the same ones dietitians use. Here&rsquo;s exactly how we get
               yours.
             </p>
@@ -213,7 +213,7 @@ export default async function LandingPage() {
               {
                 icon: Flame,
                 title: "What you burn",
-                body: "We start with the energy your body burns just staying alive, then account for how active you are — or your real burn from Fitbit or Apple Watch.",
+                body: "We start with the energy your body burns just staying alive, then account for how active you are, or your real burn from Fitbit or Apple Watch.",
                 formula:
                   "10 × kg + 6.25 × cm − 5 × age ± sex,  then × activity",
                 note: "Tell us your body-fat % and we switch to a lean-mass formula for a more accurate figure.",
@@ -252,7 +252,7 @@ export default async function LandingPage() {
             })}
           </div>
 
-          {/* Worked example — real numbers so there's nothing to hide. */}
+          {/* Worked example, real numbers so there's nothing to hide. */}
           <div className="sc-card-solid mt-6 p-6 md:p-8">
             <p className="text-sm font-semibold text-[var(--ink-teal)]">
               See it with real numbers
@@ -353,7 +353,7 @@ export default async function LandingPage() {
               {
                 icon: Sparkles,
                 title: "Plan from your pantry",
-                body: "Suggestions use only what you own and fit your diet — vegetarian, vegan, allergies and all.",
+                body: "Suggestions use only what you own and fit your diet, vegetarian, vegan, allergies and all.",
               },
               {
                 icon: LineChart,

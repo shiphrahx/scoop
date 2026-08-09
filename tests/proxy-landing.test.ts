@@ -104,7 +104,7 @@ describe("the rest of the routing", () => {
     expect(location(res)).toBeNull();
   });
 
-  // These have to stay reachable with a session in hand — bouncing a signed-in
+  // These have to stay reachable with a session in hand, bouncing a signed-in
   // user off /login would trap anyone trying to switch accounts, and the PWA
   // files are fetched by the browser, not the user.
   it.each(["/login", "/privacy", "/terms", "/manifest.webmanifest", "/sw.js"])(

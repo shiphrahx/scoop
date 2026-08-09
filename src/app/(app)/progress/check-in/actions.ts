@@ -140,7 +140,7 @@ export async function uploadCheckInPhoto(
     ? (rawAngle as PhotoAngle)
     : "other";
 
-  // Only treat text after a real dot as an extension — a dotless name like
+  // Only treat text after a real dot as an extension, a dotless name like
   // "photo" must not become an extension of "photo".
   const dot = file.name.lastIndexOf(".");
   const ext =
@@ -192,7 +192,7 @@ export async function deleteCheckInPhoto(id: string): Promise<void> {
   revalidatePath("/progress");
 }
 
-// Delete a whole check-in — its photos' storage objects, then the row (which
+// Delete a whole check-in, its photos' storage objects, then the row (which
 // cascades to the photo rows).
 export async function deleteCheckIn(id: string): Promise<void> {
   const { supabase } = await requireUser();

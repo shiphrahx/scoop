@@ -14,7 +14,7 @@ export default function Sidebar() {
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col gap-2 p-5 lg:flex">
       <Link href="/dashboard" className="mb-4 flex items-center gap-2.5 px-2">
         {/* No `priority` here. This sidebar is `hidden lg:flex`, so on a phone
-            the logo is never drawn — but `priority` emits a <link rel=preload>
+            the logo is never drawn, but `priority` emits a <link rel=preload>
             regardless, which had every mobile page fetching a 36px desktop logo
             at high priority, ahead of the content the user actually came for. */}
         <Image

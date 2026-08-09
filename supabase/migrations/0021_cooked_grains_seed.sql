@@ -1,4 +1,4 @@
--- Scoop: every macro in the app is for the food AS EATEN — cooked, never raw or
+-- Scoop: every macro in the app is for the food AS EATEN, cooked, never raw or
 -- dry. Dry staples (rice, pasta, couscous, quinoa, oats) are the trap: a bag's
 -- label is dry weight, and 60 g dry rice becomes ~180 g cooked with completely
 -- different per-100g numbers. So the reference owns the truth for these: cooked
@@ -14,7 +14,7 @@ alter table public.fresh_foods
 
 -- Cooked grains, per-100g macros for the food already cooked (USDA cooked,
 -- unsalted). Names carry "(cooked)" so it's unmistakable in every screen the
--- name shows in. Guarded by the lower(name) unique index — re-running is a no-op.
+-- name shows in. Guarded by the lower(name) unique index, re-running is a no-op.
 insert into public.fresh_foods
   (name, kcal_100g, protein_100g, carbs_100g, fat_100g,
    fiber_100g, sugar_100g, satfat_100g, sodium_mg_100g, cooked, created_by)

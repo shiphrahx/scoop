@@ -14,7 +14,7 @@ export async function logWeight(weightKg: number, dateISO?: string) {
   const { supabase, user } = await requireUser();
 
   // A weigh-in feeds the trailing average the coach cuts or raises calories
-  // from. A NaN or a stray 850 doesn't error — it drags the average and changes
+  // from. A NaN or a stray 850 doesn't error, it drags the average and changes
   // what the user is told to eat.
   const weight = parseOrThrow(weightKgSchema, weightKg, "Weight");
 
@@ -117,7 +117,7 @@ export async function deleteVictory(id: string) {
 
 // A milestone the user picked themselves. With a target weight the app ticks it
 // off from the trend; without one (a clothing size, an event) they tick it by
-// hand — see milestones() in src/lib/insights.ts.
+// hand, see milestones() in src/lib/insights.ts.
 export async function addMilestone(label: string, targetWeightKg?: number | null) {
   const { supabase, user } = await requireUser();
 

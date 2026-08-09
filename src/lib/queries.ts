@@ -122,7 +122,7 @@ const TARGET_COLS =
 
 // The calibration row a running hold is pinned to: the earliest one belonging to
 // the current run, i.e. not older than the week the hold started. Rows from an
-// abandoned earlier run are skipped — restarting calibration after months away
+// abandoned earlier run are skipped, restarting calibration after months away
 // must measure today's body, not re-apply the target of the one that onboarded.
 // Null `startedAt` (or no row at or after it) falls back to the earliest row, which
 // is what a user who has only ever calibrated once has anyway.
@@ -143,7 +143,7 @@ export const getCurrentTargets = cache(async function getCurrentTargets(): Promi
   const supabase = await createClient();
   const tz = await getTimezone();
   // Two reads, one round trip. The second is only USED while the user is
-  // calibrating, but which case applies isn't known until the first comes back —
+  // calibrating, but which case applies isn't known until the first comes back,
   // and issuing it afterwards put a second sequential round trip on the home
   // screen for exactly the new users who have the least patience for it. Both
   // are single-row lookups on the (user_id, week_start) index, so speculatively
@@ -159,7 +159,7 @@ export const getCurrentTargets = cache(async function getCurrentTargets(): Promi
       .limit(1)
       .maybeSingle(),
     // The calibration-phase rows, oldest first. The anchor is the earliest one of
-    // the RUN that is in force — not simply the earliest ever, because a user can
+    // the RUN that is in force, not simply the earliest ever, because a user can
     // restart calibration and the original onboarding row would then pin them to a
     // target computed from a body they no longer have. A handful of rows is plenty:
     // a run is a fortnight, so at most three weeks belong to it.
@@ -340,7 +340,7 @@ export async function getConsumedForDate(date: string): Promise<Macros> {
 }
 
 // The day's food logs that no meal in the plan owns: a drink, a serving out of
-// a batch, a scanned product — anything logged straight into the day rather
+// a batch, a scanned product, anything logged straight into the day rather
 // than by eating a planned meal.
 //
 // Eating a planned meal writes a food log too and points the meal at it, so
@@ -419,7 +419,7 @@ export async function getPlanForDate(date: string): Promise<PlannedMeal[]> {
   }));
 }
 
-// True once the user has logged any food today — used to decide whether to
+// True once the user has logged any food today, used to decide whether to
 // nudge them to plan the day. Reads the same cached rows the calorie ring sums,
 // so on Home this is free rather than its own count query.
 export async function hasTrackedToday(): Promise<boolean> {
@@ -427,7 +427,7 @@ export async function hasTrackedToday(): Promise<boolean> {
 }
 
 // The two secrets stored on the users row. getProfile selects the whole row, so
-// they are already in hand — but they are deliberately absent from the Profile
+// they are already in hand, but they are deliberately absent from the Profile
 // type, so nothing can pass them to a client component by accident. This reads
 // them back through a local cast at the one or two places that legitimately
 // need them, on the server.
@@ -439,7 +439,7 @@ const secretsOf = (profile: Profile | null): UserSecrets =>
   (profile as (Profile & UserSecrets) | null) ?? {};
 
 // True when the user has saved an Anthropic key (the key itself never leaves
-// the server — we only report whether one exists).
+// the server, we only report whether one exists).
 //
 // Read off the cached profile rather than its own query: every screen that asks
 // this (/plan, /plan/recipe, /pantry/add, /me) already has the profile loaded
@@ -461,7 +461,7 @@ export async function getAppleIngestToken(): Promise<string | null> {
 // writes is computed from the same rules the page showed.
 export interface CoachData {
   review: WeeklyReview;
-  // The target in force, with the week and phase it belongs to — the apply
+  // The target in force, with the week and phase it belongs to, the apply
   // action needs both to decide which week it is writing.
   current: DailyTargets | null;
   // Movement of the smoothed trend weight over the last week, and where that
@@ -473,7 +473,7 @@ export interface CoachData {
   // the formula that it feeds. Null when the data can't support a measurement.
   observed: ObservedTdee | null;
   calibration: number;
-  // The correction this review's target was computed with — the stored one for
+  // The correction this review's target was computed with, the stored one for
   // an ordinary week, the measurement-led one on the way out of calibration.
   // Applying the review stores THIS, rather than recomputing and risking a
   // different number from the one the target was built on.
@@ -484,7 +484,7 @@ export interface CoachData {
   // Calibration, deficit, a planned diet break, or maintenance at the goal.
   phase: Phase;
   // Whether the new-user calibration hold is running, and roughly how many days
-  // are left in it. estimatedMaintenanceKcal is what we're calibrating from —
+  // are left in it. estimatedMaintenanceKcal is what we're calibrating from,
   // shown on the progress screen before any measurement exists.
   calibrationActive: boolean;
   calibrationDaysRemaining: number;
@@ -498,7 +498,7 @@ export interface CoachData {
   // profile can't support a prediction.
   maintenanceKcal: number | null;
   // The formula's maintenance estimate with NO calibration applied. The
-  // correction is the ratio of the measurement to this raw prediction — measure
+  // correction is the ratio of the measurement to this raw prediction, measure
   // it against an already-corrected number and the ratio sits at 1 for ever and
   // never converges on anything. Null when the profile is too incomplete.
   predictedTdee: number | null;
@@ -572,8 +572,8 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
   const cutWaist = cutDay(WAIST_WINDOW_DAYS - 1);
 
   // Everything the review reads is fetched in one parallel batch. None of these
-  // depend on each other's results — the cut-offs and the week boundary are all
-  // derived from `tz`/`now` up front — so the daily intake (a 28-day food_logs
+  // depend on each other's results, the cut-offs and the week boundary are all
+  // derived from `tz`/`now` up front, so the daily intake (a 28-day food_logs
   // scan) and the weekly-target history join the batch rather than each adding a
   // sequential round trip after it. Home waits on one Supabase round trip here,
   // not three.
@@ -679,7 +679,7 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
             7,
           ),
           stepsPerDay,
-          tdeeCalibration: 1, // deliberately raw — see predictedTdee above
+          tdeeCalibration: 1, // deliberately raw, see predictedTdee above
         })
       : null;
 
@@ -694,7 +694,7 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
   // Adaptation gate: how many DAYS the current calorie target has actually been
   // in force. The review won't cut or add until the body has had a full two
   // weeks to respond. We walk back through the unbroken run of same-kcal weekly
-  // rows and count from the day the earliest of them started being eaten —
+  // rows and count from the day the earliest of them started being eaten,
   // effective_from, which is the Monday for an ordinary weekly target but the
   // day itself for one written mid-week (a calibration graduation, a profile
   // edit). Counting calendar weeks handed a target that began on the Thursday
@@ -757,12 +757,12 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
     calibrationComplete: calComplete,
   });
 
-  // The phase the in-force target belongs to — lets the review notice the
+  // The phase the in-force target belongs to, lets the review notice the
   // calibration→deficit transition and open a fresh, modest cut.
   const prevPhase: Phase = (current?.phase as Phase | undefined) ?? "deficit";
 
   // The modest deficit to OPEN the cut with when leaving calibration: the
-  // pace-derived deficit, clamped into a sustainable 300–500 kcal/day band.
+  // pace-derived deficit, clamped into a sustainable 300 to 500 kcal/day band.
   const openingDeficit =
     profile?.goal_pace && latestKg
       ? openingDeficitKcal(
@@ -779,8 +779,8 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
   //
   // On the way out of calibration this has to include the measurement the hold
   // just produced. The stored factor is only folded in applyReview, moments
-  // AFTER this target is computed, so the first deficit — the whole point of the
-  // fortnight — was being cut from the formula's own guess, with the fortnight's
+  // AFTER this target is computed, so the first deficit, the whole point of the
+  // fortnight, was being cut from the formula's own guess, with the fortnight's
   // evidence not arriving until the following review. It also made the message
   // untrue: it named a "measured maintenance" the target had not been built on.
   // Fold here with the same call applyReview will make, so the number shown, the
@@ -804,7 +804,7 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
         // Keep the protein cap consistent with onboarding when we recompute.
         heightCm: profile?.height_cm,
         goalWeightKg: profile?.goal_weight_kg,
-        // Cadence gates — hold unless the target has been eaten for a full two
+        // Cadence gates, hold unless the target has been eaten for a full two
         // weeks and the weigh-ins are consistent.
         daysOnTarget,
         consistent,
@@ -846,12 +846,12 @@ export const getCoachData = cache(async function getCoachData(): Promise<CoachDa
     phase,
     calibrationActive: phase === "calibration",
     calibrationDaysRemaining: calDaysRemaining,
-    // The calibration hold ends on its own timestamp, part-way through a week —
+    // The calibration hold ends on its own timestamp, part-way through a week,
     // not on a Monday. Writing its first deficit as NEXT week's target left the
     // user eating maintenance for up to six more days after being told the cut
     // had started, and left this week's row still phase "calibration", so every
     // reload re-proposed the same transition off a maintenance estimate that had
-    // moved in the meantime — each apply landing lower than the last. The
+    // moved in the meantime, each apply landing lower than the last. The
     // graduating target belongs to the week in force.
     takesEffectNow: review.changed && prevPhase === "calibration" && phase !== "calibration",
     maintenanceKcal,
@@ -901,7 +901,7 @@ export async function getCalibrationReviews(): Promise<FiledCalibrationReview[]>
   return ((data as Record<string, unknown>[]) ?? []).map(toFiledReview);
 }
 
-// One filed review by id, for re-watching it. Null when it isn't there — which
+// One filed review by id, for re-watching it. Null when it isn't there, which
 // includes another user's review, since RLS filters it out rather than erroring.
 export async function getCalibrationReview(
   id: string,
@@ -920,7 +920,7 @@ export async function getCalibrationReview(
 // There is exactly one moment this returns anything: the hold has ended, a first
 // deficit is waiting, and the user has not started it yet (takesEffectNow, which
 // goes false the instant the graduating target is written). So the screen is its
-// own gate — no "seen" flag to keep in step, and closing the tab without
+// own gate, no "seen" flag to keep in step, and closing the tab without
 // starting leaves the review exactly where it was.
 export const getCalibrationWrap = cache(async function getCalibrationWrap(): Promise<CalibrationWrap | null> {
   const [coach, profile, tz] = await Promise.all([
@@ -1025,7 +1025,7 @@ function toCheckIn(r: Record<string, unknown>): CheckIn {
 // is private, so this is the only way the browser can fetch a file.
 //
 // One request for the whole set. Signing them one at a time meant a separate
-// HTTP call to Storage per photo — a year of weekly check-ins with three angles
+// HTTP call to Storage per photo, a year of weekly check-ins with three angles
 // each is 150-odd sequential-ish calls before the Progress page can render, and
 // they all serialise behind the same connection pool.
 const PHOTO_URL_TTL_SECONDS = 60 * 60;
@@ -1123,7 +1123,7 @@ export async function getCheckInHistory(
   return checkIns.map((c) => ({ ...c, photos: byCheckIn.get(c.id) ?? [] }));
 }
 
-// Whether the user has linked a wearable — Fitbit/Google Health (a token row)
+// Whether the user has linked a wearable, Fitbit/Google Health (a token row)
 // or Apple (an ingest token). Lets the dashboard show a "connect to see sleep /
 // exercise" placeholder instead of an empty chart when nothing feeds it.
 export async function getDeviceConnected(): Promise<boolean> {
@@ -1131,8 +1131,8 @@ export async function getDeviceConnected(): Promise<boolean> {
   const user = await getSessionUser();
   if (!user) return false;
 
-  // The Apple side comes off the cached profile — the same users row, already
-  // fetched for this request — so only the Fitbit token needs asking for.
+  // The Apple side comes off the cached profile, the same users row, already
+  // fetched for this request, so only the Fitbit token needs asking for.
   const [fitbitRes, profile] = await Promise.all([
     supabase.from("fitbit_tokens").select("user_id").eq("user_id", user.id).maybeSingle(),
     getProfile(),
@@ -1176,7 +1176,7 @@ export async function getMeasurementHistory(days = 365): Promise<
 // still finds the reference food ("cookies" → "cookie", "potatoes" → "potato",
 // "berries" → "berry"). The reference names foods in the singular and the match
 // is a plain `ilike`, so without this the natural way to type a food draws a
-// blank. Only the last word is touched — that's the noun. Empty when the word
+// blank. Only the last word is touched, that's the noun. Empty when the word
 // isn't a plural we recognise.
 function singularTerms(q: string): string[] {
   const words = q.split(/\s+/);
@@ -1213,7 +1213,7 @@ const getFoodAliases = cache(async function getFoodAliases(): Promise<
 });
 
 // Rewrite a query into the words the reference actually uses. Returns null when
-// nothing matched — the caller then skips the second search rather than
+// nothing matched, the caller then skips the second search rather than
 // repeating the first.
 //
 // One left-to-right pass over the words, never re-reading what it has already
@@ -1291,11 +1291,11 @@ function sortByRank<T extends { name: string }>(rows: T[], term: string): T[] {
 // Matching is word by word, not as one substring: the reference names foods
 // "Cake or cupcake, chocolate with chocolate icing, bakery", so a substring
 // search for "chocolate cake" finds nothing at all while an AND of "chocolate"
-// and "cake" finds it. Three passes, cheapest first — as typed, then with
+// and "cake" finds it. Three passes, cheapest first, as typed, then with
 // British words swapped for the American ones the data uses (see 0034), then
 // with a plural singularised.
 //
-// Read in two steps — foods, then their sizes — so it works without a nested
+// Read in two steps, foods, then their sizes, so it works without a nested
 // join (and against the test fake). Numeric columns arrive as strings from
 // PostgREST, so every macro and gram is coerced to a number here.
 const SEARCH_POOL = 40;
@@ -1331,7 +1331,7 @@ export async function searchFreshFoods(query: string): Promise<FreshFood[]> {
     aliasedQuery ? byWords(aliasedQuery) : Promise.resolve([]),
   ]);
 
-  // Rank each reading against the words that produced it, then concatenate —
+  // Rank each reading against the words that produced it, then concatenate,
   // the aliased reading first, deduped by id.
   const seen = new Set<string>();
   let foods = [
@@ -1386,7 +1386,7 @@ export async function searchFreshFoods(query: string): Promise<FreshFood[]> {
 // getDailyIntake (which only needs calories, for the coach); the insights cards
 // break intake down by macro and by weekday, so they need the whole row.
 //
-// Days with nothing logged are absent rather than zero — an unlogged day is
+// Days with nothing logged are absent rather than zero, an unlogged day is
 // unknown, and scoring it as a fast would flatter every average built on it.
 export async function getDailyMacros(days = 180): Promise<DayIntake[]> {
   const supabase = await createClient();
@@ -1422,7 +1422,7 @@ export async function getDailyMacros(days = 180): Promise<DayIntake[]> {
 
 // Every weekly target the user has been given, oldest first. The insights cards
 // judge a week against the target that was actually in force THAT week, not
-// against today's — a target that was cut in June shouldn't retroactively make
+// against today's, a target that was cut in June shouldn't retroactively make
 // May look like an overshoot.
 export async function getTargetHistory(weeks = 52): Promise<WeekTarget[]> {
   const supabase = await createClient();
@@ -1490,7 +1490,7 @@ export interface InsightsData {
   intake: DayIntake[];
   targets: WeekTarget[];
   // The target actually IN FORCE, resolved the way the rest of the app resolves
-  // it — most recent row on or before this week, pinned to the onboarding anchor
+  // it, most recent row on or before this week, pinned to the onboarding anchor
   // while calibrating. `targets` is the raw history, for judging a past week
   // against the row that was live then; scoring THIS week against a row picked
   // out of that history by date instead of through here is how the scorecard

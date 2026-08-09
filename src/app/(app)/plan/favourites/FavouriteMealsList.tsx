@@ -6,7 +6,7 @@ import type { FavouriteMeal } from "@/lib/types";
 import { deleteFavouriteMeal } from "../day/actions";
 
 // Each favourite meal as a card: its name, the foods in it, and its macros, with
-// a delete button. The macros are the meal's stored totals — what you'd log if
+// a delete button. The macros are the meal's stored totals, what you'd log if
 // you added it and ate it.
 export default function FavouriteMealsList({ meals }: { meals: FavouriteMeal[] }) {
   const [pending, startTransition] = useTransition();

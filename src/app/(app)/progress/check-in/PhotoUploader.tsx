@@ -71,7 +71,7 @@ export default function PhotoUploader({ checkInId }: { checkInId: string }) {
         <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
           Progress photos
         </h3>
-        <span className="text-xs text-[var(--muted)]">Private — only you</span>
+        <span className="text-xs text-[var(--muted)]">Private, only you</span>
       </div>
 
       <input

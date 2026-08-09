@@ -96,7 +96,7 @@ function jsonResponse(body: unknown, ok = true, status = 200) {
 }
 
 function textErrorResponse() {
-  // OFF sometimes serves an HTML error page with a 200 — JSON parse throws.
+  // OFF sometimes serves an HTML error page with a 200, JSON parse throws.
   return {
     ok: true,
     status: 200,
@@ -188,7 +188,7 @@ function installOff(
 ) {
   fetchMock.mockImplementation(async (url: string) => {
     const u = new URL(url);
-    // Lowercase for routing — the full query keeps the user's capitals while
+    // Lowercase for routing, the full query keeps the user's capitals while
     // internal sub-queries are already lowercased.
     const q = (u.searchParams.get("q") ?? "").toLowerCase();
     if (q.startsWith("brands_tags:")) return jsonResponse({ count: 0 });
@@ -202,7 +202,7 @@ function installOff(
 
 const has = (q: string, ...words: string[]) => words.every((w) => q.includes(w));
 
-describe("searchProducts — own-brand & marketing-noise fallback", () => {
+describe("searchProducts, own-brand & marketing-noise fallback", () => {
   it("drops single-letter M&S tokens instead of matching M&M's (red peppers)", async () => {
     installOff((q) => {
       if (has(q, "red peppers")) return { hits: [prod("Red Peppers")] };
@@ -358,7 +358,7 @@ describe("searchProducts — own-brand & marketing-noise fallback", () => {
 // crisp, a "baby" variant); the clean food query surfaces the right one. The
 // matcher must reject the wrong top hit and fall back to the clean food.
 
-describe("searchProducts — real wrong-answer regressions", () => {
+describe("searchProducts, real wrong-answer regressions", () => {
   it("does not accept beef strips for a pork query", async () => {
     installOff((q) => {
       // The noisy branded query lands on beef stir-fry strips.
@@ -396,7 +396,7 @@ describe("searchProducts — real wrong-answer regressions", () => {
   });
 
   it("returns no match rather than crisps when OFF has only crisps", async () => {
-    // Every hit for a potato query is a crisp — raw potatoes aren't in OFF's
+    // Every hit for a potato query is a crisp, raw potatoes aren't in OFF's
     // pool. Defaulting to Lay's is worse than nothing, so expect an empty set.
     installOff((q) => {
       if (has(q, "potato")) {
@@ -438,7 +438,7 @@ describe("searchProducts — real wrong-answer regressions", () => {
 
   it("prefers the plain fruit over processed products that merely name it", async () => {
     // What the popularity-ranked legacy search actually returns for "banana":
-    // banana-flavoured yogurt, muesli, cookies — plus the real fruit further
+    // banana-flavoured yogurt, muesli, cookies, plus the real fruit further
     // down. The plain food must win, not the most popular derivative.
     installOff((q) =>
       has(q, "banana")
@@ -479,7 +479,7 @@ describe("searchProducts — real wrong-answer regressions", () => {
 // it fails, we retry the legacy /cgi/search.pl endpoint (which returns products
 // under `products`) so a search-service outage still finds the food.
 
-describe("searchProducts — legacy CGI fallback", () => {
+describe("searchProducts, legacy CGI fallback", () => {
   it("falls back to the CGI search when Search-a-licious is down", async () => {
     fetchMock.mockImplementation(async (url: string) => {
       const u = new URL(url);
@@ -487,7 +487,7 @@ describe("searchProducts — legacy CGI fallback", () => {
       if (u.hostname === "search.openfoodfacts.org") {
         return jsonResponse({}, false, 502);
       }
-      // Legacy CGI is up — returns matches under `products`.
+      // Legacy CGI is up, returns matches under `products`.
       if (u.pathname.includes("search.pl")) {
         return jsonResponse({ products: [prod("Bananas")] });
       }

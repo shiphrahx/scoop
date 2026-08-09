@@ -10,8 +10,8 @@ import { getCalibrationWrap, getProfile } from "@/lib/queries";
 //
 // This is the consent step for the biggest macro change the app ever makes: the
 // user has seen the measurement, the new target and the rate it should produce
-// before anything is written. applyReview does the writing — same action the
-// Coach screen uses — so there is one path that changes a target, not two.
+// before anything is written. applyReview does the writing, same action the
+// Coach screen uses, so there is one path that changes a target, not two.
 //
 // The findings are read BEFORE the target is written and filed AFTER it: reading
 // after would find nothing (writing the target is exactly what ends the review),

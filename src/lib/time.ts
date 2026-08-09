@@ -1,8 +1,8 @@
 // Days, in the user's timezone rather than the server's.
 //
 // The server runs in UTC (Vercel always does). "Today" was being read off the
-// server clock, so a user in the UK between midnight and 1am BST — or anyone in
-// Auckland or Los Angeles for a good chunk of every day — was shown the wrong
+// server clock, so a user in the UK between midnight and 1am BST, or anyone in
+// Auckland or Los Angeles for a good chunk of every day, was shown the wrong
 // day's food and could log a meal onto the wrong date. Every day boundary in the
 // app goes through here now, with the timezone the user actually lives in.
 
@@ -47,7 +47,7 @@ function offsetMs(tz: string, at: Date): number {
     get("second"),
   );
   // Intl gives the wall-clock time in `tz`; the gap to the real instant is the
-  // offset. Rounded to the second — `at` carries milliseconds, the parts don't.
+  // offset. Rounded to the second, `at` carries milliseconds, the parts don't.
   return asUtc - Math.floor(at.getTime() / 1000) * 1000;
 }
 
@@ -71,7 +71,7 @@ function localMidnight(zone: string, dateISO: string): Date {
   return new Date(asUtcMidnight.getTime() - offsetMs(zone, asUtcMidnight));
 }
 
-// The instant the user's day began — midnight where they are, as a UTC Date.
+// The instant the user's day began, midnight where they are, as a UTC Date.
 // This is what food_logs.logged_at (a timestamptz) has to be compared against
 // to sum "today's" food.
 export function startOfLocalDay(tz: string, at: Date = new Date()): Date {
@@ -80,7 +80,7 @@ export function startOfLocalDay(tz: string, at: Date = new Date()): Date {
 }
 
 // A calendar date `n` days from `dateISO`, as YYYY-MM-DD. Pure string maths in
-// UTC — no clock, no zone — so it can't drift with the server's day.
+// UTC, no clock, no zone, so it can't drift with the server's day.
 export function addDaysISO(dateISO: string, n: number): string {
   const [y, m, d] = dateISO.split("-").map(Number);
   const day = new Date(Date.UTC(y, m - 1, d));
@@ -88,7 +88,7 @@ export function addDaysISO(dateISO: string, n: number): string {
   return day.toISOString().slice(0, 10);
 }
 
-// The [start, end) UTC instants bounding a calendar date in the user's zone —
+// The [start, end) UTC instants bounding a calendar date in the user's zone,
 // midnight of that date to midnight of the next. Used to sum a specific day's
 // food, not just today's.
 export function dayRangeFor(tz: string, dateISO: string): { start: Date; end: Date } {
@@ -100,7 +100,7 @@ export function dayRangeFor(tz: string, dateISO: string): { start: Date; end: Da
 }
 
 // The Monday (as YYYY-MM-DD) of the week containing a calendar date. Pure string
-// maths on a date that is already in the user's zone — no clock involved, so it
+// maths on a date that is already in the user's zone, no clock involved, so it
 // can't drift with the server's.
 export function weekStartOf(dateISO: string): string {
   const [y, m, d] = dateISO.split("-").map(Number);

@@ -10,8 +10,8 @@ import {
   weeklyDeficitKcal,
 } from "@/lib/highday";
 
-// Refeed days. The user sets only two things: a master toggle and — within a
-// safe range — how many refeed days a week (defaulting to the evidence-based 2).
+// Refeed days. The user sets only two things: a master toggle and, within a
+// safe range, how many refeed days a week (defaulting to the evidence-based 2).
 // The carbs are CALCULATED, never typed: a refeed raises that day up to
 // maintenance with extra carbs, and it's FREE (no other day is cut). The live
 // preview shows the uplift and is honest that refeed weeks lose a little less.
@@ -26,10 +26,10 @@ export default function CyclingSettings({
   recommended: number;
   // The flat deficit target this week. Null before onboarding sets one.
   base: { kcal: number } | null;
-  // The user's maintenance estimate — the ceiling a refeed reaches. Null until
+  // The user's maintenance estimate, the ceiling a refeed reaches. Null until
   // it's confidently known, in which case refeeds can't be sized yet.
   maintenanceKcal?: number | null;
-  // Refeeds are locked during the calibration hold — no deficit yet. Show why
+  // Refeeds are locked during the calibration hold, no deficit yet. Show why
   // rather than hiding it.
   locked?: boolean;
 }) {
@@ -95,7 +95,7 @@ export default function CyclingSettings({
         <p className="text-sm text-[var(--muted)]">
           Eat up to maintenance on a couple of chosen days to fuel workouts and
           refill glycogen. This unlocks once you finish calibrating and start your
-          deficit — until then there&apos;s no deficit to take a break from.
+          deficit, until then there&apos;s no deficit to take a break from.
         </p>
       </section>
     );
@@ -106,7 +106,7 @@ export default function CyclingSettings({
       <div className="flex flex-col gap-1">
         <h2 className="text-lg font-semibold">Refeed days</h2>
         <p className="text-sm text-[var(--muted)]">
-          Eat up to maintenance on a few chosen days — extra carbs only, protein
+          Eat up to maintenance on a few chosen days, extra carbs only, protein
           and fat unchanged. They&apos;re free: no other day is cut, so a refeed
           week loses a little less. They&apos;re for adherence and muscle, not
           faster fat loss.
@@ -137,7 +137,7 @@ export default function CyclingSettings({
 
       {enabled && (
         <>
-          {/* Refeed days per week — the only number the user sets. */}
+          {/* Refeed days per week, the only number the user sets. */}
           <div className="flex items-center gap-3">
             <div className="min-w-0 flex-1">
               <p className="font-medium">Refeed days per week</p>
@@ -180,7 +180,7 @@ export default function CyclingSettings({
             </button>
           </div>
 
-          {/* Calculated carbs — read-only. The app works these out; the user
+          {/* Calculated carbs, read-only. The app works these out; the user
               never types them. */}
           <div className="rounded-2xl bg-[var(--fill-soft)] p-4">
             <p className="font-medium">We&apos;ll do the carbs for you</p>
@@ -191,7 +191,7 @@ export default function CyclingSettings({
                   {upliftCarbsG} g carbs
                 </span>{" "}
                 (~{upliftCarbsG * 4} kcal) to reach your ~{maintenanceKcal} kcal
-                maintenance. It&apos;s free — no other day is cut. Protein and fat
+                maintenance. It&apos;s free. No other day is cut. Protein and fat
                 stay the same.
                 {lossWithRefeeds != null && lossFlat != null && lossFlat > 0 && (
                   <>
@@ -200,7 +200,7 @@ export default function CyclingSettings({
                     <span className="font-semibold text-[var(--ink)]">
                       {lossWithRefeeds.toFixed(2)} kg
                     </span>{" "}
-                    this week, versus {lossFlat.toFixed(2)} kg with no refeeds —
+                    this week, versus {lossFlat.toFixed(2)} kg with no refeeds,
                     the trade for easier days.
                   </>
                 )}

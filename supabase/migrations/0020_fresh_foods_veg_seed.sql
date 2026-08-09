@@ -1,5 +1,5 @@
 -- Scoop: extend the fresh-food reference (0017) with the common vegetables the
--- first seed (0019) left out — broccoli, courgette, spinach and the rest — so a
+-- first seed (0019) left out, broccoli, courgette, spinach and the rest, so a
 -- user can add any of them to their pantry by name and get sensible per-100g
 -- macros and typical sizes. The day planner treats these as meal fillers, sized
 -- by energy (see mealplan.ts), so seeding them makes "plan my day" work for the

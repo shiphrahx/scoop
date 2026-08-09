@@ -18,7 +18,7 @@ import type { MealSuggestion } from "@/lib/types";
 // diet and the macros they have left today, optionally built around a chosen
 // carb + protein.
 //
-// This and logSuggestion below serve PlanMeal, which is parked — see the note at
+// This and logSuggestion below serve PlanMeal, which is parked, see the note at
 // the top of ../PlanMeal.tsx. Kept whole so the feature can be switched back on
 // by giving it a route, not rebuilt.
 export async function getSuggestions(
@@ -52,7 +52,7 @@ export async function getSuggestions(
   )
     .filter((p) => !violatesDiet(p.name, profile.diet_type))
     .map((p) => {
-      // Stock caps a portion at what the user actually has — a pack the app
+      // Stock caps a portion at what the user actually has, a pack the app
       // can't exceed. Pack size × packs; left undefined (no cap) when unknown.
       const pack = p.pack_size_g != null ? Number(p.pack_size_g) : null;
       const qty = p.quantity != null ? Math.max(1, Number(p.quantity)) : 1;
@@ -109,7 +109,7 @@ export async function logAlcohol(input: AlcoholInput) {
     throw new Error("Enter a volume and an ABV above zero.");
   }
   if (volumeMl > MAX_VOLUME_ML || abvPct > MAX_ABV_PCT) {
-    throw new Error("That looks too big — check the volume and ABV.");
+    throw new Error("That looks too big. Check the volume and ABV.");
   }
   if (!["carbs", "fat", "split"].includes(input.allocation)) {
     throw new Error("Choose whether to count the alcohol as carbs or fat.");
@@ -124,7 +124,7 @@ export async function logAlcohol(input: AlcoholInput) {
   });
   // A single drink over ~2000 kcal is almost certainly a typo, not a pour.
   if (m.kcal > 2000) {
-    throw new Error("That's a lot for one drink — check the numbers.");
+    throw new Error("That's a lot for one drink. Check the numbers.");
   }
 
   const today = await localToday();

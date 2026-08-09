@@ -25,7 +25,7 @@ export default function PrivacyPage() {
         </li>
         <li>
           <strong>Your profile.</strong> Height, sex, birth year, diet type,
-          allergies, dislikes, goal and pace — whatever you enter in onboarding
+          allergies, dislikes, goal and pace, whatever you enter in onboarding
           and settings.
         </li>
         <li>
@@ -41,24 +41,24 @@ export default function PrivacyPage() {
       <h2>What we don&rsquo;t do</h2>
       <p>
         No advertising. No selling or renting your data. No analytics or
-        tracking scripts — the only cookies Scoop sets are the ones that keep
+        tracking scripts, the only cookies Scoop sets are the ones that keep
         you signed in. We do not use your data to train any model.
       </p>
 
       <h2>Who else touches your data</h2>
       <ul>
         <li>
-          <strong>Supabase</strong> — stores the database and handles sign-in.
+          <strong>Supabase</strong>: stores the database and handles sign-in.
         </li>
         <li>
-          <strong>Vercel</strong> — hosts the app and serves the pages.
+          <strong>Vercel</strong>: hosts the app and serves the pages.
         </li>
         <li>
-          <strong>Google</strong> — sign-in, and the Google Health API if you
+          <strong>Google</strong>: sign-in, and the Google Health API if you
           choose to connect a wearable.
         </li>
         <li>
-          <strong>Open Food Facts</strong> — when you scan a barcode, the
+          <strong>Open Food Facts</strong>: when you scan a barcode, the
           barcode is looked up against their public database.
         </li>
       </ul>
@@ -77,8 +77,8 @@ export default function PrivacyPage() {
 
       <h2>How long we keep it</h2>
       <p>
-        Your data stays until you ask us to delete it. Your history matters here
-        — the coach reads trailing averages, so old weights and logs are what
+        Your data stays until you ask us to delete it. Your history matters here.
+        The coach reads trailing averages, so old weights and logs are what
         make it work.
       </p>
 
@@ -89,7 +89,7 @@ export default function PrivacyPage() {
           Open an issue on GitHub
         </a>{" "}
         with the email address you signed up with. Issues are public, so
-        don&rsquo;t put anything private in there — we will reply by email if we
+        don&rsquo;t put anything private in there. We will reply by email if we
         need more. The same route works for a copy of your data.
       </p>
 

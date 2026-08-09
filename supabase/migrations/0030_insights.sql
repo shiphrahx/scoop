@@ -4,7 +4,7 @@
 -- already holds (weights, check_ins, food_logs, daily_targets, activity,
 -- high_days). Only two modules need the user to tell us something new:
 --
---   non_scale_victories  wins the scale can't see — "ran 5k without stopping",
+--   non_scale_victories  wins the scale can't see, "ran 5k without stopping",
 --                        "rings fit again". The scale stalls for weeks at a
 --                        time; these are what carries someone through it, so
 --                        they're a logged, dated record rather than a feeling.

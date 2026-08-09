@@ -33,7 +33,7 @@ export default function ServiceWorkerRegister() {
     navigator.serviceWorker.addEventListener("message", onMessage);
 
     // Registration waits for `load` so it never competes with the first paint.
-    // But on a warm visit — everything served from cache — `load` can fire
+    // But on a warm visit, everything served from cache, `load` can fire
     // before React hydrates, and a listener added after the event never runs:
     // the worker would then only install on some future slow page view. Check
     // readyState first so those visits register too.

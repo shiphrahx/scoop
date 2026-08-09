@@ -65,7 +65,7 @@ describe("getLoggedExtrasForDate", () => {
 
   it("leaves out a log a planned meal already shows", async () => {
     // Eating a planned meal writes a food log and points the meal at it. That
-    // one is on screen under its slot — listing it here would show it twice and
+    // one is on screen under its slot, listing it here would show it twice and
     // count it twice in the day's total.
     installFakeSupabase({
       db: {
@@ -137,7 +137,7 @@ describe("localToday", () => {
 describe("getTodayConsumed", () => {
   it("sums today's food from midnight where the user is", async () => {
     atUkMidnight();
-    // Eaten at 22:00 UTC on the 13th — which is 23:00 on the 13th in London, so
+    // Eaten at 22:00 UTC on the 13th, which is 23:00 on the 13th in London, so
     // it belongs to YESTERDAY for this user, whose day started at 23:00 UTC.
     // And 23:40 UTC, which is 00:40 on the 14th there: today.
     installFakeSupabase({

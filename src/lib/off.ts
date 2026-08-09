@@ -31,7 +31,7 @@ function num(value: unknown): number {
 }
 
 // The extra per-100g nutrients from an OFF nutriments blob. Sodium is reported
-// in grams — we keep it in milligrams; fall back to salt (salt ≈ sodium × 2.5).
+// in grams, we keep it in milligrams; fall back to salt (salt ≈ sodium × 2.5).
 function extras(n: Record<string, unknown>) {
   const sodiumG = n["sodium_100g"] != null ? num(n["sodium_100g"]) : num(n["salt_100g"]) / 2.5;
   return {
@@ -104,7 +104,7 @@ export function parseServing(p: {
 
 // Shape one OFF product record into per-100g macros + pack size. `brands` comes
 // back as a comma-joined string from the product/v2 APIs but as an array from
-// the Search-a-licious search API — accept either and take the first brand.
+// the Search-a-licious search API, accept either and take the first brand.
 function toCandidate(p: {
   code?: string;
   product_name?: string;
@@ -196,7 +196,7 @@ const FILLER = new Set([
 // Words that turn a whole food into a different or processed product. When a
 // candidate carries one but the query never asked for it, it's the wrong item
 // ("Lime Juice" for limes, "Baby Aubergine" for aubergine, "Potato Crisps" for
-// potatoes). Note "baby"/"mini" are also FILLER — stripped from a query, so a
+// potatoes). Note "baby"/"mini" are also FILLER, stripped from a query, so a
 // candidate that adds them is more specific than what the user typed.
 const QUALIFIERS = new Set([
   "juice", "crisps", "crisp", "chips", "powder", "puree", "purée", "paste",
@@ -204,7 +204,7 @@ const QUALIFIERS = new Set([
   "tinned", "pickled", "baby", "mini", "dwarf",
 ]);
 
-// Words that mark a genuinely DIFFERENT food — a snack, a drink, or a processed
+// Words that mark a genuinely DIFFERENT food, a snack, a drink, or a processed
 // product built AROUND an ingredient rather than the ingredient itself. A
 // plain-food query that didn't ask for one of these ("banana", "baby potatoes")
 // should never be answered with it ("Banana Yogurt", "Potato Crisps", "Lime
@@ -214,7 +214,7 @@ const QUALIFIERS = new Set([
 // with popular derivatives (a search for "banana" returns banana-flavoured
 // yogurt, muesli and cookies long before the fruit). The drop is self-exempt:
 // someone who types "banana yogurt" keeps it, since their query asked for it.
-// Preservation words (tinned, dried, frozen) are deliberately absent — "tinned
+// Preservation words (tinned, dried, frozen) are deliberately absent, "tinned
 // tomatoes" is still tomatoes.
 const WRONG_FOOD = new Set([
   "crisps", "crisp", "chips", "juice", "snack", "snacks", "dessert",
@@ -226,7 +226,7 @@ const WRONG_FOOD = new Set([
 ]);
 
 // Protein words. A query that names one ("pork stir fry strips") must not be
-// satisfied by a hit that swaps it ("beef stir fry strips") — a different
+// satisfied by a hit that swaps it ("beef stir fry strips"), a different
 // animal is never the right match.
 const PROTEINS = new Set([
   "pork", "beef", "chicken", "turkey", "lamb", "duck", "salmon", "tuna", "cod",
@@ -245,7 +245,7 @@ function queryProteins(query: string): string[] {
   return [...new Set(tokens(query).filter((w) => PROTEINS.has(w)).map(stem))];
 }
 
-// The essential food words in a query — brand, retailer and marketing words
+// The essential food words in a query, brand, retailer and marketing words
 // stripped. Order preserved (the base noun tends to sit last).
 function coreTerms(q: string): string[] {
   return queryTokens(q).filter(
@@ -270,14 +270,14 @@ function fallbackVariants(q: string): string[] {
   return out;
 }
 
-// A result set is "strong" when the top hit really is the food the user typed —
+// A result set is "strong" when the top hit really is the food the user typed,
 // its name carries the base food noun (the last core word) OR at least two of
 // the core terms. That accepts "Alpro Almond No Sugar" for "…almond…drink"
 // (two core terms) while rejecting "M&M's Red White & Blue" for "red peppers"
 // (only "red" overlaps, and the noun "peppers" is missing).
 function isStrong(query: string, results: OffCandidate[]): boolean {
   if (!results.length) return false;
-  // A different protein is never the right match — force a fallback that
+  // A different protein is never the right match, force a fallback that
   // actually searches the protein the user typed.
   const proteins = queryProteins(query);
   if (proteins.length) {
@@ -285,7 +285,7 @@ function isStrong(query: string, results: OffCandidate[]): boolean {
     if (proteins.some((p) => !top.has(p))) return false;
   }
   // A top hit that adds an unrequested qualifier ("Lime Juice", "Baby
-  // Aubergine", "Potato Crisps") is the wrong specificity — fall back to the
+  // Aubergine", "Potato Crisps") is the wrong specificity, fall back to the
   // clean food.
   if (addsUnwantedQualifier(query, results[0].name)) return false;
   const core = coreTerms(query).map(stem);
@@ -311,7 +311,7 @@ const KEYBOARD: Record<string, string> = {
   b: "vghn", n: "bhjm", m: "njk",
 };
 
-// Damerau–Levenshtein edit distance (with adjacent transpositions).
+// Damerau Levenshtein edit distance (with adjacent transpositions).
 function damerau(a: string, b: string): number {
   const m = a.length;
   const n = b.length;
@@ -373,7 +373,7 @@ function nameSimilarity(word: string, name: string): number {
 
 // Rank candidates by inverse document frequency within the result pool. A rare,
 // distinctive query word ("vegemince") is worth far more than a common brand
-// word ("linda", "mccartney") that half the pool shares — so the specific
+// word ("linda", "mccartney") that half the pool shares, so the specific
 // product wins over popular same-brand items. Weighs name + brand text; ties
 // keep OFF's popularity order.
 function rankByName(term: string, candidates: OffCandidate[]): OffCandidate[] {
@@ -389,7 +389,7 @@ function rankByName(term: string, candidates: OffCandidate[]): OffCandidate[] {
   const idf: Record<string, number> = {};
   for (const w of want) idf[w] = Math.log(1 + n / (df[w] || 0.5));
 
-  // The single most distinctive query word — the one that best pins the product.
+  // The single most distinctive query word, the one that best pins the product.
   const keyToken = want.reduce((a, b) => (idf[b] > (idf[a] ?? 0) ? b : a), want[0]);
   const maxIdf = Math.max(1, ...want.map((w) => idf[w]));
 
@@ -403,7 +403,7 @@ function rankByName(term: string, candidates: OffCandidate[]): OffCandidate[] {
       // can't push the ratio above 1.
       score += 0.3 * maxIdf * (matched.length / (t.size || 1));
       // A candidate that misses the distinctive word is probably the wrong
-      // product (a same-category or same-brand also-ran) — push it down hard.
+      // product (a same-category or same-brand also-ran), push it down hard.
       if (want.length > 1 && !t.has(keyToken)) score *= 0.2;
       return { c, score, hasMacro: c.kcal_100g > 0, i };
     })
@@ -418,7 +418,7 @@ function rankByName(term: string, candidates: OffCandidate[]): OffCandidate[] {
     .map((r) => r.c);
 }
 
-// The most distinctive query word given a candidate pool — the rarest one, which
+// The most distinctive query word given a candidate pool, the rarest one, which
 // best pins the intended product. Empty string when the term has no tokens.
 function distinctiveToken(term: string, pool: OffCandidate[]): string {
   const want = [...new Set(queryTokens(term).map(stem))];
@@ -433,7 +433,7 @@ function distinctiveToken(term: string, pool: OffCandidate[]): string {
   return want.reduce((a, b) => (idf[b] > idf[a] ? b : a), want[0]);
 }
 
-// True when the ranked results miss the query's distinctive word — a sign the
+// True when the ranked results miss the query's distinctive word, a sign the
 // exact search only found category/near matches and a fuzzy retry is worth it.
 function exactIsWeak(term: string, ranked: OffCandidate[], pool: OffCandidate[]): boolean {
   if (!ranked.length) return true;
@@ -443,7 +443,7 @@ function exactIsWeak(term: string, ranked: OffCandidate[], pool: OffCandidate[])
   return !stemSet(`${top.name} ${top.brand ?? ""}`).has(key);
 }
 
-// How many products carry a brand tag — used to confirm a leading-prefix brand
+// How many products carry a brand tag, used to confirm a leading-prefix brand
 // is real. A two-word brand needs only a handful of products to be trusted.
 const MULTIWORD_BRAND_MIN = 10;
 
@@ -464,7 +464,7 @@ async function brandSize(tag: string): Promise<number> {
   }
 }
 
-// Legacy CGI full-text search — the fallback when Search-a-licious is down.
+// Legacy CGI full-text search, the fallback when Search-a-licious is down.
 // Returns the same candidate shape (its `products` records carry product_name,
 // brands, quantity, nutriments just like the v2 APIs). Empty on any failure.
 // Note: passing `fields` makes the CGI serve an HTML page, so we request the
@@ -496,9 +496,9 @@ async function cgiSearch(term: string, limit: number): Promise<OffCandidate[]> {
 }
 
 // One OFF full-text search. Returns unranked candidates (best-effort). When the
-// Search-a-licious request itself FAILS (5xx / timeout — the service is down),
+// Search-a-licious request itself FAILS (5xx / timeout, the service is down),
 // we retry the same term on the legacy CGI search. A healthy empty result is
-// left as-is (no wasteful second hit — matters for the fuzzy fan-out).
+// left as-is (no wasteful second hit, matters for the fuzzy fan-out).
 async function rawSearch(term: string, limit: number): Promise<OffCandidate[]> {
   const q = term.trim();
   if (!q) return [];
@@ -516,7 +516,7 @@ async function rawSearch(term: string, limit: number): Promise<OffCandidate[]> {
     });
     if (!res.ok) return cgiSearch(q, limit);
     // Search-a-licious returns matches under `hits` (relevance-ranked). OFF can
-    // serve an HTML error page with a 2xx — parse inside the try so a non-JSON
+    // serve an HTML error page with a 2xx, parse inside the try so a non-JSON
     // body degrades to "no match" instead of throwing.
     const body = (await res.json()) as {
       hits?: Array<Parameters<typeof toCandidate>[0]>;
@@ -556,11 +556,11 @@ async function searchWithBrands(
       next: { revalidate: 86400 },
       signal: timeoutSignal(),
     });
-    // Search-a-licious is down — fall back to the legacy CGI for the pool. It
+    // Search-a-licious is down, fall back to the legacy CGI for the pool. It
     // has no brand facet, so brand-led detection simply won't fire (a generic
     // idf ranking still finds the food).
     if (!res.ok) return { pool: await cgiSearch(q, limit), brands: [] };
-    // Parse inside the try — a non-JSON error page must degrade to empty.
+    // Parse inside the try, a non-JSON error page must degrade to empty.
     const body = (await res.json()) as {
       hits?: Array<Parameters<typeof toCandidate>[0]>;
       facets?: { brands_tags?: { items?: BrandFacetItem[] } };
@@ -574,7 +574,7 @@ async function searchWithBrands(
   }
 }
 
-// A brand is "implied" when every word of its name appears in the query — then
+// A brand is "implied" when every word of its name appears in the query, then
 // the user clearly wants that brand. We look at the brands present both in the
 // result facet AND in the pool itself: a brand-matched product can sit mid-pool
 // even when a common product word skews the facet toward other brands. Returns
@@ -583,7 +583,7 @@ async function searchWithBrands(
 // A real single-word brand is well represented in the query's results (Heinz,
 // Walkers); a common word that merely coincides with some obscure brand name
 // (Almond, Vegan) is not. Require this many facet products to trust a one-word
-// brand — multi-word brands (Linda McCartney) are trusted regardless.
+// brand, multi-word brands (Linda McCartney) are trusted regardless.
 const SINGLE_WORD_BRAND_MIN = 50;
 
 function impliedBrand(
@@ -591,7 +591,7 @@ function impliedBrand(
   brands: BrandFacetItem[],
 ): { tag: string; words: string[] } | null {
   const qset = new Set(queryTokens(q));
-  // Only trust the brand facet — its keys are canonical OFF brand tags and its
+  // Only trust the brand facet, its keys are canonical OFF brand tags and its
   // counts are real. (A single product's free-text brand field is often junk
   // like "Baked Beans" or "Vegan", which would gate to a bogus brand.)
   const cands = brands
@@ -601,7 +601,7 @@ function impliedBrand(
       (b) =>
         b.words.length > 0 &&
         b.words.every((w) => qset.has(w)) &&
-        // A retailer (Ocado, Tesco…) is not a product brand — its own-label
+        // A retailer (Ocado, Tesco…) is not a product brand, its own-label
         // catalogue spans every food, so constraining to it just surfaces the
         // retailer's arbitrary variant ("Ocado Baby Aubergine") instead of the
         // plain food. Find those generically by food, not by brand.
@@ -625,7 +625,7 @@ function impliedBrand(
 //   marketing noise burying the base food, e.g. "Ocado Aubergine",
 //   "Daylesford Organic Brown Onions"), we retry on the core food terms and
 //   progressively shorter tails, so the base food is still found.
-// Empty array on any failure — callers keep the item unmatched, never blocking.
+// Empty array on any failure, callers keep the item unmatched, never blocking.
 export async function searchProducts(
   term: string,
   limit = 5,
@@ -638,11 +638,11 @@ export async function searchProducts(
 // Final pass against the ORIGINAL query. Two steps:
 //  1. Drop candidates that are a genuinely different food the query never asked
 //     for ("Potato Crisps" / "Lime Juice" for potatoes / limes). If that leaves
-//     nothing, return [] — a clean "no match" beats defaulting to the wrong
+//     nothing, return [], a clean "no match" beats defaulting to the wrong
 //     food. Uses the full query, so "British Baby Potatoes" is exempt (it does
 //     ask for a potato) while "Ocado Aubergine" is not.
 //  2. Among the survivors, demote a bigger/smaller size variant (baby/mini) or a
-//     protein swap so the closest match sits first. Stable — nothing dropped.
+//     protein swap so the closest match sits first. Stable, nothing dropped.
 function refine(term: string, list: OffCandidate[]): OffCandidate[] {
   if (!list.length) return list;
   const qset = new Set(tokens(term).map(stem));
@@ -706,7 +706,7 @@ async function brandAwareSearch(
   let brand = impliedBrand(q, brands);
 
   // The facet can miss a brand when the product words dominate the results (e.g.
-  // "linda mccartney chicken breast" — a product the brand doesn't actually make).
+  // "linda mccartney chicken breast", a product the brand doesn't actually make).
   // If the query leads with a real two-word brand, honour it so we stay in-brand
   // rather than leaking other brands.
   const qWords = queryTokens(q);
@@ -725,20 +725,20 @@ async function brandAwareSearch(
   if (brand) {
     const productWords = queryTokens(q).filter((w) => !brand.words.includes(w));
     const filter = `brands_tags:${brand.tag}`;
-    // Each product word must AND explicitly — a bare multi-word phrase before an
+    // Each product word must AND explicitly, a bare multi-word phrase before an
     // AND filter mis-parses and returns nothing.
     const constrained = [...productWords, filter].join(" AND ");
     const inBrand = await rawSearch(constrained, 25);
     // Rank on the product words only; the brand words are shared by all hits.
     const rankTerm = productWords.length ? productWords.join(" ") : q;
-    // May be empty — that means "not in this brand"; the caller then falls back
+    // May be empty, that means "not in this brand"; the caller then falls back
     // to a generic, brandless search on the core food.
     return rankByName(rankTerm, inBrand).slice(0, limit);
   }
 
   const ranked = pool.length ? rankByName(q, pool) : [];
   // Fall back to fuzzy when the exact search found nothing useful (no hits, or
-  // the top hit misses the distinctive word — usually a typo).
+  // the top hit misses the distinctive word, usually a typo).
   if (exactIsWeak(q, ranked, pool)) {
     const fz = await fuzzySearch(q, limit);
     if (fz.length) return fz;
@@ -753,7 +753,7 @@ async function fuzzySearch(
   limit: number,
 ): Promise<OffCandidate[]> {
   const words = q.split(/\s+/).filter(Boolean);
-  // Find which words draw a blank on their own — those are the misspelled ones,
+  // Find which words draw a blank on their own, those are the misspelled ones,
   // wherever they sit in the phrase (not necessarily the longest word).
   const solo = await Promise.all(
     words.map((w) => (w.length >= 4 ? rawSearch(w, 1) : Promise.resolve([null]))),

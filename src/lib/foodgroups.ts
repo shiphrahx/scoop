@@ -2,7 +2,7 @@
 // (rice, pasta, potatoes, quinoa…) or a protein (chicken, tofu, beans…). The
 // "plan my day" wizard uses this to offer the user their OWN pantry items as the
 // carb / protein to build a meal around. Keyword match on the item's words,
-// plural-folded — free and deterministic, no AI call (mirrors the off.ts sets).
+// plural-folded, free and deterministic, no AI call (mirrors the off.ts sets).
 
 // Base-carbohydrate words. Both singular and plural forms are listed so a raw
 // token match works; `singular()` covers any plural we forgot.
@@ -41,7 +41,7 @@ const FAT_WORDS = new Set([
 ]);
 
 // Drink words: anything you pour and sip. Milk counts as a drink here even
-// though it carries protein — people shelve it as a drink, not a protein.
+// though it carries protein, people shelve it as a drink, not a protein.
 const DRINK_WORDS = new Set([
   "water", "juice", "cola", "coke", "soda", "lemonade", "squash", "cordial",
   "coffee", "tea", "milk", "smoothie", "shake", "beer", "wine", "cider",
@@ -60,7 +60,7 @@ const FRUIT_WORDS = new Set([
   "lemons", "lime", "limes", "clementine", "satsuma", "nectarine", "pomegranate",
 ]);
 
-// Vegetable words. Potato/avocado are left out on purpose — they read as a carb
+// Vegetable words. Potato/avocado are left out on purpose, they read as a carb
 // and a fat respectively (they live in CARB_WORDS / FAT_WORDS).
 const VEG_WORDS = new Set([
   "broccoli", "carrot", "carrots", "spinach", "kale", "lettuce", "cucumber",
@@ -112,13 +112,13 @@ export function isFat(name: string): boolean {
 // True when the item name reads as a vegetable. Vegetables are meal FILLERS, not
 // a macro source: the day planner gives each a fixed serving instead of growing
 // it to chase a carb/protein target (nobody eats 400 g of onion to hit carbs).
-// Potato/avocado are deliberately absent from VEG_WORDS — they read as a carb and
+// Potato/avocado are deliberately absent from VEG_WORDS, they read as a carb and
 // a fat and stay meal bases.
 export function isVegetable(name: string): boolean {
   return hasWordFrom(name, VEG_WORDS);
 }
 
-// The macro that dominates a food's calories — the reliable, data-driven
+// The macro that dominates a food's calories, the reliable, data-driven
 // classification the day planner uses (we already store every pantry item's
 // per-100g macros, so no name-guessing needed). null for foods with negligible
 // macros (water, black coffee, most vegetables), which aren't a meal base.
@@ -129,7 +129,7 @@ export interface FoodMacros {
 }
 // A food is a protein source once protein carries this much of its calories.
 // Not a majority: fat is 9 kcal/g against protein's 4, so on a "biggest share of
-// calories" test almost every real protein loses to its own fat — salmon, eggs,
+// calories" test almost every real protein loses to its own fat, salmon, eggs,
 // beef mince and tofu all read as fat sources, which left the planner with no
 // protein to build on and a day that quietly missed its protein target. Protein
 // is the macro the whole plan is built to hit, so it anchors the meal whenever
@@ -191,7 +191,7 @@ export function pantryCategory(name: string, m: FoodMacros): PantryCategory {
   if (role === "carb") return "Carbs";
   if (role === "fat") return "Fat";
 
-  // Negligible macros — lean on what the name reads as.
+  // Negligible macros, lean on what the name reads as.
   if (isProtein(name)) return "Protein";
   if (isCarb(name)) return "Carbs";
   if (isFat(name)) return "Fat";

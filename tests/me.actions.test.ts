@@ -99,7 +99,7 @@ describe("saveCycling", () => {
   it("saves the master switch and a manual count clamped to the safe range", async () => {
     const { db } = installFakeSupabase({ db: { users: [userRow()] } });
 
-    // 9 is above the safe max — it must be clamped, never stored raw.
+    // 9 is above the safe max, it must be clamped, never stored raw.
     await saveCycling({ enabled: true, highDaysPerWeek: 9 });
 
     expect(db.users[0].cycling_enabled).toBe(true);
@@ -267,7 +267,7 @@ describe("restartCalibration", () => {
 
     await restartCalibration();
 
-    // The clock restarts now — the stale timestamp from the first run would leave
+    // The clock restarts now, the stale timestamp from the first run would leave
     // the hold already "finished" the moment it reopened.
     const startedAt = String(db.users[0].calibration_started_at);
     expect(Date.parse(startedAt)).toBeGreaterThan(Date.parse("2026-01-01"));
@@ -295,7 +295,7 @@ describe("restartCalibration", () => {
 
   it("keeps the learned calibration factor", async () => {
     // It is a measured correction to the formula, not a stale target. Wiping it
-    // would drop the user back onto the textbook's guess — the very thing
+    // would drop the user back onto the textbook's guess, the very thing
     // calibrating exists to replace.
     const { db } = installFakeSupabase({ db: returning() });
     await restartCalibration();

@@ -6,7 +6,7 @@ import { Client } from "pg";
 // tested for what they actually are, rather than for what we believe they are.
 //
 // The app is now careful to filter by user_id itself, but RLS is the thing that
-// has to hold when a query somewhere forgets — it's the last line between one
+// has to hold when a query somewhere forgets, it's the last line between one
 // user's food diary and another's. Nothing was checking it.
 //
 // Runs against DATABASE_URL. Without one the RLS suite skips, so `npm test` on a
@@ -54,7 +54,7 @@ const AUTH_SCHEMA = `
 // Supabase also ships a `storage` schema (buckets + objects + helper functions).
 // Our photo migration (0029) creates a private bucket and policies on
 // storage.objects, so a plain Postgres needs a stand-in for those to apply.
-// Only enough of the shape to let the migration run — the storage RLS itself is
+// Only enough of the shape to let the migration run, the storage RLS itself is
 // Supabase's, not ours, so it isn't exercised here.
 const STORAGE_SCHEMA = `
   create schema if not exists storage;
@@ -141,7 +141,7 @@ export async function seedUsers(client: Client): Promise<void> {
 }
 
 // Run a query as a signed-in user: the `authenticated` role, with their id in
-// the JWT claim that auth.uid() reads — exactly the context a request from the
+// the JWT claim that auth.uid() reads, exactly the context a request from the
 // app arrives in. Wrapped in a transaction so the settings are local to it.
 export async function asUser<T>(
   client: Client,

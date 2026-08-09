@@ -40,7 +40,7 @@ export default function MatchItems({
 }: {
   items: ImportedItem[];
   // Optional per-item macro estimate (aligned by index) used when Open Food
-  // Facts has no match — e.g. the vision model's guess from a screenshot (#5).
+  // Facts has no match, e.g. the vision model's guess from a screenshot (#5).
   fallbacks?: (OffCandidate | null)[];
   onSaved: () => void;
   onCancel: () => void;
@@ -88,7 +88,7 @@ export default function MatchItems({
 
   // Every item finished searching and none found a match. Usually the food
   // database is unreachable (a stalled request that timed out), not that every
-  // item is genuinely unknown — flag it so the user isn't left guessing.
+  // item is genuinely unknown, flag it so the user isn't left guessing.
   const searchUnavailable =
     rows.length > 0 &&
     rows.every((r) => !r.loading && r.candidates.length === 0);
@@ -124,7 +124,7 @@ export default function MatchItems({
 
   // Hunt for a product by a query the user types inside the row, when the
   // offered matches aren't right. Searches a WIDER list than the auto-match and
-  // replaces the candidate options in place, leaving the item's own name alone —
+  // replaces the candidate options in place, leaving the item's own name alone,
   // repeatable until they find the product they meant. Whatever they then pick
   // supplies the saved name and macros.
   async function searchMore(i: number, rawQuery: string) {
@@ -177,7 +177,7 @@ export default function MatchItems({
 
       {searchUnavailable && (
         <p className="rounded-2xl bg-amber-50 px-4 py-3 text-center text-sm font-medium text-amber-700">
-          No matches found. The food database may be busy or offline — you can
+          No matches found. The food database may be busy or offline. You can
           add these items now and set macros later, or try again in a moment.
         </p>
       )}
@@ -246,7 +246,7 @@ export default function MatchItems({
                         r.chosen.kcal_100g,
                       )} kcal/100g`
                     ) : (
-                      "No match — will add without macros"
+                      "No match, will add without macros"
                     )}
                   </span>
                 </span>
@@ -280,7 +280,7 @@ export default function MatchItems({
               <div className="flex flex-col gap-1.5 px-4 pb-3">
                 {r.candidates.length === 0 && !r.searching && (
                   <p className="px-1 py-1 text-xs text-[var(--muted)]">
-                    No products found — try a different search below.
+                    No products found. Try a different search below.
                   </p>
                 )}
                 {r.candidates.map((c, ci) => (
@@ -317,7 +317,7 @@ export default function MatchItems({
                       : { background: "var(--fill-soft)" }
                   }
                 >
-                  None of these — add without macros
+                  None of these, add without macros
                 </button>
 
                 {/* Not the right product? Type anything and search a wider list,

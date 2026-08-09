@@ -18,7 +18,7 @@ export type NutrientKey =
 export interface NutrientDef {
   key: NutrientKey;
   label: string; // "Protein"
-  short: string; // "P" — compact chip
+  short: string; // "P", compact chip
   unit: "kcal" | "g" | "mg";
   field: keyof Macros; // where the value lives on an (extended) Macros
   // "goal" = aim to reach it (protein, fiber); "limit" = stay under (sugar,
@@ -105,7 +105,7 @@ export function nutrientFit(
   const diff = valueOf(planned, key) - t;
   const { ok, warn } = TOLERANCE[NUTRIENTS[key].unit];
 
-  // A limit (sugar, saturates, sodium) is only a problem when you go over it —
+  // A limit (sugar, saturates, sodium) is only a problem when you go over it,
   // being under is exactly what we want. A goal is judged in both directions.
   const miss = NUTRIENTS[key].kind === "limit" ? diff : Math.abs(diff);
 

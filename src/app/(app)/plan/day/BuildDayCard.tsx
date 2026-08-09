@@ -7,10 +7,10 @@ import type { DayFix } from "@/lib/mealplan";
 
 // The one button that turns picks into portions: solves every picked meal
 // together so the day lands on its macros. Once everything picked is built it
-// reads as "Rebalance" — run it again after edits to re-portion the same picks.
+// reads as "Rebalance", run it again after edits to re-portion the same picks.
 //
-// When the solve is stuck over a ceiling — the picks can't go any smaller, so a
-// plain rebalance changes nothing and reads as a broken button — it explains the
+// When the solve is stuck over a ceiling, the picks can't go any smaller, so a
+// plain rebalance changes nothing and reads as a broken button, it explains the
 // problem and offers a concrete fix (drop the food that's over), which the app
 // only carries out if the user says yes.
 export default function BuildDayCard({
@@ -30,7 +30,7 @@ export default function BuildDayCard({
   function show(r: Awaited<ReturnType<typeof buildMyDay>>) {
     setFix(r.fix);
     if (r.changed) {
-      setResult(`Rebalanced — ${r.moves.join(", ")}.`);
+      setResult(`Rebalanced, ${r.moves.join(", ")}.`);
     } else if (r.fix) {
       // A stuck day speaks through the fix prompt, not this line.
       setResult(null);
@@ -42,7 +42,7 @@ export default function BuildDayCard({
       // Say where it landed. "Nothing moved" on its own gives no way to tell a
       // day that already fits from a button that did nothing.
       setResult(
-        `Nothing moved — these meals come to ${Math.round(r.landed.kcal)} of ${Math.round(r.budget.kcal)} kcal left today, and this is the closest these picks get.`,
+        `Nothing moved. These meals come to ${Math.round(r.landed.kcal)} of ${Math.round(r.budget.kcal)} kcal left today, and this is the closest these picks get.`,
       );
     }
   }

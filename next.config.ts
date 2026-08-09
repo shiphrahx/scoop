@@ -4,13 +4,13 @@ const nextConfig: NextConfig = {
   // Cache Components (Next 16 PPR): the static parts of a route prerender into an
   // instant shell and only the dynamic, per-user parts stream behind <Suspense>.
   // Every uncached data read (cookies, auth, DB) must sit inside a Suspense
-  // boundary — enforced at build time. Enables `unstable_instant` validation.
+  // boundary, enforced at build time. Enables `unstable_instant` validation.
   cacheComponents: true,
   experimental: {
     // Keep a recently-visited screen in the client cache instead of re-fetching
     // it from the server on every tab tap. Next's default for dynamic routes is
     // 0s, which means bouncing Home → Plan → Home pays a full server render (and
-    // its Supabase round trips) each way — on mobile data that is seconds of
+    // its Supabase round trips) each way, on mobile data that is seconds of
     // staring at a skeleton for a screen the phone had a moment ago.
     //
     // Safe here because every mutation goes through a server action that calls

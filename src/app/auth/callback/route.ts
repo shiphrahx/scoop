@@ -6,7 +6,7 @@ import { createRouteClient, safeNext, siteOrigin } from "@/lib/supabase/route";
 const RETRY_COOKIE = "sc-auth-retry";
 const RETRY_MAX_AGE = 120;
 
-// The verifier cookie went out with this browser but did not come back — the
+// The verifier cookie went out with this browser but did not come back, the
 // PKCE half of the flow is missing, so this code can never be exchanged.
 function isLostFlow(message: string): boolean {
   const text = message.toLowerCase();
@@ -82,7 +82,7 @@ export async function GET(request: Request) {
   // A code that already worked fails here too: refreshing this URL, the back
   // button, or a double tap all replay it, and Supabase answers "invalid flow
   // state, no valid flow state found" because the first exchange consumed it.
-  // If the cookies already carry a session that is exactly what happened — the
+  // If the cookies already carry a session that is exactly what happened, the
   // user is signed in, so send them in rather than to an error screen.
   const { data } = await supabase.auth.getClaims();
   if (data?.claims) {
@@ -93,7 +93,7 @@ export async function GET(request: Request) {
   // out: a home-screen app hands the Google page to the system browser, and the
   // callback lands in that browser with no cookie the app had set. Repeating the
   // same taps then works, because the second attempt starts and finishes in the
-  // one place. Do that repeat here instead of asking the user to — restarting
+  // one place. Do that repeat here instead of asking the user to, restarting
   // the flow from this context puts both halves in the same cookie jar.
   //
   // Exactly once, marked by a cookie: a flow broken for any other reason still
@@ -104,7 +104,7 @@ export async function GET(request: Request) {
     );
     retry.cookies.set(retryCookie(origin, "1", RETRY_MAX_AGE));
     // Carries a Set-Cookie, so it must never be held by a CDN and replayed to
-    // the next person through — they would arrive with their retry spent.
+    // the next person through, they would arrive with their retry spent.
     retry.headers.set("cache-control", "no-store");
     return retry;
   }

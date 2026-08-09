@@ -1,10 +1,10 @@
 -- Scoop: the shared food reference, seeded from USDA FNDDS 2026-08-08.
 --
--- GENERATED FILE — do not hand-edit. Regenerate with:
+-- GENERATED FILE, do not hand-edit. Regenerate with:
 --   node scripts/import-fndds.mjs <unzipped FoodData_Central_survey_food_csv_* folder>
 --
 -- Why: Open Food Facts is a database of packaged products and carries no
--- serving size for the things people actually ask about — a slice of cake, a
+-- serving size for the things people actually ask about, a slice of cake, a
 -- cookie, a portion of chips. FNDDS is the food list the US codes its national
 -- diet survey against, so every food comes with the gram weight of a real
 -- portion. That gram weight is the whole point: it is what lets one tap add
@@ -12,7 +12,7 @@
 --
 -- Caveat worth knowing when reading these rows: FNDDS is American. Its names
 -- are US ones ('Cookie, chocolate chip'), and British-only foods (flapjack,
--- digestive) are simply absent — those are seeded by hand in 0032, which runs
+-- digestive) are simply absent, those are seeded by hand in 0032, which runs
 -- first and therefore wins any name collision. UK wording is bridged by the
 -- alias table in 0034.
 --

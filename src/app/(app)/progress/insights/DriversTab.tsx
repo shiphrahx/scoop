@@ -3,7 +3,7 @@
 // Drivers: which habits actually move this person's scale.
 //
 // Every card here is a weekly paired comparison and nothing cleverer, so every
-// card carries the same warning. The value isn't the correlation coefficient —
+// card carries the same warning. The value isn't the correlation coefficient,
 // it's the contrast line underneath it ("your best weeks slept 7.8 h, your worst
 // 6.4 h"), which is a thing a person can go and do something about.
 
@@ -38,8 +38,8 @@ function Finding({
     c.strength === "none"
       ? `No clear link between ${driver} and how much you lose.`
       : c.direction === "helps"
-        ? `More ${driver} lines up with losing more — a ${c.strength} pattern.`
-        : `More ${driver} lines up with losing less — a ${c.strength} pattern.`;
+        ? `More ${driver} lines up with losing more, a ${c.strength} pattern.`
+        : `More ${driver} lines up with losing less, a ${c.strength} pattern.`;
 
   return (
     <>
@@ -201,7 +201,7 @@ export default function DriversTab({
               <Finding c={adherence} driver="sticking to the target" unit="%" decimals={0} />
               {adherence.direction === "helps" ? (
                 <p className="text-sm text-[var(--muted)]">
-                  Your plan works when you follow it — so a stall is a cue to eat the
+                  Your plan works when you follow it, so a stall is a cue to eat the
                   plan, not to cut it further.
                 </p>
               ) : null}
@@ -236,7 +236,7 @@ export default function DriversTab({
               />
               <p className="text-sm text-[var(--muted)]">
                 {highDay.verdict === "no-difference"
-                  ? "No meaningful difference, which is expected — high days don't change your weekly calorie total. Keep them if they make the week easier to follow."
+                  ? "No meaningful difference, which is expected: high days don't change your weekly calorie total. Keep them if they make the week easier to follow."
                   : highDay.verdict === "better"
                     ? `You lost ${fmt(highDay.differenceKg, 2)} kg/week more in weeks with high days.`
                     : `You lost ${fmt(Math.abs(highDay.differenceKg), 2)} kg/week less in weeks with high days. Check that a high day hasn't turned into an extra day above target.`}

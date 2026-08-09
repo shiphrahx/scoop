@@ -18,7 +18,7 @@ export interface PastReview {
 // Restarting the maintenance-first calibration hold.
 //
 // Calibration is how the app learns what this user actually burns, and that
-// knowledge goes stale — someone who stopped logging for months comes back a
+// knowledge goes stale, someone who stopped logging for months comes back a
 // different weight with a target computed for the old one. Re-onboarding would
 // wipe their history, so this reopens the window instead: eat at maintenance
 // for a fortnight while the app re-measures, then the deficit reopens modestly.
@@ -60,10 +60,10 @@ export default function CalibrationSettings({
       <div className="flex flex-col gap-1">
         <h2 className="text-lg font-semibold">Calibration</h2>
         <p className="text-sm text-[var(--muted)]">
-          Calibration is {CALIBRATION_MIN_DAYS}–{CALIBRATION_MAX_DAYS} days of
+          Calibration is {CALIBRATION_MIN_DAYS} to {CALIBRATION_MAX_DAYS} days of
           eating at maintenance while the app measures what you actually burn,
           before any deficit starts. Restart it if you&apos;ve been away and your
-          numbers no longer describe you — your history and everything you&apos;ve
+          numbers no longer describe you. Your history and everything you&apos;ve
           logged stays.
         </p>
       </div>
@@ -131,7 +131,7 @@ export default function CalibrationSettings({
       {done && (
         <p className="text-sm font-semibold" style={{ color: "var(--ink-teal)" }}>
           Calibration restarted. Your target is at maintenance for the next couple
-          of weeks — keep logging and weighing in so the measurement is a good one.
+          of weeks, so keep logging and weighing in to make the measurement a good one.
         </p>
       )}
 

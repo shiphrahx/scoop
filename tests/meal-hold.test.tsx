@@ -6,7 +6,7 @@ import type { MealPick, PlannedMeal } from "@/lib/types";
 
 // Issue #58: an amount the user sets by hand is theirs, and a rebalance must
 // re-portion the rest of the day around it rather than overwriting it. The
-// server holds a pinned food on every build; this covers the editor half — what
+// server holds a pinned food on every build; this covers the editor half, what
 // the save writes as pinned, and the one control that hands a food back.
 
 const setMealPortions = vi.fn();
@@ -107,7 +107,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe("meal editor — held amounts", () => {
+describe("meal editor, held amounts", () => {
   // The pick is stored as "tofu" and the build renamed the portion to "Tofu".
   // Matched by exact name the hold would be invisible, and the save below would
   // silently drop it.

@@ -55,7 +55,7 @@ describe("startOfLocalDay", () => {
   });
 
   it("gets the winter offset right too (GMT, not BST)", () => {
-    // In January London is on GMT — the same as UTC — so no shift at all.
+    // In January London is on GMT, the same as UTC, so no shift at all.
     const at = new Date("2026-01-14T10:00:00Z");
     expect(startOfLocalDay("Europe/London", at).toISOString()).toBe(
       "2026-01-14T00:00:00.000Z",

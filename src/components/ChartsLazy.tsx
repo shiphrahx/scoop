@@ -4,14 +4,14 @@
 //
 // Recharts is a large dependency and every insights tab stays mounted at once
 // (see Tabs.tsx), so importing the charts directly pulled the whole library
-// into the progress route's initial JS — which on a phone delays hydration, and
+// into the progress route's initial JS, which on a phone delays hydration, and
 // delayed hydration is exactly what stops nav links from prefetching (see the
 // "hydration not completed" note in Next's linking docs).
 //
 // Each chart is wrapped in `next/dynamic` so Recharts loads in its own chunk,
 // on the client, only once a chart is actually rendered. A skeleton holds the
 // space until it arrives. `ssr: false` keeps the heavy lib off the server
-// render too — these are interactive, hover-driven charts with no SSR value.
+// render too, these are interactive, hover-driven charts with no SSR value.
 import dynamic from "next/dynamic";
 import { SkeletonCard } from "@/components/Skeleton";
 

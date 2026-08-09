@@ -28,7 +28,7 @@ create table if not exists public.fresh_foods (
   created_at     timestamptz not null default now()
 );
 
--- One row per food name, case-insensitively — so "Banana" and "banana" can't
+-- One row per food name, case-insensitively, so "Banana" and "banana" can't
 -- both exist and split a food's sizes across two rows.
 create unique index if not exists fresh_foods_name_lower
   on public.fresh_foods (lower(name));
@@ -52,7 +52,7 @@ create index if not exists fresh_food_sizes_food
 -- ---------------------------------------------------------------------------
 -- Row level security. Reference data is shared: everyone reads it. Writes are
 -- open to any signed-in user, who owns only the rows they add (created_by).
--- Seed rows (created_by null) are read-only to everyone — no user can edit or
+-- Seed rows (created_by null) are read-only to everyone, no user can edit or
 -- delete them.
 -- ---------------------------------------------------------------------------
 alter table public.fresh_foods      enable row level security;

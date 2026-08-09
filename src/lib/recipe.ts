@@ -1,7 +1,7 @@
 import type { ParsedRecipe } from "@/lib/ai";
 
 // Read a recipe from a page's schema.org/Recipe JSON-LD (the structured data
-// most recipe sites embed). Deterministic and keyless — we only fall back to
+// most recipe sites embed). Deterministic and keyless, we only fall back to
 // the model when this returns null. Nutrition in schema.org is per serving, so
 // we scale it up to whole-recipe totals to match ParsedRecipe.
 

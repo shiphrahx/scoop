@@ -143,7 +143,7 @@ export default function MealPicker({
       );
       setScanNote(
         swapped
-          ? `${p.name} is dry on the pack — using cooked values for ${chosen.name}.`
+          ? `${p.name} is dry on the pack, using cooked values for ${chosen.name}.`
           : null,
       );
       setPantryOffer(chosen);
@@ -253,7 +253,7 @@ export default function MealPicker({
         )
       ) : (
         <p className="sc-card p-4 text-sm text-[var(--muted)]">
-          Your pantry is empty — search or scan below, or add items on the
+          Your pantry is empty. Search or scan below, or add items on the
           Pantry screen first.
         </p>
       )}
@@ -366,7 +366,7 @@ function PickRow({
 
 // Search for a food to pick: the user's pantry first, then the shared reference
 // of everyday foods that carry no barcode (a slice of cake, a cookie, a banana).
-// Mirrors the plan screen's search box but hands back the choice itself — no
+// Mirrors the plan screen's search box but hands back the choice itself, no
 // grams involved here, the day solve works those out.
 function PickSearchBox({
   onPick,
@@ -462,7 +462,7 @@ function PickSearchBox({
 
           {!searching && !anyResults && (
             <li className="px-4 py-3 text-sm text-[var(--muted)]">
-              No match — try the scanner.
+              No match, try the scanner.
             </li>
           )}
         </ul>

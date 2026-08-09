@@ -55,7 +55,7 @@ async function main() {
   }
 
   if (!user.height_cm || !user.sex || !user.birth_year) {
-    console.error("profile incomplete (height/sex/birth_year) — nothing to compute");
+    console.error("profile incomplete (height/sex/birth_year), nothing to compute");
     process.exit(1);
   }
 
@@ -68,7 +68,7 @@ async function main() {
     .maybeSingle();
   const weightKg = w ? Number(w.weight_kg) : null;
   if (!weightKg) {
-    console.error("no weight logged — nothing to compute");
+    console.error("no weight logged, nothing to compute");
     process.exit(1);
   }
 

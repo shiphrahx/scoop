@@ -44,7 +44,7 @@ const longDate = (iso: string) =>
   });
 
 // A "19 Jul" label is ~40px wide. Recharts drops a tick only when the gap to
-// its neighbour is under minTickGap, so this must clear the label itself —
+// its neighbour is under minTickGap, so this must clear the label itself,
 // otherwise labels touch on narrow cards even at a wide `interval`.
 const DATE_TICK_GAP = 44;
 
@@ -209,7 +209,7 @@ export function WeightTrendChart({
           value={`${change > 0 ? "+" : ""}${change.toFixed(1)} kg`}
           tint={change <= 0 ? "var(--ink-green)" : "var(--accent)"}
         />
-        <Stat label="Range" value={`${min.toFixed(1)}–${max.toFixed(1)}`} />
+        <Stat label="Range" value={`${min.toFixed(1)} to ${max.toFixed(1)}`} />
         <Stat label="Logs" value={`${data.length}`} />
       </div>
     </div>
@@ -283,7 +283,7 @@ export function TrendDotsChart({
               return <TooltipCard title={longDate(p.date)} rows={rows} />;
             }}
           />
-          {/* Raw readings: dots only, never joined — a line between two weigh-ins
+          {/* Raw readings: dots only, never joined, a line between two weigh-ins
               four days apart draws a journey the body didn't take. */}
           <Line
             type="monotone"
@@ -311,14 +311,14 @@ export function TrendDotsChart({
           value={`${change > 0 ? "+" : ""}${change.toFixed(1)} kg`}
           tint={change <= 0 ? "var(--ink-green)" : "var(--accent)"}
         />
-        <Stat label="Range" value={`${min.toFixed(1)}–${max.toFixed(1)}`} />
+        <Stat label="Range" value={`${min.toFixed(1)} to ${max.toFixed(1)}`} />
         <Stat label="Weigh-ins" value={`${logs}`} />
       </div>
     </div>
   );
 }
 
-// ── Weight vs exercise (synced small multiples — never a dual axis) ──
+// ── Weight vs exercise (synced small multiples, never a dual axis) ──
 export function WeightVsExercise({
   weights,
   burn,
@@ -359,7 +359,7 @@ export function WeightVsExercise({
             domain={["dataMin - 1", "dataMax + 1"]}
             allowDecimals={false}
           />
-          {/* Crosshair only. The card lives on the bottom panel — syncId fires
+          {/* Crosshair only. The card lives on the bottom panel, syncId fires
               both panels' tooltips at once, so two cards would be identical. */}
           <Tooltip
             cursor={{ stroke: C.teal, strokeWidth: 1, strokeDasharray: "4 4" }}
@@ -377,7 +377,7 @@ export function WeightVsExercise({
         </LineChart>
       </ResponsiveContainer>
 
-      {/* Bottom panel: exercise burn bars — shares the x-axis via syncId */}
+      {/* Bottom panel: exercise burn bars, shares the x-axis via syncId */}
       <ResponsiveContainer width="100%" height={panelH + 18}>
         <BarChart data={merged} syncId="wve" margin={{ ...margin, bottom: 0 }}>
           <defs>
@@ -426,7 +426,7 @@ export function WeightVsExercise({
 
 // ── Weekly driver scatter ───────────────────────────────────────────
 // One dot per week: a habit on x, kilos lost on y, with the fitted line through
-// them. A scatter is the honest form here — it shows the spread the single
+// them. A scatter is the honest form here, it shows the spread the single
 // correlation number hides, which is the whole point of calling these patterns
 // rather than proof.
 export function DriverScatter({
@@ -633,7 +633,7 @@ export function MeasurementsChart({
           value={`${change > 0 ? "+" : ""}${change.toFixed(1)} cm`}
           tint={change <= 0 ? "var(--ink-green)" : "var(--accent)"}
         />
-        <Stat label="Range" value={`${min.toFixed(1)}–${max.toFixed(1)}`} />
+        <Stat label="Range" value={`${min.toFixed(1)} to ${max.toFixed(1)}`} />
         <Stat label="Points" value={`${data.length}`} />
       </div>
     </div>

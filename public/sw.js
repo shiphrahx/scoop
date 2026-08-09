@@ -2,14 +2,14 @@
 // cached on first use, page navigations try the network first and fall back to
 // the last-seen page (or Home) when offline. API/auth traffic is never cached.
 // Bumped to v5: "/" now redirects signed-in visitors to their dashboard, and the
-// activate handler drops every older cache — so a landing page stored before
+// activate handler drops every older cache, so a landing page stored before
 // that, which would still be served to someone who has since signed in, goes
 // with it.
 const CACHE = "scoop-v5";
 
 // How long a page navigation waits for the network before the last-seen copy of
 // that same page is shown instead. Tapping the home-screen icon on mobile data
-// used to sit on a blank screen for as long as the request took — long enough
+// used to sit on a blank screen for as long as the request took, long enough
 // that the tap read as ignored and people tapped again. Past this point a
 // slightly stale screen beats no screen; the network answer still lands, gets
 // cached, and the page is told to refresh itself in place (see below).
@@ -45,7 +45,7 @@ self.addEventListener("message", (event) => {
   }
 });
 
-// Only a clean 200 from our own origin is worth keeping — never a redirect (the
+// Only a clean 200 from our own origin is worth keeping, never a redirect (the
 // auth bounce to /login, or "/" sending a signed-in visitor to their dashboard)
 // or an error (a 404 during a deploy), or we would serve that bad page back
 // later and the route would look broken.
@@ -53,8 +53,8 @@ self.addEventListener("message", (event) => {
 // `redirected` is the part that matters for a followed redirect: it arrives as a
 // perfectly ordinary ok/basic response for the URL it ended up at, so the status
 // alone does not tell it apart. Storing one under the requested URL would pin a
-// user's auth state into the cache — the dashboard served for "/" long after
-// they signed out — and a redirected response may not be returned to a
+// user's auth state into the cache, the dashboard served for "/" long after
+// they signed out, and a redirected response may not be returned to a
 // navigation at all.
 const cacheable = (res) => res && res.ok && res.type === "basic" && !res.redirected;
 
@@ -125,7 +125,7 @@ self.addEventListener("fetch", (event) => {
           }
         }
 
-        // Cached copy in hand — give the network a bounded head start.
+        // Cached copy in hand, give the network a bounded head start.
         const timeout = new Promise((resolve) =>
           setTimeout(() => resolve(null), NAV_TIMEOUT_MS),
         );

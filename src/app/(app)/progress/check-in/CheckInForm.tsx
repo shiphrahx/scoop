@@ -115,7 +115,7 @@ export default function CheckInForm({
           </div>
         ) : (
           <p className="text-sm text-[var(--muted)]">
-            This is your first check-in — next week you&apos;ll see how things moved.
+            This is your first check-in. Next week you&apos;ll see how things moved.
           </p>
         )}
 
@@ -146,7 +146,7 @@ export default function CheckInForm({
                 onChange={(e) =>
                   setValues((v) => ({ ...v, [f.key]: e.target.value }))
                 }
-                placeholder="—"
+                placeholder="0"
                 className="sc-input text-lg"
               />
             </label>

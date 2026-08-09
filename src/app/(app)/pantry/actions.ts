@@ -35,7 +35,7 @@ export interface PantryInput {
 }
 
 // Reject a food whose per-100g macros can't be real before it reaches the
-// pantry — a bad barcode record or a misread label can carry "170 g protein per
+// pantry, a bad barcode record or a misread label can carry "170 g protein per
 // 100 g", which the day planner later refuses to portion, stranding a food the
 // user could save but never use. Caught here, at the point they can still fix
 // the number. `label` names the food in the error the user reads.
@@ -51,11 +51,11 @@ function assertMacros(
   parseOrThrow(macrosPer100gSchema, food, label);
 }
 
-// Every macro in Scoop is as-eaten — cooked, never dry. A dry staple (rice,
+// Every macro in Scoop is as-eaten, cooked, never dry. A dry staple (rice,
 // pasta, couscous, quinoa, oats) is the trap: a bag's label is dry weight, and
 // 60 g dry rice becomes ~180 g cooked with completely different per-100g
-// numbers. Whichever path added the food — barcode scan, search, grocery or URL
-// import, or a manual type-in — if its name reads as a plain dry staple, swap
+// numbers. Whichever path added the food, barcode scan, search, grocery or URL
+// import, or a manual type-in, if its name reads as a plain dry staple, swap
 // its macros, extras and serving sizes onto the shared COOKED reference (0021)
 // and rename it "(cooked)" so it's unmistakable. The scan UIs do this too; doing
 // it here as well is the single boundary that catches every other path.
@@ -111,8 +111,8 @@ async function toCookedStaple(
 }
 
 // The category to file a new item under: honour an explicit one if given,
-// otherwise pick a shelf from its name and macros so every add path — barcode,
-// link, screenshot, import, manual — files itself with no extra tapping.
+// otherwise pick a shelf from its name and macros so every add path, barcode,
+// link, screenshot, import, manual, files itself with no extra tapping.
 function shelf(it: PantryInput): string {
   return (
     it.category?.trim() ||
@@ -125,7 +125,7 @@ function shelf(it: PantryInput): string {
 }
 
 // The extra per-100g nutrient columns, defaulted to 0 when a source didn't
-// report them — shared by both pantry inserts.
+// report them, shared by both pantry inserts.
 function extraCols(it: PantryInput) {
   return {
     fiber_100g: it.fiber_100g ?? 0,
@@ -135,7 +135,7 @@ function extraCols(it: PantryInput) {
   };
 }
 
-// The countable-unit columns, defaulted to null (weighed in grams) — shared by
+// The countable-unit columns, defaulted to null (weighed in grams), shared by
 // both pantry inserts so a scanned/imported item keeps OFF's serving. A fresh
 // food carries its whole set of sizes too, so the user can switch size later.
 function unitCols(it: PantryInput) {
@@ -258,7 +258,7 @@ export interface PantryPatch {
 // Edit an item's name, per-100g macros, pack size, and countable unit. Editing a
 // dry staple (rice, pasta…) re-cooks it: its macros, extras and serving sizes
 // snap onto the shared COOKED reference and the name gains "(cooked)", so
-// re-saving an old raw item corrects it in one tap — the same swap the add paths
+// re-saving an old raw item corrects it in one tap, the same swap the add paths
 // do. A non-staple keeps exactly what the user typed.
 export async function updatePantryItem(id: string, patch: PantryPatch) {
   const { supabase } = await requireUser();
@@ -298,7 +298,7 @@ export async function updatePantryItem(id: string, patch: PantryPatch) {
   );
 
   // Macros + serving come from the cooked reference for a staple, else from what
-  // the user typed. Pack size and shelf always follow the edit — the cooked swap
+  // the user typed. Pack size and shelf always follow the edit, the cooked swap
   // owns the macros and serving, not how many packs or which shelf.
   const macroPart = cooked ?? {
     name: patch.name.trim(),
@@ -357,7 +357,7 @@ export async function findFreshFoods(query: string): Promise<FreshFood[]> {
 
 // Contribute a size to a fresh food in the shared reference (the user knows the
 // weight of a size we don't have). created_by = them, so RLS lets them add it
-// and own it. A duplicate label for the food is swallowed — someone got there
+// and own it. A duplicate label for the food is swallowed, someone got there
 // first, which is fine.
 export async function addFreshFoodSize(foodId: string, label: string, grams: number) {
   const { supabase, user } = await requireUser();
@@ -412,11 +412,11 @@ export async function clearPantry() {
 
 // Read a shop product page (a link the user pasted) into one pantry item, ready
 // to review in the form. AI, user's own key. Rate-limited per user because it
-// makes an outbound fetch — can't be driven in a tight loop.
+// makes an outbound fetch, can't be driven in a tight loop.
 export async function importPantryUrl(url: string): Promise<ParsedProduct> {
   const { user } = await requireUser();
   if (!rateLimit(`pantry-url:${user.id}`, 10, 60_000)) {
-    throw new Error("Too many imports — give it a minute and try again.");
+    throw new Error("Too many imports. Give it a minute and try again.");
   }
   return parseProductFromUrl(url);
 }

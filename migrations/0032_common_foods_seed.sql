@@ -1,5 +1,5 @@
 -- Scoop: seed the fresh-food reference (0017) with the everyday foods that have
--- NO barcode and whose macros nobody knows off the top of their head — a slice
+-- NO barcode and whose macros nobody knows off the top of their head, a slice
 -- of cake, a cookie, a croissant, a portion of chips. Open Food Facts is a
 -- packaged-product database, so it answers "a piece of cake" with branded cake
 -- bars or nothing at all; these rows are what the day planner offers instead.
@@ -54,7 +54,7 @@ from (values
 on conflict (lower(name)) do nothing;
 
 -- Portion weights. Every food carries a "medium", which is the size the app
--- defaults to (see defaultSize) — so one tap adds a realistic portion and the
+-- defaults to (see defaultSize), so one tap adds a realistic portion and the
 -- small/large chips are there when it wasn't the right one.
 insert into public.fresh_food_sizes (food_id, label, grams, created_by)
 select f.id, s.label, s.grams, null

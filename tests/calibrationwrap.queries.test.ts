@@ -36,7 +36,7 @@ describe("getCalibrationWrap", () => {
   it("quotes the maintenance the new target was actually cut from", async () => {
     installFakeSupabase({ db: graduating() });
     const wrap = await getCalibrationWrap();
-    // The deficit, the target and the maintenance behind them have to agree —
+    // The deficit, the target and the maintenance behind them have to agree,
     // the screen shows all three on the same card.
     expect(wrap!.newTarget.kcal + wrap!.deficitKcal).toBeGreaterThan(0);
     expect(wrap!.measuredMaintenanceKcal).not.toBeNull();

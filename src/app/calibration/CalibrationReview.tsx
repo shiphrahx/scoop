@@ -8,7 +8,7 @@ import { startDeficit } from "./actions";
 
 // The end of calibration, shown as what it is: the first thing the user
 // achieved. A fortnight of logging bought a maintenance figure measured from
-// their own body, and every target from here is built on it — so the numbers get
+// their own body, and every target from here is built on it, so the numbers get
 // a screen each rather than a line on Home.
 //
 // One finding per card, tapped through in order, ending on the new target and
@@ -36,7 +36,7 @@ interface Card {
   // Strictly about THIS user: their numbers, their fortnight, what happens to
   // them. Never a general statement about bodies or dieting.
   body: string;
-  // The general point behind it — true of everyone, not measured from anything
+  // The general point behind it, true of everyone, not measured from anything
   // this user did. Kept in its own slot because mixing the two into one
   // paragraph is what made the screen read as a leaflet: the reader could not
   // tell which sentences were about them. Rendered visibly apart, and labelled.
@@ -50,7 +50,7 @@ interface Card {
 const GRADS = ["var(--grad-cool)", "var(--grad-primary)", "var(--grad-indigo)", "var(--grad-warm)"];
 
 // How the review is being watched: live, at the moment the hold ends and the
-// deficit is waiting to start — or replayed later from the history, when the
+// deficit is waiting to start, or replayed later from the history, when the
 // deficit has long since begun and there is nothing left to press.
 export interface ReviewOptions {
   replay?: boolean;
@@ -83,7 +83,7 @@ export function buildCards(
       `For ${w.days} day${w.days === 1 ? "" : "s"} you ate ${kcal(w.holdTargetKcal)} kcal a day, ` +
       `logged your food on ${w.loggedDays} of them and stepped on the scale ${w.weighInDays} time${
         w.weighInDays === 1 ? "" : "s"
-      }. That's what made everything below possible — none of it is guesswork.`,
+      }. That's what made everything below possible. None of it is guesswork.`,
     note:
       `A fortnight is the shortest run that shows real change on the scale. Anything less and you're ` +
       `mostly watching water move in and out.`,
@@ -95,7 +95,7 @@ export function buildCards(
       delta == null || w.predictedMaintenanceKcal == null
         ? ""
         : Math.abs(delta) < 50
-          ? ` A textbook formula would have guessed ${kcal(w.predictedMaintenanceKcal)} for someone your age, height and weight — close, as it turns out.`
+          ? ` A textbook formula would have guessed ${kcal(w.predictedMaintenanceKcal)} for someone your age, height and weight. Close, as it turns out.`
             : delta > 0
             ? ` A textbook formula would have guessed ${kcal(w.predictedMaintenanceKcal)} for someone your age, height and weight. You run ${kcal(delta)} kcal a day warmer than that.`
             : ` A textbook formula would have guessed ${kcal(w.predictedMaintenanceKcal)} for someone your age, height and weight. You run ${kcal(-delta)} kcal a day cooler than that.`;
@@ -105,10 +105,10 @@ export function buildCards(
       value: kcal(w.measuredMaintenanceKcal),
       unit: "kcal a day",
       body:
-        `This is the amount that keeps you exactly where you are — no gain, no loss. ` +
+        `This is the amount that keeps you exactly where you are, with no gain and no loss. ` +
         `It's your figure, not a guess: it came from the food you logged and what your weight did over ${w.days} days.${versus}`,
       note:
-        `Formulas describe the average of thousands of people. Any one person can sit 300–400 kcal either side of ` +
+        `Formulas describe the average of thousands of people. Any one person can sit 300 to 400 kcal either side of ` +
         `that average, which is why it was worth spending a fortnight finding yours.`,
     });
   }
@@ -132,7 +132,7 @@ export function buildCards(
       value: `${kcal(movingKcal)}`,
       unit: "kcal a day from moving",
       body:
-        `Another ${kcal(restingKcal)} kcal goes on simply being alive — heart, lungs, brain, all of it ` +
+        `Another ${kcal(restingKcal)} kcal goes on simply being alive: heart, lungs, brain, all of it ` +
         `running while you sit still. The rest is you, up and about. ${habits}`,
       note:
         `Walking, standing and fidgeting usually add up to more than exercise does. When a diet stops working, ` +
@@ -165,7 +165,7 @@ export function buildCards(
             `You ate ${kcal(w.meanIntakeKcal)} kcal a day and lost weight anyway${rate ? `, around ${rate}` : ""}. ` +
             `So the calories we called maintenance were already asking a little more of you than they looked` +
             (burn != null
-              ? ` — your real burn is closer to ${kcal(burn)} kcal, and that's the figure your new target is built on.`
+              ? `. Your real burn is closer to ${kcal(burn)} kcal, and that's the figure your new target is built on.`
               : `, and your new target takes that into account.`)
           : `You ate ${kcal(w.meanIntakeKcal)} kcal a day and the trend crept up by ${kg(-w.weightChangeKg)}` +
             `${rate ? `, around ${rate}` : ""}. ` +
@@ -201,7 +201,7 @@ export function buildCards(
     target: t,
     body:
       (versusBurn ? `That's ${versusBurn}, and ${versusPlate}. ` : `That's ${versusPlate}. `) +
-      `Protein stays high at ${Math.round(t.protein_g)} g — that's what keeps the weight coming off as fat ` +
+      `Protein stays high at ${Math.round(t.protein_g)} g, and that's what keeps the weight coming off as fat ` +
       `rather than the muscle you want to hold on to.`,
     note:
       `A first deficit is kept between 300 and 500 kcal a day: enough to show up on the scale within a fortnight, ` +
@@ -214,7 +214,7 @@ export function buildCards(
     // food, and judge whether the new one is plausible.
     const already =
       w.holdLossKgPerWeek != null && w.holdLossKgPerWeek > 0.05
-        ? ` You were already losing about ${w.holdLossKgPerWeek.toFixed(2)} kg a week during calibration, on more food than this — so this should be a change you can actually see.`
+        ? ` You were already losing about ${w.holdLossKgPerWeek.toFixed(2)} kg a week during calibration, on more food than this, so this should be a change you can actually see.`
         : "";
     const goal =
       w.projection?.goalDate != null && w.projection.goalWeeks != null
@@ -232,7 +232,7 @@ export function buildCards(
       chart: w.projection?.points,
       body: `That's what ${kcal(w.newTarget.kcal)} kcal a day should give you.${already}${goal}${band}`,
       note:
-        `The line flattens because a lighter body burns less — the same target slowly becomes a smaller deficit. ` +
+        `The line flattens because a lighter body burns less, so the same target slowly becomes a smaller deficit. ` +
         `Individual weeks will bounce a few hundred grams either way, so give the trend a fortnight before reading anything into it.`,
     });
   }
@@ -250,7 +250,7 @@ export function buildCards(
             `This is your calibration exactly as it was on ${
               endedAt ? longDate(endedAt.slice(0, 10)) : "the day it finished"
             }, kept just as it was. ` +
-            `Your targets have moved on since then — they're reviewed against your results every week.`,
+            `Your targets have moved on since then. They're reviewed against your results every week.`,
         }
       : {
           key: "start",
@@ -258,7 +258,7 @@ export function buildCards(
           value: "Start now",
           body:
             `Tap start and today's target becomes ${kcal(w.newTarget.kcal)} kcal. ` +
-            `This review is yours to keep — it'll be waiting in Settings whenever you want to look back at it.`,
+            `This review is yours to keep. It'll be waiting in Settings whenever you want to look back at it.`,
           note:
             `Your new target holds for two weeks before anything is adjusted. The first week on new calories is ` +
             `mostly water, so reading it sooner just means reacting to noise. After that your results are reviewed ` +
@@ -278,7 +278,7 @@ export default function CalibrationReview({
   wrap: CalibrationWrap;
   name: string | null;
   // A review being re-watched from the history: same findings, but nothing to
-  // start — that deficit began the day it was filed.
+  // start, that deficit began the day it was filed.
   replay?: boolean;
   endedAt?: string | null;
 }) {
@@ -380,7 +380,7 @@ export default function CalibrationReview({
           {card.note && (
             <p className="max-w-prose rounded-2xl bg-black/15 p-3 text-sm leading-relaxed text-white/75">
               {/* Labelled so it reads as background rather than as another fact
-                  about the reader — the point of keeping the two apart. */}
+                  about the reader, the point of keeping the two apart. */}
               <span className="font-semibold uppercase tracking-wide">
                 Why this works:{" "}
               </span>
@@ -400,7 +400,7 @@ export default function CalibrationReview({
       )}
 
       {/* Full width on a phone, thumb-sized. On a laptop the controls sit under
-          the left column at a normal button width — a metre-wide Next button is
+          the left column at a normal button width, a metre-wide Next button is
           not a bigger target, it is a stretched one. */}
       <div className="mx-auto flex w-full max-w-5xl items-center gap-3 pb-2 lg:max-w-md lg:self-start">
         {i > 0 && (
@@ -444,7 +444,7 @@ export default function CalibrationReview({
 //
 // Deliberately not Recharts: this is one static line on a screen a user sees
 // once, and pulling a charting library into it would cost more to load than the
-// whole review. Also draws the truth of the shape — the curve flattens, because
+// whole review. Also draws the truth of the shape, the curve flattens, because
 // a lighter body burns less at the same target.
 export function ProjectionCurve({ points }: { points: ProjectionPoint[] }) {
   const W = 320;

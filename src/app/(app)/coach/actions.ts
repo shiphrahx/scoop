@@ -35,7 +35,7 @@ export async function ensureReviewApplied(): Promise<boolean> {
   if (review.macros.kcal <= 0) return false;
 
   // Never change the user's macros without them choosing to. A review that would
-  // CHANGE the target is only ever a proposal now — surfaced on the Coach screen
+  // CHANGE the target is only ever a proposal now, surfaced on the Coach screen
   // with its reason and an Apply button (applyReview). We still auto-write a HELD
   // week (no macro change) below, so the unbroken run of weekly rows the
   // adaptation gate counts back through stays intact without moving anyone's food.
@@ -69,7 +69,7 @@ export async function applyReview() {
   if (review.macros.kcal <= 0) throw new Error("No target to apply yet.");
 
   // Ordinary weekly reviews land on next Monday: the week under review has been
-  // eaten already. The calibration graduation is the exception — its hold ends
+  // eaten already. The calibration graduation is the exception, its hold ends
   // mid-week off a timestamp, so its first deficit is written for the week in
   // force (see takesEffectNow in getCoachData) and the planner moves today.
   const tz = await getTimezone();
@@ -80,10 +80,10 @@ export async function applyReview() {
   // adaptation gate counts. Next week's target starts on its Monday; one that
   // takes effect now starts today, part-way through the week it is filed under.
   const effectiveFrom = takesEffectNow ? localDate(tz, new Date()) : weekStart;
-  // Only the macro numbers come from review.macros — pick them out explicitly.
+  // Only the macro numbers come from review.macros, pick them out explicitly.
   // On a HELD review, review.macros IS the current target row, which carries its
   // own week_start and phase; spreading it would overwrite the week we picked
-  // (and drag the old phase along) — so the held-week chain never advanced. The
+  // (and drag the old phase along), so the held-week chain never advanced. The
   // phase we write is this review's.
   const m = review.macros;
   const { error } = await supabase.from("daily_targets").upsert(
@@ -110,13 +110,13 @@ export async function applyReview() {
   // built on what this user demonstrably burns, and it survives profile edits.
   //
   // Taken from the review rather than recomputed here. Recomputing produced a
-  // different number from the one the target was built on — a half-step where
-  // the graduation takes the measurement in full — so the stored correction and
+  // different number from the one the target was built on, a half-step where
+  // the graduation takes the measurement in full, so the stored correction and
   // the target disagreed from the moment it was written.
   //
   // Once per review, not once per apply. Each ordinary fold moves the correction
   // halfway to the measurement, so two folds in a day move it three quarters of
-  // the way — and since the graduating target is computed FROM that correction,
+  // the way, and since the graduating target is computed FROM that correction,
   // applying twice in a week walked the target down step by step off the same
   // fortnight of data. The measurement itself only changes as new weigh-ins land,
   // so a second fold inside the week adds no information.
@@ -151,14 +151,14 @@ export async function applyReview() {
 //
 // This deliberately RETURNS rather than throws. Next redacts the message of an
 // uncaught server-action error in production ("An error occurred in the Server
-// Components render…"), so every real cause — a revoked token, a provider
-// outage, a missing env var — reached the user as the same unreadable sentence.
+// Components render…"), so every real cause, a revoked token, a provider
+// outage, a missing env var, reached the user as the same unreadable sentence.
 // The causes below are ordinary operating conditions, not crashes, so each one
 // gets its own message here and the underlying error is logged for us.
 export interface FitbitSyncResult {
   ok: boolean;
   message: string;
-  // The stored connection cannot be repaired from here — only the user granting
+  // The stored connection cannot be repaired from here, only the user granting
   // access again will fix it. Telling them so is useless unless they are also
   // given the button, so this drives one (see FitbitButton). Without it the
   // advice was a dead end: the Connect link only ever showed when no token row
@@ -172,7 +172,7 @@ export async function syncFitbit(): Promise<FitbitSyncResult> {
   const { supabase, user } = await requireUser();
 
   // Missing credentials threw from inside refreshTokens and were caught below as
-  // an expired connection — so a deployment that was never configured told the
+  // an expired connection, so a deployment that was never configured told the
   // user to reconnect, over and over, for something reconnecting cannot fix.
   // No `reconnect` flag here: the grant is not the problem.
   if (!providerConfigured()) {
@@ -231,8 +231,8 @@ export async function syncFitbit(): Promise<FitbitSyncResult> {
         .eq("user_id", user.id);
     } catch (err) {
       // Sync renews the token by itself while the refresh token is still good.
-      // Once the provider rejects THAT — revoked access, a refresh token already
-      // spent, or one issued by the provider we no longer use — there is nothing
+      // Once the provider rejects THAT, revoked access, a refresh token already
+      // spent, or one issued by the provider we no longer use, there is nothing
       // left here to retry with, and only a fresh grant will do.
       logError(`fitbit token refresh for user ${user.id}`, err);
       return {

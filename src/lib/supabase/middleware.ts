@@ -16,7 +16,7 @@ function hasSessionCookie(request: NextRequest): boolean {
 // Refreshes the auth session on every request and guards protected routes.
 export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  // The landing page is the public front door — but only for people who are not
+  // The landing page is the public front door, but only for people who are not
   // signed in. A visitor with a session is sent to their dashboard below.
   const isLanding = pathname === "/";
   const isPublic =
@@ -34,13 +34,13 @@ export async function updateSession(request: NextRequest) {
 
   // Public routes need neither the auth gate nor a session refresh, so skip the
   // Supabase round trip entirely. It sat on the critical path of the landing
-  // page and every legal/PWA file — the token refresh they don't use still cost
+  // page and every legal/PWA file, the token refresh they don't use still cost
   // a network hop before the response could stream. A signed-in user who then
   // navigates into the app hits a protected route, which refreshes there.
   //
   // The landing page is the one exception: a signed-in visitor is moved on to
   // their dashboard, so it does have to know who is asking. Only when a session
-  // cookie is actually present, though — a first-time visitor still gets the
+  // cookie is actually present, though, a first-time visitor still gets the
   // marketing page with no Supabase hop, which is the case that page is for.
   if (isPublic && !(isLanding && hasSessionCookie(request))) {
     return NextResponse.next({ request });
@@ -74,13 +74,13 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // Do not run code between createServerClient and reading the session — it can
+  // Do not run code between createServerClient and reading the session, it can
   // log the user out at random.
   //
   // getClaims() verifies the JWT signature locally (no network) when the project
   // uses asymmetric signing keys, falling back to a getUser() call only on legacy
   // symmetric secrets. Either way it still loads the session first, which refreshes
-  // an expired or near-expiry token and writes the new cookies via setAll above —
+  // an expired or near-expiry token and writes the new cookies via setAll above,
   // so this is a drop-in for the old getUser() call, minus the guaranteed network
   // hop on every request. On mobile that hop gated the whole app's first byte.
   const { data } = await supabase.auth.getClaims();
@@ -88,7 +88,7 @@ export async function updateSession(request: NextRequest) {
 
   // Opening the app should land on the day's numbers, not the sales pitch. The
   // installed app asks for /dashboard itself (start_url in app/manifest.ts), but
-  // that only covers a cold launch of an app installed since that was set — a
+  // that only covers a cold launch of an app installed since that was set, a
   // home-screen icon made before it still opens "/", as does every bookmark,
   // shared link and typed address. Redirecting here catches all of them.
   //

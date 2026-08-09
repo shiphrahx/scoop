@@ -31,7 +31,7 @@ export interface Profile {
   sex: Sex;
   birth_year: number;
   // Optional target weight (kg) and body-fat %. Body-fat unlocks the more
-  // accurate Katch–McArdle calorie maths; null when the user hasn't given it.
+  // accurate Katch McArdle calorie maths; null when the user hasn't given it.
   goal_weight_kg: number | null;
   body_fat_pct: number | null;
   // What the user actually burns, learned from intake against weight change.
@@ -56,7 +56,7 @@ export interface Profile {
   slot_weights: Record<string, number> | null;
   nutrient_prefs: string[];
   // Calorie/carb cycling ("high days"). Off by default. When on, the weekly
-  // calorie/macro total is unchanged — it's just spread into a few higher-carb
+  // calorie/macro total is unchanged, it's just spread into a few higher-carb
   // days and the rest lower (see src/lib/highday.ts). high_days_per_week is null
   // when the user hasn't overridden the goal-based recommendation.
   cycling_enabled: boolean;
@@ -69,7 +69,7 @@ export interface Profile {
   // the drink logger can default to it. Null until they log a first drink.
   last_alcohol_allocation: "carbs" | "fat" | "split" | null;
   // IANA zone the user lives in ("Europe/London"). Decides where their day
-  // starts — the server's clock is UTC and is not the user's day.
+  // starts, the server's clock is UTC and is not the user's day.
   timezone: string;
   onboarded_at: string | null;
 }
@@ -82,7 +82,7 @@ export interface Macros {
   protein_g: number;
   carbs_g: number;
   fat_g: number;
-  // Extra nutrients — optional so existing 4-field literals still type-check.
+  // Extra nutrients, optional so existing 4-field literals still type-check.
   // Populated when the source (Open Food Facts, pantry) carries them.
   fiber_g?: number;
   sugar_g?: number;
@@ -94,7 +94,7 @@ export interface DailyTargets extends Macros {
   week_start: string;
   // The day this target actually started being eaten. Usually the Monday it is
   // keyed to, but a target written part-way through a week (a calibration
-  // graduation, a profile edit) starts that day — and the review counts real
+  // graduation, a profile edit) starts that day, and the review counts real
   // days on the food. Absent on rows written before the column existed.
   effective_from?: string | null;
   // Which phase this weekly target belongs to (see Phase in coach.ts). Drives
@@ -113,14 +113,14 @@ export interface LoggedFood extends Macros {
   logged_at: string;
 }
 
-// A saved "my usual" item — logged to today's food with one tap.
+// A saved "my usual" item, logged to today's food with one tap.
 export interface Favourite extends Macros {
   id: string;
   name: string;
   grams: number | null;
 }
 
-// A whole meal the user saved to reuse — its foods (with amounts) under a name,
+// A whole meal the user saved to reuse, its foods (with amounts) under a name,
 // plus the meal's totals. Dropping it into a slot rebuilds a hand-built meal
 // from `items`. Distinct from Favourite, which is a single food.
 export interface FavouriteMeal extends Macros {
@@ -158,7 +158,7 @@ export interface PantryItem {
   category: string | null;
 }
 
-// One named size a countable food comes in — a "medium" that weighs 118 g. The
+// One named size a countable food comes in, a "medium" that weighs 118 g. The
 // grams are the source of truth; macros for the size = per-100g × grams ÷ 100.
 export interface UnitOption {
   label: string; // "small", "medium", "large", or user's own
@@ -287,7 +287,7 @@ export interface Recipe extends Macros {
 }
 
 // A single grocery item the AI read out of a screenshot (macros per 100 g,
-// estimated from the model's knowledge — 0 when unknown).
+// estimated from the model's knowledge, 0 when unknown).
 export interface GroceryItem {
   name: string;
   kcal_100g: number;
@@ -346,7 +346,7 @@ export interface CheckInPhoto {
   signed_url?: string;
 }
 
-// A win the scale can't measure — "ran 5k without stopping", "rings fit again".
+// A win the scale can't measure, "ran 5k without stopping", "rings fit again".
 // Logged by the user, shown on the Progress dashboard.
 export interface NonScaleVictory {
   id: string;
@@ -355,7 +355,7 @@ export interface NonScaleVictory {
 }
 
 // One ingredient in a suggested dish, with the exact amount to use. Macros are
-// what that portion contributes (optional — older stored plans only have grams).
+// what that portion contributes (optional, older stored plans only have grams).
 // The extras ride along too, so a meal's fibre/sugar/saturates/sodium survive
 // being edited and re-summed, and the day's nutrient verdict can judge them.
 export interface MealPortion {
@@ -370,7 +370,7 @@ export interface MealPortion {
   satfat_g?: number;
   sodium_mg?: number;
   // Set for a countable food: grams in one unit and its name, so the portion can
-  // read as a count ("2 bagels") — grams stays the source of truth for macros.
+  // read as a count ("2 bagels"), grams stays the source of truth for macros.
   unit_g?: number | null;
   unit_label?: string | null;
 }
@@ -389,7 +389,7 @@ export interface MealSuggestion {
   fat_g: number;
 }
 
-// A food the user added to a planned meal — found in their pantry or on Open
+// A food the user added to a planned meal, found in their pantry or on Open
 // Food Facts. Macros are per 100 g (as everywhere); grams is how much of it
 // this meal uses, so the meal's totals are exact and editable.
 export interface PlanItem extends ExtraPer100g {
@@ -433,12 +433,12 @@ export interface FoodChoice extends ExtraPer100g {
   unit_options?: UnitOption[] | null;
 }
 
-// A food the user chose for one meal when planning their day — the app works
+// A food the user chose for one meal when planning their day, the app works
 // out the grams, so a pick carries no amount, just per-100g macros and where it
 // came from. pack_size_g caps a portion at what the pack holds (null = no cap).
 export type MealPick = Omit<FoodChoice, "brand"> & {
   // Grams the user hand-set for this food. When present, "Build my day" holds
-  // the food at this amount and re-solves the rest of the day around it — the
+  // the food at this amount and re-solves the rest of the day around it, the
   // ingredient you nudged stays put while the others move to keep the day on
   // target. Null/absent = the solver is free to portion it.
   pinned_g?: number | null;
@@ -447,7 +447,7 @@ export type MealPick = Omit<FoodChoice, "brand"> & {
 // One meal in a saved day plan, tied to a named slot (Breakfast, Lunch, …).
 // origin 'manual' = the user built it from foods they picked (`items`); 'ai' =
 // a dish the app portioned from the user's per-meal picks (`picks` are the
-// foods they chose; `portions` the solved grams — empty until "Build my day").
+// foods they chose; `portions` the solved grams, empty until "Build my day").
 // logged_food_id is set once the user says they ate it.
 export interface PlannedMeal extends Macros {
   id: string;

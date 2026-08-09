@@ -31,7 +31,7 @@ export interface OnboardingInput {
   timezone: string;
   // Experienced dieters can skip the maintenance-first calibration hold and start
   // losing straight away. We still learn their real burn in the background (the
-  // TDEE correction runs regardless) — they just don't get the holding phase.
+  // TDEE correction runs regardless), they just don't get the holding phase.
   skip_calibration?: boolean;
 }
 
@@ -47,7 +47,7 @@ export async function saveOnboarding(input: OnboardingInput) {
 
   // The formula's maintenance estimate, stored so the progress screen can show
   // what we're calibrating from before any measurement exists. Raw (no
-  // calibration factor) — a brand-new user hasn't earned a correction yet.
+  // calibration factor), a brand-new user hasn't earned a correction yet.
   const estimatedMaintenance = Math.round(
     tdee({
       sex: input.sex,

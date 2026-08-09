@@ -1,5 +1,5 @@
-// Google Health API (the Fitbit Web API successor). Same job as lib/fitbit.ts —
-// OAuth plus one day's steps / active calories / sleep — but against Google's
+// Google Health API (the Fitbit Web API successor). Same job as lib/fitbit.ts,
+// OAuth plus one day's steps / active calories / sleep, but against Google's
 // v4 endpoints and Google OAuth. lib/fitbit.ts dispatches here when
 // HEALTH_PROVIDER=google, so the callback route, the cron, and the stored token
 // shape are all unchanged; only the wire calls differ.
@@ -61,7 +61,7 @@ export function authorizeUrl(origin: string, state: string): string {
 // Shape a Google token response into our stored form. Google issues no user_id
 // on the token endpoint (identity is a separate call we don't need), so
 // fitbit_user_id is null. On REFRESH Google usually omits refresh_token and
-// expects the caller to keep the existing one — hence the fallback.
+// expects the caller to keep the existing one, hence the fallback.
 function toTokens(
   json: {
     access_token: string;
@@ -127,14 +127,14 @@ export async function refreshTokens(
 }
 
 // A CivilDateTime: a nested google.type.Date under `date`. The optional `time`
-// (TimeOfDay) is omitted — it defaults to midnight, exactly the day boundary we
+// (TimeOfDay) is omitted, it defaults to midnight, exactly the day boundary we
 // want. NOT flat year/month/day fields; those are rejected.
 function civil(y: number, m: number, d: number) {
   return { date: { year: y, month: m, day: d } };
 }
 
 // The day-long civil interval [date 00:00, next-day 00:00). A CivilTimeInterval
-// is { start, end }, each a CivilDateTime — no offset field (civil = local wall
+// is { start, end }, each a CivilDateTime, no offset field (civil = local wall
 // time, no zone). Grouped in UTC: getDay has no timezone, and the cron already
 // works in UTC days. Threading the user's zone through would sharpen the day
 // boundary but isn't needed for a daily total.
@@ -168,7 +168,7 @@ async function rollup(
 }
 
 // The first rollup point, or undefined. The typed value sits DIRECTLY on the
-// point (point.steps, point.activeEnergyBurned) — there is no `value` wrapper.
+// point (point.steps, point.activeEnergyBurned), there is no `value` wrapper.
 // One day + windowSizeDays 1 yields at most one point.
 function firstPoint(json: Record<string, unknown> | null): Record<string, unknown> | undefined {
   const points = (json?.rollupDataPoints ?? []) as Array<Record<string, unknown>>;
@@ -182,7 +182,7 @@ function nextDay(date: string): string {
   return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
 }
 
-// Sleep is a Session data type, so dailyRollUp is rejected — we LIST the day's
+// Sleep is a Session data type, so dailyRollUp is rejected, we LIST the day's
 // sleep sessions instead. Filter on civil_end_time so a session counts on the
 // day you woke, and sum minutesAsleep across sessions (naps included). null if
 // the call fails or no session ended that day.
@@ -224,7 +224,7 @@ function num(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-// Raw, UNPARSED rollup responses for one day — status + body for each data
+// Raw, UNPARSED rollup responses for one day, status + body for each data
 // type, exactly as Google returns them. Used by the debug route so the real
 // response shape can be confirmed against the (previously unverified) nesting
 // getDay assumes. Never called on the hot path.

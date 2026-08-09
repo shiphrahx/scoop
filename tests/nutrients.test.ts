@@ -121,7 +121,7 @@ describe("nutrientFit", () => {
 
   it("only judges a limit when you go OVER it", () => {
     // Sugar, saturates and sodium are ceilings. Being far under a sugar limit is
-    // the point of the diet, not a miss — flagging it would tell the user to eat
+    // the point of the diet, not a miss, flagging it would tell the user to eat
     // more sugar to hit target.
     expect(nutrientFit(plan({ sugar_g: 0 }), target, "sugar")!.status).toBe("ok");
     expect(nutrientFit(plan({ satfat_g: 0 }), target, "satfat")!.status).toBe("ok");
@@ -166,7 +166,7 @@ describe("worstFit", () => {
   });
 
   it("takes the worst of them, not the average", () => {
-    // Protein and carbs are perfect but fat is 30 g out. The day is off — an
+    // Protein and carbs are perfect but fat is 30 g out. The day is off, an
     // average would have called this fine and let the user cook it.
     const plan: Macros = { kcal: 2000, protein_g: 150, carbs_g: 200, fat_g: 95 };
     expect(worstFit(plan, target, ["protein", "carbs", "fat"])).toBe("off");

@@ -50,7 +50,7 @@ async function resolveDate(date?: string): Promise<string> {
 
 // Every pantry item with its per-100g macros, filtered to what the diet allows
 // (a vegan pantry shouldn't build a meal around meat someone else added). This
-// is the whole input the local planner needs — no AI, no network.
+// is the whole input the local planner needs, no AI, no network.
 async function pantryFoods(
   supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
   diet: DietType,
@@ -80,7 +80,7 @@ async function pantryFoods(
       unit_label: string | null;
     }>) ?? []
   )
-    // Only offer foods the user can actually eat — diet, allergies and dislikes
+    // Only offer foods the user can actually eat, diet, allergies and dislikes
     // all excluded, so nothing they'd reject reaches the plan.
     .filter((p) => isFoodAllowed(p.name, diet, allergies, dislikes))
     .map((p) => {
@@ -106,7 +106,7 @@ async function pantryFoods(
     });
 }
 
-// Look up foods to add to a meal — only the pantry the user already has. Planning
+// Look up foods to add to a meal, only the pantry the user already has. Planning
 // the day is about eating down what's in stock, so the search never reaches the
 // web; when nothing matches, the UI offers to add the item to the pantry first.
 export async function searchFoods(query: string): Promise<FoodChoice[]> {
@@ -159,14 +159,14 @@ export async function searchFoods(query: string): Promise<FoodChoice[]> {
   }));
 }
 
-// Search the shared food reference by name — the everyday foods that have no
+// Search the shared food reference by name, the everyday foods that have no
 // barcode and whose macros nobody knows: a slice of cake, a cookie, a portion of
 // chips, a banana. Open Food Facts can't answer those (it's a database of
 // packaged products), and the alternative was for the user to type four macro
 // numbers they'd have to look up first.
 //
 // Returns the same FoodChoice shape as the pantry and web searches, so the meal
-// builder adds one exactly like any other food — at its default portion, with
+// builder adds one exactly like any other food, at its default portion, with
 // its other sizes along for the size chips. It carries no barcode: it's
 // reference data, not a product, and nothing is written to the pantry.
 export async function searchReference(query: string): Promise<FoodChoice[]> {
@@ -177,12 +177,12 @@ export async function searchReference(query: string): Promise<FoodChoice[]> {
   return (await searchFreshFoods(q)).map((f) => freshToChoice(f));
 }
 
-// Search Open Food Facts by name — for a food the user is eating that isn't in
+// Search Open Food Facts by name, for a food the user is eating that isn't in
 // their pantry (an impromptu treat bought out, a one-off item). Returns the same
 // FoodChoice shape as the pantry search, tagged source "off", so the meal
 // builder adds it exactly like a pantry food. Ranking lives in searchProducts;
 // this just maps the candidates and drops any with no calories (an empty shell
-// can't be portioned). Empty on a blank query or an OFF outage — never blocks.
+// can't be portioned). Empty on a blank query or an OFF outage, never blocks.
 export async function searchWeb(query: string): Promise<FoodChoice[]> {
   const q = query.trim();
   if (q.length < 2) return [];
@@ -212,7 +212,7 @@ export async function searchWeb(query: string): Promise<FoodChoice[]> {
 }
 
 // Save the list of foods the user picked for a slot. Empty list clears the
-// slot. Macros are the exact sum of the items — no AI estimate needed.
+// slot. Macros are the exact sum of the items, no AI estimate needed.
 export async function setMealItems(slot: string, items: PlanItem[], date?: string) {
   const { supabase, user } = await requireUser();
   const day = await resolveDate(date);
@@ -270,7 +270,7 @@ export async function setMealItems(slot: string, items: PlanItem[], date?: strin
 // ---------------------------------------------------------------------------
 
 // Save a list of foods as a named favourite meal. The foods come from the meal
-// the user is looking at — a hand-built list as-is, or an AI dish converted to
+// the user is looking at, a hand-built list as-is, or an AI dish converted to
 // items on the client. Totals are the exact sum of the foods, so the favourites
 // page shows real macros. Client-supplied, so every food is bound-checked first.
 export async function saveFavouriteMeal(name: string, items: PlanItem[]) {
@@ -355,7 +355,7 @@ export async function addFavouriteMeal(favId: string, slot: string, date?: strin
   revalidate();
 }
 
-// Save the whole of one planned meal (by id) as a favourite — a convenience for
+// Save the whole of one planned meal (by id) as a favourite, a convenience for
 // an app-portioned dish, whose foods live in `portions` rather than `items`.
 export async function saveMealAsFavourite(mealId: string, name: string) {
   const { supabase, user } = await requireUser();
@@ -388,7 +388,7 @@ export async function deleteFavouriteMeal(id: string) {
 }
 
 // Save the foods the user picked for one meal, ahead of "Build my day". No
-// grams yet — the global solve works those out. Changing the picks resets any
+// grams yet, the global solve works those out. Changing the picks resets any
 // previously solved portions (they were for the old picks). Empty picks clear
 // the slot back to empty.
 export async function setMealPicks(slot: string, picks: MealPick[], date?: string) {
@@ -404,7 +404,7 @@ export async function setMealPicks(slot: string, picks: MealPick[], date?: strin
     .eq("slot", slot)
     .maybeSingle();
   if ((existing as { logged_food_id: string | null } | null)?.logged_food_id) {
-    throw new Error("This meal is already logged — edit it from the plan instead.");
+    throw new Error("This meal is already logged. Edit it from the plan instead.");
   }
 
   if (picks.length === 0) {
@@ -419,7 +419,7 @@ export async function setMealPicks(slot: string, picks: MealPick[], date?: strin
   }
 
   // A pick's numbers come from the pantry or a barcode lookup, but the payload
-  // itself is client-supplied — bound-check it before it can poison a build.
+  // itself is client-supplied, bound-check it before it can poison a build.
   for (const p of picks) {
     parseOrThrow(macrosPer100gSchema, p, `Pick ${p.name}`);
   }
@@ -468,7 +468,7 @@ function tighterCap(a: number | undefined, b: number | undefined): number | unde
 }
 
 // Resolve one stored pick to the food the solver portions. Prefer the pantry's
-// CURRENT row — matched by barcode, else by normalised name — whatever the
+// CURRENT row, matched by barcode, else by normalised name, whatever the
 // pick's source, so the freshest macros and stock are used. Whether or not a
 // pantry row is found, the portion is capped at the TIGHTER of the pantry stock
 // (pack × packs) and the pick's OWN pack size: a pick can never be portioned
@@ -516,7 +516,7 @@ export async function buildMyDay(date?: string) {
   const day = await resolveDate(date);
 
   // The budget is THIS day's target, so a high day plans around its extra carbs
-  // and a low day around its smaller share — the weekly total stays fixed either
+  // and a low day around its smaller share, the weekly total stays fixed either
   // way. With cycling off this is just the flat daily target.
   const [profile, targets, consumed, plan] = await Promise.all([
     getProfile(),
@@ -525,7 +525,7 @@ export async function buildMyDay(date?: string) {
     getPlanForDate(day),
   ]);
   if (!profile) throw new Error("Finish onboarding first");
-  if (!targets) throw new Error("No macro target yet — finish onboarding.");
+  if (!targets) throw new Error("No macro target yet. Finish onboarding.");
 
   const picked = plan.filter((p) => p.picks.length > 0 && !p.logged_food_id);
   if (picked.length === 0) {
@@ -544,7 +544,7 @@ export async function buildMyDay(date?: string) {
   // The day solver never re-portions these (they're the user's own amounts), but
   // it must never leave a meal asking for more of a food than there is. Clamp
   // each item to its stock (pack × packs), snap countable foods to whole units,
-  // re-sum, and persist — so the budget below and the day's totals use the
+  // re-sum, and persist, so the budget below and the day's totals use the
   // corrected numbers. Items with no matching pantry row, or no pack size, are
   // left exactly as the user set them.
   const manualMeals = plan.filter(
@@ -640,13 +640,13 @@ export async function buildMyDay(date?: string) {
   const bySlot = new Map(meals.map((m) => [m.slot, m]));
   const slotNames = profile.meal_slots ?? [];
   // What actually moved, so the button can say. A rebalance that changes nothing
-  // is a legitimate answer — the plan was already the closest these picks get —
+  // is a legitimate answer, the plan was already the closest these picks get,
   // but in silence it reads as a broken button.
   const moves: string[] = [];
   for (const row of picked) {
     const m = bySlot.get(row.slot);
     // The pins are left exactly as they are. An amount the user set by hand is
-    // theirs, and a rebalance re-portions everything AROUND it — it is never the
+    // theirs, and a rebalance re-portions everything AROUND it, it is never the
     // thing that gets moved. Pins used to be spent by the build that honoured
     // them, so the second press quietly overwrote the edit; only the user frees
     // one now, by editing the meal and releasing that food.
@@ -670,7 +670,7 @@ export async function buildMyDay(date?: string) {
           // comes back empty when there isn't enough of ANY of its foods left for
           // a serving. Keep the picks and say that, rather than blaming macros.
           portions: [],
-          why: "There isn't enough of any of these foods left for a serving — restock them, or pick something else for this meal.",
+          why: "There isn't enough of any of these foods left for a serving. Restock them, or pick something else for this meal.",
           kcal: 0,
           protein_g: 0,
           carbs_g: 0,
@@ -706,18 +706,18 @@ export async function buildMyDay(date?: string) {
 
   // The held foods are the usual reason a rebalance can't move anything: they
   // were hand-set, so every run honours them. Naming them is what stops a
-  // no-op rebalance reading as a broken button — and points at the meal editor,
+  // no-op rebalance reading as a broken button, and points at the meal editor,
   // the one place a hold can be released.
   const held = picked.flatMap((row) =>
     row.picks.filter((p) => p.pinned_g != null).map((p) => p.name),
   );
   // If the day is stuck over a ceiling, hand the UI a concrete fix to offer the
-  // user — the app won't drop a picked food on its own, but it can ask.
+  // user, the app won't drop a picked food on its own, but it can ask.
   const fix = computeDayFix(meals, budget);
 
   // Where the picked meals landed against what was left of the day. A rebalance
   // that moves nothing is a real answer, but "nothing moved" alone gives the user
-  // no way to tell a day that already fits from a button that did nothing — so it
+  // no way to tell a day that already fits from a button that did nothing, so it
   // comes back with the numbers it settled on.
   const landed = meals.reduce(
     (s, m) => ({
@@ -741,8 +741,8 @@ export async function buildMyDay(date?: string) {
 
 // Apply the fix a rebalance offered: drop the named foods from their meals (the
 // user said yes), then rebalance again. Removing a food from a meal's picks lets
-// the solve free up the room it was taking — the fat an over-fat day couldn't
-// afford, say — and re-portion everything else around what's left.
+// the solve free up the room it was taking, the fat an over-fat day couldn't
+// afford, say, and re-portion everything else around what's left.
 export async function applyDayFix(
   drops: { slot: string; name: string }[],
   date?: string,
@@ -765,14 +765,14 @@ export async function applyDayFix(
     const remaining = meal.picks.filter((p) => !names.has(normName(p.name)));
     if (remaining.length === meal.picks.length) continue; // nothing matched
     // setMealPicks clears the slot when no picks are left, and resets the solved
-    // portions either way — the rebalance below re-portions from what remains.
+    // portions either way, the rebalance below re-portions from what remains.
     await setMealPicks(slot, remaining, day);
   }
 
   return buildMyDay(day);
 }
 
-// Mark (or unmark) a day as a "high day" — an intake day that carries the extra
+// Mark (or unmark) a day as a "high day", an intake day that carries the extra
 // carbs, paid back by the week's low days so the weekly total is unchanged (see
 // src/lib/highday.ts). Taking one consumes one of the week's allowance; the app
 // blocks going over. Idempotent both ways: taking a day that's already high, or
@@ -813,7 +813,7 @@ export async function setHighDay(date: string | undefined, on: boolean) {
 }
 
 // A whole meal row, the fields a copy carries. `logged_food_id` is deliberately
-// left off — a copy always lands as a fresh, un-eaten plan.
+// left off, a copy always lands as a fresh, un-eaten plan.
 type CopyableMeal = {
   origin: string;
   name: string;
@@ -837,7 +837,7 @@ const COPY_FIELDS =
 
 // Drop a copied meal into a slot as a fresh plan (never eaten), overwriting
 // whatever is there. Shared by "copy from yesterday" and "copy from another
-// meal" — both just differ in where they read the source row from.
+// meal", both just differ in where they read the source row from.
 async function writeCopiedMeal(
   supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
   userId: string,
@@ -877,7 +877,7 @@ async function writeCopiedMeal(
   revalidate();
 }
 
-// Fill a slot with the same meal the user had in it the day before — a whole
+// Fill a slot with the same meal the user had in it the day before, a whole
 // row copied onto this date, minus the "eaten" mark so it lands as a fresh
 // plan. Overwrites whatever is in the slot (the button only shows on empty
 // slots). Throws when the previous day had nothing planned there.
@@ -898,7 +898,7 @@ export async function copyFromYesterday(slot: string, date?: string) {
   await writeCopiedMeal(supabase, user.id, src as CopyableMeal, day, slot);
 }
 
-// Copy another meal from the SAME day into this slot — the whole thing, foods
+// Copy another meal from the SAME day into this slot, the whole thing, foods
 // still being planned (picks) included, so "copy dinner into lunch" brings the
 // ingredients over before the day is built. Copying a picks-only meal lands
 // picks the user then builds; copying a built or eaten meal lands its portions.
@@ -927,7 +927,7 @@ export async function copyMealFromSlot(
 // Build a fresh pick from a portion the user ADDED by hand while editing a dish.
 // Per-100g macros come from the portion's own totals (so the day solver can
 // re-portion it), the unit rides along, and it's pinned to the grams the user
-// chose. No barcode or pack size — a searched or typed-in food may have neither;
+// chose. No barcode or pack size, a searched or typed-in food may have neither;
 // the build reads the pantry for those if it matches this by name.
 function portionToPick(p: MealPortion, pinned_g: number | null): MealPick {
   const per100 = (v: number | undefined) =>
@@ -968,7 +968,7 @@ function portionsName(portions: MealPortion[]): string {
 // PINNED onto the matching pick, so the next "Rebalance my day" holds them where
 // the user put them and re-solves everything else (the other ingredients here,
 // and the other meals) around them. Foods the user didn't touch have their pin
-// cleared, so a rebalance is free to move them again. The picks are kept — this
+// cleared, so a rebalance is free to move them again. The picks are kept, this
 // is what lets a rebalance still adjust the untouched foods in an edited meal.
 export async function setMealPortions(
   id: string,
@@ -1026,7 +1026,7 @@ export async function setMealPortions(
           return match ? { ...match, pinned_g } : portionToPick(p, pinned_g);
         });
 
-  // Re-sum every nutrient the portions carry, extras included — dropping them
+  // Re-sum every nutrient the portions carry, extras included, dropping them
   // here would zero a meal's fibre and sodium the moment the user edited it.
   const totals = portions.reduce(
     (s, p) => ({
@@ -1066,7 +1066,7 @@ export async function setMealPortions(
   revalidate();
 }
 
-// Remove everything the app planned for today that the user hasn't eaten yet —
+// Remove everything the app planned for today that the user hasn't eaten yet,
 // for when they don't like the auto-plan and want to start over. Meals they
 // built themselves (origin 'manual') and anything already logged are left
 // untouched (deleting a logged meal would orphan its food-log entry).
@@ -1097,7 +1097,7 @@ export async function clearSlot(slot: string, date?: string) {
 }
 
 // Undo "I ate this": drop the food-log entry and clear the mark so the slot
-// goes back to being editable. The plan's foods are kept — the user is just
+// goes back to being editable. The plan's foods are kept, the user is just
 // correcting a meal they logged too soon.
 export async function unlogPlannedMeal(id: string) {
   const { supabase, user } = await requireUser();
@@ -1110,7 +1110,7 @@ export async function unlogPlannedMeal(id: string) {
     .maybeSingle();
   if (!meal) throw new Error("Meal not found");
   const logId = (meal as { logged_food_id: string | null }).logged_food_id;
-  if (!logId) return; // not logged — nothing to undo
+  if (!logId) return; // not logged, nothing to undo
 
   await supabase.from("food_logs").delete().eq("id", logId).eq("user_id", user.id);
   const { error } = await supabase
@@ -1148,7 +1148,7 @@ export async function removePlannedMeal(id: string) {
   revalidate();
 }
 
-// Delete a food log the user logged straight into the day — a drink, a serving
+// Delete a food log the user logged straight into the day, a drink, a serving
 // out of a batch. Any slot still pointing at it is unmarked in the same breath:
 // a meal flagged as eaten whose log has gone would show as done while
 // contributing nothing to the day's totals.

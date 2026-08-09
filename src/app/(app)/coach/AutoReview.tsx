@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { ensureReviewApplied } from "./actions";
 
-// Advances the weekly review on app open — but only for weeks the review would
+// Advances the weekly review on app open, but only for weeks the review would
 // HOLD (no macro change). A review that would CHANGE the target is left as a
 // proposal for the user to apply from the Coach screen: the app never moves
 // someone's macros without them choosing to.
@@ -30,7 +30,7 @@ export default function AutoReview() {
     try {
       if (localStorage.getItem(STAMP_KEY) === today) return;
     } catch {
-      // No localStorage (private mode / blocked) — fall through and just run it.
+      // No localStorage (private mode / blocked), fall through and just run it.
     }
 
     // Best effort: a failure here should never break the page the user came for.
@@ -44,7 +44,7 @@ export default function AutoReview() {
         .catch(() => {});
 
     // Wait for the browser to go quiet first. This fires on app open, and the
-    // server action behind it is a multi-week scan — kicking it off during
+    // server action behind it is a multi-week scan, kicking it off during
     // hydration put it in the queue alongside the streaming page and the tab
     // bar's prefetches, on the request the user is actually waiting for. It is
     // a once-a-day background chore; a second or two later costs nothing.

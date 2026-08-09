@@ -51,7 +51,7 @@ export async function eatFromBatch(id: string, grams: number) {
   // A serving has to be a real amount of food. A negative one logged negative
   // macros (handing the day's budget calories back) and, through
   // Math.max(0, remaining - grams), ADDED the weight to the pot.
-  parseOrThrow(gramsSchema, grams, "Serving must be more than 0 g — this");
+  parseOrThrow(gramsSchema, grams, "Serving must be more than 0 g. This");
 
   const { data: batch, error: readError } = await supabase
     .from("batches")

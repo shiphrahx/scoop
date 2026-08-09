@@ -26,7 +26,7 @@ export default async function DashboardPage() {
     (user?.user_metadata?.full_name as string | undefined)?.split(" ")[0] ??
     "there";
 
-  // The home ring shows TODAY's target — a high or low day when cycling is on,
+  // The home ring shows TODAY's target, a high or low day when cycling is on,
   // the flat base when it's off. The weekly review (getCoachData) is NOT in this
   // batch: it's the slowest read on the page, and the ring needs none of it, so
   // it streams in its own Suspense boundary below. This await now waits on one
@@ -45,7 +45,7 @@ export default async function DashboardPage() {
 
   // Meals lined up in the day planner but not eaten yet. "Calories left" counts
   // these against the target too, so the home ring reflects the day the user
-  // planned — not only what they've already eaten. Eaten planned meals are
+  // planned, not only what they've already eaten. Eaten planned meals are
   // excluded here (they already show up in `consumed` via their food log).
   const planned = sumMacros(plan.filter((p) => !p.logged_food_id));
 

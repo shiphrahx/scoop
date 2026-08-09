@@ -20,7 +20,7 @@ afterEach(cleanup);
 
 // The mobile bar is the only way around the app on a phone, so every tab has to
 // say where it goes. The centre one used to be a bare "+" with its label only in
-// aria-label — an icon that could equally have meant "add a pantry item".
+// aria-label, an icon that could equally have meant "add a pantry item".
 describe("BottomNav", () => {
   it("gives every tab a visible label, including the raised centre one", () => {
     render(<BottomNav />);
@@ -42,7 +42,7 @@ describe("BottomNav", () => {
   });
 
   // Five is what fits a thumb across a phone, and exactly one of them is the
-  // raised centre — the layout puts two either side of it.
+  // raised centre, the layout puts two either side of it.
   it("keeps the bar to five tabs with a single centre", () => {
     expect(bottomNav).toHaveLength(5);
     expect(bottomNav.filter((i) => i.center)).toHaveLength(1);
@@ -59,7 +59,7 @@ describe("sidebarNav", () => {
     expect(hrefs).toContain("/plan/recipe");
   });
 
-  // Built, routable, but not in use yet — so it doesn't hold a permanent line in
+  // Built, routable, but not in use yet, so it doesn't hold a permanent line in
   // the menu. Delete this test when batches goes back in.
   it("leaves batches out of the menu", () => {
     expect(sidebarNav.map((i) => i.href)).not.toContain("/batches");

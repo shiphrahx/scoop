@@ -98,7 +98,7 @@ export default function PantryForm({
   }
 
   // Editing the name by hand drops a previous fresh-food pick so the search runs
-  // again — the item is no longer "the banana we filled in".
+  // again, the item is no longer "the banana we filled in".
   function onNameChange(value: string) {
     set("name", value);
     if (picked) clearFresh();
@@ -118,7 +118,7 @@ export default function PantryForm({
     setFreshId(food.id);
     setSizes(food.sizes);
     setSelectedSize(defaultSize(food.sizes)?.label ?? "");
-    // A fresh food is counted by size, not split from a pack — clear those.
+    // A fresh food is counted by size, not split from a pack, clear those.
     setPack("");
     setPortions("");
     setUnitLabel("");
@@ -177,7 +177,7 @@ export default function PantryForm({
         if (ref) {
           pickFresh(ref, cookedName(p.name));
           setNote(
-            `${p.name} is dry on the pack — Scoop tracks food cooked, so we've used cooked ${ref.name} values. Pick your cooked serving size.`,
+            `${p.name} is dry on the pack. Scoop tracks food cooked, so we've used cooked ${ref.name} values. Pick your cooked serving size.`,
           );
           return;
         }
@@ -341,7 +341,7 @@ export default function PantryForm({
         className="sc-input text-lg"
       />
 
-      {/* Fresh whole foods that match the name — tap one to fill its macros and
+      {/* Fresh whole foods that match the name, tap one to fill its macros and
           get its sizes, no typing. */}
       {matches.length > 0 && (
         <ul className="flex flex-wrap gap-2">

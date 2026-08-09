@@ -1,5 +1,5 @@
 // Local, deterministic meal planner. Every food already carries its per-100g
-// macros, so portioning meals is just arithmetic — no AI, no network.
+// macros, so portioning meals is just arithmetic, no AI, no network.
 //
 // ONE solve does the portioning, and it is set up as the app's requirements
 // really are:
@@ -13,14 +13,14 @@
 //    the deficit is a failed plan, however neatly the rest of it fits.
 //  - ENERGY is the only one of those ceilings that is absolute. The split is a
 //    preference between the macros, so when filling the day's calories means a
-//    few grams past one of them, the plan takes the trade and says it did —
+//    few grams past one of them, the plan takes the trade and says it did,
 //    otherwise a trace of fat in a bowl of rice can hold a day hundreds of
 //    calories short of its target.
-//  - Under those ceilings the solve fills the day as fully as it can — energy
+//  - Under those ceilings the solve fills the day as fully as it can, energy
 //    first, then protein, then the carb/fat split, with each meal's share of the
 //    day as a soft preference that bends before any of them.
 //  - When the picks cannot reach the target without breaking a limit, the plan
-//    SAYS so — how far under, which macro is at its limit, and where the gap is —
+//    SAYS so, how far under, which macro is at its limit, and where the gap is,
 //    instead of quietly dropping a food or reporting success it didn't have.
 //
 // planPickedDay portions a whole day of picked meals. suggestPantryMeals builds
@@ -38,7 +38,7 @@ import type {
 } from "@/lib/types";
 
 // A pantry item reduced to what the planner needs: a name, per-100g macros, and
-// how much is actually in stock. available_g caps a portion — we can't suggest
+// how much is actually in stock. available_g caps a portion, we can't suggest
 // more tofu than the pack holds. Undefined means the amount is unknown (no pack
 // size on the item), so no stock cap applies.
 export interface PantryFood {
@@ -53,7 +53,7 @@ export interface PantryFood {
   fat_100g: number;
   available_g?: number;
   // The extras the day's nutrient verdict judges. Optional: a scanned product
-  // may not report them, and they don't take part in the portion solve — they
+  // may not report them, and they don't take part in the portion solve, they
   // just come along for the ride so the planned day's fibre, sugar, saturates
   // and sodium are the real numbers instead of zero.
   fiber_100g?: number;
@@ -67,18 +67,18 @@ export interface PantryFood {
   unit_label?: string | null;
   // Grams the user hand-set for this food. When present the planner HOLDS it at
   // this amount (snapped to whole units and capped by stock) instead of solving
-  // it, and portions everything else around what's left — so a nudged ingredient
+  // it, and portions everything else around what's left, so a nudged ingredient
   // stays put while the day still lands on its macros. Null = free to portion.
   pinned_g?: number | null;
 }
 
-// A food the planner portions in WHOLE UNITS: a discrete item you eat whole — a
+// A food the planner portions in WHOLE UNITS: a discrete item you eat whole, a
 // bagel, an egg, a banana. A unit_g alone isn't enough: bulk staples (rice,
 // pasta, couscous, quinoa, porridge) carry serving-size presets ("medium" rice =
 // 200 g) for quick manual logging, but they're served BY WEIGHT. Snapping them
 // to whole 200 g servings locked rice to a fixed portion and left no room for the
 // rest of the day (issue #27), so a staple is weighable however its presets look
-// — and however it was sold, dry bag or steamed pouch.
+//, and however it was sold, dry bag or steamed pouch.
 export function isCountable(food: PantryFood): boolean {
   return !!(food.unit_g && food.unit_g > 0) && !isBulkStaple(food.name);
 }
@@ -93,8 +93,8 @@ export function snapGrams(grams: number, food: PantryFood): number {
 }
 
 // The grams to actually serve of a food: whole units for a countable food, never
-// more than the stock cap. A countable food is ALWAYS a whole number of units —
-// nobody eats 3/4 of a bagel — so the cap is applied in units (floored), never
+// more than the stock cap. A countable food is ALWAYS a whole number of units,
+// nobody eats 3/4 of a bagel, so the cap is applied in units (floored), never
 // mid-unit. Every portion the planner emits goes through this.
 export function portionGrams(raw: number, food: PantryFood, cap: number): number {
   if (isCountable(food)) {
@@ -108,7 +108,7 @@ export function portionGrams(raw: number, food: PantryFood, cap: number): number
 
 type MacroKey = "protein_g" | "carbs_g" | "fat_g";
 // A row of the day solve: the three macros plus total energy. Energy is not an
-// extra macro, it's the sum of them — but giving it its own row makes the solve
+// extra macro, it's the sum of them, but giving it its own row makes the solve
 // keep the day's CALORIES honest even where a single macro has to bend.
 type RowKey = MacroKey | "kcal";
 const KEY_TO_100: Record<RowKey, keyof PantryFood> = {
@@ -125,7 +125,7 @@ const clamp = (n: number, lo: number, hi: number) =>
 const perGram = (food: PantryFood, key: RowKey) =>
   (food[KEY_TO_100[key]] as number) / 100;
 
-// The macros of `grams` of a food, ROUNDED to whole numbers — the same figures
+// The macros of `grams` of a food, ROUNDED to whole numbers, the same figures
 // the user is shown on the portion line. Every total downstream is summed from
 // these, so a meal's total always equals the portions printed under it, and
 // re-saving an untouched meal can't shift its numbers.
@@ -215,7 +215,7 @@ function toPortions(chosen: Portion[]): MealPortion[] {
     grams: c.grams,
     ...macrosOf(c.food, c.grams),
     // Carry the unit through so the portion can be shown as a count ("2 bagels").
-    // Only for a genuine countable — a bulk staple keeps its serving presets off
+    // Only for a genuine countable, a bulk staple keeps its serving presets off
     // the plan so rice shows as weighable grams, not a locked "1 medium".
     ...(isCountable(c.food)
       ? { unit_g: c.food.unit_g, unit_label: c.food.unit_label ?? null }
@@ -303,7 +303,7 @@ const overBy = (total: number, limit: number, key: RowKey) =>
 
 // One vegetable serving, in grams. Vegetables are meal FILLERS, not a macro
 // source: each picked veg gets a fixed serving per meal (capped by stock) instead
-// of being grown by the solve to hit a carb/protein target — that's what keeps
+// of being grown by the solve to hit a carb/protein target, that's what keeps
 // veg split evenly across meals and stops the solver piling 400 g of onion onto a
 // plate to cover a meal with no real carb.
 //
@@ -346,7 +346,7 @@ export function minServingG(food: PantryFood): number {
 // constants (350 g of any protein, 600 g of any carb), which let the fit serve
 // 600 g of potatoes or six eggs to close a macro. A serving is bounded three
 // ways instead: by energy (no single food is half a day on its own), by a
-// realistic mass for its role, and — for a countable — by a plausible number of
+// realistic mass for its role, and, for a countable, by a plausible number of
 // whole units. Stock still caps everything.
 const MAX_SERVE_KCAL = 500;
 const MAX_SERVE_UNITS = 4;
@@ -373,7 +373,7 @@ export function maxServingG(food: PantryFood, cap = Infinity): number {
   const most = Math.floor(Math.min(byEnergy, byRole, Math.max(0, cap)));
   if (isCountable(food)) {
     // Whole units, and never more of them than the same energy and mass limits
-    // allow — four bagels is as unreasonable as 400 g of loose bread.
+    // allow, four bagels is as unreasonable as 400 g of loose bread.
     const unit = food.unit_g!;
     const units = Math.min(MAX_SERVE_UNITS, Math.floor(most / unit));
     return Math.max(0, units) * unit;
@@ -382,7 +382,7 @@ export function maxServingG(food: PantryFood, cap = Infinity): number {
 }
 
 // The smallest servable amount of a picked food: one whole unit for a countable
-// (you can't serve a third of a bagel), else its energy-sized minimum serving —
+// (you can't serve a third of a bagel), else its energy-sized minimum serving,
 // never more than the stock, and never more than one sensible serving. Zero means
 // the pack can't cover even the minimum.
 export function floorPortion(food: PantryFood, cap: number): number {
@@ -395,7 +395,7 @@ export function floorPortion(food: PantryFood, cap: number): number {
 // A picked food the planner treats as a filler rather than a macro source: a
 // vegetable, unless its name reads as a protein product too ("pea protein
 // powder" is a protein, not a filler). Broccoli, peas and the like carry enough
-// protein that macroRole calls them a protein source — but nobody eats them to
+// protein that macroRole calls them a protein source, but nobody eats them to
 // hit a protein target, so name, not macros, decides here. Fillers get a fixed
 // serving; sources are portioned by the solve.
 const isFiller = (food: PantryFood) =>
@@ -425,7 +425,7 @@ type PickVar = { slotIdx: number; food: PantryFood };
 
 // How a picked food gets its grams:
 //  - "pinned": the user hand-set this amount, so it is held there.
-//  - "filler": a vegetable — a fixed standard serving, which keeps veg even
+//  - "filler": a vegetable, a fixed standard serving, which keeps veg even
 //    across meals instead of being grown to cover a missing carb.
 //  - "source": everything else. The solve chooses the grams, between the food's
 //    smallest and largest sensible serving.
@@ -440,8 +440,8 @@ interface PickSlotVar extends PickVar {
 }
 
 // The rows of the day model, for a given set of FREE variables. Every variable
-// not in `freeIdx` is fixed at `grams[i]` — pinned foods, veg servings, and any
-// whole-unit count already chosen — so the free foods aim at what is left of the
+// not in `freeIdx` is fixed at `grams[i]`, pinned foods, veg servings, and any
+// whole-unit count already chosen, so the free foods aim at what is left of the
 // day and of each meal's share.
 function dayModel(
   vars: PickSlotVar[],
@@ -478,7 +478,7 @@ function dayModel(
   for (let slotIdx = 0; slotIdx < slotCount; slotIdx++) {
     for (const key of ROW_KEYS) {
       // Pressed alongside the day row it belongs to, so that holding a limit
-      // doesn't quietly stop meal sizes mattering — two meals with the same picks
+      // doesn't quietly stop meal sizes mattering, two meals with the same picks
       // should still come out the same size.
       const w = (SHARE_WEIGHT * Math.sqrt(press[key])) / scaleOf(key);
       A.push(
@@ -496,7 +496,7 @@ function dayModel(
   return { A, b };
 }
 
-// What a complete set of portions costs on the model above — the same measure the
+// What a complete set of portions costs on the model above, the same measure the
 // solve minimises, so whole-unit candidates can be compared on it.
 function modelCost(
   vars: PickSlotVar[],
@@ -536,7 +536,7 @@ function modelCost(
 
 // How much better the day has to get before a SECOND (third, fourth) whole
 // portion of a countable food is worth adding. The cost is a sum of squared
-// fractional misses, so 0.01 is roughly "a tenth of one row's budget" — enough
+// fractional misses, so 0.01 is roughly "a tenth of one row's budget", enough
 // that a real gap justifies another portion and a rounding wobble does not.
 const EXTRA_UNIT_MARGIN = 0.05;
 
@@ -555,7 +555,7 @@ const isPinnedFood = (food: PantryFood) =>
 //
 // What the solve is NOT allowed to decide is which foods appear. A least squares
 // left free to zero a portion will do exactly that whenever it is the cheapest
-// way to fit — which is how a picked sauce got dropped while the chips kept their
+// way to fit, which is how a picked sauce got dropped while the chips kept their
 // full portion (#28), how a protein powder was squeezed out so a second whole
 // portion of mince could fit (#26), and how a fixed rice serving ate the day
 // (#27). Every pick the pantry can cover is on the plate here, and the portions
@@ -636,7 +636,7 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
       // COUNT. Start at the count nearest the continuous solve, then move one unit
       // at a time while that lowers the model cost, re-solving the weighable foods
       // around each candidate. Scored on the same cost as everything else, so an
-      // extra whole portion has to earn its place on the whole day — it can't be
+      // extra whole portion has to earn its place on the whole day, it can't be
       // added to close one macro while energy runs away.
       const unitIdx = freeIdx.filter((i) => isCountable(vars[i].food));
       const looseIdx = freeIdx.filter((i) => !isCountable(vars[i].food));
@@ -679,7 +679,7 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
         // Start at ONE serving each: the user picked the food, so it gets a
         // portion, and the weighable foods grow to carry whatever is left. A second
         // whole portion is a lumpy commitment, so it is only added when it makes
-        // the whole day MEANINGFULLY better — otherwise a picked protein powder
+        // the whole day MEANINGFULLY better, otherwise a picked protein powder
         // gets squeezed out so another whole portion of mince can fit (issue #26).
         const counts = new Map<number, number>(unitIdx.map((i) => [i, bounds(i).min]));
         let best = solveWith(counts);
@@ -755,7 +755,7 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
 
   // Pressing a limit down is a blunt instrument: it can leave the day short of
   // its calories while there is still headroom under every ceiling. So finish by
-  // FILLING — grow portions, largest energy gain first and hungriest meal first,
+  // FILLING, grow portions, largest energy gain first and hungriest meal first,
   // as far as the ceilings and the serving windows allow. Nothing here can push a
   // total past its limit; it only takes back room the pressure gave away.
   // A cushion under each ceiling, so the rounding to whole grams that happens
@@ -771,7 +771,7 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
   // treating each one as a second hard ceiling stopped the fill dead: a macro
   // already at its limit gave negative headroom, which zeroed the step for every
   // food carrying so much as a trace of it. A day 5 g over on fat could not take
-  // another spoon of rice — rice carries a little fat — and so sat 180 kcal and
+  // another spoon of rice, rice carries a little fat, and so sat 180 kcal and
   // 60 g of carbs short with nothing able to grow.
   //
   // A macro that is full buys a bounded allowance to go further over instead,
@@ -848,7 +848,7 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
     });
     // Two buckets: meals still under their share of the day, and everything
     // else. A meal that has already had its share only grows once no hungry meal
-    // can — the fill closes the day's gap, but it should not quietly turn a
+    // can, the fill closes the day's gap, but it should not quietly turn a
     // 25/75 pair of meals into an even one on the way.
     let bestIdx = -1;
     let bestStep = 0;
@@ -943,8 +943,8 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
         : ` Your ${listed.slice(0, -1).join(", ")} and ${listed[listed.length - 1]} are already at their limits for the day, so nothing else can grow.`;
 
   // A pick that has grown as far as it goes. When the day is short, this is the
-  // other reason it can't close — not "no room left" but "this food is already
-  // the biggest portion Scoop will plan" — and the user can only act on it if
+  // other reason it can't close, not "no room left" but "this food is already
+  // the biggest portion Scoop will plan", and the user can only act on it if
   // the plan names the food.
   // Only worth naming for the macro that is actually short: that the bananas are
   // maxed out is no help when the gap is fat.
@@ -976,7 +976,7 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
   const biggest = gaps[0];
   const gapNote =
     biggest && biggest.short * KCAL_PER_G[biggest.key] >= 100
-      ? ` Most of the gap is ${MACRO_LABEL[biggest.key]} — ${biggest.short} g short.`
+      ? ` Most of the gap is ${MACRO_LABEL[biggest.key]}, ${biggest.short} g short.`
       : "";
 
   // Over its limit is reported as soon as it is measurably over; under gets the
@@ -987,14 +987,14 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
       ? null
       : kcalMiss > 0
         ? atSmallest
-          ? `Even at their smallest sensible servings these picks come to ${dayTotals.kcal} kcal — ${kcalMiss} over today's target. Take something out to bring the day back.`
-          : `This day comes to ${dayTotals.kcal} kcal — ${kcalMiss} over today's target, the closest these picks get.`
-        : `This day comes to ${dayTotals.kcal} kcal — ${-kcalMiss} under today's target.${blocking || " Add to your picks to fill the gap."}${gapNote}${biggest ? maxedNoteFor(biggest.key) : ""}`;
+          ? `Even at their smallest sensible servings these picks come to ${dayTotals.kcal} kcal, which is ${kcalMiss} over today's target. Take something out to bring the day back.`
+          : `This day comes to ${dayTotals.kcal} kcal, which is ${kcalMiss} over today's target, the closest these picks get.`
+        : `This day comes to ${dayTotals.kcal} kcal, which is ${-kcalMiss} under today's target.${blocking || " Add to your picks to fill the gap."}${gapNote}${biggest ? maxedNoteFor(biggest.key) : ""}`;
 
   // Any macro that still ends up OVER its limit gets named. Two different facts
   // wear the same number, so they get different sentences: a day whose energy is
   // also over has picks that simply don't go any smaller, while a day that landed
-  // ON its calories has traded a little of the split to get there — which is the
+  // ON its calories has traded a little of the split to get there, which is the
   // planner working as intended, and reads as a bug if it goes unexplained.
   const overNotes = MACRO_KEYS.filter((key) => {
     const limit = Math.max(0, input.budget[key] ?? 0);
@@ -1003,11 +1003,11 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
     const over = dayTotals[key] - Math.max(0, input.budget[key] ?? 0);
     const label = `${MACRO_LABEL[key][0].toUpperCase()}${MACRO_LABEL[key].slice(1)}`;
     return kcalMiss > kcalSlack
-      ? `${label} lands ${over} g over — these picks don't go any smaller.`
-      : `${label} lands ${over} g over — the picks that fill the rest of the day carry it.`;
+      ? `${label} lands ${over} g over. These picks don't go any smaller.`
+      : `${label} lands ${over} g over. The picks that fill the rest of the day carry it.`;
   });
 
-  // A macro can land well short while the day's ENERGY lands — the picks simply
+  // A macro can land well short while the day's ENERGY lands, the picks simply
   // can't carry that macro. Say which, and why it stopped, rather than leaving the
   // user to spot a red number on the day's tiles with no explanation.
   const shortNotes =
@@ -1028,7 +1028,7 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
   const proteinShort = proteinTarget - dayTotals.protein_g;
   const proteinNote =
     proteinShort > Math.max(10, proteinTarget * 0.1)
-      ? `Protein lands ${proteinShort} g under — these picks can't carry more of it.`
+      ? `Protein lands ${proteinShort} g under. These picks can't carry more of it.`
       : null;
   const dayNote =
     [energyNote, ...overNotes, ...shortNotes, proteinNote].filter(Boolean).join(" ") ||
@@ -1048,8 +1048,8 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
           : "none";
         notes.push(
           isCountable(food)
-            ? `No whole ${food.unit_label ?? "unit"} of ${food.name} left (${left}) — restock it and rebuild.`
-            : `Not enough ${food.name} left (${left}) for a serving — restock it and rebuild.`,
+            ? `No whole ${food.unit_label ?? "unit"} of ${food.name} left (${left}). Restock it and rebuild.`
+            : `Not enough ${food.name} left (${left}) for a serving. Restock it and rebuild.`,
         );
         return;
       }
@@ -1058,7 +1058,7 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
         // it can't move to close a gap. Invisible otherwise: the plan just looks
         // stuck, with no sign of what is pinning it.
         notes.push(
-          `${food.name} is held at the ${served[i]} g you set — edit this meal to let the app size it again.`,
+          `${food.name} is held at the ${served[i]} g you set. Edit this meal to let the app size it again.`,
         );
       }
       portions.push({ food, grams: served[i] });
@@ -1088,7 +1088,7 @@ export function planPickedDay(input: PlanPickedDayInput): PlannedSlot[] {
 
 // A concrete way out when a rebalance can't land the day: the macro that's stuck
 // over its ceiling, and the picked foods to drop that would free it up. The UI
-// shows this as a prompt — the app never drops a food the user picked without
+// shows this as a prompt, the app never drops a food the user picked without
 // asking (see the "never silently drop a pick" rule in lib/mealplan).
 export type DayFix = {
   // Plain-words statement of what's wrong ("Fat lands 13 g over…").
@@ -1100,8 +1100,8 @@ export type DayFix = {
 };
 
 // Which macro a portion is mostly made of, by its share of the portion's energy.
-// Used to pick a food whose removal actually relieves the macro that's over — an
-// oil for a fat overshoot, a rice for a carb one — rather than something that
+// Used to pick a food whose removal actually relieves the macro that's over, an
+// oil for a fat overshoot, a rice for a carb one, rather than something that
 // carries the day's protein.
 function dominantRole(p: MealPortion): "protein" | "carb" | "fat" {
   const fat = (p.fat_g ?? 0) * 9;
@@ -1112,8 +1112,8 @@ function dominantRole(p: MealPortion): "protein" | "carb" | "fat" {
   return "protein";
 }
 
-// When the solved day is stuck OVER one of its ceilings — the picks can't be
-// portioned any smaller, so a plain rebalance changes nothing — work out the
+// When the solved day is stuck OVER one of its ceilings, the picks can't be
+// portioned any smaller, so a plain rebalance changes nothing, work out the
 // smallest set of picked foods to drop that would relieve it. Only foods the
 // solve actually portioned (app-sized picks) are candidates: eaten and
 // hand-pinned foods are the user's own and never proposed. Returns null when the
@@ -1136,7 +1136,7 @@ export function computeDayFix(
   // A day whose ENERGY lands is not a stuck day. The planner is allowed to trade
   // a few grams of one macro to fill the day's calories (see the fill in
   // lib/mealplan), and prompting to drop a food over that trade would undo the
-  // calories it just bought — while telling the user something untrue, that the
+  // calories it just bought, while telling the user something untrue, that the
   // picks can't go any smaller. So the bar for flagging an overshoot rises to
   // more than any trade the fill would make once the calories are there.
   const kcalBudget = Math.max(0, budget.kcal);
@@ -1163,7 +1163,7 @@ export function computeDayFix(
   if (!worst) return null;
 
   // Foods the solve portioned that are mostly this macro, biggest contributor
-  // first — the ones whose removal frees the most of what's over.
+  // first, the ones whose removal frees the most of what's over.
   const cands = meals
     .flatMap((m) =>
       m.portions.map((p) => ({
@@ -1212,7 +1212,7 @@ const byName = (pantry: PantryFood[], name?: string | null): PantryFood | null =
 
 // Suggest a few pantry dishes built around a chosen carb + protein (either may
 // be omitted, in which case the densest pantry source is used). Variations come
-// from rotating the fat source. Deterministic — same pantry, same ideas.
+// from rotating the fat source. Deterministic, same pantry, same ideas.
 export function suggestPantryMeals(input: SuggestInput): MealSuggestion[] {
   const { protein: pPool, carb: cPool, fat: fPool } = pools(input.pantry);
   const count = input.count ?? 3;

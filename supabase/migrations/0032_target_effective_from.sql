@@ -7,8 +7,8 @@
 -- the Thursday was still counted as a full week, so the two-week wait before
 -- the coach adjusts anything could fire after eleven days.
 --
--- That wait is physiological — roughly how long the body takes to show whether
--- it is really adapting rather than shedding water — so it has to be counted in
+-- That wait is physiological, roughly how long the body takes to show whether
+-- it is really adapting rather than shedding water, so it has to be counted in
 -- real days on the food, not in calendar weeks the row happens to touch.
 --
 -- Nullable, and backfilled to week_start: rows written before this column

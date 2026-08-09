@@ -23,7 +23,7 @@ suite("row-level security", () => {
   beforeAll(async () => {
     db = await connect();
     // Applying the real migration files to an empty database also proves they
-    // still apply cleanly in order — nothing else checks that either.
+    // still apply cleanly in order, nothing else checks that either.
     await resetSchema(db);
     await seedUsers(db);
   }, 60_000);
@@ -157,7 +157,7 @@ suite("row-level security", () => {
     });
 
     it("refuses a row written on another user's behalf", async () => {
-      // B tries to write a row owned by A — the WITH CHECK clause must stop it.
+      // B tries to write a row owned by A, the WITH CHECK clause must stop it.
       await expect(
         asUser(db, USER_B, (c) => c.query(insert(USER_A))),
       ).rejects.toThrow(/row-level security/i);

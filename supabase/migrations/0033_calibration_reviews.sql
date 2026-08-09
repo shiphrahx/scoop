@@ -1,7 +1,7 @@
 -- Scoop: keep the calibration review the user was shown.
 --
--- The review that ends the calibration hold — what their maintenance measured
--- at, how the fortnight went, the target it produced and the loss it predicted —
+-- The review that ends the calibration hold, what their maintenance measured
+-- at, how the fortnight went, the target it produced and the loss it predicted,
 -- is a point-in-time record. It cannot be recomputed later: every input moves.
 -- The weigh-ins age out of the trend window, the food logs fall outside it, the
 -- TDEE correction is folded again by the next review, and the target it proposed
@@ -10,7 +10,7 @@
 --
 -- So the findings are stored as they were shown, once, when the user starts
 -- their deficit. `findings` is the CalibrationWrap object the screen renders
--- (see src/lib/calibrationwrap.ts) — jsonb rather than columns because it is a
+-- (see src/lib/calibrationwrap.ts), jsonb rather than columns because it is a
 -- snapshot to display, not something to query or aggregate over, and pinning its
 -- shape in the schema would mean a migration every time the review gains a card.
 --

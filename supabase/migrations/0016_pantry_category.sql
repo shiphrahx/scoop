@@ -9,7 +9,7 @@ alter table public.pantry_items
 
 -- Backfill the items already on the shelf, mirroring the app's categoriser
 -- (src/lib/foodgroups.ts pantryCategory): a drink/fruit/veg name wins first,
--- otherwise the dominant macro decides — protein once it carries a quarter of
+-- otherwise the dominant macro decides, protein once it carries a quarter of
 -- the calories, else carbs vs fat, with too-light foods landing in "Other".
 update public.pantry_items set category =
   case

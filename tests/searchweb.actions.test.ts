@@ -49,7 +49,7 @@ describe("searchWeb", () => {
     expect(c.unit_options).toBeNull();
   });
 
-  it("drops candidates with no calories — an empty shell can't be portioned", async () => {
+  it("drops candidates with no calories, an empty shell can't be portioned", async () => {
     installFakeSupabase();
     searchProducts.mockResolvedValueOnce([
       candidate({ name: "Real Food" }),

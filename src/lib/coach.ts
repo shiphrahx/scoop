@@ -8,21 +8,21 @@ import type {
 
 export type { Macros } from "@/lib/types";
 
-// The Coach math — pure functions, no AI. Mifflin–St Jeor BMR + activity
+// The Coach math, pure functions, no AI. Mifflin St Jeor BMR + activity
 // multiplier = TDEE, minus a deficit for weight loss, split into macros.
 
 // Base activity factor for the NO-DEVICE fallback ONLY. It represents everyday
 // non-exercise life (NEAT: standing, walking about, chores) and DELIBERATELY
-// excludes workouts — exercise burn is meant to come from measured device data
+// excludes workouts, exercise burn is meant to come from measured device data
 // (see tdee), not a self-reported gym habit folded into a multiplier.
 //
 // The old textbook TDEE multipliers (moderate ×1.55, very_active ×1.9) mapped a
-// self-reported "3–5×/week" straight onto a whole-day burn, estimating a 35 yo
-// woman's maintenance ~2050 when it's nearer 1700 — stalling fat loss from day
+// self-reported "3 to 5×/week" straight onto a whole-day burn, estimating a 35 yo
+// woman's maintenance ~2050 when it's nearer 1700, stalling fat loss from day
 // one. So we compress the self-report onto a conservative non-exercise band
-// (~1.2–1.375): the level still nudges the estimate, but even "very active"
-// can't inflate it. A start that's a touch LOW is safe — calibration raises it
-// from real weight change (see updateCalibration / weeklyReview) — whereas a
+// (~1.2 to 1.375): the level still nudges the estimate, but even "very active"
+// can't inflate it. A start that's a touch LOW is safe, calibration raises it
+// from real weight change (see updateCalibration / weeklyReview), whereas a
 // high start silently erases the deficit. Tunable.
 const BASE_ACTIVITY_FACTOR: Record<ActivityLevel, number> = {
   sedentary: 1.2,
@@ -39,7 +39,7 @@ const TEF_FRACTION = 0.1;
 
 // How fast each pace aims to lose, in kg/week. The calorie deficit is derived
 // from this rate (not a flat % of TDEE) so the number the user picks in
-// onboarding is the number the maths actually targets — see dailyTarget.
+// onboarding is the number the maths actually targets, see dailyTarget.
 const PACE_KG_PER_WEEK: Record<GoalPace, number> = {
   gentle: 0.25,
   steady: 0.5,
@@ -50,7 +50,7 @@ const PACE_KG_PER_WEEK: Record<GoalPace, number> = {
 // turning a target loss rate into a daily calorie deficit.
 export const KCAL_PER_KG = 7700;
 
-// Never prescribe a loss faster than 1% of bodyweight/week — beyond that the
+// Never prescribe a loss faster than 1% of bodyweight/week, beyond that the
 // deficit starts costing muscle. Caps the requested rate for light people.
 const MAX_WEEKLY_LOSS_FRACTION = 0.01;
 
@@ -68,7 +68,7 @@ const MAX_DEFICIT_FRACTION = 0.3;
 // The real floor for a given person, not just for their sex.
 //
 // A flat 1200 is not a floor, it's a number. For a 100 kg woman whose resting
-// metabolism alone is 1650 it prescribes a >50% deficit — the exact territory
+// metabolism alone is 1650 it prescribes a >50% deficit, the exact territory
 // where muscle goes, hormones follow and adherence collapses. Sustained eating
 // below resting rate is what the floor exists to prevent, so make the floor say
 // that.
@@ -80,7 +80,7 @@ export function kcalFloor(sex: Sex, rmrKcal?: number | null): number {
 
 // A healthy weekly loss, as a fraction of bodyweight, for this person.
 //
-// The old flat 0.5–1.0% band ignored the body-fat reading the app already
+// The old flat 0.5 to 1.0% band ignored the body-fat reading the app already
 // collects. That band is fine at 30% body fat, where there is plenty of fat to
 // draw on. At 12% it is a prescription for losing muscle: the leaner someone
 // is, the smaller the share of a deficit that fat can supply, and the slower
@@ -100,22 +100,22 @@ export function healthyLossBand(
   return { min: 0.005, max: 0.01 };
 }
 
-// Grams are prescribed per POUND of bodyweight — the units these coefficients
-// are quoted in — so convert from the kg the app stores.
+// Grams are prescribed per POUND of bodyweight, the units these coefficients
+// are quoted in, so convert from the kg the app stores.
 const KG_TO_LB = 2.2046226218;
 
 // The macro order is fixed and matters: protein first (a target), fat next (a
 // floor), carbs last (the remainder). Getting the order wrong is how carbs end
-// up crushed — a fat percentage that eats the plate leaves carbs whatever scraps
+// up crushed, a fat percentage that eats the plate leaves carbs whatever scraps
 // remain. Here fat sits AT its floor so the calories left over become carbs.
 //
 // All three are configurable coefficients.
-const PROTEIN_G_PER_LB = 1.0; // ~1 g/lb — high protein to protect muscle in a deficit
+const PROTEIN_G_PER_LB = 1.0; // ~1 g/lb, high protein to protect muscle in a deficit
 const FAT_FLOOR_G_PER_LB = 0.3; // hormone + fat-soluble-vitamin floor; fat may sit at or above
 // Carbs must never fall below this. Fuel for the brain and for training, and the
 // first thing an over-aggressive deficit tries to delete. When the remainder
 // would breach it we raise the calorie target (ease the deficit) instead of
-// shipping sub-floor carbs — see effectiveKcalForFloors.
+// shipping sub-floor carbs, see effectiveKcalForFloors.
 const CARB_FLOOR_G_PER_LB = 0.6;
 const MIN_CARB_FLOOR_G = 130; // absolute floor, so a very light person still gets real carbs
 
@@ -127,7 +127,7 @@ const KETO_CARBS_G = 25; // hard carb ceiling on a ketogenic split; fat fills th
 const HEALTHY_BMI_MAX = 25; // top of the healthy BMI band; caps the protein basis
 
 // Protein is prescribed per kg of bodyweight, but for someone well above a
-// healthy weight that overshoots — surplus fat mass doesn't need feeding, and
+// healthy weight that overshoots, surplus fat mass doesn't need feeding, and
 // the evidence bases protein on lean/target weight. Cap the basis at a target
 // weight: the user's own goal weight when they gave one, otherwise the weight
 // that puts them at BMI 25 for their height (a stand-in for target weight).
@@ -155,16 +155,16 @@ export interface CoachInput {
   age: number;
   activity: ActivityLevel;
   pace: GoalPace;
-  // Measured average daily ACTIVE energy (kcal) from Fitbit/Apple — everything
+  // Measured average daily ACTIVE energy (kcal) from Fitbit/Apple, everything
   // burned above resting, which is all movement, not just workouts. Fitbit's
   // activityCalories and Apple's active_energy both mean this. When present it
   // replaces the self-reported activity multiplier with real data.
   activeKcalPerDay?: number | null;
-  // Average daily step count. Used when no device reports calories — a rough
+  // Average daily step count. Used when no device reports calories, a rough
   // measurement of this week beats a self-description chosen at onboarding.
   stepsPerDay?: number | null;
-  // Body-fat fraction as a percentage (e.g. 22 for 22%). Optional — when known
-  // the resting rate switches to Katch–McArdle (driven by lean mass), which is
+  // Body-fat fraction as a percentage (e.g. 22 for 22%). Optional, when known
+  // the resting rate switches to Katch McArdle (driven by lean mass), which is
   // more accurate than Mifflin for both lean and very-heavy bodies.
   bodyFatPct?: number | null;
   // The user's target weight, if set. Caps the protein basis (see proteinBasisKg).
@@ -175,23 +175,23 @@ export interface CoachInput {
   tdeeCalibration?: number | null;
 }
 
-// Mifflin–St Jeor basal metabolic rate (kcal/day). The default when we have no
-// body-composition data — the best-validated equation for the general population.
+// Mifflin St Jeor basal metabolic rate (kcal/day). The default when we have no
+// body-composition data, the best-validated equation for the general population.
 export function bmr(sex: Sex, weightKg: number, heightCm: number, age: number) {
   const base = 10 * weightKg + 6.25 * heightCm - 5 * age;
   return sex === "male" ? base + 5 : base - 161;
 }
 
-// Katch–McArdle basal metabolic rate (kcal/day) from lean body mass. Resting
+// Katch McArdle basal metabolic rate (kcal/day) from lean body mass. Resting
 // metabolism tracks lean mass, not total weight, so when body-fat % is known
-// this beats Mifflin — it doesn't over- or under-count fat mass.
+// this beats Mifflin, it doesn't over- or under-count fat mass.
 export function bmrKatch(weightKg: number, bodyFatPct: number) {
   const leanKg = weightKg * (1 - bodyFatPct / 100);
   return 370 + 21.6 * leanKg;
 }
 
-// The resting metabolic rate to build TDEE from: Katch–McArdle when we have a
-// body-fat reading, Mifflin–St Jeor otherwise.
+// The resting metabolic rate to build TDEE from: Katch McArdle when we have a
+// body-fat reading, Mifflin St Jeor otherwise.
 export function restingRate(input: Pick<CoachInput, "sex" | "weightKg" | "heightCm" | "age" | "bodyFatPct">) {
   if (input.bodyFatPct != null && input.bodyFatPct > 0) {
     return bmrKatch(input.weightKg, input.bodyFatPct);
@@ -210,10 +210,10 @@ export function tdeeFromComponents(rmrKcal: number, activeKcal: number) {
 // build it from real components; otherwise we fall back to the self-reported
 // activity factor.
 //
-// The device figure covers ALL movement — walking to the shops as much as the
-// gym — so it must sit on top of the bare resting rate. Putting it on top of a
+// The device figure covers ALL movement, walking to the shops as much as the
+// gym, so it must sit on top of the bare resting rate. Putting it on top of a
 // 1.2 "sedentary" baseline (as this used to) counts everyday activity twice and
-// inflates the target by roughly 0.2 × RMR, some 250–400 kcal/day: enough to
+// inflates the target by roughly 0.2 × RMR, some 250 to 400 kcal/day: enough to
 // swallow most of the deficit the user asked for.
 // The calibration factor is applied last, on top of whichever route produced
 // the prediction: it is the standing correction between this user's real burn
@@ -257,7 +257,7 @@ const MIN_ACTIVE_COVERAGE = 5;
 // Averaging only the days that reported a burn is a trap: three synced days out
 // of seven then get divided by three, so a part-synced week reads as if every
 // day were a training day and TDEE comes out roughly double the truth. Dividing
-// by the full window is no better — it scores the missing days as zero and
+// by the full window is no better, it scores the missing days as zero and
 // starves the user. So we ask for real coverage first, and fall back to the
 // self-reported activity multiplier when we don't have it.
 export function averageActiveKcal(
@@ -277,7 +277,7 @@ export function averageActiveKcal(
 // per step, which is why this is per kg rather than a flat kcal/step.
 const KCAL_PER_STEP_PER_KG = 0.00026;
 
-// The non-step part of everyday activity — fidgeting, standing, gesturing.
+// The non-step part of everyday activity, fidgeting, standing, gesturing.
 // Real and surprisingly large, but not something steps can see.
 const BASELINE_NEAT_FRACTION = 0.1;
 
@@ -291,7 +291,7 @@ export function stepKcal(steps: number, weightKg: number): number {
 // calorie-reporting wearable.
 //
 // NEAT is the largest source of variation in daily burn between two people of
-// the same size — hundreds of kcal — and it is also the thing that quietly
+// the same size, hundreds of kcal, and it is also the thing that quietly
 // falls during a diet. Storing steps and never reading them, as this app did,
 // throws away the best signal available for both.
 export function activeKcalFromSteps(steps: number, weightKg: number, rmrKcal: number) {
@@ -302,7 +302,7 @@ export function activeKcalFromSteps(steps: number, weightKg: number, rmrKcal: nu
 const STEP_DROP_FRACTION = 0.15;
 
 // Whether the user is simply moving less than they were. When a plateau comes
-// with the step count falling away, the honest answer is not to cut food — the
+// with the step count falling away, the honest answer is not to cut food, the
 // deficit didn't disappear because maintenance rose, it disappeared because the
 // user stopped walking. Cutting calories there treats the symptom and makes the
 // diet harder at the same time.
@@ -345,7 +345,7 @@ export function fatFloorTargetG(weightKg: number): number {
 
 // The carbohydrate floor in grams: the larger of an absolute minimum and a
 // per-lb amount. Carbs are computed as the remainder, but never allowed below
-// this — the deficit is eased instead.
+// this, the deficit is eased instead.
 export function carbFloorTargetG(weightKg: number): number {
   return Math.max(MIN_CARB_FLOOR_G, Math.round(weightKg * KG_TO_LB * CARB_FLOOR_G_PER_LB));
 }
@@ -353,7 +353,7 @@ export function carbFloorTargetG(weightKg: number): number {
 // The lowest calorie target that can still honour all three floors at once:
 // protein target + fat floor + carb floor. A deficit that lands below this can't
 // hit its carb floor, so the target is raised to here instead (the deficit is
-// reduced). Keto is exempt — its whole point is carbs BELOW any floor.
+// reduced). Keto is exempt, its whole point is carbs BELOW any floor.
 export function effectiveKcalForFloors(
   kcal: number,
   weightKg: number,
@@ -369,7 +369,7 @@ export function effectiveKcalForFloors(
   return Math.max(kcal, minKcal);
 }
 
-// Whether a requested calorie target would push carbs below their floor — i.e.
+// Whether a requested calorie target would push carbs below their floor, i.e.
 // the deficit is too aggressive and had to be eased. Used to tell the user why
 // their target isn't as low as they asked for.
 export function carbFloorLimits(
@@ -384,10 +384,10 @@ export function carbFloorLimits(
 }
 
 // Split a calorie target into macros in a FIXED order: protein (a target, ~1
-// g/lb), then fat (a floor, ~0.3 g/lb), then carbs as the remainder — never a
+// g/lb), then fat (a floor, ~0.3 g/lb), then carbs as the remainder, never a
 // set number, and never below their own floor. When the remainder would breach
 // the carb floor the calorie target is raised (the deficit eased) rather than
-// shipping sub-floor carbs. Also derive the extra nutrient targets — fiber a
+// shipping sub-floor carbs. Also derive the extra nutrient targets, fiber a
 // floor to reach, the rest ceilings to stay under:
 //   fiber   14 g per 1000 kcal (dietary guideline)
 //   sugar   free sugars ≤ 10% of energy
@@ -404,7 +404,7 @@ export function macrosForKcal(
 
   // Keto flips the split: carbs pinned to a low ceiling, fat fills the rest, and
   // there is no carb floor (low carbs are the point). Protein yields to the fat
-  // floor here — a keto split whose fat has been squeezed out is not keto.
+  // floor here, a keto split whose fat has been squeezed out is not keto.
   if (diet === "keto") {
     const ketoFatFloorG = Math.min(
       fatFloorTargetG(weightKg),
@@ -498,7 +498,7 @@ export function dailyTarget(input: CoachInput): Macros {
   );
 }
 
-// The full macro target for eating at maintenance — the calibration phase, and
+// The full macro target for eating at maintenance, the calibration phase, and
 // the anchor every deficit is measured down from. Same split as a deficit, just
 // with nothing subtracted. Never below the safe floor.
 export function maintenanceTarget(input: Omit<CoachInput, "pace">): Macros {
@@ -527,7 +527,7 @@ export function maintenanceTarget(input: Omit<CoachInput, "pace">): Macros {
 //   TDEE ≈ mean daily intake + (trend weight lost × 7700) / days
 //
 // That single line absorbs a wrong BMR, an over- or under-stated activity
-// level, metabolic adaptation, AND the user's own logging bias — because the
+// level, metabolic adaptation, AND the user's own logging bias, because the
 // bias is fitted against real weight change rather than assumed away. It is the
 // difference between a coach that guesses and one that learns.
 
@@ -538,7 +538,7 @@ const MIN_OBSERVE_DAYS = 14;
 // And enough of those days need a food log. Mean intake over only the days the
 // user bothered to log is a biased sample of what they ate: the unlogged days
 // are the big ones. Reading that as a low intake would make the measured burn
-// look small and cut the target — punishing the user for patchy logging.
+// look small and cut the target, punishing the user for patchy logging.
 const MIN_LOG_COVERAGE = 0.8;
 
 export interface DailyIntake {
@@ -565,7 +565,7 @@ export function tdeeFromEnergyBalance(
 }
 
 // Measure the user's actual daily burn from what they ate and what the scale
-// did. Null whenever the data can't support an honest answer — a wrong measured
+// did. Null whenever the data can't support an honest answer, a wrong measured
 // TDEE is worse than none, because the whole point is that the app trusts it
 // over the formula.
 export function observeTdee(
@@ -596,7 +596,7 @@ export function observeTdee(
   const first = { date: firstDate };
   const last = { date: lastDate };
 
-  // Only intake inside the same window counts — the weight term and the intake
+  // Only intake inside the same window counts, the weight term and the intake
   // term have to describe the same stretch of time or the arithmetic is meaningless.
   const logged = intake.filter(
     (d) => d.date >= first.date && d.date <= last.date && d.kcal > 0,
@@ -635,7 +635,7 @@ const CALIBRATION_STEP = 0.5;
 // fortnight can move the estimate by a quarter, not by anything it likes.
 const GRADUATION_STEP = 1;
 
-// Fold a fresh measurement into the running calibration factor — the ratio
+// Fold a fresh measurement into the running calibration factor, the ratio
 // between what the user actually burns and what the formula predicted.
 //
 // `step` is how far to move towards the measurement: the standing half-step for
@@ -688,7 +688,7 @@ export interface Adherence {
 // How closely the user actually ate the target they were given.
 //
 // Without this the review is measuring the wrong thing. A plateau has two quite
-// different causes — the target is too high, or the user ate more than it — and
+// different causes, the target is too high, or the user ate more than it, and
 // the scale alone cannot tell them apart. Cutting on the second is actively
 // harmful: it makes an already-unfollowed plan harder to follow, which widens
 // the gap, which triggers another cut. The way out of that spiral is to say
@@ -727,7 +727,7 @@ export function adherence(
 // calorie target. Result-based (no AI): the rules read the scale + tape, not a
 // recomputed TDEE, so a plateau gets a real cut rather than a guess.
 
-// The healthy band is no longer a constant — it depends on how lean the user
+// The healthy band is no longer a constant, it depends on how lean the user
 // is (see healthyLossBand). What stays fixed is how hard the coach nudges.
 
 // --- Phases -----------------------------------------------------------------
@@ -743,13 +743,13 @@ export type Phase = "calibration" | "deficit" | "diet_break" | "maintenance";
 // maintenance for a short window while the app watches the scale and learns what
 // they actually burn (adaptive TDEE, MacroFactor-style). A deficit built on the
 // formula alone can be hundreds of kcal wrong; one built on a fortnight of real
-// data is not. Only once calibrated does the modest cut begin — and cycling
+// data is not. Only once calibrated does the modest cut begin, and cycling
 // (high days) stays locked until then, since an uncalibrated cut is exactly
 // where carbs get pushed far too low.
 
 // The window the hold lasts. We aim for a fortnight but will graduate a diligent
 // logger at ten days once there's a trustworthy measurement, and we will not
-// hold anyone past the max however patchy their data — an endless "calibrating"
+// hold anyone past the max however patchy their data, an endless "calibrating"
 // screen is its own failure.
 export const CALIBRATION_MIN_DAYS = 10;
 export const CALIBRATION_MAX_DAYS = 14;
@@ -768,7 +768,7 @@ export function calibrationDaysElapsed(
 export interface CalibrationState {
   startedAt: string | null | undefined;
   now?: Date;
-  // The measured burn from intake against the scale — null until there are
+  // The measured burn from intake against the scale, null until there are
   // enough weigh-ins and food logs to trust one (see observeTdee). Its presence
   // is what tells us the hold has actually taught us something.
   observed: ObservedTdee | null;
@@ -776,7 +776,7 @@ export interface CalibrationState {
 
 // Whether the calibration hold is over and a deficit may begin. Graduate when
 // the minimum window has passed AND we have a real measurement, OR when the max
-// window elapses regardless — but never while the user was never calibrating.
+// window elapses regardless, but never while the user was never calibrating.
 // Sparse logging keeps `observed` null, which extends the hold rather than
 // cutting on data too thin to trust.
 export function calibrationComplete(state: CalibrationState): boolean {
@@ -798,7 +798,7 @@ export function inCalibration(state: CalibrationState): boolean {
 // It has to read the same gate calibrationComplete does. Counting to the minimum
 // window alone stranded users on "almost done" for days: graduating at
 // CALIBRATION_MIN_DAYS also needs a measurement, and observeTdee will not
-// produce one until the weigh-ins span a fortnight — so before that measurement
+// produce one until the weigh-ins span a fortnight, so before that measurement
 // exists the only date the hold is guaranteed to end on is the max window, and
 // that is the honest number to show. Once a measurement lands the count drops to
 // the minimum window (and to 0 as it graduates).
@@ -809,8 +809,8 @@ export function calibrationDaysRemaining(state: CalibrationState): number {
   return Math.max(0, target - calibrationDaysElapsed(state.startedAt, state.now));
 }
 
-// The first deficit after calibration is deliberately modest — a sustainable
-// 300–500 kcal/day, never an aggressive opener however impatient the chosen
+// The first deficit after calibration is deliberately modest, a sustainable
+// 300 to 500 kcal/day, never an aggressive opener however impatient the chosen
 // pace. Real results earn a faster cut later; the data does the arguing, not the
 // user's optimism at onboarding.
 export const OPENING_DEFICIT_MIN_KCAL = 300;
@@ -840,7 +840,7 @@ export interface PhaseInput {
   goalWeightKg?: number | null;
   // The new-user hold at maintenance. When the window is open and hasn't yet
   // taught us enough, the plan stays in calibration regardless of everything
-  // else — no deficit, no cycling, until the app has learned the real burn.
+  // else, no deficit, no cycling, until the app has learned the real burn.
   inCalibration?: boolean;
   calibrationComplete?: boolean;
 }
@@ -849,10 +849,10 @@ export interface PhaseInput {
 export function nextPhase(input: PhaseInput): Phase {
   const { weeksInDeficit, weeksInBreak, currentWeightKg, goalWeightKg } = input;
 
-  // Still learning the user's body — hold at maintenance and cut nothing yet.
+  // Still learning the user's body, hold at maintenance and cut nothing yet.
   if (input.inCalibration && !input.calibrationComplete) return "calibration";
 
-  // Arrived. Stop dieting — an app that keeps cutting past the goal is not
+  // Arrived. Stop dieting, an app that keeps cutting past the goal is not
   // coaching, and "what now" is the question most weight-loss plans never answer.
   if (goalWeightKg != null && goalWeightKg > 0 && currentWeightKg <= goalWeightKg + GOAL_REACHED_KG) {
     return "maintenance";
@@ -865,7 +865,7 @@ export function nextPhase(input: PhaseInput): Phase {
 }
 
 // The calorie target for a phase. Only a deficit eats below maintenance;
-// calibration, a diet break and maintenance all eat AT it — the difference is
+// calibration, a diet break and maintenance all eat AT it, the difference is
 // intent and what happens next.
 export function kcalForPhase(phase: Phase, maintenanceKcal: number, deficitKcal: number) {
   return phase === "deficit" ? maintenanceKcal - deficitKcal : maintenanceKcal;
@@ -891,14 +891,14 @@ function maintenanceTargetKcal(currentKcal: number, maintenanceKcal?: number | n
 }
 
 // Give the body time before judging a target. One week of scale movement is
-// mostly water and noise — glycogen and the water bound to it swing a couple of
+// mostly water and noise, glycogen and the water bound to it swing a couple of
 // kilos on their own, and that swing is largest in the first week of any change.
 // About two weeks on a set of macros is what it takes for the trend to be
 // showing fat rather than water. We hold (never cut or add) until the current
 // target has been in force this long AND the user logged consistently.
 //
-// Counted in DAYS, not weeks. Targets change mid-week — a calibration hold ends
-// on its own timestamp, a profile edit recomputes the week in force — and
+// Counted in DAYS, not weeks. Targets change mid-week, a calibration hold ends
+// on its own timestamp, a profile edit recomputes the week in force, and
 // counting calendar weeks credited a target that started on the Thursday with
 // the four days before it existed, letting the coach adjust after eleven.
 export const MIN_DAYS_ON_TARGET = 14;
@@ -937,7 +937,7 @@ const dayMs = (date: string) => Date.parse(`${date}T00:00:00Z`);
 // A 7-day mean against the previous 7-day mean is the noisiest estimator that
 // still works. It discards everything older than a fortnight, weighs a Monday
 // the same as a Sunday, and lets one heavy-carb evening decide whether the
-// coach cuts. An EWMA filters the whole history instead — and because it is a
+// coach cuts. An EWMA filters the whole history instead, and because it is a
 // filter rather than a window, its SLOPE still tracks the true rate of loss
 // even though its level lags the scale by a week or so. Slope is what the
 // review acts on, so the lag costs nothing.
@@ -1015,7 +1015,7 @@ export interface TrendChange {
 // trend filter, which is the better answer for "what do you weigh" because it
 // is not pulled about by the last day's water.
 //
-// Null when the weigh-ins don't actually cover the span — better to say nothing
+// Null when the weigh-ins don't actually cover the span, better to say nothing
 // than to report a rate drawn through a couple of days and call it a week.
 export function trendChange(
   points: WeighIn[],
@@ -1045,7 +1045,7 @@ export interface WeeklyReviewInput {
   diet?: DietType; // defaults to "regular"; keeps a keto split on recompute
   // Movement of the smoothed trend weight over the last week, from
   // trendChange(). Null when there isn't enough weigh-in history to span a
-  // week — the review holds rather than inventing a rate.
+  // week, the review holds rather than inventing a rate.
   trend: TrendChange | null;
   waistDeltaCm: number | null; // latest waist − previous waist (− = shrinking)
   current: Macros; // the target in force now
@@ -1071,7 +1071,7 @@ export interface WeeklyReviewInput {
   // deficit, which is what every caller meant before phases existed.
   phase?: Phase;
   // The phase the CURRENT (in-force) target belongs to. Lets the review notice a
-  // transition — leaving calibration or a diet break — and open the deficit
+  // transition, leaving calibration or a diet break, and open the deficit
   // fresh from maintenance rather than nudging the maintenance target by a few
   // per cent. Omitted = same as `phase` (no transition).
   prevPhase?: Phase;
@@ -1133,11 +1133,11 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
   // Calibration: the user's first ~2 weeks eating at estimated maintenance so
   // the app can learn their real burn from the scale before ever cutting.
   //
-  // The target is FIXED for the whole window — the one set when calibration began
+  // The target is FIXED for the whole window, the one set when calibration began
   // (onboarding). We deliberately do NOT recompute it from a live maintenance
   // estimate: that estimate drifts as weight, steps and the calibration factor
   // move, so recomputing would raise the target mid-calibration (silently, at the
-  // week boundary) — and a moving intake corrupts the very measurement
+  // week boundary), and a moving intake corrupts the very measurement
   // calibration exists to make. Hold `current` and only measure against it.
   if (phase === "calibration") {
     const target = Math.round(current.kcal);
@@ -1158,7 +1158,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
   }
 
   // Leaving calibration (or a diet break) for the deficit: open the cut fresh
-  // from maintenance at a modest, sustainable rate — do NOT nudge the
+  // from maintenance at a modest, sustainable rate, do NOT nudge the
   // maintenance target down by a few per cent, which would barely be a deficit.
   // Only fires when the caller supplies both a maintenance figure and an opening
   // deficit, so ordinary weekly reviews are untouched.
@@ -1174,7 +1174,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
     const floorK = kcalFloor(sex, restingRateKcal);
     const wantedKcal = Math.max(Math.round(maint - deficitKcal), floorK);
     // macrosForKcal eases the target up if the deficit would push carbs below
-    // their floor, so the ACTUAL target is what it returns — not what we asked
+    // their floor, so the ACTUAL target is what it returns, not what we asked
     // for. Read the cut back from that so the message never overstates it.
     const macros = macrosForKcal(wantedKcal, macroWeightKg, diet, heightCm, goalWeightKg);
     const target = macros.kcal;
@@ -1190,15 +1190,15 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       changeKg: trend?.changeKg ?? null,
       changePct: trend?.changePct ?? null,
       headline: fromCalibration
-        ? "Calibration complete — deficit starting"
-        : "Diet break over — deficit resuming",
+        ? "Calibration complete, deficit starting"
+        : "Diet break over, deficit resuming",
       detail: fromCalibration
-        ? `Your calibrated maintenance is about ${maint} kcal a day. A ${cut} kcal/day deficit now applies, giving a target of ${target} kcal.${easedNote} Your results are reviewed every week, but this target is held for two weeks before any adjustment — that is how long the body takes to show a real response rather than a change in water weight.`
+        ? `Your calibrated maintenance is about ${maint} kcal a day. A ${cut} kcal/day deficit now applies, giving a target of ${target} kcal.${easedNote} Your results are reviewed every week, but this target is held for two weeks before any adjustment. That is how long the body takes to show a real response rather than a change in water weight.`
         : `A ${cut} kcal/day deficit from your maintenance of about ${maint} kcal now applies, giving a target of ${target} kcal.${easedNote}`,
     };
   }
 
-  // Not enough history yet — hold and ask for another week. trendChange returns
+  // Not enough history yet, hold and ask for another week. trendChange returns
   // null rather than a rate it can't support, which keeps the coach from
   // reading missing data as a dramatic loss and adding calories for it.
   if (trend == null) {
@@ -1227,7 +1227,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
     };
   }
 
-  // Current target is still new — give the body a full two weeks to respond
+  // Current target is still new, give the body a full two weeks to respond
   // before judging it. Changing now would just be reacting to water weight.
   const days = daysOnTarget ?? MIN_DAYS_ON_TARGET;
   if (days < MIN_DAYS_ON_TARGET) {
@@ -1240,7 +1240,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       headline: "Settling in",
       detail: `Your current targets have been in force for ${days} day${
         days === 1 ? "" : "s"
-      }. The first week on a new target is mostly water weight, so they are held for two weeks before any adjustment. Keep logging — ${left} day${
+      }. The first week on a new target is mostly water weight, so they are held for two weeks before any adjustment. Keep logging. ${left} day${
         left === 1 ? "" : "s"
       } to go.`,
     };
@@ -1303,7 +1303,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       changed: false,
       changeKg,
       changePct,
-      headline: `Down ${lostText} — on track`,
+      headline: `Down ${lostText}, on track`,
       detail: `That's ${(changePct * 100).toFixed(
         1,
       )}% of your bodyweight this week, within the healthy range. Your targets are unchanged.`,
@@ -1318,7 +1318,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       changed: true,
       changeKg,
       changePct,
-      headline: `Down ${lostText} — faster than target`,
+      headline: `Down ${lostText}, faster than target`,
       detail: `Losing more than about 1% of bodyweight a week increases muscle loss. ${
         newKcal - current.kcal
       } kcal/day has been added to bring the rate back into range.`,
@@ -1343,7 +1343,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
 
   // The other direction, which used to have no rule at all: the scale is flat
   // or falling but the waist is GROWING. That is composition moving the wrong
-  // way — muscle going, fat arriving — and cutting calories is exactly the
+  // way, muscle going, fat arriving, and cutting calories is exactly the
   // wrong response, because a deeper deficit costs more muscle still.
   if (waistDeltaCm != null && waistDeltaCm >= 0.5) {
     return {
@@ -1351,7 +1351,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       changed: false,
       changeKg,
       changePct,
-      headline: "Waist up — targets held",
+      headline: "Waist up, targets held",
       detail: `Your waist is up ${waistDeltaCm.toFixed(
         1,
       )} cm while the scale has stayed roughly flat. This usually indicates muscle loss alongside fat gain, and a larger deficit would increase it. Your targets are unchanged. Prioritise protein and add resistance training if possible.`,
@@ -1372,7 +1372,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
         stepsDropped.thisWeek ?? 0,
       )} steps a day, against ${Math.round(
         stepsDropped.lastWeek ?? 0,
-      )} the week before. That accounts for most of the missing deficit. Your targets are unchanged — restoring your step count is preferable to eating less.`,
+      )} the week before. That accounts for most of the missing deficit. Your targets are unchanged. Restoring your step count is preferable to eating less.`,
     };
   }
 
@@ -1396,7 +1396,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
           : over
             ? `You averaged about ${Math.round(
                 ate!,
-              )} kcal against a target of ${current.kcal}. The target hasn't been tested yet, so it's unchanged — lowering it now would only widen the gap.`
+              )} kcal against a target of ${current.kcal}. The target hasn't been tested yet, so it's unchanged. Lowering it now would only widen the gap.`
             : "Your intake varied widely this week, so a stall isn't informative yet. Stay close to the target for a week and it can be reviewed properly.",
     };
   }
@@ -1409,7 +1409,7 @@ export function weeklyReview(input: WeeklyReviewInput): WeeklyReview {
       changeKg,
       changePct,
       headline: "Holding at your calorie floor",
-      detail: `Progress has stalled, but you're already at the safe minimum of ${floor} kcal. Your targets are unchanged — increase activity rather than eating less.`,
+      detail: `Progress has stalled, but you're already at the safe minimum of ${floor} kcal. Your targets are unchanged. Increase activity rather than eating less.`,
     };
   }
 

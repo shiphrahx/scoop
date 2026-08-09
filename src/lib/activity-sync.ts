@@ -18,7 +18,7 @@ interface ActivityRow {
   updated_at: string;
 }
 
-// Minimal shape of the piece of a Supabase client we use here — works with both
+// Minimal shape of the piece of a Supabase client we use here, works with both
 // the user-scoped server client and the service-role admin client.
 type ActivityWriter = {
   from: (table: string) => {
@@ -27,8 +27,8 @@ type ActivityWriter = {
 };
 
 // What a sync actually managed to do, so the caller can tell "worked" apart from
-// "ran and got nothing". getDay never throws — a 401, a revoked scope or a
-// provider outage all come back as a day of nulls — so the count of days that
+// "ran and got nothing". getDay never throws, a 401, a revoked scope or a
+// provider outage all come back as a day of nulls, so the count of days that
 // carried real numbers is the only honest success signal we have.
 export interface SyncResult {
   fetched: number; // days asked for

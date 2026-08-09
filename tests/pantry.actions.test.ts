@@ -131,7 +131,7 @@ describe("addPantryItem with fresh-food sizes", () => {
   });
 
   it("does not swap a rice-adjacent product that isn't the plain staple", async () => {
-    // "Rice pudding" / "rice milk" are different foods — the swap must not fire.
+    // "Rice pudding" / "rice milk" are different foods, the swap must not fire.
     const { db } = installFakeSupabase({ db: cookedRiceDb() });
 
     await addPantryItem(bananaInput({ name: "Rice Pudding", carbs_100g: 16, protein_100g: 3, kcal_100g: 97, fat_100g: 2 }));

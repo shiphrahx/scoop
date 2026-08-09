@@ -5,7 +5,7 @@ import { exchangeCode } from "@/lib/fitbit";
 import { syncActivityDays } from "@/lib/activity-sync";
 import { logError } from "@/lib/log";
 
-// GET /api/fitbit/callback — Fitbit sends the user back here with a one-time
+// GET /api/fitbit/callback, Fitbit sends the user back here with a one-time
 // code. We verify the CSRF state, trade the code for tokens, and save them.
 export async function GET(request: NextRequest) {
   const origin = request.nextUrl.origin;
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   }
 
   // No refresh token means no offline access. The connection would work for as
-  // long as the access token lasts — about an hour — and then be impossible to
+  // long as the access token lasts, about an hour, and then be impossible to
   // renew, so it dies quietly long after the user connected and surfaces as
   // "that connection has expired" with no obvious cause. Google only issues one
   // with access_type=offline + prompt=consent (both set in authorizeUrl), and
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
   if (!tokens.refresh_token) {
     logError(
       `fitbit connect for user ${user.id}`,
-      new Error("provider returned no refresh token — offline access not granted"),
+      new Error("provider returned no refresh token, offline access not granted"),
     );
     return fail("offline");
   }
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
   // Pull the last week straight away so the dashboard's steps / sleep / exercise
   // charts fill in on the first visit, instead of staying empty until the
   // nightly cron runs. Best-effort: a fetch hiccup here shouldn't fail the
-  // connect — the cron will catch up.
+  // connect, the cron will catch up.
   try {
     await syncActivityDays(supabase, user.id, tokens.access_token);
   } catch (err) {

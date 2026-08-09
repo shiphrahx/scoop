@@ -3,7 +3,7 @@
 //
 // It really applies the filters rather than nodding along: `.eq("user_id", …)`
 // actually narrows the rows. That matters, because the thing most worth testing
-// in an action is whether it scoped the write to the signed-in user at all — a
+// in an action is whether it scoped the write to the signed-in user at all, a
 // mock that just records the call and returns canned rows would pass whether or
 // not the filter was there.
 //
@@ -317,7 +317,7 @@ export function createFakeSupabase(opts: FakeSupabaseOptions = {}) {
           return { data: { signedUrl: `signed:${bucket}/${path}` }, error: null };
         },
         // The batch form: one call signs many paths. Mirrors the real API's
-        // shape — a row per path, in the order asked for, each carrying its own
+        // shape, a row per path, in the order asked for, each carrying its own
         // error slot.
         async createSignedUrls(paths: string[]) {
           return {
@@ -360,7 +360,7 @@ export const supabaseHolder: { client: unknown } = { client: null };
 // Load a fresh database for one test and wire the fake client to it. Returns the
 // tables so a test can assert on what the action actually wrote.
 //
-// The test file must first redirect the Supabase module to the holder — vi.mock
+// The test file must first redirect the Supabase module to the holder, vi.mock
 // is hoisted above every import, so the factory has to reach the holder lazily:
 //
 //   vi.mock("@/lib/supabase/server", async () => {

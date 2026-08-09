@@ -18,7 +18,7 @@ export default async function PantryPage() {
 
   // Shelve any legacy item that predates the category column (or was added
   // before it was set) so it lands on the right shelf without waiting on the
-  // one-off backfill. Only for display — the DB row keeps its null until the
+  // one-off backfill. Only for display, the DB row keeps its null until the
   // user moves it, at which point the choice is saved.
   const items = ((data as PantryItem[]) ?? []).map((item) =>
     item.category?.trim()

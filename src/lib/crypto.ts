@@ -6,7 +6,7 @@ import {
 } from "node:crypto";
 
 // Server-only, symmetric encryption for secrets we must store but never want
-// readable at rest — the user's Anthropic key, their Fitbit OAuth tokens. A DB
+// readable at rest, the user's Anthropic key, their Fitbit OAuth tokens. A DB
 // dump or leaked backup then yields ciphertext, not live credentials.
 //
 // AES-256-GCM (authenticated: tampering fails the decrypt). The 32-byte key
@@ -21,7 +21,7 @@ function key(): Buffer {
   const raw = process.env.SECRET_ENCRYPTION_KEY;
   if (!raw) {
     throw new Error(
-      "SECRET_ENCRYPTION_KEY is not set — cannot encrypt/decrypt secrets.",
+      "SECRET_ENCRYPTION_KEY is not set. Cannot encrypt or decrypt secrets.",
     );
   }
   // Accept base64 or hex; both must decode to exactly 32 bytes.

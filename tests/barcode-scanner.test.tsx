@@ -102,7 +102,7 @@ describe("BarcodeScanner", () => {
   });
 
   // Holding the callback in a ref must not staple the scanner to the first one
-  // it was given — a scan reports to whichever callback is current.
+  // it was given, a scan reports to whichever callback is current.
   it("reports a scan to the latest callback", async () => {
     const first = vi.fn();
     const second = vi.fn();
@@ -126,7 +126,7 @@ describe("BarcodeScanner", () => {
 
   // A food packet only ever carries a retail 1D symbology. Hunting QR, Aztec,
   // PDF417 and Data Matrix on every attempt spends the decode budget on things
-  // that cannot be there — and it's that budget which pays for TRY_HARDER, the
+  // that cannot be there, and it's that budget which pays for TRY_HARDER, the
   // slower pass that copes with the soft picture a phone actually produces.
   it("looks only for the barcodes that appear on food packaging, and tries hard", async () => {
     await act(async () => {
@@ -165,7 +165,7 @@ describe("BarcodeScanner", () => {
     expect(onDetected).toHaveBeenCalledWith("8720182355560");
   });
 
-  // Too few digits is a mistyped code, not a product — sending it would just
+  // Too few digits is a mistyped code, not a product, sending it would just
   // return "not found" and read as the scanner being broken again.
   it("won't look up a number too short to be a barcode", async () => {
     const onDetected = vi.fn();

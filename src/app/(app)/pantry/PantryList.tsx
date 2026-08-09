@@ -18,7 +18,7 @@ function sizesOf(item: PantryItem) {
   return item.unit_options ?? [];
 }
 
-// "6 bagels per pack (71 g each)" for a countable item — how the pantry row
+// "6 bagels per pack (71 g each)" for a countable item, how the pantry row
 // shows a pack that's split into portions. Only called when both are known.
 function packLabel(item: PantryItem): string {
   const n = Math.round((item.pack_size_g ?? 0) / (item.unit_g ?? 1));
@@ -220,7 +220,7 @@ function PantryRow({
 }
 
 // A pill on each row showing its shelf; changing it re-files the item in one
-// tap. Only lists shelves that already exist — inventing a new one is done in
+// tap. Only lists shelves that already exist, inventing a new one is done in
 // the edit form, which is where the free-text box lives.
 function ShelfChip({
   item,
@@ -375,7 +375,7 @@ function EditRow({
       {hasSizes ? (
         <p className="text-xs text-[var(--muted)]">
           Sizes ({sizesOf(item).map((s) => s.label).join(", ")}) are set on the
-          item — pick the one you have from the size chip on the row.
+          item, pick the one you have from the size chip on the row.
         </p>
       ) : (
         <>
@@ -408,7 +408,7 @@ function EditRow({
         </>
       )}
 
-      {/* Three tap-sized buttons don't fit one row on a narrow phone — Save ran
+      {/* Three tap-sized buttons don't fit one row on a narrow phone, Save ran
           off the edge of the screen. Cancel and Save share the row; Delete, the
           rare and destructive one, sits under them at its own width, where it
           can't be hit by accident. */}

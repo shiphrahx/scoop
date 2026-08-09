@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { installFakeSupabase } from "./helpers/fake-supabase";
 
 // The AI features, with the model's replies canned. What's under test is not the
-// model — it's what we do with what it says. Everything it returns ends up as a
+// model, it's what we do with what it says. Everything it returns ends up as a
 // pantry item, a meal fixed into the day's budget, or a food log, and from there
 // in the trailing averages the coach adjusts the user's calories from.
 

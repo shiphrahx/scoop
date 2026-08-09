@@ -5,7 +5,7 @@ import ListImport from "../ListImport";
 import PantryForm from "../PantryForm";
 
 // Every way to add to the pantry, on its own screen. The list of items the user
-// already has lives on /pantry — this page is purely the input methods. A `name`
+// already has lives on /pantry, this page is purely the input methods. A `name`
 // query (set when the day planner can't find a typed food) pre-fills the form.
 export default async function AddToPantryPage({
   searchParams,

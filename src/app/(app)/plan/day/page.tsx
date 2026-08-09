@@ -44,7 +44,7 @@ export default async function PlanDayPage({
       <div className="flex flex-col gap-1">
         <h1 className="text-3xl font-semibold">Plan my day</h1>
         <p className="text-sm text-[var(--muted)]">
-          Pick what you fancy for each meal — we work out how much of each so
+          Pick what you fancy for each meal, we work out how much of each so
           the day hits your macros.
         </p>
       </div>
@@ -68,8 +68,8 @@ export default async function PlanDayPage({
         </Link>
       </nav>
 
-      {/* The plan itself — high-day toggle, build button, drink logger, meal
-          list — depends on the day's heavier reads, so it streams in under the
+      {/* The plan itself, high-day toggle, build button, drink logger, meal
+          list, depends on the day's heavier reads, so it streams in under the
           header and day navigation, which are ready immediately. */}
       <Suspense
         key={date}

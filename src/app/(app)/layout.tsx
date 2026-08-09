@@ -9,7 +9,7 @@ import { getProfile } from "@/lib/queries";
 // any (app) route renders, so the checks here are a second guard plus the one
 // thing middleware can't do without a DB read: sending users who haven't
 // finished onboarding to /onboarding. Kept out of the layout body so it doesn't
-// hold up the chrome — see below.
+// hold up the chrome, see below.
 async function SessionGate() {
   // Both cached for the request, so the page rendering alongside shares these
   // round trips rather than repeating them.
@@ -22,7 +22,7 @@ async function SessionGate() {
 // Shared shell for every signed-in screen: content area + bottom nav.
 //
 // The chrome (sidebar, bottom nav, the column wrapper) reads nothing per-user,
-// so it prerenders as a static shell and paints the instant the route is hit —
+// so it prerenders as a static shell and paints the instant the route is hit,
 // the nav and the page's own loading skeleton show immediately instead of
 // waiting on a Supabase round trip. The auth/onboarding gate is the one dynamic
 // part, so it streams behind its own Suspense boundary.

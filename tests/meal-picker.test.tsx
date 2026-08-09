@@ -71,7 +71,7 @@ afterEach(cleanup);
 // product to the pantry disables the form while it writes).
 const save = () => screen.findByRole("button", { name: /save this meal/i });
 
-// The picks handed to the action — second argument of the call.
+// The picks handed to the action, second argument of the call.
 const savedPicks = (): MealPick[] => setMealPicks.mock.calls[0]?.[1] ?? [];
 
 describe("MealPicker", () => {
@@ -96,7 +96,7 @@ describe("MealPicker", () => {
     await user.click(screen.getByRole("button", { name: /^pasta$/i }));
     await user.click(screen.getByRole("button", { name: /^olive oil$/i }));
     // Think better of the oil: chips of picked foods also appear in the "This
-    // meal" list — un-tap the chip in the grid.
+    // meal" list, un-tap the chip in the grid.
     const oilButtons = screen.getAllByRole("button", { name: /olive oil/i });
     await user.click(oilButtons[oilButtons.length - 1]);
     await user.click(await save());
@@ -143,7 +143,7 @@ describe("MealPicker", () => {
 
   it("shows the reason when saving fails, and stays put", async () => {
     setMealPicks.mockRejectedValue(
-      new Error("This meal is already logged — edit it from the plan instead."),
+      new Error("This meal is already logged. Edit it from the plan instead."),
     );
     const user = userEvent.setup();
     render(<MealPicker slot="Lunch" groups={groups} initial={[]} />);
@@ -227,7 +227,7 @@ describe("MealPicker", () => {
 
     vi.unstubAllGlobals();
   });
-  // A one-off with no barcode — a slice of cake — has to be pickable here too,
+  // A one-off with no barcode, a slice of cake, has to be pickable here too,
   // or the only way to plan a meal round it is to type its macros.
   it("picks a food from the shared reference, not just the pantry", async () => {
     searchReference.mockResolvedValue([

@@ -78,12 +78,12 @@ const overview = {
   board: emptyBoard,
 };
 
-describe("progress dashboard — locked insights", () => {
+describe("progress dashboard, locked insights", () => {
   it("still shows every insight to a user with no data, saying what it would tell them", () => {
     render(<DriversTab {...drivers} />);
 
     // All four driver insights are on the page, none of them hidden for want of
-    // data — each one is a pitch for the logging that would fill it in.
+    // data, each one is a pitch for the logging that would fill it in.
     expect(screen.getByText("Sleep and weight loss")).toBeTruthy();
     expect(screen.getByText("Movement and weight loss")).toBeTruthy();
     expect(screen.getByText("Sticking to the plan")).toBeTruthy();
@@ -114,7 +114,7 @@ describe("progress dashboard — locked insights", () => {
       />,
     );
 
-    // The contrast, not the coefficient — best weeks against worst.
+    // The contrast, not the coefficient, best weeks against worst.
     expect(screen.getByText("7.8")).toBeTruthy();
     expect(screen.getByText(/6.4 h on your worst/)).toBeTruthy();
     // And the sleep card is no longer pitching itself.
@@ -126,7 +126,7 @@ describe("progress dashboard — locked insights", () => {
   });
 });
 
-describe("progress dashboard — KPI row", () => {
+describe("progress dashboard, KPI row", () => {
   it("shows only the figures that have data", () => {
     render(
       <OverviewTab
@@ -147,7 +147,7 @@ describe("progress dashboard — KPI row", () => {
     expect(screen.getByText("Now")).toBeTruthy();
     expect(screen.getByText("84.2")).toBeTruthy();
     expect(screen.getByText("To goal")).toBeTruthy();
-    // No rate and no projection yet, so no tile pretends to have one — but the
+    // No rate and no projection yet, so no tile pretends to have one, but the
     // insight itself is still on the page as a locked card, with its pitch.
     expect(screen.queryByText("Per week")).toBeNull();
     expect(screen.getByText("Rate of loss")).toBeTruthy();
@@ -180,11 +180,11 @@ describe("progress dashboard — KPI row", () => {
 
     const sheet = screen.getByRole("dialog");
     expect(within(sheet).getByText(/within the healthy band/i)).toBeTruthy();
-    expect(within(sheet).getByText("0.42–0.84 kg")).toBeTruthy();
+    expect(within(sheet).getByText("0.42 to 0.84 kg")).toBeTruthy();
   });
 });
 
-describe("progress dashboard — tabs", () => {
+describe("progress dashboard, tabs", () => {
   it("shows one group at a time and switches between them", async () => {
     const user = userEvent.setup();
     render(
@@ -198,7 +198,7 @@ describe("progress dashboard — tabs", () => {
 
     // Both panel elements are in the DOM from the start, so the tabs'
     // aria-controls always point at something real.
-    // `hidden: true` because a hidden panel is out of the accessibility tree —
+    // `hidden: true` because a hidden panel is out of the accessibility tree,
     // which is the point of hiding it. Panels come back in DOM order.
     const panels = () => screen.getAllByRole("tabpanel", { hidden: true });
 

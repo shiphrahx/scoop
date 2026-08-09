@@ -13,7 +13,7 @@ import {
 
 describe("isPlausibleMeal", () => {
   it("accepts an ordinary estimated dish", () => {
-    // Porridge with banana and honey — roughly what the model would return.
+    // Porridge with banana and honey, roughly what the model would return.
     expect(isPlausibleMeal({ kcal: 420, protein_g: 12, carbs_g: 72, fat_g: 8 })).toBe(true);
     // A chicken and rice plate.
     expect(isPlausibleMeal({ kcal: 620, protein_g: 55, carbs_g: 65, fat_g: 12 })).toBe(true);
@@ -63,7 +63,7 @@ describe("isPlausibleMeal", () => {
 
 describe("isPlausibleFood (per 100 g)", () => {
   it("accepts real foods off a label", () => {
-    // Chicken breast, olive oil, rice, cheddar — the range of real density.
+    // Chicken breast, olive oil, rice, cheddar, the range of real density.
     expect(
       isPlausibleFood({ kcal_100g: 165, protein_100g: 31, carbs_100g: 0, fat_100g: 3.6 }),
     ).toBe(true);
@@ -120,7 +120,7 @@ describe("energyFromMacros", () => {
 
 describe("macrosExplainKcal", () => {
   it("gives small numbers a flat 100 kcal of slack", () => {
-    // A 40 kcal item whose macros imply 100 is still believable — rounding on
+    // A 40 kcal item whose macros imply 100 is still believable, rounding on
     // tiny numbers is proportionally huge.
     expect(macrosExplainKcal({ kcal: 40, protein_g: 5, carbs_g: 15, fat_g: 2 })).toBe(true);
   });

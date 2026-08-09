@@ -96,7 +96,7 @@ describe("calibration review", () => {
   it("names the cut against the burn AND against what was being eaten", async () => {
     const user = userEvent.setup();
     // The case that read as broken arithmetic: held at 1,700, burns 1,609,
-    // now eating 1,378 — a 231 kcal deficit but 322 kcal less food.
+    // now eating 1,378, a 231 kcal deficit but 322 kcal less food.
     render(
       <CalibrationReview
         wrap={wrap({
@@ -162,7 +162,7 @@ describe("calibration review", () => {
     );
     await toEnd(user);
 
-    // Only "the fortnight", "your target" and "start" survive — and the last one
+    // Only "the fortnight", "your target" and "start" survive, and the last one
     // is still the button, because the plan must always be reachable.
     expect(screen.getByRole("button", { name: /start now/i })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: /back/i }));

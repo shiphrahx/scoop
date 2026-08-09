@@ -71,7 +71,7 @@ describe("eatFromBatch", () => {
 
   it("refuses a serving bigger than what is left in the pot", async () => {
     // 300 g left but the user asks for 500 g. Serving it would log macros for
-    // food that isn't there and leave the pot at 0 — the numbers stop matching
+    // food that isn't there and leave the pot at 0, the numbers stop matching
     // the food.
     const { db } = installFakeSupabase({
       db: { batches: [batch({ remaining_g: 300 })], food_logs: [] },
@@ -84,7 +84,7 @@ describe("eatFromBatch", () => {
 
   it("refuses a negative serving", async () => {
     // Math.max(0, remaining - grams) with a negative grams ADDS to the pot, and
-    // logs negative macros — free calories back on the day's budget.
+    // logs negative macros, free calories back on the day's budget.
     const { db } = installFakeSupabase({ db: { batches: [batch()], food_logs: [] } });
 
     await expect(eatFromBatch("batch-1", -500)).rejects.toThrow(/more than 0/i);

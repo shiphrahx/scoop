@@ -18,7 +18,7 @@ const { getCalibrationReview, getCalibrationReviews } = await import("@/lib/quer
 
 // Starting the deficit does two things that must not come apart: it writes the
 // target, and it files the review the user was shown. The review cannot be
-// rebuilt afterwards — every input it was computed from has moved on — so if it
+// rebuilt afterwards, every input it was computed from has moved on, so if it
 // isn't captured here it is gone.
 
 // The action ends in a redirect, which Next implements by throwing.

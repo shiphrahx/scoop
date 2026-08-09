@@ -1,13 +1,13 @@
 -- Scoop: establish maintenance first, then cut.
 --
 -- Dropping a brand-new user straight into a deficit (or into carb cycling) means
--- every target is built on the formula's guess at their burn — and Mifflin can
+-- every target is built on the formula's guess at their burn, and Mifflin can
 -- be 400 kcal out for any one person. Best practice is to eat at maintenance for
 -- a short window first, learn the real burn from the scale, then open a modest
 -- deficit. This adds the state that window needs:
 --
 --   calibration_started_at      when the maintenance-first window began. Null for
---                               users who skipped it (experienced dieters) — they
+--                               users who skipped it (experienced dieters), they
 --                               still get the background TDEE correction, just no
 --                               holding phase.
 --   estimated_maintenance_kcal  the formula's maintenance estimate at onboarding,

@@ -85,7 +85,7 @@ describe("solveBoxLsq", () => {
             expect(x[i]).toBeLessThanOrEqual(ub[i] + 1e-6);
           }
           const base = lsqCost(A, b, x);
-          // No single-coordinate move improves it — the optimality condition
+          // No single-coordinate move improves it, the optimality condition
           // coordinate descent converges to.
           for (let i = 0; i < x.length; i++) {
             for (const d of [-2, -0.5, -0.05, 0.05, 0.5, 2]) {

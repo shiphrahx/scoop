@@ -10,7 +10,7 @@ import MatchItems from "./MatchItems";
 
 // Take a photo / pick a screenshot of groceries → AI reads the items → user
 // ticks the ones to keep → they land in the pantry. This is the ONLY pantry
-// import that needs the user's own key, so the key prompt lives here — barcode,
+// import that needs the user's own key, so the key prompt lives here, barcode,
 // manual, and file imports all work without one.
 export default function GroceryScan({ connected }: { connected: boolean }) {
   const fileRef = useRef<HTMLInputElement>(null);

@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FoodChoice, Macros, PlanItem, PlannedMeal } from "@/lib/types";
 
 // Building a meal by hand: a fresh food (banana) carries its named sizes, so the
-// user taps "small" instead of typing grams. The size the app saves — its grams
-// and unit — is what the day's macros are built from, so the wrong size means the
+// user taps "small" instead of typing grams. The size the app saves, its grams
+// and unit, is what the day's macros are built from, so the wrong size means the
 // wrong plan.
 
 const searchFoods = vi.fn();
@@ -71,7 +71,7 @@ async function addBanana(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole("button", { name: /banana/i }));
 }
 
-describe("meal builder — fresh food sizes", () => {
+describe("meal builder, fresh food sizes", () => {
   it("adds a banana at the default (medium) size", async () => {
     const user = userEvent.setup();
     render(<DayPlan slots={[{ slot: "Snack", meal: null }]} target={null} prefs={[]} date="2026-07-20" />);
@@ -151,7 +151,7 @@ describe("meal builder — fresh food sizes", () => {
 
     await addRice(user);
 
-    // No portion stepper — a staple is weighed.
+    // No portion stepper, a staple is weighed.
     expect(screen.queryByRole("button", { name: /one more/i })).toBeNull();
 
     const input = await screen.findByLabelText(/white rice \(cooked\) grams/i);
@@ -189,7 +189,7 @@ describe("meal builder — fresh food sizes", () => {
   });
 });
 
-describe("plan-my-day header — tracked nutrient totals", () => {
+describe("plan-my-day header, tracked nutrient totals", () => {
   const eaten = (over: Partial<PlannedMeal>): PlannedMeal => ({
     id: "m1",
     date: "2026-07-20",

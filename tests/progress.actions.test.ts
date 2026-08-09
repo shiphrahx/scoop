@@ -39,7 +39,7 @@ describe("logWeight", () => {
   });
 
   // Every weigh-in is averaged over the week, and the coach cuts or raises the
-  // user's calories off that average. Junk in here doesn't throw anywhere — it
+  // user's calories off that average. Junk in here doesn't throw anywhere, it
   // silently changes what they're told to eat.
   it("rejects a weight that isn't a number", async () => {
     const { db } = installFakeSupabase({ db: { weights: [] } });

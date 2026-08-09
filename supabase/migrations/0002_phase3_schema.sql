@@ -3,7 +3,7 @@
 -- Every table is row-level-secured so a user only ever sees their own rows.
 
 -- ---------------------------------------------------------------------------
--- favourites ("my usual" — one-tap items with fixed macros)
+-- favourites ("my usual", one-tap items with fixed macros)
 -- ---------------------------------------------------------------------------
 create table if not exists public.favourites (
   id         uuid primary key default gen_random_uuid(),

@@ -1,7 +1,7 @@
 // A tiny in-memory sliding-window rate limiter. Best-effort only: on serverless
 // each instance keeps its own counters, so this caps abuse per warm instance
 // rather than globally. It exists to stop a single signed-in user from hammering
-// the URL importer (which makes outbound fetches) in a tight loop — not as a
+// the URL importer (which makes outbound fetches) in a tight loop, not as a
 // hard security boundary. Swap for a Redis/Upstash limiter if we ever need one
 // that holds across instances.
 

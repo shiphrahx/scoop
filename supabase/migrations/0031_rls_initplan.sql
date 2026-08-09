@@ -4,11 +4,11 @@
 -- Why this is worth a migration: `auth.uid()` reads a GUC out of the request's
 -- JWT. Written bare in a policy predicate, Postgres treats it as volatile and
 -- re-evaluates it for EVERY row the query touches. Wrapped in a scalar
--- subquery it becomes an InitPlan — computed once for the whole statement and
+-- subquery it becomes an InitPlan, computed once for the whole statement and
 -- then compared as a constant, which also lets the planner use the
 -- (user_id, …) indexes these tables already have instead of filtering after
--- the fact. On the tables the app scans by range — food_logs over 180 days for
--- the insights dashboard, weights over a year — that is the difference between
+-- the fact. On the tables the app scans by range, food_logs over 180 days for
+-- the insights dashboard, weights over a year, that is the difference between
 -- an index scan and a sequential one.
 --
 -- The predicates are otherwise unchanged: same tables, same policy names, same

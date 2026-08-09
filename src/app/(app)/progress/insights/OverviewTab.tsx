@@ -2,10 +2,10 @@
 
 // Overview: the answer to "how is this going", in one screen.
 //
-// Four figures across the top, one chart under them, then compact cards — the
+// Four figures across the top, one chart under them, then compact cards, the
 // ones with data first, then quiet dashed ones naming what the missing data
-// would buy. Everything deeper — the bands behind the rate, the window behind
-// the date, the weigh-in log — is a tap into a drawer, because a dashboard that
+// would buy. Everything deeper, the bands behind the rate, the window behind
+// the date, the weigh-in log, is a tap into a drawer, because a dashboard that
 // shows all of it at once is a page nobody scrolls twice.
 
 import { useMemo, useState } from "react";
@@ -73,7 +73,7 @@ const VERDICT: Record<LossRate["verdict"], { text: string; tone: "good" | "warn"
     tone: "good",
   },
   slow: {
-    text: "Below your healthy band. Acceptable if intended — the Coach will adjust the target if it stays here.",
+    text: "Below your healthy band. Acceptable if intended. The Coach will adjust the target if it stays here.",
     tone: "warn",
   },
   fast: {
@@ -88,7 +88,7 @@ const VERDICT: Record<LossRate["verdict"], { text: string; tone: "good" | "warn"
 
 const CONFIDENCE: Record<GoalProjection["confidence"], string> = {
   high: "The trend has been steady, so this window is a reliable estimate.",
-  medium: "The trend varies somewhat — treat this as an approximate window.",
+  medium: "The trend varies somewhat, so treat this as an approximate window.",
   low: "The trend is noisy, so this window is wide. It will narrow as you log more.",
 };
 
@@ -198,7 +198,7 @@ export default function OverviewTab({
         ) : null}
       </KpiRow>
 
-      {/* The callout only appears when it's earned — a permanent "you might be
+      {/* The callout only appears when it's earned, a permanent "you might be
           losing fat!" panel would mean nothing the week it's actually true. */}
       {fatLoss?.detected ? (
         <div className="sc-grad-panel flex flex-col gap-2 p-4">
@@ -223,7 +223,7 @@ export default function OverviewTab({
           </div>
           <p className="text-sm text-[var(--muted)]">
             Your trend weight has moved {fmt(Math.abs(plateau.changeKg), 2)} kg in{" "}
-            {plateau.weeks} weeks. This is usually not a reason to cut further — a long
+            {plateau.weeks} weeks. This is usually not a reason to cut further. A long
             deficit lowers what you burn, and the appropriate response is a diet break
             or a fresh maintenance measurement.
           </p>
@@ -260,7 +260,7 @@ export default function OverviewTab({
 }
 
 // The one chart the page leads with. The trend itself is always computed over
-// the FULL history; the range only decides how much of it is on screen —
+// the FULL history; the range only decides how much of it is on screen,
 // recomputing per range would give the "week" view a line that starts from
 // scratch every Monday.
 function TrendCard({ today, trend }: { today: string; trend: TrendPoint[] }) {
@@ -311,11 +311,11 @@ function RateDetail({ rate }: { rate: LossRate }) {
         stats={[
           {
             label: "Healthy for you",
-            value: `${fmt(rate.bandMinKg, 2)}–${fmt(rate.bandMaxKg, 2)} kg`,
+            value: `${fmt(rate.bandMinKg, 2)} to ${fmt(rate.bandMaxKg, 2)} kg`,
           },
           {
             label: "As a %",
-            value: `${fmt(rate.bandMinPct, 2)}–${fmt(rate.bandMaxPct, 2)}%`,
+            value: `${fmt(rate.bandMinPct, 2)} to ${fmt(rate.bandMaxPct, 2)}%`,
           },
         ]}
       />
@@ -329,7 +329,7 @@ function ProjectionDetail({ projection }: { projection: GoalProjection }) {
       <Hero
         value={
           projection.latest
-            ? `${longDate(projection.earliest)} – ${longDate(projection.latest)}`
+            ? `${longDate(projection.earliest)} to ${longDate(projection.latest)}`
             : `${longDate(projection.earliest)} or later`
         }
         label={`around ${projection.weeksMid} weeks at this rate`}
@@ -354,7 +354,7 @@ function JourneyDetail({ progress }: { progress: GoalProgress }) {
         unit="%"
         label={
           progress.reached
-            ? "of the way there — goal reached"
+            ? "of the way there, goal reached"
             : "of the way to your goal"
         }
         tone={progress.reached ? "good" : "cool"}
@@ -426,7 +426,7 @@ function ScorecardDetail({ scorecard }: { scorecard: WeekScorecard }) {
 }
 
 // Milestones carry an add form, so unlike an insight this card renders whether
-// or not there's anything on the board yet — otherwise there'd be nowhere to
+// or not there's anything on the board yet, otherwise there'd be nowhere to
 // write down the first one.
 function MilestonesCard({ board }: { board: MilestoneBoard }) {
   const empty = board.reached.length === 0 && board.next == null;
@@ -440,7 +440,7 @@ function MilestonesCard({ board }: { board: MilestoneBoard }) {
       {board.next ? (
         <Hero
           size="sm"
-          value={board.toNextKg != null ? fmt(board.toNextKg) : "—"}
+          value={board.toNextKg != null ? fmt(board.toNextKg) : "None left"}
           unit={board.toNextKg != null ? "kg" : undefined}
           label={`to ${board.next.label}`}
         />
@@ -448,7 +448,7 @@ function MilestonesCard({ board }: { board: MilestoneBoard }) {
         <Hero
           size="sm"
           value={`${board.reached.length}`}
-          label={empty ? "none yet — add your own" : "all reached"}
+          label={empty ? "none yet, add your own" : "all reached"}
           tone={empty ? "cool" : "good"}
         />
       )}
@@ -486,7 +486,7 @@ function MilestonesDetail({ board }: { board: MilestoneBoard }) {
             <p className="text-sm text-[var(--foreground)]">
               Next up: <span className="font-semibold">{board.next.label}</span>
               {board.toNextKg != null ? (
-                <span className="text-[var(--muted)]"> — {fmt(board.toNextKg)} kg to go</span>
+                <span className="text-[var(--muted)]">, {fmt(board.toNextKg)} kg to go</span>
               ) : null}
             </p>
           ) : (

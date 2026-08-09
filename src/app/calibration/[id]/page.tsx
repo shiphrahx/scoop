@@ -3,7 +3,7 @@ import { getCalibrationReview, getProfile } from "@/lib/queries";
 import { getSessionUser } from "@/lib/auth";
 import CalibrationReview from "../CalibrationReview";
 
-// A filed calibration review, re-watched. Same cards as the day it was shown —
+// A filed calibration review, re-watched. Same cards as the day it was shown,
 // they are read from the stored snapshot, not recomputed, because the inputs
 // have all moved on since (see migration 0033).
 export const metadata = { title: "Calibration review" };

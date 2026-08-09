@@ -42,7 +42,7 @@ type Slot = { slot: string; meal: PlannedMeal | null };
 
 // What the day comes to: every meal in the plan (built meals + AI dishes) plus
 // anything logged straight into the day, like a drink. Leaving the extras out
-// was a day that quietly under-read — a logged drink moved nothing on this
+// was a day that quietly under-read, a logged drink moved nothing on this
 // screen at all. Sums the extra nutrients too (fibre, sugar, saturates,
 // sodium), so a tracked one like fibre reads the real total instead of zero.
 function dayTotal(slots: Slot[], extras: LoggedFood[]): Macros {
@@ -52,7 +52,7 @@ function dayTotal(slots: Slot[], extras: LoggedFood[]): Macros {
   ]);
 }
 
-// The macros a single item contributes at its current portion — shown under
+// The macros a single item contributes at its current portion, shown under
 // each food so the user sees what it costs, not just the meal total.
 function itemMacroLine(it: PlanItem): string {
   const m = sumItems([it]);
@@ -65,7 +65,7 @@ function itemMacroLine(it: PlanItem): string {
 // How much of a portion to serve, as the user would measure it: a whole-unit
 // count for a countable food ("2 bagels · 170 g"), a volume for a liquid unit
 // ("250 ml"), or plain grams otherwise. Grams stays the real amount underneath.
-// A bulk staple reads in grams even when it carries a size — 180 g of rice is
+// A bulk staple reads in grams even when it carries a size, 180 g of rice is
 // the amount, "1 medium rice" is not.
 function portionAmount(p: MealPortion): string {
   const grams = Math.round(p.grams);
@@ -76,7 +76,7 @@ function portionAmount(p: MealPortion): string {
 }
 
 // A countable food is one split into portions ("bagel", "portion"): it has a
-// grams-per-portion. Liquids (ml) keep the grams stepper — a count reads oddly.
+// grams-per-portion. Liquids (ml) keep the grams stepper, a count reads oddly.
 // So do bulk staples (rice, pasta, oats): they carry named sizes as a shortcut,
 // but they are served BY WEIGHT, so the user must always be able to set 180 g
 // rather than pick from small/medium/large (matches isCountable in mealplan.ts).
@@ -147,7 +147,7 @@ export default function DayPlan({
   const [err, setErr] = useState<string | null>(null);
 
   const total = dayTotal(slots, extras);
-  // Meals the app planned that the user hasn't eaten — the ones "Remove the
+  // Meals the app planned that the user hasn't eaten, the ones "Remove the
   // app's plan" clears (their own built meals and eaten meals are kept).
   const anyAppPlanned = slots.some(
     (s) => s.meal?.origin === "ai" && !s.meal.logged_food_id,
@@ -173,7 +173,7 @@ export default function DayPlan({
         </div>
       )}
 
-      {/* Logged outside the meal slots — a drink, a serving out of a batch. It
+      {/* Logged outside the meal slots, a drink, a serving out of a batch. It
           counts toward the day above, so it has to be visible and removable
           here; there is nowhere else on this screen it would show up. */}
       {extras.length > 0 && (
@@ -237,7 +237,7 @@ export default function DayPlan({
               onRemove={() => run(() => removePlannedMeal(meal.id))}
             />
           ) : meal?.origin === "ai" && meal.portions.length === 0 && meal.picks.length > 0 ? (
-            /* Foods picked, grams not solved yet — waiting for "Build my day" */
+            /* Foods picked, grams not solved yet, waiting for "Build my day" */
             <PickedMeal meal={meal} date={date} />
           ) : meal?.origin === "ai" ? (
             /* An app-portioned dish */
@@ -312,13 +312,13 @@ export default function DayPlan({
 }
 
 // The one other meal a slot may copy from. Lunch and Dinner are the two
-// interchangeable main meals, so each offers the other — dinner copies lunch,
+// interchangeable main meals, so each offers the other, dinner copies lunch,
 // lunch copies dinner. Breakfast and snacks have no counterpart (their food
 // doesn't transfer to a main meal), so they get no copy button.
 const COPY_PARTNER: Record<string, string> = { lunch: "dinner", dinner: "lunch" };
 
 // "Copy lunch" / "copy dinner" for an empty slot: a single button that copies
-// this slot's counterpart meal, when that meal has anything planned — foods
+// this slot's counterpart meal, when that meal has anything planned, foods
 // still being picked (picks), a hand-built list (items), or a portioned dish
 // (portions). Copying brings the whole meal over, so a meal mid-plan can be
 // duplicated before the day is built. Renders nothing when there's no
@@ -397,11 +397,11 @@ function FitVerdict({
     },
     warn: {
       icon: <AlertTriangle size={16} className="shrink-0" />,
-      text: `${list} slightly off — nudge the portions.`,
+      text: `${list} slightly off, nudge the portions.`,
     },
     off: {
       icon: <AlertCircle size={16} className="shrink-0" />,
-      text: `${list} too far off — change the portions.`,
+      text: `${list} too far off, change the portions.`,
     },
   };
 
@@ -462,13 +462,13 @@ function FoodSearchBox({
   const [refResults, setRefResults] = useState<FoodChoice[]>([]);
   const [refSearching, setRefSearching] = useState(false);
   // Web (Open Food Facts) results, kept apart from the pantry so the pantry
-  // always shows first and the web search — which is slower — fills in behind it.
+  // always shows first and the web search, which is slower, fills in behind it.
   const [webResults, setWebResults] = useState<FoodChoice[]>([]);
   const [webSearching, setWebSearching] = useState(false);
   // Type-in-the-macros fallback, for a food that's in neither the pantry nor OFF
   // (a coffee-shop treat, a homemade thing). Seeded with whatever's been typed.
   const [manualOpen, setManualOpen] = useState(false);
-  // Barcode scan for a packaged item that isn't in the pantry — looked up on OFF
+  // Barcode scan for a packaged item that isn't in the pantry, looked up on OFF
   // and added like any other food, so a scanned treat needs no typing.
   const [scanning, setScanning] = useState(false);
   const [scanNote, setScanNote] = useState<string | null>(null);
@@ -575,8 +575,8 @@ function FoodSearchBox({
   };
 
   // The line under a hit's name. A typed amount wins ("50g shreddies" → "add
-  // 50 g"). Otherwise a reference food shows the portion one tap actually adds —
-  // "1 medium slice · 95 g · 352 kcal" — which is the whole point of it: the
+  // 50 g"). Otherwise a reference food shows the portion one tap actually adds,
+  // "1 medium slice · 95 g · 352 kcal", which is the whole point of it: the
   // user never learns what a slice of cake weighs, they just tap it.
   function detail(c: FoodChoice, kind: Kind): string {
     if (parsed.grams != null) return `add ${parsed.grams} g`;
@@ -637,7 +637,7 @@ function FoodSearchBox({
             ))}
 
             {/* Then the shared reference: everyday foods with no barcode, each
-                offered at a real portion. Above the web on purpose — for "cake"
+                offered at a real portion. Above the web on purpose, for "cake"
                 or "cookie" this is the answer and Open Food Facts is noise. */}
             {refResults.length > 0 && <GroupLabel>Common foods</GroupLabel>}
             {refResults.map((c, i) => (
@@ -723,7 +723,7 @@ function FoodSearchBox({
   );
 }
 
-// Type in a food's macros by hand — for a treat that's in neither the pantry nor
+// Type in a food's macros by hand, for a treat that's in neither the pantry nor
 // Open Food Facts. The numbers entered are the macros of ONE portion of it, so
 // they're stored as the per-100g values on a 100 g unit: adding one "portion"
 // contributes exactly what was typed, and the stepper counts whole portions.
@@ -872,7 +872,7 @@ function ItemPicker({
 
   // Hand this hand-built meal to the app to portion, adding a food the app will
   // size. The foods already in the meal are kept at the amounts the user set
-  // (pinned), and the new food is added free, for the day solve to work out — so
+  // (pinned), and the new food is added free, for the day solve to work out, so
   // "cereal bar plus however much protein powder fits" is one tap, then "Build my
   // day". This turns the slot from a manual meal into a picked one.
   function handToPlanner(food: FoodChoice) {
@@ -1036,7 +1036,7 @@ function ItemPicker({
 
               {isCountable(it) ? (
                 /* Countable food: step in whole portions ("1 bagel", "2
-                   portions"). Grams follow underneath — the user never weighs. */
+                   portions"). Grams follow underneath, the user never weighs. */
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setUnits(i, itemUnits(it) - 1)}
@@ -1118,7 +1118,7 @@ function ItemPicker({
           </p>
           {mealId && onLog && (
             <button onClick={onLog} disabled={busy} className="sc-btn sc-btn-soft">
-              I ate this — log it
+              I ate this
             </button>
           )}
           <SaveFavourite defaultName={items.map((i) => i.name).join(", ")} items={items} />
@@ -1132,7 +1132,7 @@ function ItemPicker({
 // box; picking a food hands the whole meal to the day solve, keeping the foods
 // already there at the amounts the user set and letting the app work out how
 // much of the new one to eat. That's the bridge from "I chose these" to "and the
-// app sizes this last one" — e.g. a cereal bar you know, plus the right scoop of
+// app sizes this last one", e.g. a cereal bar you know, plus the right scoop of
 // protein powder to fill the rest.
 function AppPortionAdd({
   busy,
@@ -1215,7 +1215,7 @@ function EatenMeal({
       </p>
 
       {meal.items.length > 0 ? (
-        // A meal the user built — show every food with what it contributed.
+        // A meal the user built, show every food with what it contributed.
         <ul className="flex flex-col gap-2">
           {meal.items.map((it, i) => (
             <li
@@ -1240,7 +1240,7 @@ function EatenMeal({
           ))}
         </ul>
       ) : meal.portions.length > 0 ? (
-        // An AI dish — one card per ingredient, with its macros when stored.
+        // An AI dish, one card per ingredient, with its macros when stored.
         <ul className="flex flex-col gap-2">
           {meal.portions.map((p, i) => (
             <PortionRow key={i} portion={p} />
@@ -1296,7 +1296,7 @@ function PickedMeal({ meal, date }: { meal: PlannedMeal; date: string }) {
       ) : (
         <p className="flex items-start gap-1.5 text-sm text-[var(--muted)]">
           <Info size={16} className="mt-0.5 shrink-0" />
-          Foods picked — tap <span className="font-semibold">Build my day</span>{" "}
+          Foods picked, tap <span className="font-semibold">Build my day</span>{" "}
           above and we&apos;ll work out the amounts.
         </p>
       )}
@@ -1374,7 +1374,7 @@ function AiMeal({
           disabled={busy}
           className="sc-btn sc-btn-soft flex-1"
         >
-          I ate this — log it
+          I ate this
         </button>
       </div>
 
@@ -1481,7 +1481,7 @@ function AiMealEditor({
   // re-solves the rest of the day around them.
   //
   // Seeded from the pins already on the picks, because saving is what writes the
-  // whole set — start it empty and editing one ingredient would silently release
+  // whole set, start it empty and editing one ingredient would silently release
   // the hold on every other one in the dish. Matched case- and spacing-
   // insensitively, as the server does, so a portion the build renamed off its
   // pantry row still lines up with its pick.
@@ -1596,7 +1596,7 @@ function AiMealEditor({
 
               {/* A held food keeps this amount through every rebalance. Saying
                   so here, next to the number, is the only place the hold is
-                  visible — and the only way to hand the food back to the app. */}
+                  visible, and the only way to hand the food back to the app. */}
               {held.has(p.name) && (
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                   <span className="flex items-center gap-1 font-medium text-[var(--muted)]">
@@ -1673,7 +1673,7 @@ function AiMealEditor({
         </ul>
       ) : (
         <p className="text-sm text-[var(--muted)]">
-          No ingredients left — saving will clear this meal.
+          No ingredients left, saving will clear this meal.
         </p>
       )}
 
