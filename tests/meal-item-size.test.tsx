@@ -98,29 +98,82 @@ describe("meal builder — fresh food sizes", () => {
     );
   });
 
-  it("reads a cooked staple as a plain count, no '(cooked)s'", async () => {
-    const pasta: FoodChoice = {
+  it("reads a countable cooked food as a plain count, no '(cooked)s'", async () => {
+    const egg: FoodChoice = {
       ...banana,
-      name: "Pasta (cooked)",
-      unit_g: 240,
-      unit_label: "medium pasta (cooked)",
+      name: "Egg (cooked)",
+      unit_g: 50,
+      unit_label: "medium egg (cooked)",
       unit_options: [
-        { label: "small", grams: 180 },
-        { label: "medium", grams: 240 },
-        { label: "large", grams: 300 },
+        { label: "small", grams: 44 },
+        { label: "medium", grams: 50 },
+        { label: "large", grams: 63 },
       ],
     };
-    searchFoods.mockResolvedValue([pasta]);
+    searchFoods.mockResolvedValue([egg]);
     const user = userEvent.setup();
     render(<DayPlan slots={[{ slot: "Lunch", meal: null }]} target={null} prefs={[]} date="2026-07-20" />);
 
-    await user.type(screen.getByPlaceholderText(/add a food/i), "pasta");
-    await user.click(await screen.findByRole("button", { name: /pasta/i }));
+    await user.type(screen.getByPlaceholderText(/add a food/i), "egg");
+    await user.click(await screen.findByRole("button", { name: /egg/i }));
     await user.click(await screen.findByRole("button", { name: /one more/i }));
 
     // 2 servings, and the label is NOT pluralised into "(cooked)s".
-    expect(await screen.findByText(/2 medium pasta \(cooked\)/)).toBeTruthy();
+    expect(await screen.findByText(/2 medium egg \(cooked\)/)).toBeTruthy();
     expect(screen.queryByText(/\(cooked\)s/)).toBeNull();
+  });
+
+  // Rice, pasta and the other bulk staples are served BY WEIGHT. The named sizes
+  // are a shortcut, never the only way in: the user must always be able to set
+  // the grams they actually cooked (180 g), not pick small/medium/large.
+  const rice: FoodChoice = {
+    ...banana,
+    name: "White Rice (cooked)",
+    kcal_100g: 130,
+    unit_g: 200,
+    unit_label: "medium white rice (cooked)",
+    unit_options: [
+      { label: "small", grams: 150 },
+      { label: "medium", grams: 200 },
+      { label: "large", grams: 250 },
+    ],
+  };
+
+  async function addRice(user: ReturnType<typeof userEvent.setup>) {
+    searchFoods.mockResolvedValue([rice]);
+    await user.type(screen.getByPlaceholderText(/add a food/i), "rice");
+    await user.click(await screen.findByRole("button", { name: /rice/i }));
+  }
+
+  it("lets the user type grams for rice instead of a portion count", async () => {
+    const user = userEvent.setup();
+    render(<DayPlan slots={[{ slot: "Lunch", meal: null }]} target={null} prefs={[]} date="2026-07-20" />);
+
+    await addRice(user);
+
+    // No portion stepper — a staple is weighed.
+    expect(screen.queryByRole("button", { name: /one more/i })).toBeNull();
+
+    const input = await screen.findByLabelText(/white rice \(cooked\) grams/i);
+    await user.clear(input);
+    await user.type(input, "180");
+
+    await waitFor(() => expect(savedItems()[0]).toMatchObject({ grams: 180 }));
+  });
+
+  it("treats a rice size as a gram shortcut, not a multiplied count", async () => {
+    const user = userEvent.setup();
+    render(<DayPlan slots={[{ slot: "Lunch", meal: null }]} target={null} prefs={[]} date="2026-07-20" />);
+
+    await addRice(user);
+    // 400 g on the plate is two mediums' worth; tapping "small" must still mean
+    // 150 g, not 2 × 150.
+    const input = await screen.findByLabelText(/white rice \(cooked\) grams/i);
+    await user.clear(input);
+    await user.type(input, "400");
+    await user.click(screen.getByRole("button", { name: /^small$/i }));
+
+    await waitFor(() => expect(savedItems()[0]).toMatchObject({ grams: 150 }));
   });
 
   it("keeps the count when the size changes (2 medium → 2 large)", async () => {
