@@ -2,101 +2,44 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Keyboard, X, Zap, ZapOff } from "lucide-react";
-import { BrowserMultiFormatReader } from "@zxing/browser";
-import type { IScannerControls } from "@zxing/browser";
-import { BarcodeFormat, DecodeHintType } from "@zxing/library";
+import {
+  CAMERA_CONSTRAINTS,
+  applyZoom,
+  capabilitiesOf,
+  focusOn,
+  preferContinuousFocus,
+  setTorch,
+  targetZoom,
+  videoTrack,
+} from "@/lib/barcode/camera";
+import { normalizedPoint, sourceRect } from "@/lib/barcode/roi";
+import { startScanner, type Scanner } from "@/lib/barcode/scan";
+import type { FrameReading } from "@/lib/barcode/sharpness";
 
-// What we ask the camera for.
-//
-// Asking only for `facingMode` lets the browser pick the default capture size,
-// which on phones is around 640x480, a heavy downscale of the sensor. A barcode
-// is a set of thin parallel lines, and at that size the narrow bars blur into
-// their neighbours, so the picture looks soft and zxing has nothing crisp enough
-// to decode. Ask for 1080p instead. All three are `ideal`, not exact, so a
-// camera that can't manage it degrades rather than failing to open at all.
-const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
-  video: {
-    facingMode: { ideal: "environment" },
-    width: { ideal: 1920 },
-    height: { ideal: 1080 },
-  },
-};
+// A barcode that pokes a little outside the guide is still one the user meant
+// to scan, and a decoder needs the quiet zone either side of the bars to find
+// their edges at all.
+const GUIDE_PAD = 0.12;
 
-// The only barcodes that appear on food packaging. Left unrestricted, the
-// multi-format reader spends every attempt looking for QR, Aztec, PDF417 and
-// Data Matrix too, which is most of the decode budget burnt on symbologies that
-// cannot be on the pack. Narrowing the list is what makes TRY_HARDER affordable:
-// it runs the slower, more forgiving pass, the one that copes with a soft or
-// low-contrast image, which is exactly the picture a phone gives us, and still
-// finishes inside a frame.
-const RETAIL_FORMATS = [
-  BarcodeFormat.EAN_13,
-  BarcodeFormat.EAN_8,
-  BarcodeFormat.UPC_A,
-  BarcodeFormat.UPC_E,
-  BarcodeFormat.CODE_128,
-  BarcodeFormat.ITF,
-];
+// How long a tapped focus point is held before continuous autofocus takes over
+// again. Long enough for the lens to finish hunting and for the user to see it
+// worked, short enough that the camera goes back to tracking on its own.
+const FOCUS_HOLD_MS = 2500;
 
-const HINTS = new Map<DecodeHintType, unknown>([
-  [DecodeHintType.POSSIBLE_FORMATS, RETAIL_FORMATS],
-  [DecodeHintType.TRY_HARDER, true],
-]);
-
-// zxing waits half a second between attempts by default, so autofocus only gets
-// judged twice a second and most of the sharp frames it produces are thrown
-// away unread. Sample far more often, the frames are already being captured,
-// and a barcode is usually only crisp for a moment.
-const READER_OPTIONS = { delayBetweenScanAttempts: 120 };
-
-// `focusMode` and `torch` are supported on Android Chrome but aren't in
-// lib.dom's typings yet.
-type CameraCapabilities = MediaTrackCapabilities & {
-  focusMode?: string[];
-  torch?: boolean;
-};
-
-function videoTrack(video: HTMLVideoElement | null): MediaStreamTrack | null {
-  return (video?.srcObject as MediaStream | null)?.getVideoTracks()[0] ?? null;
-}
-
-function capabilitiesOf(track: MediaStreamTrack | null): CameraCapabilities {
-  try {
-    return (track?.getCapabilities?.() as CameraCapabilities | undefined) ?? {};
-  } catch {
-    // Some browsers throw rather than returning an empty set.
-    return {};
-  }
-}
-
-// Applied after the stream exists, and only when the device says it can, because
-// an unsupported constraint in the initial getUserMedia set would reject the
-// whole request and the camera would not open.
-function applyFocusMode(track: MediaStreamTrack, mode: string): Promise<void> {
-  return track
-    .applyConstraints({ advanced: [{ focusMode: mode }] } as unknown as MediaTrackConstraints)
-    .catch(() => {
-      // Best effort: a refused focus hint still leaves a usable stream.
-    });
-}
-
-// Ask the camera to keep refocusing while the overlay is open.
-//
-// Left alone, a phone focuses once when the stream starts, on whatever was in
-// front of it then, usually not the barcode the user hasn't raised yet, and
-// never corrects.
-function preferContinuousFocus(video: HTMLVideoElement | null): void {
-  const track = videoTrack(video);
-  const modes = capabilitiesOf(track).focusMode;
-  if (!track || !modes?.includes("continuous")) return;
-  void applyFocusMode(track, "continuous");
-}
+// Turning the light on does two things for a barcode: it fixes the exposure, so
+// the shutter closes fast enough that hand shake stops smearing the bars, and
+// it lifts the contrast between bar and background. Worth doing unheeded in a
+// dim kitchen, not worth doing at all in daylight, so it waits to see the
+// picture rather than being on or off from the start.
+const DIM_BRIGHTNESS = 60;
+const DIM_FRAMES = 15;
+const TORCH_DECISION_FRAMES = 90;
 
 // A barcode number as printed under the bars: 8 digits (EAN-8) up to 14 (ITF-14).
 const TYPED_BARCODE = /^\d{8,14}$/;
 
-// Full-screen camera overlay. Streams the back camera, decodes barcodes with
-// zxing, and fires onDetected with the first code it reads. The caller closes
+// Full-screen camera overlay. Streams the back camera, reads the crop the user
+// framed, and fires onDetected with the first code it reads. The caller closes
 // the overlay (usually inside onDetected).
 export default function BarcodeScanner({
   onDetected,
@@ -106,7 +49,11 @@ export default function BarcodeScanner({
   onClose: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const guideRef = useRef<HTMLDivElement>(null);
+  const focusTimer = useRef<number | undefined>(undefined);
+
   const [error, setError] = useState<string | null>(null);
+  const [starting, setStarting] = useState(true);
   // Null until the stream is up and we know whether the camera has a light.
   const [torchOn, setTorchOn] = useState<boolean | null>(null);
   const [typing, setTyping] = useState(false);
@@ -115,72 +62,160 @@ export default function BarcodeScanner({
   // Every caller passes a plain function declared in its own render, so
   // `onDetected` has a new identity each time the parent re-renders. With it in
   // the effect's dependencies the camera was torn down and re-acquired on any
-  // parent state change, and each restart began autofocus again from scratch,
-  // the stream never got the still moment it needs to settle. Hold it in a ref
-  // so the effect below runs once per open.
+  // parent state change, and each restart began autofocus from scratch, so the
+  // stream never got the still moment it needs to settle.
   const onDetectedRef = useRef(onDetected);
   useEffect(() => {
     onDetectedRef.current = onDetected;
   });
 
-  useEffect(() => {
-    let controls: IScannerControls | null = null;
-    let cancelled = false;
-    const reader = new BrowserMultiFormatReader(HINTS, READER_OPTIONS);
+  // Where the guide sits on the camera's own frame. Measured rather than
+  // assumed, because object-cover's crop depends on both the stream's shape and
+  // the viewport's, and the phone can be turned over mid-scan.
+  const aim = useCallback(() => {
+    const video = videoRef.current;
+    const guide = guideRef.current;
+    if (!video || !guide) return null;
 
-    reader
-      .decodeFromConstraints(CAMERA_CONSTRAINTS, videoRef.current!, (result, _err, ctrl) => {
-        if (cancelled) return;
-        controls = ctrl;
-        if (result) {
-          ctrl.stop();
-          onDetectedRef.current(result.getText());
+    const frame = video.getBoundingClientRect();
+    const box = guide.getBoundingClientRect();
+    return sourceRect(
+      { width: video.videoWidth, height: video.videoHeight },
+      { width: frame.width, height: frame.height },
+      {
+        x: box.left - frame.left,
+        y: box.top - frame.top,
+        width: box.width,
+        height: box.height,
+      },
+      GUIDE_PAD,
+    );
+  }, []);
+
+  // Decided from the picture the camera is actually returning, and only once.
+  const torchDecided = useRef(false);
+  const dimFrames = useRef(0);
+  const seenFrames = useRef(0);
+  const considerTorch = useCallback((reading: FrameReading) => {
+    if (torchDecided.current) return;
+
+    const track = videoTrack(videoRef.current);
+    if (!track || !capabilitiesOf(track).torch) {
+      torchDecided.current = true;
+      return;
+    }
+
+    seenFrames.current += 1;
+    if (seenFrames.current > TORCH_DECISION_FRAMES) {
+      // Light enough for long enough. Leave it to the user from here.
+      torchDecided.current = true;
+      return;
+    }
+
+    dimFrames.current = reading.brightness < DIM_BRIGHTNESS ? dimFrames.current + 1 : 0;
+    if (dimFrames.current < DIM_FRAMES) return;
+
+    torchDecided.current = true;
+    void setTorch(track, true).then((applied) => {
+      if (applied) setTorchOn(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let stream: MediaStream | null = null;
+    let scanner: Scanner | null = null;
+
+    navigator.mediaDevices
+      .getUserMedia(CAMERA_CONSTRAINTS)
+      .then(async (opened) => {
+        if (cancelled) {
+          opened.getTracks().forEach((track) => track.stop());
+          return;
         }
-      })
-      .then((ctrl) => {
-        controls = ctrl;
+        stream = opened;
+
+        const video = videoRef.current;
+        if (!video) return;
+        video.srcObject = opened;
+        // Some browsers reject this when the element is torn down under them,
+        // which is not a failure worth reporting to the user.
+        await video.play().catch(() => {});
         if (cancelled) return;
-        preferContinuousFocus(videoRef.current);
-        if (capabilitiesOf(videoTrack(videoRef.current)).torch) setTorchOn(false);
+
+        setStarting(false);
+
+        const track = opened.getVideoTracks()[0] ?? null;
+        if (track) {
+          void preferContinuousFocus(track);
+          // Zoom is what lets the barcode fill the guide from a distance the
+          // camera can focus at. See targetZoom.
+          const zoom = targetZoom(capabilitiesOf(track).zoom);
+          if (zoom !== null) void applyZoom(track, zoom);
+          if (capabilitiesOf(track).torch) setTorchOn(false);
+        }
+
+        scanner = startScanner({
+          video,
+          aim,
+          onReading: considerTorch,
+          onDetected: (barcode) => onDetectedRef.current(barcode),
+        });
       })
-      .catch(() => {
-        if (!cancelled) setError("Can't open the camera. Check it has permission.");
+      .catch((reason: unknown) => {
+        if (cancelled) return;
+        const name = reason instanceof Error ? reason.name : "";
+        setError(
+          name === "NotAllowedError"
+            ? "Camera access is off for this site. Turn it on in your browser settings."
+            : "Can't open the camera. Check permissions.",
+        );
       });
 
     return () => {
       cancelled = true;
-      controls?.stop();
+      scanner?.stop();
+      stream?.getTracks().forEach((track) => track.stop());
+      window.clearTimeout(focusTimer.current);
     };
-  }, []);
+  }, [aim, considerTorch]);
 
-  // Kitchen light is dim and a packet is shiny, so the sensor holds the shutter
-  // open and hand-shake smears the bars. The light both fixes the exposure and
-  // gives the autofocus something to lock onto.
   const toggleTorch = useCallback(() => {
     const track = videoTrack(videoRef.current);
     if (!track) return;
+
+    // A choice made by hand settles it: stop second guessing from the picture.
+    torchDecided.current = true;
     const next = !torchOn;
-    track
-      .applyConstraints({ advanced: [{ torch: next }] } as unknown as MediaTrackConstraints)
-      .then(() => setTorchOn(next))
-      .catch(() => {
-        // Camera refused the light; leave the button where it was.
-      });
+    void setTorch(track, next).then((applied) => {
+      if (applied) setTorchOn(next);
+    });
   }, [torchOn]);
 
-  // Continuous autofocus gives up once it thinks it has a lock, and a phone held
-  // close to a packet is exactly where it locks on the wrong plane. Tapping
-  // kicks it: one single-shot pass to re-hunt, then back to continuous.
-  const refocus = useCallback(() => {
-    const track = videoTrack(videoRef.current);
-    const modes = capabilitiesOf(track).focusMode;
-    if (!track || !modes?.includes("single-shot")) return;
-    void applyFocusMode(track, "single-shot").then(() => {
-      if (modes.includes("continuous")) void applyFocusMode(track, "continuous");
-    });
+  // Continuous autofocus stops hunting once it believes it has a lock, and a
+  // phone held over a packet is exactly where it locks onto the wrong plane.
+  // A tap says where to look, then hands the camera back to continuous.
+  const refocus = useCallback((event: React.MouseEvent<HTMLVideoElement>) => {
+    const video = videoRef.current;
+    const track = videoTrack(video);
+    if (!video || !track) return;
+
+    const frame = video.getBoundingClientRect();
+    const point = normalizedPoint(
+      { width: video.videoWidth, height: video.videoHeight },
+      { width: frame.width, height: frame.height },
+      { x: event.clientX - frame.left, y: event.clientY - frame.top },
+    );
+    if (!point) return;
+
+    void focusOn(track, point);
+    window.clearTimeout(focusTimer.current);
+    focusTimer.current = window.setTimeout(() => {
+      void preferContinuousFocus(videoTrack(videoRef.current));
+    }, FOCUS_HOLD_MS);
   }, []);
 
-  // Some barcodes will not read however good the picture is, a crease across
+  // Some barcodes will not read however good the picture is: a crease across
   // the bars, a curved tin, a torn label. The digits are printed underneath for
   // exactly this reason, so let them be typed rather than making the user give
   // up on the product.
@@ -189,6 +224,10 @@ export default function BarcodeScanner({
     if (!TYPED_BARCODE.test(digits)) return;
     onDetectedRef.current(digits);
   }
+
+  const hint = starting
+    ? "Starting the camera."
+    : "Hold the phone about arm's length away and put the barcode in the box. Tap to focus.";
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black">
@@ -200,14 +239,17 @@ export default function BarcodeScanner({
         muted
       />
 
-      {/* Aiming frame */}
+      {/* Aiming frame. Measured every frame, so this is what gets decoded. */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <div className="h-40 w-72 rounded-2xl border-4 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]" />
+        <div
+          ref={guideRef}
+          className="h-44 w-[88%] max-w-md rounded-2xl border-4 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]"
+        />
       </div>
 
       <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-4">
         <p className="rounded-2xl bg-black/50 px-4 py-2 text-sm font-semibold text-white">
-          {error ?? "Fill the frame with the barcode, about a hand's width away. Tap to refocus."}
+          {error ?? hint}
         </p>
         <div className="flex shrink-0 gap-2">
           {torchOn != null && (
