@@ -239,6 +239,9 @@ export function calibrationWrap(input: WrapInput): CalibrationWrap {
   const days = holdDays(input.startedAt, now);
   const window = fortnight(input, days);
 
+  const doubt = input.measurementDoubt ?? null;
+  const trusted = doubt == null;
+
   const measured = input.observed?.kcalPerDay ?? null;
   const predicted =
     input.predictedTdeeKcal != null && input.predictedTdeeKcal > 0
@@ -247,13 +250,20 @@ export function calibrationWrap(input: WrapInput): CalibrationWrap {
 
   // What the burn is made of. The resting rate is the floor of it; everything
   // above is movement, the part the user controls day to day.
+  //
+  // Only from a burn we stand behind. With the measurement set aside the only
+  // figure left is the formula's, and splitting a guess into resting and moving
+  // dresses it up as something this fortnight measured.
   const burn = measured ?? (input.maintenanceKcal > 0 ? input.maintenanceKcal : null);
   const activeShare =
-    burn != null && input.restingRateKcal != null && input.restingRateKcal > 0 && burn > 0
+    trusted &&
+    burn != null &&
+    input.restingRateKcal != null &&
+    input.restingRateKcal > 0 &&
+    burn > 0
       ? Math.max(0, Math.min(1, (burn - input.restingRateKcal) / burn))
       : null;
 
-  const doubt = input.measurementDoubt ?? null;
   const changeFromHoldKcal = Math.round(input.holdTargetKcal - input.newTarget.kcal);
   const holdLossKgPerWeek =
     window.weightChangeKg != null && days >= 7
@@ -272,7 +282,6 @@ export function calibrationWrap(input: WrapInput): CalibrationWrap {
   // off the plate on top of it. Hold the target and the answer is simply the rate
   // they were already losing at, which is the only honest prediction available
   // and the one their own fortnight supports.
-  const trusted = doubt == null;
   const deficitKcal = trusted
     ? Math.round(input.maintenanceKcal - input.newTarget.kcal)
     : changeFromHoldKcal > 0

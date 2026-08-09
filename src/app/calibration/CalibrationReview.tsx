@@ -68,6 +68,18 @@ export function buildCards(
   const cards: Omit<Card, "grad">[] = [];
   const { replay = false, endedAt = null } = opts;
 
+  // What the user was ASKED to eat, which is not the same claim as what they ate.
+  // Saying "you ate 1,700" here and "you ate 900" three cards later, off the food
+  // log, is the same screen contradicting itself, and the reader has no way to
+  // tell which number the app believes.
+  const shortLog = w.measurementDoubt === "intake_shortfall";
+  const loggedMean =
+    w.meanIntakeKcal != null
+      ? shortLog
+        ? ` Your food log came to ${kcal(w.meanIntakeKcal)} kcal a day, well under that.`
+        : ` Your food log came to ${kcal(w.meanIntakeKcal)} kcal a day.`
+      : "";
+
   cards.push({
     key: "held",
     kicker: replay
@@ -80,14 +92,41 @@ export function buildCards(
     value: String(w.days),
     unit: w.days === 1 ? "day measured" : "days measured",
     body:
-      `For ${w.days} day${w.days === 1 ? "" : "s"} you ate ${kcal(w.holdTargetKcal)} kcal a day, ` +
-      `logged your food on ${w.loggedDays} of them and stepped on the scale ${w.weighInDays} time${
+      `For ${w.days} day${w.days === 1 ? "" : "s"} your target was ${kcal(w.holdTargetKcal)} kcal a day. ` +
+      `You logged your food on ${w.loggedDays} of them and stepped on the scale ${w.weighInDays} time${
         w.weighInDays === 1 ? "" : "s"
-      }.`,
+      }.${loggedMean}`,
     note:
       `A fortnight is the shortest run that shows real change on the scale rather than water moving ` +
       `in and out.`,
   });
+
+  // No burn figure, and a reason worth naming. Going quiet here is what leaves
+  // the reader doing arithmetic that cannot be made to add up: a target below
+  // what they were eating, a rate below what they were already losing, and no
+  // explanation for either.
+  if (w.measurementDoubt != null) {
+    cards.push({
+      key: "nomeasure",
+      kicker: "Why there's no burn figure",
+      value: "Not measured",
+      unit: "this time",
+      body: shortLog
+        ? `Working out what you burn means comparing the food you ate with what your weight did. Your log ` +
+          `came to ${w.meanIntakeKcal != null ? `${kcal(w.meanIntakeKcal)} kcal` : "well under"} a day against a ` +
+          `${kcal(w.holdTargetKcal)} kcal target, so either food is missing from it or you ate far less than the plan. ` +
+          `Either way it can't be used to measure your body, and a target built on it would cut your food on ` +
+          `something that isn't there. Your weight is the part of the fortnight that is not in question, so that ` +
+          `is what your target is set from.`
+        : `Working out what you burn means comparing the food you ate with what your weight did, and here that ` +
+          `arithmetic came out at less than your body uses lying still, which cannot be right. Something is ` +
+          `missing from the food log. Your weight is the part of the fortnight that is not in question, so that ` +
+          `is what your target is set from.`,
+      note:
+        `Logging every drink, oil and spoonful is what turns this from an estimate into a measurement. ` +
+        `It gets measured again at every weekly review, so nothing is lost by it taking another fortnight.`,
+    });
+  }
 
   if (w.measuredMaintenanceKcal != null) {
     const delta = w.maintenanceDeltaKcal;
@@ -117,7 +156,9 @@ export function buildCards(
   }
 
   if (w.activeShare != null) {
-    const burn = w.measuredMaintenanceKcal ?? w.newTarget.kcal + w.deficitKcal;
+    const burn =
+      w.measuredMaintenanceKcal ??
+      (w.deficitKcal != null ? w.newTarget.kcal + w.deficitKcal : w.newTarget.kcal);
     const restingKcal = Math.round(burn * (1 - w.activeShare));
     const movingKcal = Math.round(burn * w.activeShare);
     const steps =
@@ -150,6 +191,14 @@ export function buildCards(
         ? `${Math.abs(w.holdLossKgPerWeek).toFixed(2)} kg a week`
         : null;
     const burn = w.measuredMaintenanceKcal;
+    // With the log in question, the honest subject of every sentence here is the
+    // TARGET they were eating to, not a logged figure the app has just refused to
+    // measure from. Saying "you ate 900 and lost weight anyway" invites the reader
+    // to accept a burn of 900 plus the loss, which is the number we set aside.
+    const on = shortLog
+      ? `Eating to ${kcal(w.holdTargetKcal)} kcal a day,`
+      : `You ate ${kcal(w.meanIntakeKcal)} kcal a day and`;
+    const lost = shortLog ? "you lost weight anyway" : "lost weight anyway";
     cards.push({
       key: "response",
       kicker: "What the scale did",
@@ -160,17 +209,19 @@ export function buildCards(
           ? `lost over ${w.days} days`
           : `gained over ${w.days} days`,
       body: steady
-        ? `You ate ${kcal(w.meanIntakeKcal)} kcal a day and the scale barely moved. ` +
+        ? `${on} the scale barely moved. ` +
           `That is what maintenance looks like.`
         : w.weightChangeKg > 0
           ? // The case that reads as a contradiction unless it's spelled out: they
             // were told they were eating at maintenance, and lost weight anyway.
-            `You ate ${kcal(w.meanIntakeKcal)} kcal a day and lost weight anyway${rate ? `, around ${rate}` : ""}. ` +
+            `${on} ${lost}${rate ? `, around ${rate}` : ""}. ` +
             `So the calories called maintenance were already a small deficit` +
             (burn != null
               ? `. Your real burn is closer to ${kcal(burn)} kcal, and that's the figure your new target is built on.`
-              : `, and your new target takes that into account.`)
-          : `You ate ${kcal(w.meanIntakeKcal)} kcal a day and the trend crept up by ${kg(-w.weightChangeKg)}` +
+              : shortLog
+                ? `, and that is the one thing this fortnight proved. It is why your target is not being cut further.`
+                : `, and your new target takes that into account.`)
+          : `${on} the trend crept up by ${kg(-w.weightChangeKg)}` +
             `${rate ? `, around ${rate}` : ""}. ` +
             `Some of that is food and water sitting in you on weigh-in day` +
             (burn != null
@@ -189,13 +240,22 @@ export function buildCards(
   // than a hold at 1,700. Both are true, and only naming the first left the
   // other 91 kcal unaccounted for on the reader's own subtraction.
   const versusBurn =
-    burn != null ? `${kcal(w.deficitKcal)} kcal below the ${kcal(burn)} kcal you burn` : null;
+    burn != null && w.deficitKcal != null
+      ? `${kcal(w.deficitKcal)} kcal below the ${kcal(burn)} kcal you burn`
+      : null;
   const versusPlate =
     w.changeFromHoldKcal > 0
       ? `${kcal(w.changeFromHoldKcal)} kcal less food than the ${kcal(w.holdTargetKcal)} you're used to`
       : w.changeFromHoldKcal < 0
         ? `${kcal(-w.changeFromHoldKcal)} kcal more food than the ${kcal(w.holdTargetKcal)} you're used to`
         : `the same amount of food you're already used to`;
+  // A target that did not move needs the reason stated, or an unchanged number
+  // under the words "what you eat from today" reads as the app having done
+  // nothing at all.
+  const heldOn =
+    w.measurementDoubt != null && w.changeFromHoldKcal === 0
+      ? `It is not being cut, because your own weight says these calories are already working. `
+      : "";
   cards.push({
     key: "target",
     kicker: replay ? "The target it set" : "What you eat from today",
@@ -204,6 +264,7 @@ export function buildCards(
     target: t,
     body:
       (versusBurn ? `That's ${versusBurn}, and ${versusPlate}. ` : `That's ${versusPlate}. `) +
+      heldOn +
       `Protein stays high at ${Math.round(t.protein_g)} g, which is what keeps the loss coming from fat ` +
       `rather than muscle.`,
     note:
@@ -215,10 +276,15 @@ export function buildCards(
     // The comparison that makes the prediction checkable rather than a number to
     // take on faith: they can see the rate they were ALREADY losing at, on more
     // food, and judge whether the new one is plausible.
+    // "On more food than this" is only true when the target actually came down.
+    // Held at the same calories, the sentence to write is the opposite one: this
+    // rate is not a forecast at all, it is what already happened.
     const already =
-      w.holdLossKgPerWeek != null && w.holdLossKgPerWeek > 0.05
-        ? ` You were already losing about ${w.holdLossKgPerWeek.toFixed(2)} kg a week during calibration, on more food than this.`
-        : "";
+      w.holdLossKgPerWeek == null || w.holdLossKgPerWeek <= 0.05
+        ? ""
+        : w.changeFromHoldKcal > 0
+          ? ` You were already losing about ${w.holdLossKgPerWeek.toFixed(2)} kg a week during calibration, on more food than this.`
+          : ` That is not a forecast: it is the rate you were already losing at during calibration, on these same calories.`;
     const goal =
       w.projection?.goalDate != null && w.projection.goalWeeks != null
         ? ` Keep to it and your goal weight is about ${w.projection.goalWeeks} weeks away, somewhere around ${longDate(w.projection.goalDate)}.`
@@ -233,7 +299,11 @@ export function buildCards(
       value: w.expectedLossKgPerWeek.toFixed(2),
       unit: "kg a week",
       chart: w.projection?.points,
-      body: `That's what ${kcal(w.newTarget.kcal)} kcal a day should give you.${already}${goal}${band}`,
+      body:
+        (w.changeFromHoldKcal === 0 && already
+          ? `That's what ${kcal(w.newTarget.kcal)} kcal a day gives you.`
+          : `That's what ${kcal(w.newTarget.kcal)} kcal a day should give you.`) +
+        `${already}${goal}${band}`,
       note:
         `The line flattens because a lighter body burns less, so the same target slowly becomes a smaller deficit. ` +
         `Individual weeks will bounce a few hundred grams either way, so give the trend a fortnight before reading anything into it.`,
