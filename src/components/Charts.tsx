@@ -44,7 +44,7 @@ const longDate = (iso: string) =>
   });
 
 // A "19 Jul" label is ~40px wide. Recharts drops a tick only when the gap to
-// its neighbour is under minTickGap, so this must clear the label itself —
+// its neighbour is under minTickGap, so this must clear the label itself,
 // otherwise labels touch on narrow cards even at a wide `interval`.
 const DATE_TICK_GAP = 44;
 
@@ -318,7 +318,7 @@ export function TrendDotsChart({
   );
 }
 
-// ── Weight vs exercise (synced small multiples — never a dual axis) ──
+// ── Weight vs exercise (synced small multiples, never a dual axis) ──
 export function WeightVsExercise({
   weights,
   burn,
@@ -426,7 +426,7 @@ export function WeightVsExercise({
 
 // ── Weekly driver scatter ───────────────────────────────────────────
 // One dot per week: a habit on x, kilos lost on y, with the fitted line through
-// them. A scatter is the honest form here — it shows the spread the single
+// them. A scatter is the honest form here, it shows the spread the single
 // correlation number hides, which is the whole point of calling these patterns
 // rather than proof.
 export function DriverScatter({

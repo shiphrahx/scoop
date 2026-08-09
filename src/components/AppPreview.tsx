@@ -11,7 +11,7 @@ import type { Macros } from "@/lib/types";
 import type { NutrientKey } from "@/lib/nutrients";
 
 // A phone-framed look at Home, built from the same ProgressRing and
-// NutrientBars the app itself renders — so what visitors see on the landing
+// NutrientBars the app itself renders, so what visitors see on the landing
 // page is what they get, not a drawing of it. Numbers are a sample day.
 const TARGET: Macros = { kcal: 1898, protein_g: 160, carbs_g: 195, fat_g: 53 };
 const COMMITTED: Macros = {
@@ -23,7 +23,7 @@ const COMMITTED: Macros = {
 const PREFS: NutrientKey[] = ["protein", "carbs", "fat"];
 
 // A subset of the real Home tiles, kept to four so the mock phone stays square.
-// It has to show tiles that actually exist — Batches used to be here and is no
+// It has to show tiles that actually exist, Batches used to be here and is no
 // longer on Home at all.
 const quickActions = [
   { label: "Log food", icon: UtensilsCrossed },

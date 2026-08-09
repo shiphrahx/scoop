@@ -4,7 +4,7 @@
 //
 // `hidden lg:flex` hides the markup but not the cost: the phone still downloaded
 // the Recharts bundle behind the three dashboard charts, hydrated them, and gave
-// each one a ResizeObserver — all for elements it would never show. On an iPhone
+// each one a ResizeObserver, all for elements it would never show. On an iPhone
 // that is the slowest part of opening Home. Gating the import on the media query
 // means a phone never asks for that chunk at all.
 //
@@ -13,7 +13,7 @@
 //
 // This is also where the server learns the viewport. The width is written to a
 // cookie so the NEXT request can skip fetching the chart data on a phone
-// entirely (see src/lib/viewport.ts) — the client is the only side that knows.
+// entirely (see src/lib/viewport.ts), the client is the only side that knows.
 
 import { useEffect, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
@@ -71,7 +71,7 @@ export default function DesktopDashboardMount({
     const value = isDesktop ? WIDE : NARROW;
     document.cookie = `${VIEWPORT_COOKIE}=${value}; path=/; max-age=${COOKIE_MAX_AGE_S}; SameSite=Lax`;
 
-    // The hint said phone but this is a desktop — a resized window, a rotated
+    // The hint said phone but this is a desktop, a resized window, a rotated
     // tablet, or a shared cookie jar. The series props are empty, so re-fetch
     // the route rather than draw blank charts. The cookie is already corrected
     // above, so the refresh comes back with the data.

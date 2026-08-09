@@ -16,7 +16,7 @@ export default function BottomNav() {
           const active = pathname === item.href;
           const Icon = item.icon;
 
-          // The raised centre tab. Its label is rendered, not just announced —
+          // The raised centre tab. Its label is rendered, not just announced,
           // an unlabelled icon here is a guess, and the whole point of the tab
           // is that you can tell where it goes without tapping it. The circle
           // keeps the lift; the caption sits under it in line with its siblings.

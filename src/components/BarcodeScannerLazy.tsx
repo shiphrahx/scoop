@@ -3,7 +3,7 @@
 // The camera scanner, fetched the moment it's opened and not before.
 //
 // zxing is around half a megabyte and it sat in the static import graph of three
-// screens — including "Log food", the most-used flow on the phone — so every
+// screens, including "Log food", the most-used flow on the phone, so every
 // visit paid to download and parse a decoder that only runs if the user taps
 // Scan. Every caller renders it behind `{scanning && …}`, so this swaps a
 // download at page load for one at the tap that needs it.

@@ -77,7 +77,7 @@ export default function DesktopDashboard({
   prefs: NutrientKey[];
   calibration: React.ReactNode;
 }) {
-  // Eaten food plus meals planned for later today — what the day is committed
+  // Eaten food plus meals planned for later today, what the day is committed
   // to. "Left" figures budget against this, not eaten alone.
   const committed = sumMacros([consumed, planned]);
   const kcalLeft = targets ? Math.max(0, Math.round(targets.kcal - committed.kcal)) : 0;

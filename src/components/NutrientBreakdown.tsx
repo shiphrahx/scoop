@@ -19,7 +19,7 @@ export const FIT_TEXT: Record<FitStatus, string> = {
   off: "text-rose-600",
 };
 
-// "+12 g" / "−80" — how far this nutrient sits from its target.
+// "+12 g" / "−80", how far this nutrient sits from its target.
 function diffLabel(diff: number, key: NutrientKey): string {
   const sign = diff > 0 ? "+" : "−";
   return `${sign}${formatNutrient(Math.abs(diff), key)}`;
@@ -28,7 +28,7 @@ function diffLabel(diff: number, key: NutrientKey): string {
 // A compact "value / target unit" tile per nutrient, kcal first. `consumed` is
 // whatever total you're showing (eaten today, or a plan's running total).
 // With `showFit`, each tile is coloured by how close it lands on target and
-// shows the miss underneath — used when planning, where the point is to hit it.
+// shows the miss underneath, used when planning, where the point is to hit it.
 export function NutrientStats({
   prefs,
   consumed,
@@ -73,7 +73,7 @@ export function NutrientStats({
   );
 }
 
-// A labelled progress bar per chosen nutrient (kcal excluded — it's the ring).
+// A labelled progress bar per chosen nutrient (kcal excluded, it's the ring).
 export function NutrientBars({
   prefs,
   consumed,

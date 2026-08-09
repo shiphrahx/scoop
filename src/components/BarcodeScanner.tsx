@@ -9,7 +9,7 @@ import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 // What we ask the camera for.
 //
 // Asking only for `facingMode` lets the browser pick the default capture size,
-// which on phones is around 640x480 — a heavy downscale of the sensor. A barcode
+// which on phones is around 640x480, a heavy downscale of the sensor. A barcode
 // is a set of thin parallel lines, and at that size the narrow bars blur into
 // their neighbours, so the picture looks soft and zxing has nothing crisp enough
 // to decode. Ask for 1080p instead. All three are `ideal`, not exact, so a
@@ -26,8 +26,8 @@ const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
 // multi-format reader spends every attempt looking for QR, Aztec, PDF417 and
 // Data Matrix too, which is most of the decode budget burnt on symbologies that
 // cannot be on the pack. Narrowing the list is what makes TRY_HARDER affordable:
-// it runs the slower, more forgiving pass — the one that copes with a soft or
-// low-contrast image, which is exactly the picture a phone gives us — and still
+// it runs the slower, more forgiving pass, the one that copes with a soft or
+// low-contrast image, which is exactly the picture a phone gives us, and still
 // finishes inside a frame.
 const RETAIL_FORMATS = [
   BarcodeFormat.EAN_13,
@@ -45,7 +45,7 @@ const HINTS = new Map<DecodeHintType, unknown>([
 
 // zxing waits half a second between attempts by default, so autofocus only gets
 // judged twice a second and most of the sharp frames it produces are thrown
-// away unread. Sample far more often — the frames are already being captured,
+// away unread. Sample far more often, the frames are already being captured,
 // and a barcode is usually only crisp for a moment.
 const READER_OPTIONS = { delayBetweenScanAttempts: 120 };
 
@@ -82,8 +82,8 @@ function applyFocusMode(track: MediaStreamTrack, mode: string): Promise<void> {
 
 // Ask the camera to keep refocusing while the overlay is open.
 //
-// Left alone, a phone focuses once when the stream starts — on whatever was in
-// front of it then, usually not the barcode the user hasn't raised yet — and
+// Left alone, a phone focuses once when the stream starts, on whatever was in
+// front of it then, usually not the barcode the user hasn't raised yet, and
 // never corrects.
 function preferContinuousFocus(video: HTMLVideoElement | null): void {
   const track = videoTrack(video);
@@ -115,7 +115,7 @@ export default function BarcodeScanner({
   // Every caller passes a plain function declared in its own render, so
   // `onDetected` has a new identity each time the parent re-renders. With it in
   // the effect's dependencies the camera was torn down and re-acquired on any
-  // parent state change, and each restart began autofocus again from scratch —
+  // parent state change, and each restart began autofocus again from scratch,
   // the stream never got the still moment it needs to settle. Hold it in a ref
   // so the effect below runs once per open.
   const onDetectedRef = useRef(onDetected);
@@ -180,7 +180,7 @@ export default function BarcodeScanner({
     });
   }, []);
 
-  // Some barcodes will not read however good the picture is — a crease across
+  // Some barcodes will not read however good the picture is, a crease across
   // the bars, a curved tin, a torn label. The digits are printed underneath for
   // exactly this reason, so let them be typed rather than making the user give
   // up on the product.

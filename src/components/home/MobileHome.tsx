@@ -8,7 +8,7 @@ import type { NutrientKey } from "@/lib/nutrients";
 
 // The phone's route to everything the bottom bar has no room for. Favourites and
 // Recipes are here because the /plan hub that used to hold them is gone, and
-// Batches is not because the feature isn't in use yet — its route still works.
+// Batches is not because the feature isn't in use yet, its route still works.
 const quickActions = [
   { href: "/plan/day", label: "Log food", icon: UtensilsCrossed },
   { href: "/progress", label: "Log weight", icon: Scale },
