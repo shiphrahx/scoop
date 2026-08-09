@@ -236,7 +236,7 @@ export default function DriversTab({
               />
               <p className="text-sm text-[var(--muted)]">
                 {highDay.verdict === "no-difference"
-                  ? "No meaningful difference, which is expected: high days don't change your weekly calorie total. Keep them if they make the week easier to follow."
+                  ? "No real difference, which is what you'd expect: high days don't change your weekly total. Keep them if they make the week easier to follow."
                   : highDay.verdict === "better"
                     ? `You lost ${fmt(highDay.differenceKg, 2)} kg/week more in weeks with high days.`
                     : `You lost ${fmt(Math.abs(highDay.differenceKg), 2)} kg/week less in weeks with high days. Check that a high day hasn't turned into an extra day above target.`}

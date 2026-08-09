@@ -69,27 +69,27 @@ const shortDate = (iso: string) =>
 
 const VERDICT: Record<LossRate["verdict"], { text: string; tone: "good" | "warn" }> = {
   "on-track": {
-    text: "Within the healthy band for your body.",
+    text: "Right in the healthy range for your body.",
     tone: "good",
   },
   slow: {
-    text: "Below your healthy band. Acceptable if intended. The Coach will adjust the target if it stays here.",
+    text: "Slower than your healthy range. Fine if that's deliberate. If it stays here, the Coach will adjust your target.",
     tone: "warn",
   },
   fast: {
-    text: "Above your healthy band. Losing at this rate costs muscle as well as fat.",
+    text: "Faster than your healthy range. At this rate you lose muscle along with the fat.",
     tone: "warn",
   },
   gaining: {
-    text: "The trend has risen over the last week.",
+    text: "Your trend has gone up over the last week.",
     tone: "warn",
   },
 };
 
 const CONFIDENCE: Record<GoalProjection["confidence"], string> = {
-  high: "The trend has been steady, so this window is a reliable estimate.",
-  medium: "The trend varies somewhat, so treat this as an approximate window.",
-  low: "The trend is noisy, so this window is wide. It will narrow as you log more.",
+  high: "Your trend has been steady, so this window is a reliable estimate.",
+  medium: "Your trend moves around a bit, so treat this as a rough window.",
+  low: "Your trend is noisy, so this window is wide. It narrows as you log more.",
 };
 
 export default function OverviewTab({

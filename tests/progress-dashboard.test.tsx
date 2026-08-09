@@ -174,12 +174,12 @@ describe("progress dashboard, KPI row", () => {
       />,
     );
 
-    expect(screen.queryByText(/within the healthy band/i)).toBeNull();
+    expect(screen.queryByText(/right in the healthy range/i)).toBeNull();
 
     await user.click(screen.getByRole("button", { name: /Per week/ }));
 
     const sheet = screen.getByRole("dialog");
-    expect(within(sheet).getByText(/within the healthy band/i)).toBeTruthy();
+    expect(within(sheet).getByText(/right in the healthy range/i)).toBeTruthy();
     expect(within(sheet).getByText("0.42 to 0.84 kg")).toBeTruthy();
   });
 });

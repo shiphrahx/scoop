@@ -51,7 +51,7 @@ const shortDate = (iso: string) =>
 const BAND: Record<WaistToHeight["band"], { label: string; note: string; tone: "good" | "warn" }> = {
   low: {
     label: "Below the usual range",
-    note: "Your waist is under 40% of your height. Consider speaking to a doctor if you are still in a deficit.",
+    note: "Your waist is under 40% of your height. If you're still in a deficit, it's worth speaking to a doctor.",
     tone: "warn",
   },
   healthy: {
