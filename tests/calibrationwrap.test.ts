@@ -59,6 +59,29 @@ function fortnight(over: Partial<WrapInput> = {}): WrapInput {
     sex: "female",
     bodyFatPct: 30,
     restingRateKcal: 1500,
+    heightCm: 165,
+    // Two logs a day for the fortnight: the same breakfast every morning and a
+    // scanned dinner every evening.
+    foodLogs: dates.flatMap((date) => [
+      {
+        date,
+        hour: 8,
+        name: "Porridge",
+        source: "manual",
+        kcal: 400,
+        protein_g: 20,
+        grams: 300,
+      },
+      {
+        date,
+        hour: 19,
+        name: "Chicken and rice",
+        source: "barcode",
+        kcal: 2000,
+        protein_g: 130,
+        grams: 500,
+      },
+    ]),
     ...over,
   };
 }
@@ -342,5 +365,107 @@ describe("calibrationWrap", () => {
       expect(w.deficitKcal).toBe(300);
       expect(w.expectedLossKgPerWeek).toBeCloseTo((300 * 7) / 7700, 3);
     });
+  });
+});
+
+// The fortnight as the user remembers it. None of these change a target, but
+// they are the numbers the reader checks against their own memory of the two
+// weeks, and a card that quietly counts days they never logged, or offers a
+// distance for steps nobody recorded, is what makes them distrust the rest.
+describe("calibrationWrap, the fortnight itself", () => {
+  it("totals the walking and turns it into a distance", () => {
+    const w = calibrationWrap(fortnight());
+    expect(w.movement!.totalSteps).toBe(14 * 9000);
+    // 126,000 steps at a 165 cm woman's stride.
+    expect(w.movement!.distanceKm).toBeCloseTo(85.86, 1);
+    expect(w.movement!.workoutKcal).toBe(14 * 200);
+    expect(w.movement!.streakDays).toBe(14);
+  });
+
+  it("totals the sleep it was given", () => {
+    const w = calibrationWrap(fortnight());
+    expect(w.sleep!.nights).toBe(14);
+    expect(w.sleep!.totalHours).toBe(98);
+  });
+
+  it("reads the plate off the food log, not the daily totals", () => {
+    const w = calibrationWrap(fortnight());
+    expect(w.plate!.logs).toBe(28);
+    expect(w.plate!.distinctFoods).toBe(2);
+    expect(w.plate!.totalGrams).toBe(14 * 800);
+    expect(w.plate!.totalProteinG).toBe(14 * 150);
+    expect(w.plate!.topFood).toEqual({
+      name: "Chicken and rice",
+      count: 14,
+      meanKcal: 2000,
+    });
+  });
+
+  it("counts the streaks and the taps", () => {
+    const w = calibrationWrap(fortnight());
+    expect(w.habits!.longestLogStreak).toBe(14);
+    expect(w.habits!.longestOnTargetStreak).toBe(14);
+    expect(w.habits!.lastLogHour).toBe(19);
+    // Half the logs were scanned rather than typed.
+    expect(w.habits!.oneTapLogs).toBe(14);
+  });
+
+  it("prices the fortnight's burn against things a person can picture", () => {
+    const w = calibrationWrap(fortnight());
+    expect(w.energy!.basis).toBe("burn");
+    expect(w.energy!.totalBurnKcal).toBe(2400 * 14);
+    expect(w.energy!.totalIntakeKcal).toBe(2400 * 14);
+    // The user's own most eaten meal, at 2,000 kcal a time.
+    expect(w.energy!.equivalents[0]).toEqual({
+      key: "food",
+      count: 17,
+      unit: "servings of Chicken and rice",
+    });
+    expect(w.energy!.equivalents.map((e) => e.key)).toContain("boil");
+  });
+
+  it("prices the weight lost in the energy it took to shift", () => {
+    // Half a kilo a week off an 80 kg body over the fortnight.
+    const w = calibrationWrap(
+      fortnight({
+        weighIns: Array.from({ length: 14 }, (_, i) => ({
+          date: day(i, "2026-07-26"),
+          kg: 80 - i * (0.5 / 7),
+        })),
+      }),
+    );
+    expect(w.energy!.fromStorageKcal).toBeGreaterThan(6000);
+  });
+
+  it("quotes the food logged, not a formula's guess, when the burn was set aside", () => {
+    // No measurement to stand behind means no burn total either: fourteen times
+    // a guess is still a guess, and at five figures it reads as a measurement.
+    const w = calibrationWrap(
+      fortnight({
+        observed: null,
+        measurementDoubt: "intake_shortfall",
+      }),
+    );
+    expect(w.energy!.totalBurnKcal).toBeNull();
+    expect(w.energy!.basis).toBe("intake");
+    expect(w.energy!.basisKcal).toBe(2400 * 14);
+  });
+
+  it("drops every card whose data never arrived", () => {
+    const w = calibrationWrap(fortnight({ activity: [], foodLogs: undefined }));
+    expect(w.movement).toBeNull();
+    expect(w.sleep).toBeNull();
+    expect(w.plate).toBeNull();
+    // The logging streak survives: it is read off the daily intake, which is
+    // there whether or not the item level rows were passed.
+    expect(w.habits!.longestLogStreak).toBe(14);
+    expect(w.habits!.busiestHour).toBeNull();
+  });
+
+  it("counts no distance without a height, but still counts the steps", () => {
+    const w = calibrationWrap(fortnight({ heightCm: null }));
+    expect(w.movement!.totalSteps).toBe(14 * 9000);
+    // Falls back to the coach's own 0.75 m walking model.
+    expect(w.movement!.distanceKm).toBeCloseTo(94.5, 1);
   });
 });

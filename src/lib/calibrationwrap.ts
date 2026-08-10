@@ -21,6 +21,20 @@ import {
   type ObservedTdee,
   type WeighIn,
 } from "@/lib/coach";
+import {
+  energyEquivalents,
+  habitStats,
+  movementStats,
+  plateStats,
+  sleepStats,
+  storageKcal,
+  type EnergyEquivalent,
+  type HabitStats,
+  type MovementStats,
+  type PlateStats,
+  type SleepStats,
+  type WrapFoodLog,
+} from "@/lib/wrapstats";
 import type { Activity, Macros, Sex } from "@/lib/types";
 
 const DAY_MS = 86_400_000;
@@ -44,6 +58,11 @@ export interface WrapInput {
   weighIns: WeighIn[];
   intake: DailyIntake[];
   activity: Activity[];
+  // Every food log inside it, one row per entry rather than one per day. Only
+  // the cards about the plate and the logging habit read these; the metabolism
+  // is measured from the daily totals above. Optional, because a review filed
+  // before these cards existed has none.
+  foodLogs?: WrapFoodLog[];
   // The measurement the hold exists to produce, and the formula's raw guess it
   // is measured against. Either may be null on a thin log.
   observed: ObservedTdee | null;
@@ -62,6 +81,9 @@ export interface WrapInput {
   goalWeightKg: number | null;
   sex: Sex;
   bodyFatPct: number | null;
+  // Standing height, which turns a step count into a distance. Null = no
+  // distance card, the steps still get counted.
+  heightCm?: number | null;
   // This user's resting metabolism, so the burn can be split into what they burn
   // lying still and what they burn moving. Null = no split shown.
   restingRateKcal: number | null;
@@ -80,6 +102,23 @@ export interface WrapProjection {
   // when there's no goal, or the goal isn't reached inside the horizon.
   goalWeeks: number | null;
   goalDate: string | null;
+}
+
+// A fortnight's energy, at a scale a person can picture.
+export interface WrapEnergy {
+  // Everything the body spent over the hold, and everything that went in. The
+  // burn is only quoted from a measurement we stand behind: multiplying a
+  // formula's guess by fourteen makes a five figure number that was never
+  // measured at all.
+  totalBurnKcal: number | null;
+  totalIntakeKcal: number | null;
+  // What came out of storage, priced from the weight actually lost.
+  fromStorageKcal: number | null;
+  // Which of the two the comparisons below are drawn from, so the screen can
+  // name it rather than leaving the reader to assume.
+  basis: "burn" | "intake";
+  basisKcal: number;
+  equivalents: EnergyEquivalent[];
 }
 
 export interface CalibrationWrap {
@@ -130,6 +169,19 @@ export interface CalibrationWrap {
   // healthyLossBand). The band is a fraction of bodyweight, so it needs a weight.
   inHealthyBand: boolean | null;
   projection: WrapProjection | null;
+
+  // --- The fortnight as the user remembers it
+  //
+  // All optional, and every one of them null when its data never arrived. Two
+  // reasons they are not required: a user with no wearable has no steps and no
+  // sleep for ever, and a review filed before these existed is replayed from a
+  // stored snapshot that cannot grow the fields (see calibration_reviews). The
+  // screen drops the card either way.
+  movement?: MovementStats | null;
+  sleep?: SleepStats | null;
+  plate?: PlateStats | null;
+  habits?: HabitStats | null;
+  energy?: WrapEnergy | null;
 }
 
 // Whole days the hold has been open. Never negative.
@@ -198,12 +250,17 @@ function fortnight(input: WrapInput, days: number) {
   );
   const activity = inWindow(input.activity);
 
+  const foodLogs = inWindow(input.foodLogs ?? []);
+
   const target = input.holdTargetKcal;
-  const adherentDays =
+  // Kept as dates rather than a count: the streak card needs to know WHICH days
+  // landed on target, not how many did.
+  const adherentDates =
     target > 0
-      ? intake.filter((d) => Math.abs(d.kcal - target) / target <= ADHERENCE_TOLERANCE)
-          .length
-      : 0;
+      ? intake
+          .filter((d) => Math.abs(d.kcal - target) / target <= ADHERENCE_TOLERANCE)
+          .map((d) => d.date)
+      : [];
 
   // Movement over the hold. Zero-step days are days the phone wasn't carried,
   // not days spent motionless, so they're left out rather than averaged in.
@@ -219,7 +276,12 @@ function fortnight(input: WrapInput, days: number) {
     loggedDays: intake.length,
     weighInDays: weighIns.length,
     meanIntakeKcal: average(intake.map((d) => d.kcal)),
-    adherentDays,
+    totalIntakeKcal: intake.reduce((sum, d) => sum + d.kcal, 0),
+    loggedDates: intake.map((d) => d.date),
+    adherentDates,
+    adherentDays: adherentDates.length,
+    activity,
+    foodLogs,
     meanStepsPerDay: average(steps),
     meanSleepHours: average(sleep),
     // The scale's own answer for the window: the regression slope across it, not
@@ -326,6 +388,47 @@ export function calibrationWrap(input: WrapInput): CalibrationWrap {
         })
       : null;
 
+  // --- The fortnight as the user remembers it
+  //
+  // None of this feeds a target. It is measured from the same window as
+  // everything above so the two halves of the screen cannot disagree about which
+  // fourteen days are being talked about.
+  const movement = movementStats(window.activity, {
+    heightCm: input.heightCm ?? null,
+    sex: input.sex,
+  });
+  const sleep = sleepStats(window.activity);
+  const plate = plateStats(window.foodLogs);
+  const habits = habitStats({
+    logs: window.foodLogs,
+    loggedDates: window.loggedDates,
+    onTargetDates: window.adherentDates,
+  });
+
+  // The energy total, and what it looks like next to something real.
+  //
+  // The burn is only totalled from a measurement we stand behind. Where there
+  // isn't one the honest headline is the food they logged, which is a count of
+  // what they did rather than a claim about their body.
+  const energy = ((): WrapEnergy | null => {
+    const totalBurnKcal = trusted && measured != null ? Math.round(measured * days) : null;
+    const totalIntakeKcal =
+      window.totalIntakeKcal > 0 ? Math.round(window.totalIntakeKcal) : null;
+    const basisKcal = totalBurnKcal ?? totalIntakeKcal ?? 0;
+    if (basisKcal <= 0) return null;
+    return {
+      totalBurnKcal,
+      totalIntakeKcal,
+      fromStorageKcal: storageKcal(window.weightChangeKg),
+      basis: totalBurnKcal != null ? "burn" : "intake",
+      basisKcal,
+      equivalents: energyEquivalents(basisKcal, {
+        weightKg: input.weightKg,
+        topFood: plate?.topFood ?? null,
+      }),
+    };
+  })();
+
   return {
     days,
     loggedDays: window.loggedDays,
@@ -349,5 +452,10 @@ export function calibrationWrap(input: WrapInput): CalibrationWrap {
     expectedLossKgPerWeek,
     inHealthyBand,
     projection,
+    movement,
+    sleep,
+    plate,
+    habits,
+    energy,
   };
 }
