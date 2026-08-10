@@ -16,7 +16,21 @@ import { startDeficit } from "./actions";
 // finding whose data is missing is dropped rather than filled with a guess.
 
 const kcal = (n: number) => Math.round(n).toLocaleString("en-GB");
+const num = (n: number) => Math.round(n).toLocaleString("en-GB");
 const kg = (n: number) => `${n >= 0 ? "" : "−"}${Math.abs(n).toFixed(1)} kg`;
+const plural = (n: number, one: string, many = `${one}s`) => (n === 1 ? one : many);
+
+// An hour of the day as a clock reading. The review talks about when the user
+// ate, and "20" on its own is not a time anyone recognises.
+const clock = (hour: number) => `${String(hour).padStart(2, "0")}:00`;
+
+// "a, b or c". Written out rather than joined with commas throughout, because
+// these are alternatives (the same energy, three ways) and a comma between the
+// last two reads as a fourth item.
+function orList(parts: string[]): string {
+  if (parts.length <= 1) return parts[0] ?? "";
+  return `${parts.slice(0, -1).join(", ")} or ${parts[parts.length - 1]}`;
+}
 
 function longDate(iso: string): string {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -184,6 +198,88 @@ export function buildCards(
     });
   }
 
+  // The fortnight's energy at a size a person can picture. A burn of 1,700 a day
+  // is a number the reader has already been given twice by this point; 24,000
+  // over a fortnight is the same fact at a scale they have never seen it at.
+  if (w.energy != null) {
+    const e = w.energy;
+    const comparisons = e.equivalents.map((eq) =>
+      eq.key === "walk"
+        ? `enough to walk ${num(eq.count)} km`
+        : `${num(eq.count)} ${eq.unit}`,
+    );
+    const storage =
+      e.fromStorageKcal != null
+        ? ` Of it, ${kcal(e.fromStorageKcal)} kcal came out of storage rather than off a plate, which is the weight the scale lost.`
+        : "";
+    cards.push({
+      key: "energy",
+      kicker: e.basis === "burn" ? "The fortnight in calories" : "What you logged",
+      value: kcal(e.basisKcal),
+      unit:
+        e.basis === "burn"
+          ? `kcal burned in ${w.days} days`
+          : `kcal of food in ${w.days} days`,
+      body:
+        (comparisons.length
+          ? `That is ${orList(comparisons)}.`
+          : `That is the whole fortnight, added up.`) + storage,
+      note:
+        `A kilocalorie is the energy it takes to warm a litre of water by one degree. Your body spends them ` +
+        `every hour of the day, most of it while you are doing nothing at all.`,
+    });
+  }
+
+  if (w.movement != null) {
+    const m = w.movement;
+    const best =
+      m.bestDay != null
+        ? ` Your busiest day was ${num(m.bestDay.steps)} steps, on ${longDate(m.bestDay.date)}.`
+        : "";
+    // A streak against the user's own median rather than a round 10,000: the
+    // point is that they kept their own pace up, and a fixed bar would be either
+    // free or unreachable depending on who is reading.
+    const streak =
+      m.streakDays > 1
+        ? ` Your longest run at or above your usual ${num(m.medianSteps)} steps was ${m.streakDays} days.`
+        : "";
+    const workouts =
+      m.workoutKcal > 0
+        ? ` Workouts added ${kcal(m.workoutKcal)} kcal on top of the walking.`
+        : "";
+    cards.push({
+      key: "movement",
+      kicker: "How far you went",
+      value: num(m.distanceKm),
+      unit: "km walked",
+      body:
+        `${num(m.totalSteps)} steps over ${m.days} ${plural(m.days, "day")}, averaging ${num(m.meanStepsPerDay)} a day.` +
+        `${best}${streak}${workouts}`,
+      note:
+        `Distance is worked out from your height, so it is an estimate of your stride rather than a measurement ` +
+        `of your route. The step count itself is what your watch recorded.`,
+    });
+  }
+
+  if (w.sleep != null) {
+    const s = w.sleep;
+    const best =
+      s.bestNight != null
+        ? ` Your longest was ${s.bestNight.hours.toFixed(1)} hours, on ${longDate(s.bestNight.date)}.`
+        : "";
+    cards.push({
+      key: "sleep",
+      kicker: "Time asleep",
+      value: num(s.totalHours),
+      unit: "hours over the fortnight",
+      body:
+        `Across ${s.nights} ${plural(s.nights, "night")} that averages ${s.meanHours.toFixed(1)} hours.${best}`,
+      note:
+        `Short sleep raises appetite and lowers the odds of eating to plan the next day. It usually shows up in ` +
+        `the food log before it shows up on the scale.`,
+    });
+  }
+
   if (w.weightChangeKg != null && w.meanIntakeKcal != null) {
     const steady = Math.abs(w.weightChangeKg) < 0.5;
     const rate =
@@ -230,6 +326,65 @@ export function buildCards(
       note:
         `One morning's weight can swing a kilo on water alone. What's read here is the line through all your ` +
         `weigh-ins, not the gap between the first and the last.`,
+    });
+  }
+
+  if (w.plate != null) {
+    const p = w.plate;
+    const weighed =
+      p.totalGrams > 0
+        ? ` Weighed out, that is ${(p.totalGrams / 1000).toFixed(1)} kg of food`
+        : "";
+    const protein =
+      p.totalProteinG > 0
+        ? `${weighed ? ", carrying" : " That carried"} ${num(p.totalProteinG)} g of protein`
+        : "";
+    const drink =
+      p.alcoholKcal > 0
+        ? ` Drinks accounted for ${kcal(p.alcoholKcal)} kcal of it.`
+        : "";
+    cards.push({
+      key: "plate",
+      kicker: p.topFood != null ? "What you ate most" : "What you logged",
+      value: p.topFood != null ? num(p.topFood.count) : num(p.logs),
+      unit:
+        p.topFood != null
+          ? `${plural(p.topFood.count, "serving")} of ${p.topFood.name}`
+          : plural(p.logs, "thing logged", "things logged"),
+      body:
+        `${num(p.logs)} ${plural(p.logs, "entry", "entries")} across ${p.distinctFoods} different ` +
+        `${plural(p.distinctFoods, "food")}.${weighed}${protein}${weighed || protein ? "." : ""}${drink}`,
+      note:
+        `Most people eat from a rotation of about a dozen meals. Knowing which ones are yours is what makes ` +
+        `planning a day take seconds rather than minutes.`,
+    });
+  }
+
+  if (w.habits != null) {
+    const h = w.habits;
+    const onTarget =
+      h.longestOnTargetStreak > 0
+        ? ` Your best run of days landing on the target was ${h.longestOnTargetStreak}.`
+        : "";
+    // Only worth saying when there were item level logs to read it from: a
+    // review replayed from daily totals alone has the streak but not the clock.
+    const clockLine =
+      h.lastLogHour != null
+        ? ` Your last entry of the day usually landed around ${clock(h.lastLogHour)}.`
+        : "";
+    const tapped =
+      h.logs > 0 && h.oneTapLogs > 0
+        ? ` ${num(h.oneTapLogs)} of ${num(h.logs)} entries came from a scan or something you had saved, rather than typing it out.`
+        : "";
+    cards.push({
+      key: "habits",
+      kicker: "How you logged it",
+      value: num(h.longestLogStreak),
+      unit: `${plural(h.longestLogStreak, "day")} in a row`,
+      body: `That is your longest unbroken run of logging.${onTarget}${clockLine}${tapped}`,
+      note:
+        `A log that is easy to keep beats a log that is exact and abandoned. Everything the coach measures ` +
+        `about you is read from these entries, so the streak is the part that makes the rest possible.`,
     });
   }
 
