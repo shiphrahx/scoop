@@ -34,6 +34,12 @@ const C = {
 
 const AXIS_TICK = { fontSize: 11, fill: C.muted } as const;
 
+// The y-axis has to hold the widest tick it will ever draw: a weight like
+// "102.5" is five characters at 11px, and Recharts clips rather than grows.
+// Charts keep `margin.left` at 0 for the same reason, a negative left margin
+// slides the axis out past the card and eats the first digit.
+const Y_AXIS_WIDTH = 44;
+
 const shortDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 const longDate = (iso: string) =>
@@ -133,7 +139,7 @@ export function WeightTrendChart({
   return (
     <div>
       <ResponsiveContainer width="100%" height={height}>
-        <AreaChart data={data} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+        <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="wt-fill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={C.teal} stopOpacity={0.32} />
@@ -155,7 +161,7 @@ export function WeightTrendChart({
             tick={AXIS_TICK}
             tickLine={false}
             axisLine={false}
-            width={34}
+            width={Y_AXIS_WIDTH}
             tickFormatter={(v) => `${v}`}
           />
           <ReferenceLine
@@ -243,7 +249,7 @@ export function TrendDotsChart({
         <Legend color={C.teal}>Trend</Legend>
       </div>
       <ResponsiveContainer width="100%" height={height}>
-        <LineChart data={data} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+        <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <CartesianGrid vertical={false} stroke={C.grid} />
           <XAxis
             dataKey="date"
@@ -259,7 +265,7 @@ export function TrendDotsChart({
             tick={AXIS_TICK}
             tickLine={false}
             axisLine={false}
-            width={34}
+            width={Y_AXIS_WIDTH}
           />
           <Tooltip
             cursor={{ stroke: C.teal, strokeWidth: 1, strokeDasharray: "4 4" }}
@@ -337,7 +343,7 @@ export function WeightVsExercise({
   const merged = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 
   const panelH = (height - 26) / 2;
-  const margin = { top: 6, right: 8, left: -8, bottom: 0 };
+  const margin = { top: 6, right: 8, left: 0, bottom: 0 };
 
   return (
     <div>
@@ -355,7 +361,7 @@ export function WeightVsExercise({
             tick={AXIS_TICK}
             tickLine={false}
             axisLine={false}
-            width={34}
+            width={Y_AXIS_WIDTH}
             domain={["dataMin - 1", "dataMax + 1"]}
             allowDecimals={false}
           />
@@ -400,7 +406,7 @@ export function WeightVsExercise({
             tick={AXIS_TICK}
             tickLine={false}
             axisLine={false}
-            width={34}
+            width={Y_AXIS_WIDTH}
             allowDecimals={false}
           />
           <Tooltip
@@ -473,7 +479,7 @@ export function DriverScatter({
 
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <ScatterChart margin={{ top: 8, right: 12, left: -8, bottom: 16 }}>
+      <ScatterChart margin={{ top: 8, right: 12, left: 0, bottom: 16 }}>
         <CartesianGrid stroke={C.grid} />
         <XAxis
           type="number"
@@ -500,7 +506,7 @@ export function DriverScatter({
           tick={AXIS_TICK}
           tickLine={false}
           axisLine={false}
-          width={38}
+          width={Y_AXIS_WIDTH}
           tickFormatter={(v) => `${Math.round(v * 10) / 10}`}
         />
         {/* Zero is the line that matters: dots below it are weeks that gained. */}
@@ -570,7 +576,7 @@ export function MeasurementsChart({
   return (
     <div>
       <ResponsiveContainer width="100%" height={height}>
-        <AreaChart data={data} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+        <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="meas-fill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={C.green} stopOpacity={0.3} />
@@ -592,7 +598,7 @@ export function MeasurementsChart({
             tick={AXIS_TICK}
             tickLine={false}
             axisLine={false}
-            width={34}
+            width={Y_AXIS_WIDTH}
           />
           <Tooltip
             cursor={{ stroke: C.green, strokeWidth: 1, strokeDasharray: "4 4" }}
@@ -702,7 +708,7 @@ export function WeeklyIntakeChart({
         <Legend color={C.violet}>Target</Legend>
       </div>
       <ResponsiveContainer width="100%" height={height - 24}>
-        <ComposedChart data={data} margin={{ top: 6, right: 8, left: -8, bottom: 0 }}>
+        <ComposedChart data={data} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="wk-bar" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={C.teal} stopOpacity={0.9} />
@@ -723,7 +729,7 @@ export function WeeklyIntakeChart({
             tick={AXIS_TICK}
             tickLine={false}
             axisLine={false}
-            width={42}
+            width={Y_AXIS_WIDTH}
             allowDecimals={false}
           />
           <Tooltip
@@ -787,7 +793,7 @@ export function SleepChart({
         </span>
       </div>
       <ResponsiveContainer width="100%" height={height - 24}>
-        <BarChart data={data} margin={{ top: 6, right: 8, left: -8, bottom: 0 }}>
+        <BarChart data={data} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="slp-bar" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={C.blue} stopOpacity={0.85} />
@@ -808,7 +814,7 @@ export function SleepChart({
             tick={AXIS_TICK}
             tickLine={false}
             axisLine={false}
-            width={34}
+            width={Y_AXIS_WIDTH}
             allowDecimals={false}
           />
           <ReferenceLine
