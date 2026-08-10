@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   localDate,
+  localHour,
   localWeekStart,
   safeTimezone,
   startOfLocalDay,
@@ -28,6 +29,20 @@ describe("localDate", () => {
   it("keeps Los Angeles on yesterday's date after UTC midnight", () => {
     const at = new Date("2026-07-14T04:00:00Z"); // 21:00 on the 13th in LA
     expect(localDate("America/Los_Angeles", at)).toBe("2026-07-13");
+  });
+});
+
+describe("localHour", () => {
+  it("reads the clock on the user's wall, not the server's", () => {
+    const at = new Date("2026-07-13T23:30:00Z");
+    // Half past midnight in London, half eleven at night in UTC.
+    expect(localHour("Europe/London", at)).toBe(0);
+    expect(localHour("UTC", at)).toBe(23);
+  });
+
+  it("counts midnight as hour zero rather than twenty four", () => {
+    expect(localHour("UTC", new Date("2026-07-13T00:20:00Z"))).toBe(0);
+    expect(localHour("UTC", new Date("2026-07-13T12:00:00Z"))).toBe(12);
   });
 });
 
