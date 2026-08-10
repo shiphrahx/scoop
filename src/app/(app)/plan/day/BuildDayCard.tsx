@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Scale, Sparkles, AlertCircle } from "lucide-react";
-import { buildMyDay, applyDayFix } from "./actions";
+import { Scale, Sparkles, AlertCircle, Repeat } from "lucide-react";
+import { buildMyDay, applyDayFix, applyDaySwap } from "./actions";
 import type { DayFix } from "@/lib/mealplan";
+import type { DaySwap } from "@/lib/mealswap";
 
 // The one button that turns picks into portions: solves every picked meal
 // together so the day lands on its macros. Once everything picked is built it
@@ -24,11 +25,13 @@ export default function BuildDayCard({
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [fix, setFix] = useState<DayFix | null>(null);
+  const [swap, setSwap] = useState<DaySwap | null>(null);
 
   // Turn a build/rebalance result into the line under the button, and surface
-  // any fix it offered.
+  // any fix or swap it offered.
   function show(r: Awaited<ReturnType<typeof buildMyDay>>) {
     setFix(r.fix);
+    setSwap(r.swap);
     if (r.changed) {
       setResult(`Rebalanced, ${r.moves.join(", ")}.`);
     } else if (r.fix) {
@@ -51,6 +54,7 @@ export default function BuildDayCard({
     setErr(null);
     setResult(null);
     setFix(null);
+    setSwap(null);
     startTransition(async () => {
       try {
         show(await buildMyDay(date));
@@ -76,6 +80,27 @@ export default function BuildDayCard({
         }
       } catch (e) {
         setErr(e instanceof Error ? e.message : "Couldn't fix your day.");
+      }
+    });
+  }
+
+  // The user said yes to the offered swap: put the pantry food in that meal's
+  // picks in place of the one that couldn't reach the day, and rebalance.
+  function acceptSwap() {
+    if (!swap) return;
+    setErr(null);
+    setResult(null);
+    const { slot, from, to } = swap;
+    setSwap(null);
+    startTransition(async () => {
+      try {
+        const r = await applyDaySwap({ slot, from, to }, date);
+        show(r);
+        if (r.changed && !r.fix) {
+          setResult(`Swapped ${from} for ${to} and re-portioned your day.`);
+        }
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : "Couldn't swap that food.");
       }
     });
   }
@@ -132,6 +157,35 @@ export default function BuildDayCard({
               className="sc-btn sc-btn-neutral flex-1"
             >
               Leave it
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* A day that isn't over its ceilings but can't reach them either: the
+          picks can't carry it, and something already in the pantry can. */}
+      {!err && !fix && swap && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--fill-soft)] p-4">
+          <p className="flex items-start gap-2 text-sm font-medium">
+            <Repeat size={18} className="mt-0.5 shrink-0 text-[var(--warn,#f5a623)]" />
+            <span>
+              {swap.reason} {swap.summary}
+            </span>
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={acceptSwap}
+              disabled={busy}
+              className="sc-btn sc-btn-soft flex-1"
+            >
+              {busy ? "Swapping…" : `Use ${swap.to}`}
+            </button>
+            <button
+              onClick={() => setSwap(null)}
+              disabled={busy}
+              className="sc-btn sc-btn-neutral flex-1"
+            >
+              Keep {swap.from}
             </button>
           </div>
         </div>

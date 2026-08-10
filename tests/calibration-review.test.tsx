@@ -13,7 +13,9 @@ vi.mock("@/app/calibration/actions", () => ({
   startDeficit: (...args: unknown[]) => startDeficit(...args),
 }));
 
-const CalibrationReview = (await import("@/app/calibration/CalibrationReview")).default;
+const reviewModule = await import("@/app/calibration/CalibrationReview");
+const CalibrationReview = reviewModule.default;
+const { buildCards } = reviewModule;
 
 const wrap = (over: Partial<CalibrationWrap> = {}): CalibrationWrap => ({
   days: 14,
@@ -50,7 +52,9 @@ const wrap = (over: Partial<CalibrationWrap> = {}): CalibrationWrap => ({
 
 // Walk to the last card, whatever the findings added up to.
 async function toEnd(user: ReturnType<typeof userEvent.setup>) {
-  for (let i = 0; i < 10; i++) {
+  // Generous: the deck grows a card for every finding the fortnight supports,
+  // and a user with a watch and a full food log sees roughly twice the minimum.
+  for (let i = 0; i < 30; i++) {
     const next = screen.queryByRole("button", { name: /next/i });
     if (!next) break;
     await user.click(next);
@@ -266,5 +270,157 @@ describe("calibration review", () => {
     expect((await screen.findByRole("alert")).textContent).toContain("Network is down.");
     // Still on the last card, with the button to try again.
     expect(screen.getByRole("button", { name: /start now/i })).toBeTruthy();
+  });
+});
+
+// The fortnight the user recognises: distance, sleep, what they ate most, how
+// they logged it. Read off buildCards rather than the rendered deck, because
+// what matters here is which findings exist and what each one claims, not which
+// tap they land on.
+describe("calibration review, the fortnight itself", () => {
+  const stats = (over: Partial<CalibrationWrap> = {}): CalibrationWrap =>
+    wrap({
+      movement: {
+        days: 14,
+        totalSteps: 126000,
+        distanceKm: 85.86,
+        meanStepsPerDay: 9000,
+        bestDay: { date: "2026-08-01", steps: 15000 },
+        medianSteps: 9000,
+        streakDays: 5,
+        workoutKcal: 2800,
+      },
+      sleep: {
+        nights: 14,
+        totalHours: 98,
+        meanHours: 7,
+        bestNight: { date: "2026-08-02", hours: 9.2 },
+      },
+      plate: {
+        logs: 28,
+        distinctFoods: 6,
+        totalGrams: 11200,
+        weighedLogs: 26,
+        totalProteinG: 2100,
+        topFood: { name: "Porridge", count: 12, meanKcal: 400 },
+        alcoholKcal: 360,
+      },
+      habits: {
+        logs: 28,
+        longestLogStreak: 13,
+        longestOnTargetStreak: 9,
+        lastLogHour: 20,
+        busiestHour: 8,
+        oneTapLogs: 21,
+      },
+      energy: {
+        totalBurnKcal: 33600,
+        totalIntakeKcal: 33000,
+        fromStorageKcal: 6930,
+        basis: "burn",
+        basisKcal: 33600,
+        equivalents: [
+          { key: "food", count: 84, unit: "servings of Porridge" },
+          { key: "walk", count: 840, unit: "km of walking" },
+          { key: "boil", count: 420, unit: "litres of water boiled" },
+        ],
+      },
+      ...over,
+    });
+
+  const card = (w: CalibrationWrap, key: string) =>
+    buildCards(w, null).find((c) => c.key === key);
+
+  it("puts the fortnight's burn beside things a person can picture", () => {
+    const c = card(stats(), "energy")!;
+    expect(c.value).toBe("33,600");
+    expect(c.unit).toMatch(/kcal burned in 14 days/);
+    expect(c.body).toMatch(/84 servings of Porridge/);
+    expect(c.body).toMatch(/enough to walk 840 km/);
+    expect(c.body).toMatch(/420 litres of water boiled/);
+    // The weight lost, priced in the energy it took to shift.
+    expect(c.body).toMatch(/6,930 kcal came out of storage/);
+  });
+
+  it("compares energy without putting a brand on the screen", () => {
+    const text = buildCards(stats(), null)
+      .map((c) => `${c.kicker} ${c.value} ${c.unit ?? ""} ${c.body} ${c.note ?? ""}`)
+      .join(" ");
+    expect(text).not.toMatch(/big mac|mcdonald|burger king|starbucks|coca.?cola/i);
+  });
+
+  it("names the food logged, not a guess, when there was no burn to total", () => {
+    const c = card(
+      stats({
+        energy: {
+          totalBurnKcal: null,
+          totalIntakeKcal: 25000,
+          fromStorageKcal: null,
+          basis: "intake",
+          basisKcal: 25000,
+          equivalents: [{ key: "boil", count: 313, unit: "litres of water boiled" }],
+        },
+      }),
+      "energy",
+    )!;
+    expect(c.unit).toMatch(/kcal of food in 14 days/);
+    expect(c.body).not.toMatch(/storage/);
+  });
+
+  it("turns the steps into a distance, with the best day and the best run", () => {
+    const c = card(stats(), "movement")!;
+    expect(c.value).toBe("86");
+    expect(c.unit).toBe("km walked");
+    expect(c.body).toMatch(/126,000 steps over 14 days/);
+    expect(c.body).toMatch(/busiest day was 15,000 steps/);
+    expect(c.body).toMatch(/longest run at or above your usual 9,000 steps was 5 days/);
+    expect(c.body).toMatch(/Workouts added 2,800 kcal/);
+  });
+
+  it("totals the sleep it was given", () => {
+    const c = card(stats(), "sleep")!;
+    expect(c.value).toBe("98");
+    expect(c.body).toMatch(/averages 7.0 hours/);
+    expect(c.body).toMatch(/longest was 9.2 hours/);
+  });
+
+  it("names the food they ate most and what went through them", () => {
+    const c = card(stats(), "plate")!;
+    expect(c.value).toBe("12");
+    expect(c.unit).toBe("servings of Porridge");
+    expect(c.body).toMatch(/28 entries across 6 different foods/);
+    expect(c.body).toMatch(/11.2 kg of food/);
+    expect(c.body).toMatch(/2,100 g of protein/);
+    expect(c.body).toMatch(/Drinks accounted for 360 kcal/);
+  });
+
+  it("counts the streak, the clock and the tapping", () => {
+    const c = card(stats(), "habits")!;
+    expect(c.value).toBe("13");
+    expect(c.unit).toBe("days in a row");
+    expect(c.body).toMatch(/best run of days landing on the target was 9/);
+    expect(c.body).toMatch(/around 20:00/);
+    expect(c.body).toMatch(/21 of 28 entries came from a scan/);
+  });
+
+  it("drops every card whose data never arrived", () => {
+    // A user with no wearable and a review filed before these findings existed.
+    const keys = buildCards(wrap(), null).map((c) => c.key);
+    expect(keys).not.toContain("movement");
+    expect(keys).not.toContain("sleep");
+    expect(keys).not.toContain("plate");
+    expect(keys).not.toContain("habits");
+    expect(keys).not.toContain("energy");
+    // The findings the target depends on are all still there.
+    expect(keys).toContain("target");
+    expect(keys).toContain("start");
+  });
+
+  it("still ends on the button that starts the deficit", async () => {
+    const user = userEvent.setup();
+    render(<CalibrationReview wrap={stats()} name="Sam" />);
+    await toEnd(user);
+    expect(screen.getByRole("button", { name: /start now/i })).toBeTruthy();
+    expect(startDeficit).not.toHaveBeenCalled();
   });
 });

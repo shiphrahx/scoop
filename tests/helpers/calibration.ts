@@ -20,9 +20,17 @@ export function graduatingUserDb(over: Record<string, unknown> = {}) {
     date: iso(27 - i),
     weight_kg: 70,
   }));
+  // One entry a day, named and scanned, so the review can say what was eaten
+  // most and how it got into the app rather than only how many calories it came
+  // to. Logged at 12:00 UTC, safely inside the day in any zone the tests use.
   const food_logs = Array.from({ length: 28 }, (_, i) => ({
     user_id: "user-1",
-    logged_at: new Date(Date.now() - (27 - i) * DAY).toISOString(),
+    logged_at: new Date(
+      Date.parse(`${iso(27 - i)}T12:00:00.000Z`),
+    ).toISOString(),
+    name: "Porridge",
+    source: "barcode",
+    grams: 400,
     kcal: HOLD_TARGET_KCAL,
     protein_g: 130,
     carbs_g: 170,

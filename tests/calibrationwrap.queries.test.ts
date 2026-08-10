@@ -115,3 +115,57 @@ describe("getCalibrationWrap", () => {
     expect(await getCalibrationWrap()).toBeNull();
   });
 });
+
+// The stats that make the review the user's own fortnight rather than a page of
+// physiology. They come off different rows than the coaching does: the item
+// level food log, and whatever the wearable synced.
+describe("getCalibrationWrap, the fortnight itself", () => {
+  it("reads the plate off the individual logs, not the daily totals", async () => {
+    installFakeSupabase({ db: graduating() });
+    const wrap = await getCalibrationWrap();
+
+    expect(wrap!.plate!.logs).toBeGreaterThan(10);
+    expect(wrap!.plate!.topFood!.name).toBe("Porridge");
+    expect(wrap!.plate!.totalGrams).toBeGreaterThan(0);
+    // Scanned, not typed: the whole premise of the app, counted.
+    expect(wrap!.habits!.oneTapLogs).toBe(wrap!.plate!.logs);
+    expect(wrap!.habits!.longestLogStreak).toBeGreaterThan(10);
+  });
+
+  it("turns the synced steps into a distance using the user's height", async () => {
+    installFakeSupabase({ db: graduating() });
+    const wrap = await getCalibrationWrap();
+
+    // 14 days at 8,000 steps, a 165 cm stride.
+    expect(wrap!.movement!.totalSteps).toBe(14 * 8000);
+    expect(wrap!.movement!.distanceKm).toBeCloseTo(76.1, 0);
+    expect(wrap!.movement!.workoutKcal).toBe(14 * 100);
+    expect(wrap!.sleep!.totalHours).toBeCloseTo(105, 0);
+  });
+
+  it("prices the fortnight's burn in the user's own most eaten food", async () => {
+    installFakeSupabase({ db: graduating() });
+    const wrap = await getCalibrationWrap();
+
+    expect(wrap!.energy!.basis).toBe("burn");
+    expect(wrap!.energy!.totalBurnKcal).toBeGreaterThan(10_000);
+    expect(wrap!.energy!.equivalents.map((e) => e.key)).toEqual([
+      "food",
+      "walk",
+      "boil",
+    ]);
+    expect(wrap!.energy!.equivalents[0].unit).toBe("servings of Porridge");
+  });
+
+  it("drops the movement cards for a user with no wearable", async () => {
+    const db = graduating();
+    db.activity = [];
+    installFakeSupabase({ db });
+    const wrap = await getCalibrationWrap();
+
+    expect(wrap!.movement).toBeNull();
+    expect(wrap!.sleep).toBeNull();
+    // The food side is unaffected: it never depended on a watch.
+    expect(wrap!.plate!.logs).toBeGreaterThan(10);
+  });
+});

@@ -40,11 +40,13 @@ import {
   DEFAULT_TIMEZONE,
   dayRangeFor,
   localDate,
+  localHour,
   localWeekStart,
   safeTimezone,
   startOfLocalDay,
   weekStartOf,
 } from "@/lib/time";
+import type { WrapFoodLog } from "@/lib/wrapstats";
 import {
   cycleConfigFrom,
   dayTarget as dayTargetMacros,
@@ -943,6 +945,43 @@ export async function getCalibrationReview(
 // goes false the instant the graduating target is written). So the screen is its
 // own gate, no "seen" flag to keep in step, and closing the tab without
 // starting leaves the review exactly where it was.
+// Every food log over a window, one row per entry, stamped with the local day
+// and hour it landed on.
+//
+// Sibling of getDailyIntake, which rolls the same rows up into daily calories
+// for the coach. The review needs them whole: what the food was called, how it
+// got into the app, and what time of day it was eaten are all lost in the sum.
+export async function getFoodLogItems(
+  tz: string,
+  windowDays: number,
+  now = new Date(),
+): Promise<WrapFoodLog[]> {
+  const supabase = await createClient();
+  const from = startOfLocalDay(
+    tz,
+    new Date(now.getTime() - (windowDays - 1) * DAY_MS),
+  );
+
+  const { data } = await supabase
+    .from("food_logs")
+    .select("logged_at, name, source, grams, kcal, protein_g")
+    .gte("logged_at", from.toISOString())
+    .order("logged_at", { ascending: true });
+
+  return ((data as Record<string, unknown>[]) ?? []).map((row) => {
+    const at = new Date(row.logged_at as string);
+    return {
+      date: localDate(tz, at),
+      hour: localHour(tz, at),
+      name: String(row.name ?? "").trim() || "Unnamed",
+      source: String(row.source ?? "manual"),
+      kcal: Number(row.kcal ?? 0),
+      protein_g: Number(row.protein_g ?? 0),
+      grams: row.grams != null ? Number(row.grams) : null,
+    };
+  });
+}
+
 export const getCalibrationWrap = cache(async function getCalibrationWrap(): Promise<CalibrationWrap | null> {
   const [coach, profile, tz] = await Promise.all([
     getCoachData(),
@@ -955,9 +994,13 @@ export const getCalibrationWrap = cache(async function getCalibrationWrap(): Pro
   // Read back far enough to cover the whole hold whatever length it ran, with a
   // little slack for a user who left the app open past the end of it.
   const days = Math.min(90, Math.max(CALIBRATION_MAX_DAYS, holdDays(startedAt, new Date())) + 7);
-  const [weights, intake] = await Promise.all([
+  const [weights, intake, foodLogs] = await Promise.all([
     getWeightHistory(days),
     getDailyIntake(tz, days),
+    // The item level rows behind that intake. Read alongside rather than after:
+    // it is the same table over the same window, and the review is one screen
+    // the user waits on.
+    getFoodLogItems(tz, days),
   ]);
 
   const weightKg = coach.trendWeightKg ?? (weights.length ? weights[weights.length - 1].weight_kg : null);
@@ -976,6 +1019,7 @@ export const getCalibrationWrap = cache(async function getCalibrationWrap(): Pro
     startedAt,
     weighIns: weights.map((w) => ({ date: w.date, kg: w.weight_kg })),
     intake,
+    foodLogs,
     activity: coach.activity,
     observed: coach.observed,
     // Why there is no measured burn, when the app measured one and set it aside.
@@ -993,6 +1037,7 @@ export const getCalibrationWrap = cache(async function getCalibrationWrap(): Pro
     goalWeightKg: profile?.goal_weight_kg ?? null,
     sex: profile?.sex ?? "female",
     bodyFatPct: profile?.body_fat_pct ?? null,
+    heightCm: profile?.height_cm != null ? Number(profile.height_cm) : null,
     restingRateKcal,
   });
 });

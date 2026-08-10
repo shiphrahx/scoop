@@ -548,6 +548,34 @@ export const ON_TARGET_KCAL = 50;
 const isPinnedFood = (food: PantryFood) =>
   food.pinned_g != null && food.pinned_g >= 0;
 
+// Over a ceiling counts for more than under it: a day short of its calories is a
+// gap the user can still fill, a day over is the deficit gone.
+const OVER_MISS = 2;
+
+// How far a solved day sits from its budget, as ONE number, so two different
+// sets of picks can be compared. Same priorities the solve itself is scored on
+// (energy first, then protein, then the split), each row measured as the
+// fraction of its budget it misses by, so grams and calories are comparable.
+// Protein OVER is not a miss at all; its calories are already answered for by
+// the energy row.
+export function dayMissScore(totals: Macros, budget: Macros): number {
+  let cost = 0;
+  for (const key of ROW_KEYS) {
+    const limit = Math.max(0, budget[key] ?? 0);
+    const raw = (totals[key] ?? 0) - limit;
+    const miss = key === "protein_g" && raw > 0 ? 0 : raw;
+    const scale = Math.max(ROW_SCALE_FLOOR[key], limit);
+    const r = (miss * ROW_WEIGHT[key] * (miss > 0 ? OVER_MISS : 1)) / scale;
+    cost += r * r;
+  }
+  return cost;
+}
+
+// A vegetable the planner serves as a filler rather than portioning as a macro
+// source. Exported for the swap search, which only ever proposes trading one
+// macro source for another: nobody fixes a day's carbs by changing the veg.
+export const isFillerFood = isFiller;
+
 // Portion every picked meal in one go: one solve, with the app's requirements as
 // BOUNDS (every pick gets at least one real serving, nothing gets an amount
 // nobody would eat, nothing exceeds the pack) and the day's energy, protein and

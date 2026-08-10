@@ -62,6 +62,19 @@ export function localDate(tz: string, at: Date = new Date()): string {
   }).format(at);
 }
 
+// The hour of the day it is where the user lives, 0 to 23. Their clock, not the
+// server's: "what time do you usually stop eating" is a question about the wall
+// in their kitchen. hourCycle h23 so midnight reads as 0 rather than 24.
+export function localHour(tz: string, at: Date = new Date()): number {
+  return Number(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: safeTimezone(tz),
+      hour: "numeric",
+      hourCycle: "h23",
+    }).format(at),
+  );
+}
+
 // Midnight of a given calendar date in `zone`, as a UTC Date. Read the date as
 // if it were UTC, then shift back by the zone's offset to get the real instant.
 // The offset is taken at that midnight, so a DST changeover lands on the right
