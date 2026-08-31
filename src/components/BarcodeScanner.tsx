@@ -4,13 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Keyboard, X, Zap, ZapOff } from "lucide-react";
 import {
   CAMERA_CONSTRAINTS,
-  applyZoom,
-  capabilitiesOf,
-  focusOn,
-  preferContinuousFocus,
-  setTorch,
-  targetZoom,
-  videoTrack,
+  cameraControls,
+  type CameraControls,
 } from "@/lib/barcode/camera";
 import { normalizedPoint, sourceRect } from "@/lib/barcode/roi";
 import { startScanner, type Scanner } from "@/lib/barcode/scan";
@@ -51,6 +46,9 @@ export default function BarcodeScanner({
   const videoRef = useRef<HTMLVideoElement>(null);
   const guideRef = useRef<HTMLDivElement>(null);
   const focusTimer = useRef<number | undefined>(undefined);
+  // Every camera control goes through this so they stop overwriting each
+  // other. Null until the stream is open.
+  const controls = useRef<CameraControls | null>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(true);
@@ -99,8 +97,8 @@ export default function BarcodeScanner({
   const considerTorch = useCallback((reading: FrameReading) => {
     if (torchDecided.current) return;
 
-    const track = videoTrack(videoRef.current);
-    if (!track || !capabilitiesOf(track).torch) {
+    const camera = controls.current;
+    if (!camera || !camera.capabilities().torch) {
       torchDecided.current = true;
       return;
     }
@@ -116,7 +114,7 @@ export default function BarcodeScanner({
     if (dimFrames.current < DIM_FRAMES) return;
 
     torchDecided.current = true;
-    void setTorch(track, true).then((applied) => {
+    void camera.setTorch(true).then((applied) => {
       if (applied) setTorchOn(true);
     });
   }, []);
@@ -145,15 +143,14 @@ export default function BarcodeScanner({
 
         setStarting(false);
 
-        const track = opened.getVideoTracks()[0] ?? null;
-        if (track) {
-          void preferContinuousFocus(track);
-          // Zoom is what lets the barcode fill the guide from a distance the
-          // camera can focus at. See targetZoom.
-          const zoom = targetZoom(capabilitiesOf(track).zoom);
-          if (zoom !== null) void applyZoom(track, zoom);
-          if (capabilitiesOf(track).torch) setTorchOn(false);
-        }
+        const camera = cameraControls(opened.getVideoTracks()[0] ?? null);
+        controls.current = camera;
+        // Continuous focus and zoom in one request. Zoom is what lets the
+        // barcode fill the guide from a distance the camera can focus at, and
+        // sending it separately used to throw the focus request away. See
+        // cameraControls.
+        void camera.start();
+        if (camera.capabilities().torch) setTorchOn(false);
 
         scanner = startScanner({
           video,
@@ -174,6 +171,7 @@ export default function BarcodeScanner({
 
     return () => {
       cancelled = true;
+      controls.current = null;
       scanner?.stop();
       stream?.getTracks().forEach((track) => track.stop());
       window.clearTimeout(focusTimer.current);
@@ -181,13 +179,13 @@ export default function BarcodeScanner({
   }, [aim, considerTorch]);
 
   const toggleTorch = useCallback(() => {
-    const track = videoTrack(videoRef.current);
-    if (!track) return;
+    const camera = controls.current;
+    if (!camera) return;
 
     // A choice made by hand settles it: stop second guessing from the picture.
     torchDecided.current = true;
     const next = !torchOn;
-    void setTorch(track, next).then((applied) => {
+    void camera.setTorch(next).then((applied) => {
       if (applied) setTorchOn(next);
     });
   }, [torchOn]);
@@ -197,8 +195,8 @@ export default function BarcodeScanner({
   // A tap says where to look, then hands the camera back to continuous.
   const refocus = useCallback((event: React.MouseEvent<HTMLVideoElement>) => {
     const video = videoRef.current;
-    const track = videoTrack(video);
-    if (!video || !track) return;
+    const camera = controls.current;
+    if (!video || !camera) return;
 
     const frame = video.getBoundingClientRect();
     const point = normalizedPoint(
@@ -208,10 +206,10 @@ export default function BarcodeScanner({
     );
     if (!point) return;
 
-    void focusOn(track, point);
+    void camera.focusAt(point);
     window.clearTimeout(focusTimer.current);
     focusTimer.current = window.setTimeout(() => {
-      void preferContinuousFocus(videoTrack(videoRef.current));
+      void controls.current?.focusContinuously();
     }, FOCUS_HOLD_MS);
   }, []);
 

@@ -250,6 +250,9 @@ export interface Batch extends Macros {
 export interface OffProduct extends ExtraPer100g {
   barcode: string;
   name: string;
+  // Who makes it. A scan's whole job is telling one own-brand yogurt from the
+  // next, and the name alone ("Greek Style Yogurt") does not.
+  brand: string | null;
   kcal_100g: number;
   protein_100g: number;
   carbs_100g: number;

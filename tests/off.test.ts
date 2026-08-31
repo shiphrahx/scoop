@@ -535,8 +535,23 @@ describe("lookupBarcode", () => {
     const p = await lookupBarcode("5000157024671");
     expect(p).not.toBeNull();
     expect(p!.name).toBe("Baked Beans");
+    expect(p!.brand).toBe("Heinz");
     expect(p!.kcal_100g).toBe(78);
     expect(p!.pack_size_g).toBe(415);
+  });
+
+  // The brand is the label under the name on a scan result. When it IS the
+  // name, because the product had none of its own, showing it twice is noise.
+  it("drops the brand when it stood in as the name", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        status: 1,
+        product: { brands: "Heinz", nutriments: { "energy-kcal_100g": 78 } },
+      }),
+    );
+    const p = await lookupBarcode("5000157024671");
+    expect(p!.name).toBe("Heinz");
+    expect(p!.brand).toBeNull();
   });
 
   it("returns null on status 0 (unknown barcode)", async () => {

@@ -173,17 +173,13 @@ describe("BarcodeScanner", () => {
   });
 
   describe("the picture it asks the camera for", () => {
-    it("keeps the camera focusing rather than letting it lock once", async () => {
+    // applyConstraints replaces the track's constraints rather than adding to
+    // them, so focus and zoom have to travel together. Sent one after the other
+    // the zoom threw the focus request away, and the camera spent the whole
+    // scan zoomed in on a picture it would not refocus. That was the blur.
+    it("asks for focus and zoom in one go so neither cancels the other", async () => {
       await open();
-      expect(applied).toContainEqual({ focusMode: "continuous" });
-    });
-
-    // Filling the guide from a hand's width away is inside the minimum focus
-    // distance of a phone's main camera. Zooming fills it from arm's length,
-    // where the camera can actually focus.
-    it("zooms in so the barcode fills the guide from a focusable distance", async () => {
-      await open();
-      expect(applied).toContainEqual({ zoom: 2 });
+      expect(applied).toContainEqual({ focusMode: "continuous", zoom: 2 });
     });
 
     it("asks for no zoom of a camera that has none", async () => {
@@ -241,7 +237,7 @@ describe("BarcodeScanner", () => {
         }
       });
 
-      expect(applied).toContainEqual({ torch: true });
+      expect(applied.at(-1)?.torch).toBe(true);
       expect(screen.getByRole("button", { name: /turn off the light/i })).toBeTruthy();
     });
 
@@ -254,14 +250,15 @@ describe("BarcodeScanner", () => {
         }
       });
 
-      expect(applied).not.toContainEqual({ torch: true });
+      expect(applied.some((constraint) => constraint.torch === true)).toBe(false);
     });
 
     it("lets the user turn it on themselves", async () => {
       await open();
       await userEvent.click(screen.getByRole("button", { name: /turn on the light/i }));
 
-      expect(applied).toContainEqual({ torch: true });
+      // The light must not cost the zoom the scan depends on.
+      expect(applied.at(-1)).toEqual({ focusMode: "continuous", zoom: 2, torch: true });
     });
   });
 
