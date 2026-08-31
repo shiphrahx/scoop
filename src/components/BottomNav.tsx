@@ -4,10 +4,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { bottomNav } from "@/components/nav-items";
 import LinkHint from "@/components/LinkHint";
+import useKeyboardOpen from "@/hooks/useKeyboardOpen";
 
 // Mobile-only tab bar. Hidden on desktop, where the sidebar takes over.
 export default function BottomNav() {
   const pathname = usePathname();
+  const keyboardOpen = useKeyboardOpen();
+
+  // Sticky pins the bar to the bottom of the layout viewport, and on iOS the
+  // keyboard doesn't shrink that, so the bar sat in the middle of the visible
+  // area with the food search results running underneath it. It also has no
+  // job while someone is typing: they're mid-task, not navigating away. So it
+  // stands down until the keyboard closes.
+  if (keyboardOpen) return null;
 
   return (
     <nav className="sticky bottom-0 z-10 border-t border-[var(--border)] bg-white/90 backdrop-blur-xl lg:hidden">
