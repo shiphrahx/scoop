@@ -490,20 +490,21 @@ function GroupLabel({ children }: { children: ReactNode }) {
 // Not read off `c.source`: a reference food is stored as "off" (it has no
 // barcode and isn't a pantry item), so only the list it arrived in tells them
 // apart.
-type Kind = "pantry" | "ref" | "web";
+type Kind = "scan" | "pantry" | "ref" | "web";
 
 const KIND_ICON: Record<Kind, ReactNode> = {
+  scan: <ScanBarcode size={15} className="shrink-0 text-[var(--ink-teal)]" />,
   pantry: <Package size={15} className="shrink-0 text-[var(--ink-teal)]" />,
   ref: <Apple size={15} className="shrink-0 text-[var(--ink-teal)]" />,
   web: <Globe size={15} className="shrink-0 text-[var(--muted)]" />,
 };
 
 // One hit in the food search. Two lines under the name: the amount one tap
-// adds, then what that amount is worth. The macros were missing before, so
-// choosing between two makes of the same thing meant adding one and reading
-// its numbers afterwards. A reference food's amount line is the whole point of
-// it, the user never learns what a slice of cake weighs, they just tap
-// "1 medium slice · 95 g".
+// adds, then what that amount is worth. Both were missing before, so choosing
+// between a scan's suggestion and the alternatives under it meant adding one
+// and reading the macros afterwards. A reference food's amount line is the
+// whole point of it, the user never learns what a slice of cake weighs, they
+// just tap "1 medium slice · 95 g".
 function ResultRow({
   c,
   kind,
@@ -564,16 +565,24 @@ function FoodSearchBox({
   // Type-in-the-macros fallback, for a food that's in neither the pantry nor OFF
   // (a coffee-shop treat, a homemade thing). Seeded with whatever's been typed.
   const [manualOpen, setManualOpen] = useState(false);
-  // Barcode scan for a packaged item that isn't in the pantry, looked up on OFF
-  // and added like any other food, so a scanned treat needs no typing.
+  // Barcode scan for a packaged item that isn't in the pantry. The product the
+  // barcode names goes to the top of the results as the suggestion, and the
+  // name is searched like a typed one so the other candidates come with it.
   const [scanning, setScanning] = useState(false);
   const [scanNote, setScanNote] = useState<string | null>(null);
+  // The exact product behind the last barcode. Held apart from the searched
+  // results so it stays pinned at the top, whatever the search turns up.
+  const [scanned, setScanned] = useState<FoodChoice | null>(null);
 
   const parsed = useMemo(() => parseFoodQuery(query), [query]);
 
-  // Look a scanned barcode up on Open Food Facts and add it as a food. The same
-  // endpoint the pantry and meal-picker scanners use; a miss tells the user to
-  // search or type the macros instead.
+  // Look a scanned barcode up on Open Food Facts and OFFER it, rather than
+  // adding it on the spot. A scan used to log itself silently: the pack went
+  // straight into the meal under whatever name OFF holds, so a bag of crisps
+  // appeared as "chips" with no brand, no macros and no way to say "not that
+  // one, the other one". Now a scan behaves like typing the food's name, the
+  // barcode's own product suggested at the top, the pantry and the rest of OFF
+  // underneath, and nothing is logged until the user picks a row.
   async function handleScan(barcode: string) {
     setScanning(false);
     setScanNote("Looking up…");
@@ -602,8 +611,11 @@ function FoodSearchBox({
         unit_label: p.unit_label,
         unit_options: null,
       };
-      onPick(c, seedGrams(c, null));
-      setScanNote(`Added ${p.name}.`);
+      setScanned(c);
+      // Drives the usual debounced search, so the alternatives arrive behind
+      // the suggestion, and leaves the name editable if OFF's is a bad one.
+      setQuery(p.name);
+      setScanNote(null);
     } catch {
       setScanNote("Couldn't find that barcode. Search for it, or type the macros in.");
     }
@@ -652,12 +664,14 @@ function FoodSearchBox({
     setResults([]);
     setRefResults([]);
     setWebResults([]);
+    setScanned(null);
+    setScanNote(null);
   }
 
   const searchingAny = searching || refSearching || webSearching;
   const anyResults =
     results.length > 0 || refResults.length > 0 || webResults.length > 0;
-  const nothingYet = !searchingAny && !anyResults;
+  const nothingYet = !searchingAny && !anyResults && !scanned;
 
 
   return (
@@ -669,7 +683,12 @@ function FoodSearchBox({
         </span>
         <input
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            // Typing means the user is looking for something else, so the
+            // scanned pack stops being the suggestion.
+            setScanned(null);
+          }}
           placeholder="Add a food… e.g. 50g shreddies"
           className="sc-input w-full"
           style={{ paddingLeft: "2.5rem" }}
@@ -679,8 +698,21 @@ function FoodSearchBox({
             because it comes later in the tree, and it covered the results.
             Capped and scrollable: three lines a row over four groups ran off
             the bottom of the phone. */}
-        {(searchingAny || anyResults) && parsed.term.length >= 2 && (
+        {(searchingAny || anyResults || scanned) &&
+          (parsed.term.length >= 2 || scanned) && (
           <ul className="absolute z-20 mt-1 flex max-h-[55vh] w-full flex-col overflow-y-auto overscroll-contain rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg">
+            {/* The barcode's own product, first and labelled, so the scan still
+                answers in one tap when it got the right pack. */}
+            {scanned && <GroupLabel>Scanned</GroupLabel>}
+            {scanned && (
+              <ResultRow
+                c={scanned}
+                kind="scan"
+                typed={parsed.grams}
+                onAdd={() => add(scanned)}
+              />
+            )}
+
             {results.length > 0 && <GroupLabel>In your pantry</GroupLabel>}
             {results.map((c, i) => (
               <ResultRow key={`p-${i}`} c={c} kind="pantry" typed={parsed.grams} onAdd={() => add(c)} />
