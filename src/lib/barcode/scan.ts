@@ -53,6 +53,9 @@ export interface ScannerOptions {
 
 export interface Scanner {
   stop(): void;
+  // Which decoder answered, once one has loaded. The phone's own and zxing
+  // behave differently enough that a bug report is worth little without it.
+  decoder(): "native" | "zxing" | null;
 }
 
 // The sharpness sample: a band across the middle of the crop, at full
@@ -134,6 +137,7 @@ export function startScanner(options: ScannerOptions): Scanner {
       cancel?.();
       cancel = null;
     },
+    decoder: () => decoder?.kind ?? null,
   };
 }
 

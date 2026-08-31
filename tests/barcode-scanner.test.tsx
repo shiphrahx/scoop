@@ -14,7 +14,7 @@ const stopScanner = vi.fn();
 vi.mock("@/lib/barcode/scan", () => ({
   startScanner: (options: ScannerOptions) => {
     startScanner(options);
-    return { stop: stopScanner };
+    return { stop: stopScanner, decoder: () => "native" as const };
   },
 }));
 
@@ -33,9 +33,18 @@ const ANDROID: CameraCapabilities = {
 };
 
 function fakeStream(capabilities: CameraCapabilities = ANDROID) {
+  const settled: Record<string, unknown> = {
+    width: 1920,
+    height: 1080,
+    frameRate: 30,
+    focusMode: "continuous",
+    zoom: 2,
+  };
   const track = {
     kind: "video",
     stop: stopTrack,
+    label: "camera2 0, facing back",
+    getSettings: () => settled,
     getCapabilities: () => capabilities,
     applyConstraints: (constraints: { advanced?: Record<string, unknown>[] }) => {
       applied.push(...(constraints.advanced ?? []));
@@ -259,6 +268,34 @@ describe("BarcodeScanner", () => {
 
       // The light must not cost the zoom the scan depends on.
       expect(applied.at(-1)).toEqual({ focusMode: "continuous", zoom: 2, torch: true });
+    });
+  });
+
+  // Three rounds of fixes have gone by on a blur that only happens on hardware
+  // none of us can attach a debugger to. The panel is how the next round starts
+  // from what the phone did rather than from another theory.
+  describe("the details panel", () => {
+    it("stays out of the way until it is asked for", async () => {
+      await open();
+
+      expect(screen.queryByText(/camera2 0, facing back/)).toBeNull();
+    });
+
+    it("says which lens opened and what it settled on", async () => {
+      await open();
+      await userEvent.click(screen.getByRole("button", { name: /camera details/i }));
+
+      expect(screen.getByText(/camera2 0, facing back/)).toBeTruthy();
+      expect(screen.getByText(/1920x1080 @ 30fps/)).toBeTruthy();
+      expect(screen.getByText(/continuous \(can: continuous, single-shot\)/)).toBeTruthy();
+      expect(screen.getByText(/native/)).toBeTruthy();
+    });
+
+    it("shows what the camera was actually asked for", async () => {
+      await open();
+      await userEvent.click(screen.getByRole("button", { name: /camera details/i }));
+
+      expect(screen.getByText(/"focusMode":"continuous","zoom":2/)).toBeTruthy();
     });
   });
 

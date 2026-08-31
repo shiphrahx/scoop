@@ -100,11 +100,26 @@ export interface CameraControls {
   focusAt(point: Point): Promise<boolean>;
   setZoom(zoom: number): Promise<boolean>;
   setTorch(on: boolean): Promise<boolean>;
-  // Everything the camera is currently being asked for, and what it says it can
-  // do. Both are for the diagnostics panel.
+  // Everything the camera is currently being asked for, what it says it can
+  // do, and what it settled on. All three are for the diagnostics panel: with
+  // three rounds of fixes gone by on a bug nobody can reproduce on the machine
+  // they are fixing it from, being able to read what the phone actually did
+  // beats another guess.
   asked(): ControlPatch;
   capabilities(): CameraCapabilities;
+  settled(): CameraSettings;
 }
+
+// What the camera says it is doing, as opposed to what it was asked for. The
+// four optional keys are Chrome on Android's, and none is in lib.dom.
+export type CameraSettings = MediaTrackSettings & {
+  focusMode?: string;
+  torch?: boolean;
+  zoom?: number;
+  // Which lens the browser picked. On a phone with three back cameras this is
+  // the difference between the main one and a fixed-focus ultra wide.
+  label?: string;
+};
 
 export function cameraControls(track: MediaStreamTrack | null): CameraControls {
   const caps = capabilitiesOf(track);
@@ -179,6 +194,14 @@ export function cameraControls(track: MediaStreamTrack | null): CameraControls {
 
     asked: () => ({ ...asked }),
     capabilities: () => caps,
+
+    settled() {
+      try {
+        return { ...(track?.getSettings() as CameraSettings), label: track?.label };
+      } catch {
+        return {};
+      }
+    },
   };
 }
 
