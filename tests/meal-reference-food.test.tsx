@@ -117,9 +117,13 @@ describe("meal builder, foods with no barcode", () => {
     renderEmptySlot();
 
     await user.type(screen.getByPlaceholderText(/add a food/i), "cake");
-    // 95 g of a 371 kcal/100g cake = 352 kcal.
+    // The amount on one line, what it's worth on the next: 95 g of a
+    // 371 kcal/100g cake = 352 kcal, 51 g of carbs per 100 g = 48 g.
     expect(
-      await screen.findByText(/1 medium chocolate cake slice · 95 g · 352 kcal/),
+      await screen.findByText(/1 medium chocolate cake slice · 95 g/),
+    ).toBeTruthy();
+    expect(
+      await screen.findByText(/352 kcal · Protein 4 g · Carbs 48 g · Fat 16 g/),
     ).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: /chocolate cake slice/i }));

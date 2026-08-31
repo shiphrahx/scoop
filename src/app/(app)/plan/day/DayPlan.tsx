@@ -7,7 +7,7 @@ import BarcodeScanner from "@/components/BarcodeScannerLazy";
 import type { FavouriteMeal, FoodChoice, LoggedFood, Macros, MealPick, MealPortion, OffProduct, PlannedMeal, PlanItem, UnitOption } from "@/lib/types";
 import { sumItems, sumMacros } from "@/lib/types";
 import { mealToItems } from "@/lib/favourites";
-import { isBulkStaple, pantryUnitLabel } from "@/lib/freshfoods";
+import { isBulkStaple, macrosForGrams, pantryUnitLabel, type UnitMacros } from "@/lib/freshfoods";
 import { parseFoodQuery } from "@/lib/foodquery";
 import {
   NUTRIENTS,
@@ -52,14 +52,19 @@ function dayTotal(slots: Slot[], extras: LoggedFood[]): Macros {
   ]);
 }
 
-// The macros a single item contributes at its current portion, shown under
-// each food so the user sees what it costs, not just the meal total.
-function itemMacroLine(it: PlanItem): string {
-  const m = sumItems([it]);
+// One amount's macros in words. Shared by the meal list and the search results
+// so a food reads exactly the same before it's added as after.
+function macroWords(m: UnitMacros): string {
   return (
     `${Math.round(m.kcal)} kcal · ` +
     `Protein ${Math.round(m.protein_g)} g · Carbs ${Math.round(m.carbs_g)} g · Fat ${Math.round(m.fat_g)} g`
   );
+}
+
+// The macros a single item contributes at its current portion, shown under
+// each food so the user sees what it costs, not just the meal total.
+function itemMacroLine(it: PlanItem): string {
+  return macroWords(sumItems([it]));
 }
 
 // How much of a portion to serve, as the user would measure it: a whole-unit
@@ -420,10 +425,8 @@ function FitVerdict({
 
 // Search the pantry to pick a food, handing the chosen FoodChoice and the grams
 // to use back to the parent. Shared by the meal builder and the AI-meal editor
-// so both add foods the same way. Barcode scanning lives on the "plan this meal"
-// screen, not here. Typing an
-// amount with the item ("50g shreddies") sets the grams; otherwise the pack
-// size (or 100 g) seeds it.
+// so both add foods the same way. Typing an amount with the item ("50g
+// shreddies") sets the grams; otherwise the pack size (or 100 g) seeds it.
 // Seed a sensible starting amount for a chosen food: the amount the user typed
 // ("50g shreddies"), else one unit for a countable food (one bagel), else the
 // pack size when it's a single serving, otherwise 100 g.
@@ -438,11 +441,89 @@ function seedGrams(c: FoodChoice, typed: number | null): number {
   );
 }
 
+// Does this food read as a count rather than a weight? Same rule the meal list
+// uses once it's added (see isCountable), so the row promises what it delivers.
+function choiceCounts(c: FoodChoice): boolean {
+  return !!(
+    c.unit_g &&
+    c.unit_g > 0 &&
+    c.unit_label &&
+    c.unit_label !== "ml" &&
+    !isBulkStaple(c.name)
+  );
+}
+
+// What one tap on a search hit actually adds. A typed amount wins ("50g
+// shreddies"), a countable food reads as its portion and the weight behind it
+// ("1 medium slice · 95 g"), everything else is plain grams.
+function amountLine(c: FoodChoice, grams: number, typed: number | null): string {
+  const g = `${Math.round(grams)} g`;
+  if (typed != null) return `add ${g}`;
+  return choiceCounts(c) ? `1 ${c.unit_label} · ${g}` : g;
+}
+
 // The little heading that separates one search source from the next.
 function GroupLabel({ children }: { children: ReactNode }) {
   return (
     <li className="border-t border-[var(--border)] bg-[var(--fill-soft)] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
       {children}
+    </li>
+  );
+}
+
+// Where a hit came from, which decides its icon and the heading it sits under.
+// Not read off `c.source`: a reference food is stored as "off" (it has no
+// barcode and isn't a pantry item), so only the list it arrived in tells them
+// apart.
+type Kind = "pantry" | "ref" | "web";
+
+const KIND_ICON: Record<Kind, ReactNode> = {
+  pantry: <Package size={15} className="shrink-0 text-[var(--ink-teal)]" />,
+  ref: <Apple size={15} className="shrink-0 text-[var(--ink-teal)]" />,
+  web: <Globe size={15} className="shrink-0 text-[var(--muted)]" />,
+};
+
+// One hit in the food search. Two lines under the name: the amount one tap
+// adds, then what that amount is worth. The macros were missing before, so
+// choosing between two makes of the same thing meant adding one and reading
+// its numbers afterwards. A reference food's amount line is the whole point of
+// it, the user never learns what a slice of cake weighs, they just tap
+// "1 medium slice · 95 g".
+function ResultRow({
+  c,
+  kind,
+  typed,
+  onAdd,
+}: {
+  c: FoodChoice;
+  kind: Kind;
+  typed: number | null;
+  onAdd: () => void;
+}) {
+  const grams = seedGrams(c, typed);
+  return (
+    <li>
+      <button
+        onClick={onAdd}
+        className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[var(--fill-soft)]"
+      >
+        {KIND_ICON[kind]}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium">
+            {c.name}
+            {c.brand ? (
+              <span className="text-[var(--muted)]"> · {c.brand}</span>
+            ) : null}
+          </span>
+          <span className="block truncate text-xs text-[var(--muted)]">
+            {amountLine(c, grams, typed)}
+          </span>
+          <span className="block truncate text-xs text-[var(--muted)]">
+            {macroWords(macrosForGrams(c, grams))}
+          </span>
+        </span>
+        <Plus size={16} className="shrink-0 text-[var(--muted)]" />
+      </button>
     </li>
   );
 }
@@ -492,7 +573,7 @@ function FoodSearchBox({
         name: p.name,
         source: "off",
         off_barcode: p.barcode,
-        brand: null,
+        brand: p.brand,
         kcal_100g: p.kcal_100g,
         protein_100g: p.protein_100g,
         carbs_100g: p.carbs_100g,
@@ -563,57 +644,6 @@ function FoodSearchBox({
     results.length > 0 || refResults.length > 0 || webResults.length > 0;
   const nothingYet = !searchingAny && !anyResults;
 
-  // Where a hit came from, which decides its icon and the line under its name.
-  // Not read off `c.source`: a reference food is stored as "off" (it has no
-  // barcode and isn't a pantry item), so only the list it arrived in tells them
-  // apart.
-  type Kind = "pantry" | "ref" | "web";
-  const ICON: Record<Kind, ReactNode> = {
-    pantry: <Package size={15} className="shrink-0 text-[var(--ink-teal)]" />,
-    ref: <Apple size={15} className="shrink-0 text-[var(--ink-teal)]" />,
-    web: <Globe size={15} className="shrink-0 text-[var(--muted)]" />,
-  };
-
-  // The line under a hit's name. A typed amount wins ("50g shreddies" → "add
-  // 50 g"). Otherwise a reference food shows the portion one tap actually adds,
-  // "1 medium slice · 95 g · 352 kcal", which is the whole point of it: the
-  // user never learns what a slice of cake weighs, they just tap it.
-  function detail(c: FoodChoice, kind: Kind): string {
-    if (parsed.grams != null) return `add ${parsed.grams} g`;
-    if (kind === "ref" && c.unit_g && c.unit_g > 0) {
-      const kcal = Math.round((c.kcal_100g * c.unit_g) / 100);
-      // A bulk staple is weighed, so its size is a starting weight, not a count.
-      if (isBulkStaple(c.name)) return `${Math.round(c.unit_g)} g · ${kcal} kcal`;
-      return `1 ${c.unit_label ?? "portion"} · ${Math.round(c.unit_g)} g · ${kcal} kcal`;
-    }
-    const per100 = `${Math.round(c.kcal_100g)} kcal/100g`;
-    return kind === "pantry" ? `In your pantry · ${per100}` : per100;
-  }
-
-  function ResultRow({ c, i, kind }: { c: FoodChoice; i: number; kind: Kind }) {
-    return (
-      <li key={`${kind}-${c.off_barcode ?? c.name}-${i}`}>
-        <button
-          onClick={() => add(c)}
-          className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[var(--fill-soft)]"
-        >
-          {ICON[kind]}
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium">
-              {c.name}
-              {c.brand ? (
-                <span className="text-[var(--muted)]"> · {c.brand}</span>
-              ) : null}
-            </span>
-            <span className="block text-xs text-[var(--muted)]">
-              {detail(c, kind)}
-            </span>
-          </span>
-          <Plus size={16} className="shrink-0 text-[var(--muted)]" />
-        </button>
-      </li>
-    );
-  }
 
   return (
     <>
@@ -631,11 +661,14 @@ function FoodSearchBox({
         />
 
         {/* z-20 clears the bottom nav's z-10. On equal footing the nav won,
-            because it comes later in the tree, and it covered the results. */}
+            because it comes later in the tree, and it covered the results.
+            Capped and scrollable: three lines a row over four groups ran off
+            the bottom of the phone. */}
         {(searchingAny || anyResults) && parsed.term.length >= 2 && (
-          <ul className="absolute z-20 mt-1 flex w-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg">
+          <ul className="absolute z-20 mt-1 flex max-h-[55vh] w-full flex-col overflow-y-auto overscroll-contain rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg">
+            {results.length > 0 && <GroupLabel>In your pantry</GroupLabel>}
             {results.map((c, i) => (
-              <ResultRow key={`p-${i}`} c={c} i={i} kind="pantry" />
+              <ResultRow key={`p-${i}`} c={c} kind="pantry" typed={parsed.grams} onAdd={() => add(c)} />
             ))}
 
             {/* Then the shared reference: everyday foods with no barcode, each
@@ -643,14 +676,14 @@ function FoodSearchBox({
                 or "cookie" this is the answer and Open Food Facts is noise. */}
             {refResults.length > 0 && <GroupLabel>Common foods</GroupLabel>}
             {refResults.map((c, i) => (
-              <ResultRow key={`r-${i}`} c={c} i={i} kind="ref" />
+              <ResultRow key={`r-${i}`} c={c} kind="ref" typed={parsed.grams} onAdd={() => add(c)} />
             ))}
 
             {/* Web results last, behind a small divider so it's clear these
                 come from Open Food Facts, not the user's shelves. */}
             {webResults.length > 0 && <GroupLabel>From the web</GroupLabel>}
             {webResults.map((c, i) => (
-              <ResultRow key={`w-${i}`} c={c} i={i} kind="web" />
+              <ResultRow key={`w-${i}`} c={c} kind="web" typed={parsed.grams} onAdd={() => add(c)} />
             ))}
 
             {searchingAny && !anyResults && (
