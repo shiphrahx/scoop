@@ -176,6 +176,38 @@ describe("meal builder, fresh food sizes", () => {
     await waitFor(() => expect(savedItems()[0]).toMatchObject({ grams: 150 }));
   });
 
+  // A PACKAGED product is weighed too. Open Food Facts holds whatever serving
+  // the label prints, and treating that as a portion locked a yogurt to its own
+  // 200 g pot: one pot or two, never the 150 g actually eaten. A serving on a
+  // label is a suggestion, the user decides how much of it they had.
+  it("weighs a packaged pot in grams, not in whole servings", async () => {
+    const yogurt: FoodChoice = {
+      ...banana,
+      name: "Greek Style Yogurt",
+      source: "off",
+      off_barcode: "5000000000001",
+      brand: "Ottersgate",
+      kcal_100g: 120,
+      unit_g: 200,
+      unit_label: "pot",
+      unit_options: null,
+    };
+    searchFoods.mockResolvedValue([yogurt]);
+    const user = userEvent.setup();
+    render(<DayPlan slots={[{ slot: "Snack", meal: null }]} target={null} prefs={[]} date="2026-07-20" />);
+
+    await user.type(screen.getByPlaceholderText(/add a food/i), "yogurt");
+    await user.click(await screen.findByRole("button", { name: /greek style yogurt/i }));
+
+    // Seeded at the label's serving, but as a weight, no portion stepper.
+    expect(screen.queryByRole("button", { name: /one more/i })).toBeNull();
+    const input = await screen.findByLabelText(/greek style yogurt grams/i);
+    await user.clear(input);
+    await user.type(input, "150");
+
+    await waitFor(() => expect(savedItems()[0]).toMatchObject({ grams: 150 }));
+  });
+
   it("keeps the count when the size changes (2 medium → 2 large)", async () => {
     const user = userEvent.setup();
     render(<DayPlan slots={[{ slot: "Snack", meal: null }]} target={null} prefs={[]} date="2026-07-20" />);
