@@ -432,8 +432,9 @@ function PickSearchBox({
         style={{ paddingLeft: "2.5rem" }}
       />
 
+      {/* Above the bottom nav, same reason as the day plan's search. */}
       {(searching || anyResults) && term.length >= 2 && (
-        <ul className="absolute z-10 mt-1 flex w-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg">
+        <ul className="absolute z-20 mt-1 flex w-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg">
           {searching && !anyResults && (
             <li className="px-4 py-3 text-sm text-[var(--muted)]">Searching…</li>
           )}

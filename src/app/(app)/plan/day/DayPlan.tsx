@@ -630,8 +630,10 @@ function FoodSearchBox({
           style={{ paddingLeft: "2.5rem" }}
         />
 
+        {/* z-20 clears the bottom nav's z-10. On equal footing the nav won,
+            because it comes later in the tree, and it covered the results. */}
         {(searchingAny || anyResults) && parsed.term.length >= 2 && (
-          <ul className="absolute z-10 mt-1 flex w-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg">
+          <ul className="absolute z-20 mt-1 flex w-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg">
             {results.map((c, i) => (
               <ResultRow key={`p-${i}`} c={c} i={i} kind="pantry" />
             ))}
