@@ -159,6 +159,7 @@ describe("MealPicker", () => {
     const product = {
       barcode: "5000000000000",
       name: "Rye Bagel",
+      brand: "Stonemill",
       kcal_100g: 250,
       protein_100g: 9,
       carbs_100g: 48,
@@ -180,7 +181,16 @@ describe("MealPicker", () => {
     await user.click(screen.getByRole("button", { name: /scan a barcode/i }));
     await user.click(screen.getByRole("button", { name: /fake-scan/i }));
 
-    // Picked, and the pantry offer is up (its Yes/No buttons exist).
+    // The scan offers rather than picks, and names the brand and the macros.
+    expect(await screen.findByText("Scanned")).toBeTruthy();
+    expect(screen.getByText(/Stonemill/)).toBeTruthy();
+    expect(screen.getByText(/250 kcal per 100 g/)).toBeTruthy();
+    expect(
+      screen.getByText(/Protein 9 g · Carbs 48 g · Fat 2 g/),
+    ).toBeTruthy();
+
+    // Picking it is what adds it, and only then comes the pantry offer.
+    await user.click(screen.getByRole("button", { name: /rye bagel/i }));
     await user.click(await screen.findByRole("button", { name: /^yes$/i }));
     expect(addPantryItem).toHaveBeenCalledTimes(1);
     expect(addPantryItem.mock.calls[0][0]).toMatchObject({
@@ -219,6 +229,7 @@ describe("MealPicker", () => {
 
     await user.click(screen.getByRole("button", { name: /scan a barcode/i }));
     await user.click(screen.getByRole("button", { name: /fake-scan/i }));
+    await user.click(await screen.findByRole("button", { name: /rye bagel/i }));
     await user.click(await screen.findByRole("button", { name: /^no$/i }));
 
     expect(addPantryItem).not.toHaveBeenCalled();

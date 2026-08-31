@@ -62,6 +62,10 @@ export default function MealPicker({
   const [scanNote, setScanNote] = useState<string | null>(null);
   // A just-scanned product not in the pantry yet: offer to add it there too.
   const [pantryOffer, setPantryOffer] = useState<MealPick | null>(null);
+  // The product behind the last barcode, offered at the top of the search
+  // rather than picked outright, and the search term it seeded.
+  const [scanned, setScanned] = useState<FoodChoice | null>(null);
+  const [query, setQuery] = useState("");
 
   const picked = (name: string) => picks.some((p) => p.name === name);
 
@@ -71,6 +75,16 @@ export default function MealPicker({
         ? prev.filter((p) => p.name !== food.name)
         : [...prev, food],
     );
+  }
+
+  // Picking the scanned product is what adds it, and only then is it worth
+  // asking whether it should live in the pantry as well.
+  function addScanned(c: FoodChoice) {
+    setScanned(null);
+    setQuery("");
+    if (picked(c.name)) return;
+    addChoice(c);
+    setPantryOffer({ ...c, unit_options: c.unit_options ?? null });
   }
 
   function addChoice(c: FoodChoice) {
@@ -97,8 +111,10 @@ export default function MealPicker({
   }
 
   // Scan a barcode: look the product up on Open Food Facts (same endpoint the
-  // pantry scanner uses), add it as a pick, and offer to save it to the pantry
-  // so next time it's a chip.
+  // pantry scanner uses) and OFFER it at the top of the search, rather than
+  // picking it outright. A scan used to drop a chip into the meal named
+  // whatever OFF holds, so a bag of crisps read "chips" and there was no way
+  // to see its macros or reach the other makes of the same thing.
   async function handleScan(barcode: string) {
     setScanning(false);
     setScanNote("Looking up…");
@@ -138,15 +154,14 @@ export default function MealPicker({
         };
       }
       const chosen = pick;
-      setPicks((prev) =>
-        prev.some((x) => x.name === chosen.name) ? prev : [...prev, chosen],
-      );
+      setScanned({ ...chosen, brand: swapped ? null : p.brand });
+      // Seeds the usual search, so the alternatives arrive under the suggestion.
+      setQuery(chosen.name);
       setScanNote(
         swapped
           ? `${p.name} is dry on the pack, using cooked values for ${chosen.name}.`
           : null,
       );
-      setPantryOffer(chosen);
     } catch {
       setScanNote("Couldn't find that barcode. Try the search instead.");
     }
@@ -258,7 +273,18 @@ export default function MealPicker({
         </p>
       )}
 
-      <PickSearchBox onPick={addChoice} disabled={busy} />
+      <PickSearchBox
+        query={query}
+        onQueryChange={(q) => {
+          setQuery(q);
+          // Typing means they're after something else now.
+          setScanned(null);
+        }}
+        scanned={scanned}
+        onPickScanned={addScanned}
+        onPick={addChoice}
+        disabled={busy}
+      />
 
       <button
         onClick={() => {
@@ -330,33 +356,60 @@ export default function MealPicker({
   );
 }
 
+// The little heading that separates one search source from the next.
+function GroupLabel({ children }: { children: ReactNode }) {
+  return (
+    <li className="border-t border-[var(--border)] bg-[var(--fill-soft)] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+      {children}
+    </li>
+  );
+}
+
 // One hit in the pick search: the pantry's own items and the shared reference
 // share a row, so a food with no barcode is picked exactly like one the user
 // has on a shelf.
 function PickRow({
   choice,
-  fromPantry,
+  kind,
   onPick,
 }: {
   choice: FoodChoice;
-  fromPantry: boolean;
+  kind: "scan" | "pantry" | "ref";
   onPick: () => void;
 }) {
+  const icon =
+    kind === "scan" ? (
+      <ScanBarcode size={15} className="shrink-0 text-[var(--ink-teal)]" />
+    ) : kind === "pantry" ? (
+      <Package size={15} className="shrink-0 text-[var(--ink-teal)]" />
+    ) : (
+      <Apple size={15} className="shrink-0 text-[var(--ink-teal)]" />
+    );
   return (
     <li>
       <button
         onClick={onPick}
         className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[var(--fill-soft)]"
       >
-        {fromPantry ? (
-          <Package size={15} className="shrink-0 text-[var(--ink-teal)]" />
-        ) : (
-          <Apple size={15} className="shrink-0 text-[var(--ink-teal)]" />
-        )}
+        {icon}
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium">{choice.name}</span>
-          <span className="block text-xs text-[var(--muted)]">
-            {Math.round(choice.kcal_100g)} kcal/100g
+          <span className="block truncate text-sm font-medium">
+            {choice.name}
+            {choice.brand ? (
+              <span className="text-[var(--muted)]"> · {choice.brand}</span>
+            ) : null}
+          </span>
+          {/* Per 100 g, not per portion: the grams here come from the day
+              solve, so promising an amount this screen doesn't set would be a
+              lie. The macros themselves were missing entirely, which made two
+              makes of the same thing impossible to tell apart. */}
+          <span className="block truncate text-xs text-[var(--muted)]">
+            {Math.round(choice.kcal_100g)} kcal per 100 g
+          </span>
+          <span className="block truncate text-xs text-[var(--muted)]">
+            {`Protein ${Math.round(choice.protein_100g)} g · ` +
+              `Carbs ${Math.round(choice.carbs_100g)} g · ` +
+              `Fat ${Math.round(choice.fat_100g)} g`}
           </span>
         </span>
       </button>
@@ -369,13 +422,20 @@ function PickRow({
 // Mirrors the plan screen's search box but hands back the choice itself, no
 // grams involved here, the day solve works those out.
 function PickSearchBox({
+  query,
+  onQueryChange,
+  scanned,
+  onPickScanned,
   onPick,
   disabled,
 }: {
+  query: string;
+  onQueryChange: (q: string) => void;
+  scanned: FoodChoice | null;
+  onPickScanned: (c: FoodChoice) => void;
   onPick: (c: FoodChoice) => void;
   disabled: boolean;
 }) {
-  const [query, setQuery] = useState("");
   const [results, setResults] = useState<FoodChoice[]>([]);
   const [refResults, setRefResults] = useState<FoodChoice[]>([]);
   const [searching, setSearching] = useState(false);
@@ -411,7 +471,7 @@ function PickSearchBox({
 
   function add(c: FoodChoice) {
     onPick(c);
-    setQuery("");
+    onQueryChange("");
     setResults([]);
     setRefResults([]);
   }
@@ -425,43 +485,49 @@ function PickSearchBox({
       </span>
       <input
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={(e) => onQueryChange(e.target.value)}
         disabled={disabled}
         placeholder="Search for a food…"
         className="sc-input w-full"
         style={{ paddingLeft: "2.5rem" }}
       />
 
-      {/* Above the bottom nav, same reason as the day plan's search. */}
-      {(searching || anyResults) && term.length >= 2 && (
-        <ul className="absolute z-20 mt-1 flex w-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg">
+      {/* Above the bottom nav, same reason as the day plan's search. Capped
+          and scrollable: three lines a row runs off a phone otherwise. */}
+      {(searching || anyResults || scanned) && (term.length >= 2 || scanned) && (
+        <ul className="absolute z-20 mt-1 flex max-h-[55vh] w-full flex-col overflow-y-auto overscroll-contain rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg">
+          {/* The barcode's own product first, so a scan that got the right
+              pack is still one tap. */}
+          {scanned && <GroupLabel>Scanned</GroupLabel>}
+          {scanned && (
+            <PickRow choice={scanned} kind="scan" onPick={() => onPickScanned(scanned)} />
+          )}
+
           {searching && !anyResults && (
             <li className="px-4 py-3 text-sm text-[var(--muted)]">Searching…</li>
           )}
+
+          {results.length > 0 && <GroupLabel>In your pantry</GroupLabel>}
           {results.map((c, i) => (
             <PickRow
               key={`p-${c.off_barcode ?? c.name}-${i}`}
               choice={c}
-              fromPantry
+              kind="pantry"
               onPick={() => add(c)}
             />
           ))}
 
-          {refResults.length > 0 && (
-            <li className="border-t border-[var(--border)] bg-[var(--fill-soft)] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
-              Common foods
-            </li>
-          )}
+          {refResults.length > 0 && <GroupLabel>Common foods</GroupLabel>}
           {refResults.map((c, i) => (
             <PickRow
               key={`r-${c.name}-${i}`}
               choice={c}
-              fromPantry={false}
+              kind="ref"
               onPick={() => add(c)}
             />
           ))}
 
-          {!searching && !anyResults && (
+          {!searching && !anyResults && !scanned && (
             <li className="px-4 py-3 text-sm text-[var(--muted)]">
               No match, try the scanner.
             </li>
