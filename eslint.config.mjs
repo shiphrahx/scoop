@@ -17,6 +17,11 @@ const eslintConfig = defineConfig([
     // preflight:full lints the report the first run generated and fails on
     // vendored code nobody wrote.
     "coverage/**",
+    // Claude's scratch worktrees, which are whole checkouts of this repo. Same
+    // story as coverage: gitignored, invisible to eslint, and linting a second
+    // copy of the codebase turned every push into a wall of errors from files
+    // that are not the ones being pushed.
+    ".claude/worktrees/**",
   ]),
 ]);
 

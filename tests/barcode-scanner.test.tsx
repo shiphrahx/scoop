@@ -14,7 +14,7 @@ const stopScanner = vi.fn();
 vi.mock("@/lib/barcode/scan", () => ({
   startScanner: (options: ScannerOptions) => {
     startScanner(options);
-    return { stop: stopScanner };
+    return { stop: stopScanner, decoder: () => "native" as const };
   },
 }));
 
@@ -33,9 +33,18 @@ const ANDROID: CameraCapabilities = {
 };
 
 function fakeStream(capabilities: CameraCapabilities = ANDROID) {
+  const settled: Record<string, unknown> = {
+    width: 1920,
+    height: 1080,
+    frameRate: 30,
+    focusMode: "continuous",
+    zoom: 2,
+  };
   const track = {
     kind: "video",
     stop: stopTrack,
+    label: "camera2 0, facing back",
+    getSettings: () => settled,
     getCapabilities: () => capabilities,
     applyConstraints: (constraints: { advanced?: Record<string, unknown>[] }) => {
       applied.push(...(constraints.advanced ?? []));
@@ -173,17 +182,13 @@ describe("BarcodeScanner", () => {
   });
 
   describe("the picture it asks the camera for", () => {
-    it("keeps the camera focusing rather than letting it lock once", async () => {
+    // applyConstraints replaces the track's constraints rather than adding to
+    // them, so focus and zoom have to travel together. Sent one after the other
+    // the zoom threw the focus request away, and the camera spent the whole
+    // scan zoomed in on a picture it would not refocus. That was the blur.
+    it("asks for focus and zoom in one go so neither cancels the other", async () => {
       await open();
-      expect(applied).toContainEqual({ focusMode: "continuous" });
-    });
-
-    // Filling the guide from a hand's width away is inside the minimum focus
-    // distance of a phone's main camera. Zooming fills it from arm's length,
-    // where the camera can actually focus.
-    it("zooms in so the barcode fills the guide from a focusable distance", async () => {
-      await open();
-      expect(applied).toContainEqual({ zoom: 2 });
+      expect(applied).toContainEqual({ focusMode: "continuous", zoom: 2 });
     });
 
     it("asks for no zoom of a camera that has none", async () => {
@@ -241,7 +246,7 @@ describe("BarcodeScanner", () => {
         }
       });
 
-      expect(applied).toContainEqual({ torch: true });
+      expect(applied.at(-1)?.torch).toBe(true);
       expect(screen.getByRole("button", { name: /turn off the light/i })).toBeTruthy();
     });
 
@@ -254,14 +259,43 @@ describe("BarcodeScanner", () => {
         }
       });
 
-      expect(applied).not.toContainEqual({ torch: true });
+      expect(applied.some((constraint) => constraint.torch === true)).toBe(false);
     });
 
     it("lets the user turn it on themselves", async () => {
       await open();
       await userEvent.click(screen.getByRole("button", { name: /turn on the light/i }));
 
-      expect(applied).toContainEqual({ torch: true });
+      // The light must not cost the zoom the scan depends on.
+      expect(applied.at(-1)).toEqual({ focusMode: "continuous", zoom: 2, torch: true });
+    });
+  });
+
+  // Three rounds of fixes have gone by on a blur that only happens on hardware
+  // none of us can attach a debugger to. The panel is how the next round starts
+  // from what the phone did rather than from another theory.
+  describe("the details panel", () => {
+    it("stays out of the way until it is asked for", async () => {
+      await open();
+
+      expect(screen.queryByText(/camera2 0, facing back/)).toBeNull();
+    });
+
+    it("says which lens opened and what it settled on", async () => {
+      await open();
+      await userEvent.click(screen.getByRole("button", { name: /camera details/i }));
+
+      expect(screen.getByText(/camera2 0, facing back/)).toBeTruthy();
+      expect(screen.getByText(/1920x1080 @ 30fps/)).toBeTruthy();
+      expect(screen.getByText(/continuous \(can: continuous, single-shot\)/)).toBeTruthy();
+      expect(screen.getByText(/native/)).toBeTruthy();
+    });
+
+    it("shows what the camera was actually asked for", async () => {
+      await open();
+      await userEvent.click(screen.getByRole("button", { name: /camera details/i }));
+
+      expect(screen.getByText(/"focusMode":"continuous","zoom":2/)).toBeTruthy();
     });
   });
 

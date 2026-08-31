@@ -1,16 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { Keyboard, X, Zap, ZapOff } from "lucide-react";
 import {
   CAMERA_CONSTRAINTS,
-  applyZoom,
-  capabilitiesOf,
-  focusOn,
-  preferContinuousFocus,
-  setTorch,
-  targetZoom,
-  videoTrack,
+  cameraControls,
+  type CameraControls,
 } from "@/lib/barcode/camera";
 import { normalizedPoint, sourceRect } from "@/lib/barcode/roi";
 import { startScanner, type Scanner } from "@/lib/barcode/scan";
@@ -31,6 +26,10 @@ const FOCUS_HOLD_MS = 2500;
 // it lifts the contrast between bar and background. Worth doing unheeded in a
 // dim kitchen, not worth doing at all in daylight, so it waits to see the
 // picture rather than being on or off from the start.
+// How often the diagnostics panel redraws while it is open. Per frame would
+// cost more than the decode it is meant to be reporting on.
+const DETAILS_REFRESH_MS = 300;
+
 const DIM_BRIGHTNESS = 60;
 const DIM_FRAMES = 15;
 const TORCH_DECISION_FRAMES = 90;
@@ -51,6 +50,10 @@ export default function BarcodeScanner({
   const videoRef = useRef<HTMLVideoElement>(null);
   const guideRef = useRef<HTMLDivElement>(null);
   const focusTimer = useRef<number | undefined>(undefined);
+  // Every camera control goes through this so they stop overwriting each
+  // other. Null until the stream is open.
+  const controls = useRef<CameraControls | null>(null);
+  const scanner = useRef<Scanner | null>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(true);
@@ -58,6 +61,11 @@ export default function BarcodeScanner({
   const [torchOn, setTorchOn] = useState<boolean | null>(null);
   const [typing, setTyping] = useState(false);
   const [typed, setTyped] = useState("");
+  // The diagnostics panel. The last frame reading is kept in a ref rather than
+  // state because it arrives sixty times a second and the panel, when it is
+  // open at all, reads it on its own slower clock.
+  const [details, setDetails] = useState(false);
+  const lastReading = useRef<FrameReading | null>(null);
 
   // Every caller passes a plain function declared in its own render, so
   // `onDetected` has a new identity each time the parent re-renders. With it in
@@ -99,8 +107,8 @@ export default function BarcodeScanner({
   const considerTorch = useCallback((reading: FrameReading) => {
     if (torchDecided.current) return;
 
-    const track = videoTrack(videoRef.current);
-    if (!track || !capabilitiesOf(track).torch) {
+    const camera = controls.current;
+    if (!camera || !camera.capabilities().torch) {
       torchDecided.current = true;
       return;
     }
@@ -116,15 +124,23 @@ export default function BarcodeScanner({
     if (dimFrames.current < DIM_FRAMES) return;
 
     torchDecided.current = true;
-    void setTorch(track, true).then((applied) => {
+    void camera.setTorch(true).then((applied) => {
       if (applied) setTorchOn(true);
     });
   }, []);
 
+  const onReading = useCallback(
+    (frame: FrameReading) => {
+      lastReading.current = frame;
+      considerTorch(frame);
+    },
+    [considerTorch],
+  );
+
   useEffect(() => {
     let cancelled = false;
     let stream: MediaStream | null = null;
-    let scanner: Scanner | null = null;
+    let running: Scanner | null = null;
 
     navigator.mediaDevices
       .getUserMedia(CAMERA_CONSTRAINTS)
@@ -145,22 +161,22 @@ export default function BarcodeScanner({
 
         setStarting(false);
 
-        const track = opened.getVideoTracks()[0] ?? null;
-        if (track) {
-          void preferContinuousFocus(track);
-          // Zoom is what lets the barcode fill the guide from a distance the
-          // camera can focus at. See targetZoom.
-          const zoom = targetZoom(capabilitiesOf(track).zoom);
-          if (zoom !== null) void applyZoom(track, zoom);
-          if (capabilitiesOf(track).torch) setTorchOn(false);
-        }
+        const camera = cameraControls(opened.getVideoTracks()[0] ?? null);
+        controls.current = camera;
+        // Continuous focus and zoom in one request. Zoom is what lets the
+        // barcode fill the guide from a distance the camera can focus at, and
+        // sending it separately used to throw the focus request away. See
+        // cameraControls.
+        void camera.start();
+        if (camera.capabilities().torch) setTorchOn(false);
 
-        scanner = startScanner({
+        running = startScanner({
           video,
           aim,
-          onReading: considerTorch,
+          onReading,
           onDetected: (barcode) => onDetectedRef.current(barcode),
         });
+        scanner.current = running;
       })
       .catch((reason: unknown) => {
         if (cancelled) return;
@@ -174,20 +190,22 @@ export default function BarcodeScanner({
 
     return () => {
       cancelled = true;
-      scanner?.stop();
+      controls.current = null;
+      scanner.current = null;
+      running?.stop();
       stream?.getTracks().forEach((track) => track.stop());
       window.clearTimeout(focusTimer.current);
     };
-  }, [aim, considerTorch]);
+  }, [aim, onReading]);
 
   const toggleTorch = useCallback(() => {
-    const track = videoTrack(videoRef.current);
-    if (!track) return;
+    const camera = controls.current;
+    if (!camera) return;
 
     // A choice made by hand settles it: stop second guessing from the picture.
     torchDecided.current = true;
     const next = !torchOn;
-    void setTorch(track, next).then((applied) => {
+    void camera.setTorch(next).then((applied) => {
       if (applied) setTorchOn(next);
     });
   }, [torchOn]);
@@ -197,8 +215,8 @@ export default function BarcodeScanner({
   // A tap says where to look, then hands the camera back to continuous.
   const refocus = useCallback((event: React.MouseEvent<HTMLVideoElement>) => {
     const video = videoRef.current;
-    const track = videoTrack(video);
-    if (!video || !track) return;
+    const camera = controls.current;
+    if (!video || !camera) return;
 
     const frame = video.getBoundingClientRect();
     const point = normalizedPoint(
@@ -208,10 +226,10 @@ export default function BarcodeScanner({
     );
     if (!point) return;
 
-    void focusOn(track, point);
+    void camera.focusAt(point);
     window.clearTimeout(focusTimer.current);
     focusTimer.current = window.setTimeout(() => {
-      void preferContinuousFocus(videoTrack(videoRef.current));
+      void controls.current?.focusContinuously();
     }, FOCUS_HOLD_MS);
   }, []);
 
@@ -224,6 +242,8 @@ export default function BarcodeScanner({
     if (!TYPED_BARCODE.test(digits)) return;
     onDetectedRef.current(digits);
   }
+
+  const toggleDetails = useCallback(() => setDetails((open) => !open), []);
 
   const hint = starting
     ? "Starting the camera."
@@ -248,9 +268,17 @@ export default function BarcodeScanner({
       </div>
 
       <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-4">
-        <p className="rounded-2xl bg-black/50 px-4 py-2 text-sm font-semibold text-white">
+        {/* The hint doubles as the way into the diagnostics, because there is
+            nowhere else on a full screen camera to put it and it is only ever
+            wanted when the scan is already going badly. */}
+        <button
+          onClick={toggleDetails}
+          aria-expanded={details}
+          aria-label="Camera details"
+          className="rounded-2xl bg-black/50 px-4 py-2 text-left text-sm font-semibold text-white"
+        >
           {error ?? hint}
-        </p>
+        </button>
         <div className="flex shrink-0 gap-2">
           {torchOn != null && (
             <button
@@ -271,6 +299,10 @@ export default function BarcodeScanner({
           </button>
         </div>
       </div>
+
+      {details && (
+        <CameraDetails controls={controls} scanner={scanner} reading={lastReading} />
+      )}
 
       <div className="absolute inset-x-0 bottom-0 p-4">
         {typing ? (
@@ -306,4 +338,66 @@ export default function BarcodeScanner({
       </div>
     </div>
   );
+}
+
+// What the phone is really doing, for a bug report. The blur that this scanner
+// keeps being fixed for only happens on hardware none of us can put a debugger
+// on, and the difference between the theories has always been readable here:
+// which lens opened, whether the focus request stuck, what the zoom settled at.
+function CameraDetails({
+  controls,
+  scanner,
+  reading,
+}: {
+  controls: RefObject<CameraControls | null>;
+  scanner: RefObject<Scanner | null>;
+  reading: RefObject<FrameReading | null>;
+}) {
+  // Read on the panel's own clock. Everything it shows lives in a ref, because
+  // none of it is worth a render of the camera itself.
+  const [, redraw] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => redraw((n) => n + 1), DETAILS_REFRESH_MS);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const camera = controls.current;
+  const frame = reading.current;
+  const settled = camera?.settled() ?? {};
+  const caps = camera?.capabilities() ?? {};
+
+  const rows: [string, string][] = [
+    ["lens", settled.label ?? "unknown"],
+    ["size", `${settled.width ?? "?"}x${settled.height ?? "?"} @ ${round(settled.frameRate)}fps`],
+    ["focus", `${settled.focusMode ?? "not reported"} (can: ${caps.focusMode?.join(", ") || "none"})`],
+    ["zoom", `${settled.zoom ?? "not reported"} (can: ${range(caps.zoom)})`],
+    ["torch", `${settled.torch ?? "not reported"} (can: ${caps.torch ?? false})`],
+    ["asked for", JSON.stringify(camera?.asked() ?? {})],
+    ["decoder", scanner.current?.decoder() ?? "loading"],
+    [
+      "frame",
+      frame
+        ? `sharpness ${round(frame.sharpness)}, brightness ${round(frame.brightness)}`
+        : "waiting",
+    ],
+  ];
+
+  return (
+    <div className="absolute inset-x-0 top-20 mx-4 max-h-[45%] overflow-y-auto rounded-2xl bg-black/75 p-3 font-mono text-[11px] leading-relaxed text-white">
+      {rows.map(([label, value]) => (
+        <p key={label} className="break-words">
+          <span className="text-white/60">{label}: </span>
+          {value}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function round(value: number | undefined): string {
+  return value === undefined ? "?" : String(Math.round(value));
+}
+
+function range(zoom: { min: number; max: number; step?: number } | undefined): string {
+  return zoom ? `${zoom.min} to ${zoom.max}` : "none";
 }

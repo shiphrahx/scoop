@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   CAMERA_CONSTRAINTS,
-  applyZoom,
+  cameraControls,
   capabilitiesOf,
-  focusOn,
-  preferContinuousFocus,
-  setTorch,
   targetZoom,
   videoTrack,
   type CameraCapabilities,
@@ -116,29 +113,57 @@ describe("targetZoom", () => {
   });
 });
 
-describe("preferContinuousFocus", () => {
+describe("cameraControls", () => {
   // Left alone a phone focuses once, as the stream starts, on whatever was in
   // front of it before the user raised the packet, and never corrects.
   it("asks a camera that can keep focusing to keep focusing", async () => {
     const { track, applied } = fakeTrack(ANDROID);
 
-    expect(await preferContinuousFocus(track)).toBe(true);
+    expect(await cameraControls(track).focusContinuously()).toBe(true);
     expect(applied).toEqual([{ focusMode: "continuous" }]);
   });
 
   it("asks nothing of a camera with no continuous mode", async () => {
     const { track, applied } = fakeTrack({ focusMode: ["manual"] });
 
-    expect(await preferContinuousFocus(track)).toBe(false);
+    expect(await cameraControls(track).focusContinuously()).toBe(false);
     expect(applied).toEqual([]);
   });
 
-  it("does nothing without a track", async () => {
-    expect(await preferContinuousFocus(null)).toBe(false);
-  });
-});
+  // This is the bug the whole file is arranged around. applyConstraints
+  // replaces the track's constraints rather than adding to them, so zoom sent
+  // on its own used to wipe out the focus request sent a moment earlier, and
+  // the camera spent the scan zoomed in and refusing to refocus.
+  it("keeps the focus request when it zooms", async () => {
+    const { track, applied } = fakeTrack(ANDROID);
+    const camera = cameraControls(track);
 
-describe("focusOn", () => {
+    await camera.start();
+
+    expect(applied).toEqual([{ focusMode: "continuous", zoom: 2 }]);
+    expect(camera.asked()).toEqual({ focusMode: "continuous", zoom: 2 });
+  });
+
+  it("keeps the zoom when the light goes on and when the user taps to focus", async () => {
+    const { track, applied } = fakeTrack(ANDROID);
+    const camera = cameraControls(track);
+
+    await camera.start();
+    await camera.setTorch(true);
+    await camera.focusAt({ x: 0.4, y: 0.6 });
+
+    expect(applied).toEqual([
+      { focusMode: "continuous", zoom: 2 },
+      { focusMode: "continuous", zoom: 2, torch: true },
+      {
+        focusMode: "single-shot",
+        zoom: 2,
+        torch: true,
+        pointsOfInterest: [{ x: 0.4, y: 0.6 }],
+      },
+    ]);
+  });
+
   // Continuous autofocus stops hunting once it thinks it has a lock, and a
   // phone held over a packet is exactly where it locks on the wrong plane.
   // Asking for a fresh pass without saying where to look, as the old code did,
@@ -146,50 +171,92 @@ describe("focusOn", () => {
   it("tells the camera where in its own picture to look", async () => {
     const { track, applied } = fakeTrack(ANDROID);
 
-    expect(await focusOn(track, { x: 0.4, y: 0.6 })).toBe(true);
+    expect(await cameraControls(track).focusAt({ x: 0.4, y: 0.6 })).toBe(true);
     expect(applied).toEqual([
       { pointsOfInterest: [{ x: 0.4, y: 0.6 }], focusMode: "single-shot" },
     ]);
   });
 
+  // A stale point of interest would pin the camera to wherever the user last
+  // tapped, which is the opposite of handing it back to continuous.
+  it("drops the tapped point when it goes back to continuous", async () => {
+    const { track, applied } = fakeTrack(ANDROID);
+    const camera = cameraControls(track);
+
+    await camera.focusAt({ x: 0.4, y: 0.6 });
+    await camera.focusContinuously();
+
+    expect(applied[1]).toEqual({ focusMode: "continuous" });
+    expect(camera.asked()).toEqual({ focusMode: "continuous" });
+  });
+
   it("still kicks the focus on a camera that cannot take a point", async () => {
     const { track, applied } = fakeTrack({ focusMode: ["continuous", "single-shot"] });
 
-    expect(await focusOn(track, { x: 0.5, y: 0.5 })).toBe(true);
+    expect(await cameraControls(track).focusAt({ x: 0.5, y: 0.5 })).toBe(true);
     expect(applied).toEqual([{ focusMode: "single-shot" }]);
   });
 
   it("asks nothing of a camera that can do neither", async () => {
     const { track, applied } = fakeTrack({ focusMode: ["continuous"] });
 
-    expect(await focusOn(track, { x: 0.5, y: 0.5 })).toBe(false);
+    expect(await cameraControls(track).focusAt({ x: 0.5, y: 0.5 })).toBe(false);
     expect(applied).toEqual([]);
   });
 
   it("does nothing without a track", async () => {
-    expect(await focusOn(null, { x: 0.5, y: 0.5 })).toBe(false);
+    const camera = cameraControls(null);
+
+    expect(await camera.focusContinuously()).toBe(false);
+    expect(await camera.focusAt({ x: 0.5, y: 0.5 })).toBe(false);
+    expect(await camera.setTorch(true)).toBe(false);
+    expect(camera.asked()).toEqual({});
   });
-});
 
-describe("applyZoom and setTorch", () => {
-  it("passes the zoom and the light through to the camera", async () => {
-    const { track, applied } = fakeTrack(ANDROID);
+  it("leaves a camera that cannot zoom or focus alone", async () => {
+    const { track, applied } = fakeTrack({});
 
-    await applyZoom(track, 2);
-    await setTorch(track, true);
+    await cameraControls(track).start();
 
-    expect(applied).toEqual([{ zoom: 2 }, { torch: true }]);
+    expect(applied).toEqual([]);
   });
 
   // These controls are uneven across Android and absent on iOS. A refusal has
   // to leave a working stream, not break the scan.
   it("reports a refusal instead of throwing", async () => {
     const { track } = fakeTrack(ANDROID, { refuses: true });
+    const camera = cameraControls(track);
 
-    expect(await applyZoom(track, 2)).toBe(false);
-    expect(await setTorch(track, true)).toBe(false);
-    expect(await preferContinuousFocus(track)).toBe(false);
-    expect(await focusOn(track, { x: 0.5, y: 0.5 })).toBe(false);
+    expect(await camera.setZoom(2)).toBe(false);
+    expect(await camera.setTorch(true)).toBe(false);
+    expect(await camera.focusContinuously()).toBe(false);
+    expect(await camera.focusAt({ x: 0.5, y: 0.5 })).toBe(false);
+  });
+
+  // A refused set leaves the track as it was, so a later call must not resend
+  // the thing the camera has already said no to.
+  it("forgets a control the camera refused", async () => {
+    let refuses = true;
+    const applied: Record<string, unknown>[] = [];
+    const track = {
+      getCapabilities: () => ANDROID,
+      applyConstraints: (constraints: { advanced?: Record<string, unknown>[] }) => {
+        if (refuses) return Promise.reject(new Error("OverconstrainedError"));
+        applied.push(...(constraints.advanced ?? []));
+        return Promise.resolve();
+      },
+    } as unknown as MediaStreamTrack;
+    const camera = cameraControls(track);
+
+    expect(await camera.setTorch(true)).toBe(false);
+    refuses = false;
+    expect(await camera.setZoom(2)).toBe(true);
+
+    expect(applied).toEqual([{ zoom: 2 }]);
+  });
+
+  it("reports what the camera says it can do", () => {
+    expect(cameraControls(fakeTrack(ANDROID).track).capabilities().torch).toBe(true);
   });
 });
 

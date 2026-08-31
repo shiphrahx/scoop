@@ -839,14 +839,15 @@ export async function lookupBarcode(
 
   const p = body.product;
   const n = p.nutriments ?? {};
-  const name =
-    (p.product_name && p.product_name.trim()) ||
-    (p.brands && p.brands.split(",")[0].trim()) ||
-    `Item ${barcode}`;
+  const brand = (p.brands && p.brands.split(",")[0].trim()) || null;
+  const name = (p.product_name && p.product_name.trim()) || brand || `Item ${barcode}`;
 
   return {
     barcode,
     name,
+    // Null when the brand is all the name we had, repeating it under itself
+    // tells the user nothing.
+    brand: brand === name ? null : brand,
     kcal_100g: num(n["energy-kcal_100g"]),
     protein_100g: num(n["proteins_100g"]),
     carbs_100g: num(n["carbohydrates_100g"]),
