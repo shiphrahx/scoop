@@ -81,15 +81,29 @@ function portionAmount(p: MealPortion): string {
 }
 
 // A countable food is one split into portions ("bagel", "portion"): it has a
-// grams-per-portion. Liquids (ml) keep the grams stepper, a count reads oddly.
-// So do bulk staples (rice, pasta, oats): they carry named sizes as a shortcut,
-// but they are served BY WEIGHT, so the user must always be able to set 180 g
-// rather than pick from small/medium/large (matches isCountable in mealplan.ts).
+// grams-per-portion, and a count is the only amount that means anything. You
+// eat one bagel or two, never 137 g of bagel, so those get the count stepper.
+//
+// Everything else is weighed, and that includes a PACKAGED product. A pack
+// carries whatever serving size Open Food Facts holds for it, and we used to
+// treat that as a portion, which locked a scanned yogurt to its own 200 g pot
+// and left no way to say you ate half. A serving printed on a label is a
+// suggestion; the user decides how much of it they ate. So the count stepper is
+// for barcodeless foods only, the shared reference's bagels and bananas and the
+// portions someone typed the macros for themselves.
+//
+// Liquids (ml) are weighed too, a count reads oddly. So are bulk staples (rice,
+// pasta, oats): they carry named sizes as a shortcut but are served BY WEIGHT,
+// so the user must always be able to set 180 g rather than pick small/medium/
+// large. (mealplan.ts has its own isCountable for the solver, which still
+// portions a pack in whole servings; this one is only about the stepper the
+// user gets.)
 function isCountable(it: PlanItem): boolean {
   return (
     !!it.unit_g &&
     it.unit_g > 0 &&
     it.unit_label !== "ml" &&
+    it.off_barcode == null &&
     !isBulkStaple(it.name)
   );
 }
@@ -442,13 +456,14 @@ function seedGrams(c: FoodChoice, typed: number | null): number {
 }
 
 // Does this food read as a count rather than a weight? Same rule the meal list
-// uses once it's added (see isCountable), so the row promises what it delivers.
+// uses (see isCountable): a named portion on something with no barcode.
 function choiceCounts(c: FoodChoice): boolean {
   return !!(
     c.unit_g &&
     c.unit_g > 0 &&
     c.unit_label &&
     c.unit_label !== "ml" &&
+    c.off_barcode == null &&
     !isBulkStaple(c.name)
   );
 }
