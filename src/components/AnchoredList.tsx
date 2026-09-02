@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useState,
-  type ReactNode,
-  type RefObject,
-} from "react";
+import { useEffect, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 
 // Gap between the input and the list, and the smallest list worth showing
@@ -46,46 +40,48 @@ export default function AnchoredList({
     maxHeight: number;
   } | null>(null);
 
-  const measure = useCallback(() => {
-    const el = anchor.current;
-    if (!el) return;
+  useEffect(() => {
+    const measure = () => {
+      const el = anchor.current;
+      if (!el) return;
 
-    const rect = el.getBoundingClientRect();
-    // Fixed positioning and getBoundingClientRect both work off the layout
-    // viewport, and on iOS the keyboard doesn't shrink that. The visible
-    // window is the visual viewport, so ask that where the floor is.
-    const viewport = window.visualViewport;
-    const visibleTop = viewport?.offsetTop ?? 0;
-    const visibleBottom = viewport
-      ? viewport.offsetTop + viewport.height
-      : window.innerHeight;
+      const rect = el.getBoundingClientRect();
+      // Fixed positioning and getBoundingClientRect both work off the layout
+      // viewport, and on iOS the keyboard doesn't shrink that. The visible
+      // window is the visual viewport, so ask that where the floor is.
+      const viewport = window.visualViewport;
+      const visibleTop = viewport?.offsetTop ?? 0;
+      const visibleBottom = viewport
+        ? viewport.offsetTop + viewport.height
+        : window.innerHeight;
 
-    const below = visibleBottom - rect.bottom - GAP_PX * 2;
-    const above = rect.top - visibleTop - GAP_PX * 2;
+      const below = visibleBottom - rect.bottom - GAP_PX * 2;
+      const above = rect.top - visibleTop - GAP_PX * 2;
 
-    // Below the input by default. Above it only when the keyboard has left so
-    // little room underneath that the results would be a sliver, and there's
-    // genuinely more room the other way.
-    if (below < MIN_BELOW_PX && above > below) {
+      // Below the input by default. Above it only when the keyboard has left
+      // so little room underneath that the results would be a sliver, and
+      // there is genuinely more room the other way.
+      if (below < MIN_BELOW_PX && above > below) {
+        setBox({
+          left: rect.left,
+          width: rect.width,
+          bottom: window.innerHeight - rect.top + GAP_PX,
+          maxHeight: above,
+        });
+        return;
+      }
+
       setBox({
         left: rect.left,
         width: rect.width,
-        bottom: window.innerHeight - rect.top + GAP_PX,
-        maxHeight: above,
+        top: rect.bottom + GAP_PX,
+        maxHeight: Math.max(below, MIN_BELOW_PX),
       });
-      return;
-    }
+    };
 
-    setBox({
-      left: rect.left,
-      width: rect.width,
-      top: rect.bottom + GAP_PX,
-      maxHeight: Math.max(below, MIN_BELOW_PX),
-    });
-  }, [anchor]);
-
-  useEffect(() => {
-    measure();
+    // Next frame rather than right now: the list has only just been asked for,
+    // so let the browser settle the layout before reading the input's box.
+    const frame = requestAnimationFrame(measure);
 
     // `true` for the capture phase: the page scrolls inside whichever ancestor
     // happens to be scrollable, and scroll doesn't bubble.
@@ -98,12 +94,13 @@ export default function AnchoredList({
     viewport?.addEventListener("scroll", measure);
 
     return () => {
+      cancelAnimationFrame(frame);
       window.removeEventListener("scroll", measure, true);
       window.removeEventListener("resize", measure);
       viewport?.removeEventListener("resize", measure);
       viewport?.removeEventListener("scroll", measure);
     };
-  }, [measure]);
+  }, [anchor]);
 
   // Nothing to draw until the first measure, which also keeps this off the
   // server, where there's no body to portal into.
