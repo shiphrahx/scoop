@@ -66,6 +66,11 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  // Let the on-screen keyboard shrink the layout viewport where the browser
+  // supports it (Chrome and Android). Then a bar stuck to the bottom is stuck
+  // to a bottom the user can still see, with no JavaScript involved. Safari
+  // ignores it, which is what useKeyboardOpen is for.
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({

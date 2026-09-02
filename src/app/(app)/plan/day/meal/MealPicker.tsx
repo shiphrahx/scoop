@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   Apple,
@@ -15,6 +15,7 @@ import {
   Wheat,
   X,
 } from "lucide-react";
+import AnchoredList from "@/components/AnchoredList";
 import BarcodeScanner from "@/components/BarcodeScannerLazy";
 import type { FoodChoice, MealPick, OffProduct } from "@/lib/types";
 import { cookedName, cookedStapleFor, freshToPick } from "@/lib/freshfoods";
@@ -375,6 +376,7 @@ function PickSearchBox({
   onPick: (c: FoodChoice) => void;
   disabled: boolean;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FoodChoice[]>([]);
   const [refResults, setRefResults] = useState<FoodChoice[]>([]);
@@ -424,6 +426,7 @@ function PickSearchBox({
         <Search size={16} />
       </span>
       <input
+        ref={inputRef}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         disabled={disabled}
@@ -432,9 +435,12 @@ function PickSearchBox({
         style={{ paddingLeft: "2.5rem" }}
       />
 
-      {/* Above the bottom nav, same reason as the day plan's search. */}
+      {/* Out to the body and over the bottom nav, same as the day plan's. */}
       {(searching || anyResults) && term.length >= 2 && (
-        <ul className="absolute z-20 mt-1 flex w-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg">
+        <AnchoredList
+          anchor={inputRef}
+          className="flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg"
+        >
           {searching && !anyResults && (
             <li className="px-4 py-3 text-sm text-[var(--muted)]">Searching…</li>
           )}
@@ -466,7 +472,7 @@ function PickSearchBox({
               No match, try the scanner.
             </li>
           )}
-        </ul>
+        </AnchoredList>
       )}
     </div>
   );

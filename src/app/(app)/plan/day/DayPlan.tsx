@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { Check, X, Search, Plus, Minus, Package, PackagePlus, Globe, Trash2, Pencil, Pin, AlertTriangle, AlertCircle, CopyPlus, UtensilsCrossed, Info, Star, ScanBarcode, Sparkles, Apple, Wine } from "lucide-react";
+import AnchoredList from "@/components/AnchoredList";
 import BarcodeScanner from "@/components/BarcodeScannerLazy";
 import type { FavouriteMeal, FoodChoice, LoggedFood, Macros, MealPick, MealPortion, OffProduct, PlannedMeal, PlanItem, UnitOption } from "@/lib/types";
 import { sumItems, sumMacros } from "@/lib/types";
@@ -452,6 +453,7 @@ function FoodSearchBox({
 }: {
   onPick: (c: FoodChoice, grams: number) => void;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FoodChoice[]>([]);
   const [searching, setSearching] = useState(false);
@@ -623,6 +625,7 @@ function FoodSearchBox({
           <Search size={16} />
         </span>
         <input
+          ref={inputRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Add a food… e.g. 50g shreddies"
@@ -630,10 +633,13 @@ function FoodSearchBox({
           style={{ paddingLeft: "2.5rem" }}
         />
 
-        {/* z-20 clears the bottom nav's z-10. On equal footing the nav won,
-            because it comes later in the tree, and it covered the results. */}
+        {/* Rendered into the body, not here: the frosted card around this box
+            would otherwise trap the list underneath the bottom nav. */}
         {(searchingAny || anyResults) && parsed.term.length >= 2 && (
-          <ul className="absolute z-20 mt-1 flex w-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg">
+          <AnchoredList
+            anchor={inputRef}
+            className="flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--glass-bg-solid)] shadow-lg"
+          >
             {results.map((c, i) => (
               <ResultRow key={`p-${i}`} c={c} i={i} kind="pantry" />
             ))}
@@ -675,7 +681,7 @@ function FoodSearchBox({
                 </Link>
               </li>
             )}
-          </ul>
+          </AnchoredList>
         )}
       </div>
 

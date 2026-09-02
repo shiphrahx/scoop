@@ -19,7 +19,18 @@ const { default: BottomNav } = await import("@/components/BottomNav");
 afterEach(() => {
   cleanup();
   Reflect.deleteProperty(window, "visualViewport");
+  Reflect.deleteProperty(window, "matchMedia");
 });
+
+// jsdom has no matchMedia either. `(pointer: coarse)` is how the hook asks
+// whether the keyboard is drawn on the glass or sitting on a desk.
+function stubPointer(coarse: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    value: (query: string) => ({ matches: coarse && query.includes("coarse") }),
+    configurable: true,
+    writable: true,
+  });
+}
 
 // jsdom has no visual viewport, so stand one in. `height` is the part of the
 // window still visible; the difference against window.innerHeight is what the
@@ -139,5 +150,77 @@ describe("BottomNav and the on-screen keyboard", () => {
     render(<BottomNav />);
 
     expect(screen.getByRole("link", { name: "Home" })).toBeTruthy();
+  });
+});
+
+// The first go at issue 73 read the viewport and nothing else, which is why the
+// bug came back: installed to the home screen, iOS runs the app standalone and
+// the keyboard slides over the page without moving the visual viewport. The
+// numbers say all is well while the bottom of the screen has gone. A focused
+// text field is the fact that survives that.
+describe("BottomNav and a focused field", () => {
+  function focusOn(el: HTMLElement) {
+    document.body.append(el);
+    act(() => {
+      el.focus();
+      el.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    });
+    return el;
+  }
+
+  it("stands down for a text field even when the viewport hasn't moved", () => {
+    stubPointer(true);
+    stubViewport(window.innerHeight);
+    const field = document.createElement("input");
+    render(<BottomNav />);
+
+    focusOn(field);
+
+    expect(screen.queryByRole("link", { name: "Home" })).toBeNull();
+    field.remove();
+  });
+
+  it("comes back when the field is left", async () => {
+    stubPointer(true);
+    stubViewport(window.innerHeight);
+    const field = document.createElement("input");
+    render(<BottomNav />);
+    focusOn(field);
+
+    await act(async () => {
+      field.blur();
+      field.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    expect(screen.getByRole("link", { name: "Home" })).toBeTruthy();
+    field.remove();
+  });
+
+  // A checkbox takes focus and opens nothing. Nor does a laptop's text box:
+  // the keyboard there is on the desk and covers no part of the screen.
+  it("ignores focus that summons no keyboard", () => {
+    stubPointer(true);
+    stubViewport(window.innerHeight);
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    render(<BottomNav />);
+
+    focusOn(box);
+
+    expect(screen.getByRole("link", { name: "Home" })).toBeTruthy();
+    box.remove();
+  });
+
+  it("ignores focus on a device with a real keyboard", () => {
+    stubPointer(false);
+    stubViewport(window.innerHeight);
+    const field = document.createElement("input");
+    render(<BottomNav />);
+
+    focusOn(field);
+
+    expect(screen.getByRole("link", { name: "Home" })).toBeTruthy();
+    field.remove();
   });
 });
