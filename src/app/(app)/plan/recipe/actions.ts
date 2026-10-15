@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { rateLimit } from "@/lib/ratelimit";
+import { logError } from "@/lib/log";
 import {
   parseRecipeFromImage,
   parseRecipeFromUrl,
@@ -10,14 +11,30 @@ import {
 } from "@/lib/ai";
 import type { ImageMediaType } from "@/lib/image";
 
-export async function importRecipeUrl(url: string): Promise<ParsedRecipe> {
+// What an import hands back. Errors come back as a value, not a throw: in a
+// production build Next replaces a thrown server action's message with a
+// generic "An error occurred in the Server Components render", so the reason
+// the import failed never reached the screen.
+export type RecipeImportResult =
+  | { ok: true; recipe: ParsedRecipe }
+  | { ok: false; message: string };
+
+export async function importRecipeUrl(url: string): Promise<RecipeImportResult> {
   const { user } = await requireUser();
   // The URL importer makes an outbound fetch, throttle per user so it can't be
   // driven in a tight loop (as a scanner or to burn the AI key).
   if (!rateLimit(`recipe-url:${user.id}`, 10, 60_000)) {
-    throw new Error("Too many imports. Give it a minute and try again.");
+    return { ok: false, message: "Too many imports. Give it a minute and try again." };
   }
-  return parseRecipeFromUrl(url);
+  try {
+    return { ok: true, recipe: await parseRecipeFromUrl(url) };
+  } catch (e) {
+    logError(`recipe import for user ${user.id} from ${url}`, e);
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : "Couldn't import that recipe.",
+    };
+  }
 }
 
 export async function importRecipeImage(

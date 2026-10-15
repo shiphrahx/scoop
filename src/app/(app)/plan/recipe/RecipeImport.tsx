@@ -40,9 +40,10 @@ export default function RecipeImport() {
     setNote("Reading the recipe…");
     try {
       const r = await importRecipeUrl(url.trim());
-      onResult(r, url.trim());
-    } catch (e) {
-      setNote(e instanceof Error ? e.message : "Import failed.");
+      if (r.ok) onResult(r.recipe, url.trim());
+      else setNote(r.message);
+    } catch {
+      setNote("Import failed. Check your connection and try again.");
     } finally {
       setBusy(false);
     }
