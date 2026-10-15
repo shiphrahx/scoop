@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { isBlockedIp } from "@/lib/fetchguard";
+import { describe, expect, it, vi } from "vitest";
+import {
+  BlockedUrlError,
+  FetchStatusError,
+  isBlockedIp,
+  safeFetchText,
+} from "@/lib/fetchguard";
 
 describe("isBlockedIp", () => {
   it("blocks loopback and private v4 ranges", () => {
@@ -38,5 +43,37 @@ describe("isBlockedIp", () => {
   it("refuses anything that isn't a valid IP", () => {
     expect(isBlockedIp("not-an-ip")).toBe(true);
     expect(isBlockedIp("")).toBe(true);
+  });
+});
+
+describe("safeFetchText", () => {
+  // Waitrose reset the connection on a bare request, so the page headers have
+  // to go out with every fetch, not only when a caller remembers them.
+  it("sends the headers a browser sends for a page load", async () => {
+    const seen: Headers[] = [];
+    vi.stubGlobal("fetch", async (_url: URL, init: RequestInit) => {
+      seen.push(new Headers(init.headers));
+      return new Response("<html></html>", { status: 200 });
+    });
+    try {
+      await safeFetchText("https://93.184.216.34/recipe", { userAgent: "test-agent" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(seen[0].get("accept")).toContain("text/html");
+    expect(seen[0].get("accept-language")).toBe("en-GB,en;q=0.9");
+    expect(seen[0].get("user-agent")).toBe("test-agent");
+  });
+
+  it("reports a refusal with its status, apart from a blocked link", async () => {
+    vi.stubGlobal("fetch", async () => new Response("no", { status: 403 }));
+    try {
+      const err = await safeFetchText("https://93.184.216.34/recipe").catch((e) => e);
+      expect(err).toBeInstanceOf(FetchStatusError);
+      expect(err).not.toBeInstanceOf(BlockedUrlError);
+      expect(err.status).toBe(403);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

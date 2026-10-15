@@ -22,6 +22,24 @@ export class BlockedUrlError extends Error {
   }
 }
 
+// The site answered, but with an error status. Kept apart from BlockedUrlError
+// because it isn't the link's fault: a recipe site's bot shield refusing us
+// (403, 429) needs a different message from a link we won't follow.
+export class FetchStatusError extends Error {
+  constructor(readonly status: number) {
+    super(`Fetch failed (${status}).`);
+    this.name = "FetchStatusError";
+  }
+}
+
+// What a browser sends for a page load. Some recipe sites sit behind a bot
+// shield that resets the connection on a request with no Accept headers, so a
+// bare fetch never got a reply. Waitrose did exactly that.
+const PAGE_HEADERS: Record<string, string> = {
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "Accept-Language": "en-GB,en;q=0.9",
+};
+
 // Is this a literal IP we must never let the server reach? Covers the ranges an
 // SSRF payload reaches for: loopback, private, link-local (incl. cloud metadata
 // 169.254.169.254), carrier-grade NAT, and the IPv6 equivalents.
@@ -108,7 +126,7 @@ export async function safeFetchText(
   opts: SafeFetchOptions = {},
 ): Promise<string> {
   const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES;
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...PAGE_HEADERS };
   if (opts.userAgent) headers["User-Agent"] = opts.userAgent;
 
   let current = rawUrl;
@@ -127,7 +145,7 @@ export async function safeFetchText(
       current = new URL(location, url).toString();
       continue;
     }
-    if (!res.ok) throw new BlockedUrlError(`Fetch failed (${res.status}).`);
+    if (!res.ok) throw new FetchStatusError(res.status);
     return readCapped(res, maxBytes);
   }
   throw new BlockedUrlError("Too many redirects.");
