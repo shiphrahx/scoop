@@ -230,13 +230,13 @@ export default function MatchItems({
                 className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3 text-left"
               >
                 <span className="min-w-0">
-                  <span className="block truncate font-semibold">
+                  <span className="block break-words font-semibold">
                     {r.item.name}
                     {r.item.quantity > 1 && (
                       <span className="text-[var(--muted)]"> ×{r.item.quantity}</span>
                     )}
                   </span>
-                  <span className="block truncate text-xs text-[var(--muted)]">
+                  <span className="block break-words text-xs text-[var(--muted)]">
                     {r.loading ? (
                       <span className="inline-flex items-center gap-1">
                         <Loader2 size={12} className="animate-spin" /> Searching…
@@ -287,18 +287,23 @@ export default function MatchItems({
                   <button
                     key={ci}
                     onClick={() => patch(i, { chosen: c })}
-                    className="flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm"
+                    className="flex items-start justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm"
                     style={
                       r.chosen === c
                         ? { background: "var(--tint-teal)" }
                         : { background: "var(--fill-soft)" }
                     }
                   >
-                    <span className="min-w-0 truncate">
+                    {/* Full name, never cut off, plus the numbers that tell
+                        two similar products apart. */}
+                    <span className="min-w-0 break-words">
                       {c.name}
                       {c.brand ? (
                         <span className="text-[var(--muted)]"> · {c.brand}</span>
                       ) : null}
+                      <span className="mt-0.5 block text-xs text-[var(--muted)]">
+                        {candidateDetail(c)}
+                      </span>
                     </span>
                     <span className="flex shrink-0 items-center gap-2 text-xs text-[var(--muted)]">
                       {Math.round(c.kcal_100g)} kcal
@@ -370,4 +375,16 @@ export default function MatchItems({
       </div>
     </section>
   );
+}
+
+// The per 100g macros and pack size of a match, so two products whose names
+// read the same can still be told apart.
+function candidateDetail(c: OffCandidate): string {
+  const parts = [
+    `P ${Math.round(c.protein_100g)} · C ${Math.round(c.carbs_100g)} · F ${Math.round(
+      c.fat_100g,
+    )} per 100g`,
+  ];
+  if (c.pack_size_g) parts.push(`${Math.round(c.pack_size_g)} g pack`);
+  return parts.join(" · ");
 }
