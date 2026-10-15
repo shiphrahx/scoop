@@ -3,17 +3,25 @@ import { ArrowLeft } from "lucide-react";
 import RecipeImport from "./RecipeImport";
 import SavedRecipes from "./SavedRecipes";
 import { createClient } from "@/lib/supabase/server";
+import { getProfile } from "@/lib/queries";
 import type { Recipe } from "@/lib/types";
+
+// Every user has meal slots from onboarding; this only covers a profile that
+// hasn't loaded, so the recipe can still go somewhere.
+const DEFAULT_SLOTS = ["Breakfast", "Lunch", "Snack", "Dinner"];
 
 export default async function RecipePage() {
   const supabase = await createClient();
 
-  const { data } = await supabase
-    .from("recipes")
-    .select(
-      "id, name, source_url, servings, ingredients, kcal, protein_g, carbs_g, fat_g",
-    )
-    .order("created_at", { ascending: false });
+  const [{ data }, profile] = await Promise.all([
+    supabase
+      .from("recipes")
+      .select(
+        "id, name, source_url, servings, ingredients, kcal, protein_g, carbs_g, fat_g",
+      )
+      .order("created_at", { ascending: false }),
+    getProfile(),
+  ]);
 
   const recipes = (data as Recipe[]) ?? [];
 
@@ -30,7 +38,7 @@ export default async function RecipePage() {
         <h1 className="text-3xl font-semibold">Recipes</h1>
       </div>
 
-      <RecipeImport />
+      <RecipeImport slots={profile?.meal_slots ?? DEFAULT_SLOTS} />
 
       <SavedRecipes recipes={recipes} />
     </main>
