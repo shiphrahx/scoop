@@ -17,6 +17,7 @@ import {
   trendLine,
   waistToHeight,
   weekScorecard,
+  mergeIntake,
   weekdayVsWeekend,
   weeklyBuckets,
   type DayIntake,
@@ -590,6 +591,66 @@ describe("weekScorecard", () => {
       },
     );
     expect(s.kcalHitDays).toBe(0);
+  });
+});
+
+describe("weekScorecard with planned meals", () => {
+  const target = { week_start: "2026-07-06", kcal: 2000, protein_g: 150, carbs_g: 200, fat_g: 60 };
+  const day = (date: string, kcal: number, protein_g: number): DayIntake => ({
+    date,
+    kcal,
+    protein_g,
+    carbs_g: 0,
+    fat_g: 0,
+  });
+
+  // Issue #55 again: every day planned by the app, breakfast ticked as eaten
+  // and the rest not. Logs alone read a 400 kcal day; the plan says 2000.
+  it("counts a past day's unticked planned meals towards the days hit", () => {
+    const logged = [day("2026-07-06", 400, 30), day("2026-07-07", 400, 30)];
+    const planned = [day("2026-07-06", 1600, 120), day("2026-07-07", 1600, 120)];
+
+    const s = weekScorecard(logged, target, "2026-07-09", undefined, planned);
+
+    expect(s.kcalHitDays).toBe(2);
+    expect(s.proteinHitDays).toBe(2);
+    // What was actually logged is unchanged.
+    expect(s.loggedDays).toBe(2);
+  });
+
+  it("scores a day that was planned and never ticked at all", () => {
+    const s = weekScorecard([], target, "2026-07-09", undefined, [day("2026-07-08", 2000, 150)]);
+    expect(s.kcalHitDays).toBe(1);
+    expect(s.loggedDays).toBe(0);
+    expect(s.streakDays).toBe(0);
+  });
+
+  it("leaves today's plan out, it hasn't been eaten yet", () => {
+    const s = weekScorecard(
+      [day("2026-07-09", 400, 30)],
+      target,
+      "2026-07-09",
+      undefined,
+      [day("2026-07-09", 1600, 120)],
+    );
+    expect(s.kcalHitDays).toBe(0);
+  });
+});
+
+describe("mergeIntake", () => {
+  it("adds two days on the same date and keeps the rest, oldest first", () => {
+    expect(
+      mergeIntake(
+        [{ date: "2026-07-07", kcal: 400, protein_g: 30, carbs_g: 40, fat_g: 10 }],
+        [
+          { date: "2026-07-07", kcal: 1600, protein_g: 120, carbs_g: 160, fat_g: 50 },
+          { date: "2026-07-06", kcal: 1800, protein_g: 130, carbs_g: 170, fat_g: 55 },
+        ],
+      ),
+    ).toEqual([
+      { date: "2026-07-06", kcal: 1800, protein_g: 130, carbs_g: 170, fat_g: 55 },
+      { date: "2026-07-07", kcal: 2000, protein_g: 150, carbs_g: 200, fat_g: 60 },
+    ]);
   });
 });
 

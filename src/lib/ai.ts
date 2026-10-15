@@ -3,7 +3,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { decryptSecret } from "@/lib/crypto";
-import { safeFetchText, BlockedUrlError } from "@/lib/fetchguard";
+import { safeFetchText, BlockedUrlError, FetchStatusError } from "@/lib/fetchguard";
 import { extractRecipeJsonLd } from "@/lib/recipe";
 import { keylessProduct } from "@/lib/product";
 import {
@@ -309,12 +309,21 @@ export async function parseRecipeFromUrl(url: string): Promise<ParsedRecipe> {
   let html: string;
   try {
     html = await safeFetchText(url, {
-      userAgent: "Scoop/0.1 recipe importer",
+      userAgent: "Mozilla/5.0 (compatible; ScoopRecipeImporter/0.1)",
     });
   } catch (e) {
-    // Surface a blocked/private URL as its own message; anything else is a
+    // Surface a blocked/private URL as its own message; a site that refused
+    // us gets told apart from a link that's wrong; anything else is a
     // generic fetch failure.
     if (e instanceof BlockedUrlError) throw new Error(e.message);
+    if (e instanceof FetchStatusError) {
+      if (e.status === 404 || e.status === 410) {
+        throw new Error("That page doesn't exist. Check the link.");
+      }
+      throw new Error(
+        "That site wouldn't let us read the recipe. Try a link from a different site.",
+      );
+    }
     throw new Error("Couldn't fetch that page. Check the link.");
   }
 

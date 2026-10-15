@@ -27,7 +27,7 @@ const profile = (slots: string[]): Row => ({
   sex: "female",
 });
 
-const targets = (): Row[] => [
+const targets = (over: Row = {}): Row[] => [
   {
     user_id: "user-1",
     week_start: "2000-01-03",
@@ -39,6 +39,7 @@ const targets = (): Row[] => [
     sugar_g: 50,
     satfat_g: 22,
     sodium_mg: 2300,
+    ...over,
   },
 ];
 
@@ -126,6 +127,60 @@ const dayTotals = (db: { planned_meals: Row[] }) =>
 describe("the reported days, built end to end", () => {
   // Measured by the #28 test and compared against by its control below.
   let chipsWithSpread = 0;
+
+  it("#26, vegemince lunch and dinner with veg, banana and powder snack", async () => {
+    // The exact report, on the reporter's own target (1546 kcal, 120 g protein,
+    // from the day plan screenshot): the powder was dropped as "couldn't fit"
+    // so a second whole portion of mince could go in each meal. The powder is a
+    // pick, so it stays on the plate with a real amount.
+    //
+    // A second portion of mince is still allowed when the day needs it. Held to
+    // one a meal, this day lands about 150 kcal short with its fat unmet,
+    // because the mince is the only fat on the plate.
+    const rice = item("Basmati Rice", 130, 2.7, 28, 0.3);
+    const mince = item("Linda McCartney Foods - Vegemince", 164, 16, 5, 7, {
+      unit_g: 100,
+      unit_label: "portion",
+    });
+    const broccoli = item("Tenderstem Broccoli", 35, 3, 5, 0.4);
+    const rocket = item("Wild Rocket", 25, 2.6, 3.7, 0.7);
+    const pepper = item("Roasted Red Bell Pepper Strips", 31, 1, 6, 0.3);
+    const banana = item("Banana", 89, 1.1, 23, 0.3, { unit_g: 120, unit_label: "banana" });
+    const powder = item("Phd Vegan Protein", 372, 74, 7, 6);
+    const lunch = () => [rice, mince, broccoli, rocket, pepper].map(pickOf);
+
+    const { db } = installFakeSupabase({
+      db: {
+        users: [profile(["Lunch", "Snack", "Dinner"])],
+        daily_targets: targets({ kcal: 1546, protein_g: 120, carbs_g: 172, fat_g: 42 }),
+        food_logs: [],
+        pantry_items: [rice, mince, broccoli, rocket, pepper, banana, powder],
+        planned_meals: [
+          meal("m1", "Lunch", lunch()),
+          meal("m2", "Snack", [pickOf(banana), pickOf(powder)]),
+          meal("m3", "Dinner", lunch()),
+        ],
+      },
+    });
+
+    await buildMyDay();
+    const fake = db as { planned_meals: Row[] };
+
+    // The powder is on the plate with a real amount.
+    expect(gramsIn(fake, "Snack", "Phd Vegan Protein")).toBeGreaterThanOrEqual(20);
+    // Mince in whole portions, never a pile of them.
+    for (const slot of ["Lunch", "Dinner"]) {
+      const g = gramsIn(fake, slot, "Linda McCartney Foods - Vegemince");
+      expect(g % 100).toBe(0);
+      expect(g).toBeLessThanOrEqual(200);
+    }
+    expect(portionsOf(fake, "Lunch")).toHaveLength(5);
+    expect(portionsOf(fake, "Snack")).toHaveLength(2);
+    expect(portionsOf(fake, "Dinner")).toHaveLength(5);
+    const tot = dayTotals(fake);
+    expect(Math.abs(tot.kcal - 1546)).toBeLessThanOrEqual(50);
+    expect(Math.abs(tot.protein_g - 120)).toBeLessThanOrEqual(12);
+  });
 
   it("#27, rice, vegemince, olive oil twice with a banana + powder snack", async () => {
     // The exact report: "A fixed portion of 1 medium basmati rice (cooked) 200 g

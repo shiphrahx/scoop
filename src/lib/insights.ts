@@ -902,8 +902,29 @@ export interface WeekCycling {
   config: CycleConfig;
 }
 
+// Two sets of days added together, date by date: what was logged, and the
+// planned meals nobody marked as eaten.
+export function mergeIntake(a: DayIntake[], b: DayIntake[]): DayIntake[] {
+  const byDay = new Map<string, DayIntake>();
+  for (const d of [...a, ...b]) {
+    const acc = byDay.get(d.date) ?? { date: d.date, kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
+    acc.kcal += d.kcal;
+    acc.protein_g += d.protein_g;
+    acc.carbs_g += d.carbs_g;
+    acc.fat_g += d.fat_g;
+    byDay.set(d.date, acc);
+  }
+  return [...byDay.values()].sort((x, y) => x.date.localeCompare(y.date));
+}
+
 // How this week is going: days logged, days the calorie target was hit, days
 // the protein target was reached, and the streak.
+//
+// `planned` is the past days' planned meals that were never marked as eaten.
+// They count towards the days hit: the day plan already shows them as the
+// day's food, so a week the user ate to plan without ticking each meal read as
+// 0 of 6 days hit (#55). Days logged and the streak stay on real logs, and only
+// days before today take planned meals, since today's are still to come.
 //
 // Each day is scored against the target that was actually in force ON THAT DAY,
 // which on a refeed day is the base raised to maintenance. Scored against the
@@ -916,9 +937,15 @@ export function weekScorecard(
   target: WeekTarget | null,
   today: string,
   cycling?: WeekCycling,
+  planned: DayIntake[] = [],
 ): WeekScorecard {
   const weekStart = weekStartOf(today);
-  const days = intake.filter((d) => weekStartOf(d.date) === weekStart && d.kcal > 0);
+  const inWeek = (d: DayIntake) => weekStartOf(d.date) === weekStart && d.kcal > 0;
+  const days = intake.filter(inWeek);
+  const eaten = mergeIntake(
+    intake,
+    planned.filter((d) => d.date < today),
+  ).filter(inWeek);
   const daysSoFar =
     Math.round((dayMs(today) - dayMs(weekStart)) / DAY_MS) + 1;
 
@@ -928,14 +955,14 @@ export function weekScorecard(
     return dayTarget(target, highDays.has(date), cycling?.config ?? NO_CYCLING);
   };
 
-  const kcalHitDays = days.filter((d) => {
+  const kcalHitDays = eaten.filter((d) => {
     const t = targetFor(d.date);
     return t != null && t.kcal > 0 && Math.abs(d.kcal - t.kcal) / t.kcal <= KCAL_HIT_TOLERANCE;
   }).length;
   // Protein holds identical on a refeed day, so this reads the same figure
   // either way, it goes through the day target so it can never drift apart
   // from the calorie side.
-  const proteinHitDays = days.filter((d) => {
+  const proteinHitDays = eaten.filter((d) => {
     const t = targetFor(d.date);
     return t != null && t.protein_g > 0 && d.protein_g >= t.protein_g * PROTEIN_HIT_SHARE;
   }).length;

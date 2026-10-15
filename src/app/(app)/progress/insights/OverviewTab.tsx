@@ -419,7 +419,8 @@ function ScorecardDetail({ scorecard }: { scorecard: WeekScorecard }) {
       />
       <p className="text-sm text-[var(--muted)]">
         Week of {shortDate(scorecard.weekStart)}. Calories count as hit within 15% of the
-        target; protein counts once you reach 90% of it.
+        target; protein counts once you reach 90% of it. On past days, planned meals
+        count even if they weren&apos;t marked as eaten.
       </p>
     </>
   );

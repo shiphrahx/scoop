@@ -149,71 +149,75 @@ function PantryRow({
   const noMacros = item.kcal_100g === 0;
 
   return (
-    <li className="sc-card flex items-center justify-between gap-3 px-4 py-3">
-      <div className="flex min-w-0 flex-col gap-1">
-        <p className="truncate font-semibold">{item.name}</p>
-        <p className="text-xs text-[var(--muted)]">
-          {noMacros ? (
-            <button
-              onClick={() => setEditing(true)}
-              className="font-medium text-[var(--ink-teal)]"
-            >
-              Add macros
-            </button>
-          ) : (
-            <>
-              {Math.round(item.kcal_100g)} kcal / 100g
-              {sizesOf(item).length > 0 && item.unit_g
-                ? ` · ${item.unit_label ?? "unit"} (${Math.round(item.unit_g)} g)`
-                : item.unit_g && item.pack_size_g
-                  ? ` · ${packLabel(item)}`
-                  : item.pack_size_g
-                    ? ` · ${item.pack_size_g} g pack`
-                    : ""}
-            </>
+    <li className="sc-card flex flex-col gap-2 px-4 py-3">
+      {/* The name gets the card's full width and wraps, so two products
+          that share a brand prefix can still be told apart. */}
+      <p className="break-words font-semibold">{item.name}</p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className="text-xs text-[var(--muted)]">
+            {noMacros ? (
+              <button
+                onClick={() => setEditing(true)}
+                className="font-medium text-[var(--ink-teal)]"
+              >
+                Add macros
+              </button>
+            ) : (
+              <>
+                {Math.round(item.kcal_100g)} kcal / 100g
+                {sizesOf(item).length > 0 && item.unit_g
+                  ? ` · ${item.unit_label ?? "unit"} (${Math.round(item.unit_g)} g)`
+                  : item.unit_g && item.pack_size_g
+                    ? ` · ${packLabel(item)}`
+                    : item.pack_size_g
+                      ? ` · ${item.pack_size_g} g pack`
+                      : ""}
+              </>
+            )}
+          </p>
+          {sizesOf(item).length > 0 && (
+            <SizeSelect item={item} disabled={pending} />
           )}
-        </p>
-        {sizesOf(item).length > 0 && (
-          <SizeSelect item={item} disabled={pending} />
-        )}
-        <ShelfChip item={item} categories={categories} disabled={pending} />
-      </div>
+          <ShelfChip item={item} categories={categories} disabled={pending} />
+        </div>
 
-      <div className="flex shrink-0 items-center gap-2">
-        <button
-          onClick={() => setEditing(true)}
-          aria-label="Edit"
-          className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] active:scale-90"
-        >
-          <Pencil size={16} />
-        </button>
-        <button
-          onClick={remove}
-          disabled={pending}
-          aria-label="Delete"
-          className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] text-rose-600 active:scale-90 disabled:opacity-40"
-        >
-          <Trash2 size={16} />
-        </button>
-        <button
-          onClick={() => step(-1)}
-          disabled={pending}
-          aria-label="One fewer"
-          className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] active:scale-90 disabled:opacity-40"
-        >
-          <Minus size={18} />
-        </button>
-        <span className="w-6 text-center font-semibold tabular-nums">
-          {item.quantity}
-        </span>
-        <button
-          onClick={() => step(1)}
-          disabled={pending}
-          aria-label="One more"
-          className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] active:scale-90 disabled:opacity-40"
-        >
-          <Plus size={18} />
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            onClick={() => setEditing(true)}
+            aria-label="Edit"
+            className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] active:scale-90"
+          >
+            <Pencil size={16} />
+          </button>
+          <button
+            onClick={remove}
+            disabled={pending}
+            aria-label="Delete"
+            className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] text-rose-600 active:scale-90 disabled:opacity-40"
+          >
+            <Trash2 size={16} />
+          </button>
+          <button
+            onClick={() => step(-1)}
+            disabled={pending}
+            aria-label="One fewer"
+            className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] active:scale-90 disabled:opacity-40"
+          >
+            <Minus size={18} />
+          </button>
+          <span className="w-6 text-center font-semibold tabular-nums">
+            {item.quantity}
+          </span>
+          <button
+            onClick={() => step(1)}
+            disabled={pending}
+            aria-label="One more"
+            className="grid h-9 w-9 place-items-center rounded-full bg-[var(--fill)] active:scale-90 disabled:opacity-40"
+          >
+            <Plus size={18} />
+          </button>
+        </div>
       </div>
     </li>
   );
