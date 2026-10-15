@@ -106,10 +106,13 @@ export default async function Insights() {
                 weights={data.weights}
                 fatLoss={fatLossSignal(weighIns, tape)}
                 plateau={plateau(weighIns)}
-                scorecard={weekScorecard(data.intake, currentTarget, today, {
-                  highDayDates: data.highDayDates,
-                  config: data.cycle,
-                })}
+                scorecard={weekScorecard(
+                  data.intake,
+                  currentTarget,
+                  today,
+                  { highDayDates: data.highDayDates, config: data.cycle },
+                  data.plannedIntake,
+                )}
                 hasTarget={currentTarget != null}
                 board={milestones(
                   weighIns,

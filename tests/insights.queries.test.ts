@@ -13,6 +13,7 @@ const {
   getInsightsData,
   getNonScaleVictories,
   getTargetHistory,
+  getUnloggedPlannedIntake,
 } = await import("@/lib/queries");
 
 const isoDay = (daysAgo: number) =>
@@ -21,6 +22,43 @@ const at = (daysAgo: number, hour = 12) =>
   new Date(Date.now() - daysAgo * 86_400_000)
     .toISOString()
     .replace(/T.*/, `T${String(hour).padStart(2, "0")}:00:00.000Z`);
+
+describe("getUnloggedPlannedIntake", () => {
+  const planned = (date: string, kcal: number, logged: string | null = null) => ({
+    user_id: "user-1",
+    date,
+    slot: `slot-${date}-${kcal}`,
+    kcal: String(kcal),
+    protein_g: "40",
+    carbs_g: "50",
+    fat_g: "10",
+    logged_food_id: logged,
+  });
+
+  it("sums a past day's unticked meals, leaving out eaten ones and today", async () => {
+    installFakeSupabase({
+      db: {
+        users: [{ id: "user-1", timezone: "UTC" }],
+        planned_meals: [
+          planned(isoDay(1), 500),
+          planned(isoDay(1), 700),
+          // Marked as eaten: already in the food logs, counting it here doubles it.
+          planned(isoDay(1), 300, "log-1"),
+          // Today's plan is still to be eaten.
+          planned(isoDay(0), 900),
+          // Waiting on "Build my day": no macros yet.
+          planned(isoDay(2), 0),
+        ],
+      },
+    });
+
+    const days = await getUnloggedPlannedIntake(7);
+
+    expect(days).toEqual([
+      { date: isoDay(1), kcal: 1200, protein_g: 80, carbs_g: 100, fat_g: 20 },
+    ]);
+  });
+});
 
 describe("getDailyMacros", () => {
   it("sums every log on a day into one row", async () => {

@@ -38,6 +38,7 @@ import {
 } from "@/lib/calibrationwrap";
 import {
   DEFAULT_TIMEZONE,
+  addDaysISO,
   dayRangeFor,
   localDate,
   localHour,
@@ -1491,6 +1492,37 @@ export async function getDailyMacros(days = 180): Promise<DayIntake[]> {
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+// The planned meals per day that were never marked as eaten, over a window,
+// before today. The scorecard counts them as the day's food the way the day
+// plan does (see weekScorecard). A meal still waiting on "Build my day" has no
+// macros yet and drops out on its zero.
+export async function getUnloggedPlannedIntake(days = 180): Promise<DayIntake[]> {
+  const supabase = await createClient();
+  const today = await localToday();
+  const from = addDaysISO(today, -(days - 1));
+
+  const { data } = await supabase
+    .from("planned_meals")
+    .select("date, kcal, protein_g, carbs_g, fat_g")
+    .is("logged_food_id", null)
+    .gte("date", from)
+    .lt("date", today);
+
+  const byDay = new Map<string, DayIntake>();
+  for (const row of (data as Record<string, unknown>[]) ?? []) {
+    const date = row.date as string;
+    const acc = byDay.get(date) ?? { date, kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
+    acc.kcal += Number(row.kcal ?? 0);
+    acc.protein_g += Number(row.protein_g ?? 0);
+    acc.carbs_g += Number(row.carbs_g ?? 0);
+    acc.fat_g += Number(row.fat_g ?? 0);
+    byDay.set(date, acc);
+  }
+  return [...byDay.values()]
+    .filter((d) => d.kcal > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
 // Every weekly target the user has been given, oldest first. The insights cards
 // judge a week against the target that was actually in force THAT week, not
 // against today's, a target that was cut in June shouldn't retroactively make
@@ -1559,6 +1591,8 @@ export interface InsightsData {
   weights: { date: string; weight_kg: number }[];
   checkIns: (CheckIn & { photos: CheckInPhoto[] })[];
   intake: DayIntake[];
+  // Past planned meals never marked as eaten, for the week's days hit only.
+  plannedIntake: DayIntake[];
   targets: WeekTarget[];
   // The target actually IN FORCE, resolved the way the rest of the app resolves
   // it, most recent row on or before this week, pinned to the onboarding anchor
@@ -1598,6 +1632,7 @@ export async function getInsightsData(): Promise<InsightsData> {
     deviceConnected,
     currentTarget,
     latestWeight,
+    plannedIntake,
   ] = await Promise.all([
     getProfile(),
     localToday(),
@@ -1612,6 +1647,7 @@ export async function getInsightsData(): Promise<InsightsData> {
     getDeviceConnected(),
     getCurrentTargets(),
     getLatestWeight(),
+    getUnloggedPlannedIntake(INSIGHTS_HABIT_DAYS),
   ]);
 
   // The same recipe the home ring and the day planner use (see
@@ -1628,6 +1664,7 @@ export async function getInsightsData(): Promise<InsightsData> {
     weights,
     checkIns,
     intake,
+    plannedIntake,
     targets,
     currentTarget,
     cycle,
