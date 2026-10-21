@@ -299,9 +299,10 @@ describe("the reported days, built end to end", () => {
     expect(fake.planned_meals.map((m) => String(m.why ?? "")).join(" ")).not.toMatch(
       /couldn't fit/i,
     );
-    // Nothing exceeds the day's numbers to make room for it.
+    // Nothing exceeds the day's numbers to make room for it, give or take the
+    // same 20 kcal of rounding the planner counts as landing on a limit.
     const tot = dayTotals(fake);
-    expect(tot.kcal).toBeLessThanOrEqual(2000);
+    expect(tot.kcal).toBeLessThanOrEqual(2020);
     expect(tot.protein_g).toBeLessThanOrEqual(152);
     // The chips paid for it: fewer than in the same dinner without the spread
     // (the control below), exactly what the report asked for.
