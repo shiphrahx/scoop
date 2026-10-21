@@ -339,6 +339,49 @@ describe("planPickedDay", () => {
     expect(plan[0].why).toMatch(/edit this meal/i);
   });
 
+  it("lets a meal that can carry the carbs take them when another can't (#84)", () => {
+    // The reported day, with breakfast already eaten: lunch and dinner each have
+    // a hand-set food, and the snack is a protein shake that carries no carbs at
+    // all. Each meal used to be held to its own third of every macro, so dinner's
+    // rice was kept to dinner's third of the carbs and the day sat at 135/142,
+    // when 25 g more rice would have landed it.
+    const rice = { ...food("Basmati rice (cooked)", 2.7, 28, 0.3), kcal_100g: 130 };
+    const oil = { ...food("extra virgin olive oil", 0, 0, 92), kcal_100g: 800 };
+    const mince: PantryFood = {
+      ...food("Vegemince", 19.2, 10.4, 4.8),
+      kcal_100g: 164,
+      unit_g: 125,
+      unit_label: "portion",
+    };
+    const tofu = { ...food("Silken tofu", 6.8, 2.6, 2.7), kcal_100g: 61 };
+    const shake = { ...food("Vegan protein", 80, 4, 0.8), kcal_100g: 372 };
+    const almond = { ...food("Almond Drink No Sugar", 0.6, 0.1, 1.1), kcal_100g: 14 };
+    const eaten = { kcal: 328, protein_g: 45, carbs_g: 25, fat_g: 4 };
+    const target = { kcal: 1427, protein_g: 120, carbs_g: 142, fat_g: 42 };
+
+    const plan = planPickedDay({
+      slots: [
+        { slot: "Lunch", foods: [mince, oil, { ...rice, pinned_g: 163 }] },
+        { slot: "Snack", foods: [shake, almond] },
+        { slot: "Dinner", foods: [{ ...tofu, pinned_g: 300 }, rice, oil] },
+      ],
+      budget: {
+        kcal: target.kcal - eaten.kcal,
+        protein_g: target.protein_g - eaten.protein_g,
+        carbs_g: target.carbs_g - eaten.carbs_g,
+        fat_g: target.fat_g - eaten.fat_g,
+      },
+    });
+
+    const tot = sumPlan(plan);
+    expect(Math.abs(tot.kcal + eaten.kcal - target.kcal)).toBeLessThanOrEqual(50);
+    for (const key of ["protein_g", "carbs_g", "fat_g"] as const) {
+      expect(Math.abs(tot[key] + eaten[key] - target[key]), key).toBeLessThanOrEqual(
+        TOLERANCE,
+      );
+    }
+  });
+
   it("sizes meals by the slot weights", () => {
     // Same picks in both meals so size differences come only from the weights.
     const budget = { kcal: 1600, protein_g: 120, carbs_g: 150, fat_g: 50 };

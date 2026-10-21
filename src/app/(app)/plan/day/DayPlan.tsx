@@ -136,6 +136,7 @@ export default function DayPlan({
   prefs,
   date,
   favourites = [],
+  buildCard,
 }: {
   slots: Slot[];
   extras?: LoggedFood[];
@@ -143,6 +144,9 @@ export default function DayPlan({
   prefs: NutrientKey[];
   date: string;
   favourites?: FavouriteMeal[];
+  // The "Build my day" button. Sits under the last meal, where the user is
+  // when they finish picking, rather than back up above the whole list.
+  buildCard?: ReactNode;
 }) {
   const [busy, startTransition] = useTransition();
   const [err, setErr] = useState<string | null>(null);
@@ -291,6 +295,8 @@ export default function DayPlan({
           )}
         </div>
       ))}
+
+      {buildCard}
 
       {err && (
         <p className="text-center text-sm font-medium text-[var(--danger,#e5484d)]">

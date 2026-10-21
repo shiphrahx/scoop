@@ -73,13 +73,6 @@ export default async function DayBody({
         />
       )}
 
-      {pickedMeals.length > 0 && (
-        <BuildDayCard
-          date={date === today ? undefined : date}
-          mode={anyUnbuilt ? "build" : "rebalance"}
-        />
-      )}
-
       <AlcoholLogger
         date={date === today ? undefined : date}
         carbsLeft={carbsLeft}
@@ -98,6 +91,14 @@ export default async function DayBody({
         prefs={prefs}
         date={date}
         favourites={favourites}
+        buildCard={
+          pickedMeals.length > 0 && (
+            <BuildDayCard
+              date={date === today ? undefined : date}
+              mode={anyUnbuilt ? "build" : "rebalance"}
+            />
+          )
+        }
       />
     </>
   );

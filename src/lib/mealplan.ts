@@ -261,14 +261,25 @@ export interface PlanPickedDayInput {
 //    against each other, and the picked foods decide how cleanly they can.
 //
 // Meal SIZES (the user's slot weights) are a preference, not a target: they bend
-// before any day total does.
+// before any day total does. So every share row sits well under the weakest day
+// row. A meal's size is its ENERGY; its macros are whatever its picks carry, so
+// the macro shares are barely more than a tie-break. Held at the old weight (3,
+// as strong as the day's carbs), a protein shake snack "owed" a third of the
+// day's carbs it could never carry, and the dinner rice that could have carried
+// them was held back to dinner's own third. The day landed short on carbs with
+// the fix sitting right there (#84).
 const ROW_WEIGHT: Record<RowKey, number> = {
   kcal: 10,
   protein_g: 6,
   carbs_g: 3,
   fat_g: 2,
 };
-const SHARE_WEIGHT = 3;
+const SHARE_WEIGHT: Record<RowKey, number> = {
+  kcal: 1,
+  protein_g: 0.3,
+  carbs_g: 0.3,
+  fat_g: 0.3,
+};
 // A row is scaled by its budget, so a tiny budget doesn't turn a 2 g miss into a
 // vast residual. Below these floors the scale stops shrinking.
 const ROW_SCALE_FLOOR: Record<RowKey, number> = {
@@ -480,7 +491,7 @@ function dayModel(
       // Pressed alongside the day row it belongs to, so that holding a limit
       // doesn't quietly stop meal sizes mattering, two meals with the same picks
       // should still come out the same size.
-      const w = (SHARE_WEIGHT * Math.sqrt(press[key])) / scaleOf(key);
+      const w = (SHARE_WEIGHT[key] * Math.sqrt(press[key])) / scaleOf(key);
       A.push(
         freeIdx.map((i) =>
           vars[i].slotIdx === slotIdx ? perGram(vars[i].food, key) * w : 0,
@@ -526,7 +537,7 @@ function modelCost(
     for (const key of ROW_KEYS) {
       const target = Math.max(0, budget[key] ?? 0) * fractions[slotIdx];
       const r =
-        ((total(key, slotIdx) - target) * SHARE_WEIGHT * Math.sqrt(press[key])) /
+        ((total(key, slotIdx) - target) * SHARE_WEIGHT[key] * Math.sqrt(press[key])) /
         scaleOf(key);
       cost += r * r;
     }
