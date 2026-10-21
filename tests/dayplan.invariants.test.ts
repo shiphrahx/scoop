@@ -289,3 +289,94 @@ describe("the day plan, over random realistic days", { timeout: 30_000 }, () => 
     );
   });
 });
+
+// Days a plan CAN land exactly: every food weighed out somewhere inside its own
+// serving window, and the budget is what those portions come to. So whenever the
+// planner misses a number here, a better plan was sitting right there. One meal
+// in four is lopsided on purpose (a shake, fruit, nuts), the kind of meal that
+// can't carry its share of every macro, which is what #84 tripped over.
+const LOPSIDED = [
+  [f("Phd vegan protein", 372, 80, 4, 0.8), f("Almond Drink No Sugar", 14, 0.6, 0.1, 1.1)],
+  [f("Apple", 52, 0.3, 14, 0.2)],
+  [f("Mixed nuts", 607, 20, 13, 54)],
+  [f("Whey Protein", 380, 75, 6, 6)],
+  [f("Rice cakes", 387, 8, 81, 3), f("Peanut Butter", 588, 25, 20, 50)],
+];
+const WEIGHED = [
+  f("Chicken Breast", 106, 24, 0, 1.4),
+  f("Silken tofu", 61, 6.8, 2.6, 2.7),
+  f("Salmon Fillet", 208, 20, 0, 13),
+  f("Greek Yogurt", 59, 10, 3.6, 0.4),
+];
+const STAPLES = [
+  f("Basmati rice (cooked)", 130, 2.7, 28, 0.3),
+  f("Pasta", 371, 13, 71, 1.5),
+  f("Potatoes", 77, 2, 17, 0.1),
+  f("Oats", 379, 13, 60, 7),
+];
+const FATS = [f("extra virgin olive oil", 800, 0, 0, 92), f("Hummus", 166, 7.6, 14, 9.6)];
+
+const reachableDay = fc
+  .record({
+    meals: fc.array(
+      fc.record({
+        protein: fc.nat(),
+        carb: fc.nat(),
+        fat: fc.option(fc.nat(), { nil: undefined }),
+        lopsided: fc.option(fc.nat(), { freq: 4, nil: undefined }),
+      }),
+      { minLength: 2, maxLength: 4 },
+    ),
+    spread: fc.array(fc.double({ min: 0, max: 1, noNaN: true }), {
+      minLength: 16,
+      maxLength: 16,
+    }),
+  })
+  .map(({ meals, spread }) => {
+    const slots = meals.map((m, i) => ({
+      slot: `Meal ${i}`,
+      foods: (m.lopsided !== undefined
+        ? LOPSIDED[m.lopsided % LOPSIDED.length]
+        : [
+            WEIGHED[m.protein % WEIGHED.length],
+            STAPLES[m.carb % STAPLES.length],
+            ...(m.fat !== undefined ? [FATS[m.fat % FATS.length]] : []),
+          ]
+      ).map((x) => ({ ...x })),
+    }));
+    const budget: Macros = { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
+    let k = 0;
+    for (const s of slots) {
+      for (const food of s.foods) {
+        const lo = floorPortion(food, Infinity);
+        const hi = maxServingG(food);
+        const g = Math.round(lo + (hi - lo) * 0.6 * spread[k++ % spread.length]) / 100;
+        // Rounded per food, the way the plan's own totals are.
+        budget.kcal += Math.round(food.kcal_100g * g);
+        budget.protein_g += Math.round(food.protein_100g * g);
+        budget.carbs_g += Math.round(food.carbs_100g * g);
+        budget.fat_g += Math.round(food.fat_100g * g);
+      }
+    }
+    return { slots, budget };
+  });
+
+describe("the day plan, when an exact plan exists", { timeout: 30_000 }, () => {
+  it("lands every number inside the day's green band", () => {
+    // The same bands the day verdict uses: 50 kcal, 5 g a macro. Measured as a
+    // rate over a fixed sample rather than per day: a few days in a thousand
+    // still miss on a small budget where protein is pressed as a ceiling, which
+    // is a different trade from the one this guards. Before #84 it was 1 in 12.
+    const days = fc.sample(reachableDay, { numRuns: 1000, seed: 84 });
+    const missed = days.filter(({ slots, budget }) => {
+      const tot = sumPlan(planPickedDay({ slots, budget }));
+      return (
+        Math.abs(tot.kcal - budget.kcal) > 50 ||
+        (["protein_g", "carbs_g", "fat_g"] as const).some(
+          (key) => Math.abs(tot[key] - budget[key]!) > 5,
+        )
+      );
+    });
+    expect(missed.length).toBeLessThanOrEqual(5);
+  });
+});
